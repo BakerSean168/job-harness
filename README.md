@@ -47,7 +47,8 @@ The server uses SQLite schema v2 for durable state and exposes the same applicat
 ```text
 job-harness/
 ├── apps/
-│   └── server/             # standalone REST + MCP composition root
+│   ├── server/             # standalone REST + MCP composition root
+│   └── web/                # Next.js workspace shell and future product UI
 ├── docs/
 │   ├── architecture/
 │   └── integration/
@@ -75,6 +76,8 @@ Requirements:
 pnpm install
 pnpm check
 pnpm server
+# separate terminal
+pnpm web
 ```
 
 Defaults:
@@ -84,6 +87,7 @@ Database: ./data/job-harness.db
 Health:   http://127.0.0.1:3000/healthz
 MCP:      http://127.0.0.1:3000/mcp
 REST:     http://127.0.0.1:3000/api/v1
+Web dev:  http://127.0.0.1:3001
 ```
 
 Configuration:

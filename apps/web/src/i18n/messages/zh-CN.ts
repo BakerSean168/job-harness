@@ -1,0 +1,46 @@
+import type { MessageCatalog } from './types';
+
+export const zhCN: MessageCatalog = {
+  meta: { description: '面向 AI 辅助求职流程的岗位、投递与发现记录工作台。' },
+  brand: { name: 'Job Harness', subtitle: '求职工作台' },
+  nav: {
+    overview: '概览',
+    inbox: '收件箱',
+    jobs: '岗位',
+    applications: '投递',
+    companies: '公司',
+    campaigns: '求职目标',
+    resumes: '简历',
+    discovery: '发现记录',
+    analytics: '分析',
+    settings: '设置',
+  },
+  topbar: {
+    search: '搜索岗位、公司、投递…',
+    searchHint: '搜索 / 命令',
+    language: '语言',
+    theme: '主题',
+  },
+  common: {
+    comingSoon: '该工作区将在下一阶段接入真实数据。',
+    loading: '正在加载…',
+    retry: '重试',
+    noData: '暂无数据',
+    unexpectedError: '加载工作区时发生错误。',
+    notFoundTitle: '页面不存在',
+    notFoundDescription: '这个地址没有对应的 Job Harness 工作区。',
+    backOverview: '返回概览',
+  },
+  pages: {
+    overview: { title: '概览', description: '查看当前求职目标、漏斗状态和最近变化。' },
+    inbox: { title: '收件箱', description: '审核 Agent 与导入流程发现、但尚未完成分流的岗位。' },
+    jobs: { title: '岗位', description: '搜索、比较和管理所有已知 Opportunity 与 Listing。' },
+    applications: { title: '投递', description: '跟踪从已投递到 Offer 的完整招聘 Pipeline。' },
+    companies: { title: '公司', description: '管理规范化公司主体与相关岗位。' },
+    campaigns: { title: '求职目标', description: '定义角色、城市和简历方向等搜索约束。' },
+    resumes: { title: '简历', description: '查看 Resume Harness 注册的简历及其投递使用情况。' },
+    discovery: { title: '发现记录', description: '审计 ChatGPT、导入器和其他外部执行器的岗位发现过程。' },
+    analytics: { title: '分析', description: '查看漏斗、简历和搜索活动的可解释统计。' },
+    settings: { title: '设置', description: '管理界面语言、外观和 Job Harness 连接信息。' },
+  },
+};

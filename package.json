@@ -7,12 +7,14 @@
   "packageManager": "pnpm@10.15.1",
   "scripts": {
     "check:manifest": "node scripts/check-manifest.mjs",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b && pnpm --filter @job-harness/web typecheck",
     "test": "vitest run",
-    "check": "pnpm check:manifest && pnpm check:boundaries && pnpm typecheck && pnpm test",
+    "check": "pnpm check:manifest && pnpm check:boundaries && pnpm typecheck && pnpm test && pnpm build:web",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "server": "pnpm --filter @job-harness/server start",
-    "import:legacy": "pnpm --filter @job-harness/server import:legacy"
+    "import:legacy": "pnpm --filter @job-harness/server import:legacy",
+    "build:web": "pnpm --filter @job-harness/web build",
+    "web": "pnpm --filter @job-harness/web dev"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",

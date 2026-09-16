@@ -52,9 +52,9 @@ Read models:
 
 Expose the same Application/Workspace Services over versioned `/api/v1/*`; no duplicate business rules. Implemented with shared bearer auth, runtime validation, stable error mapping, and HTTP integration tests.
 
-### JH-W102 — Web shell + i18n
+### JH-W102 — Web shell + i18n ✅
 
-Create Web app shell with sidebar, workspace header, `zh-CN` + `en`, light/dark semantic tokens and error/loading primitives.
+Implemented as a Next.js App Router workspace with persistent sidebar/topbar, stable IA routes, `zh-CN` default + `en`, semantic light/dark tokens, localized loading/error/404 primitives, and production-build CI gating. Business pages remain placeholders until W201/W202.
 
 ## Phase W2 — Primary vertical slice
 

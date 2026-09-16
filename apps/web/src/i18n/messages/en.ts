@@ -1,0 +1,46 @@
+import type { MessageCatalog } from './types';
+
+export const en: MessageCatalog = {
+  meta: { description: 'A workspace for AI-assisted job discovery, applications, and durable career-search state.' },
+  brand: { name: 'Job Harness', subtitle: 'Career workspace' },
+  nav: {
+    overview: 'Overview',
+    inbox: 'Inbox',
+    jobs: 'Jobs',
+    applications: 'Applications',
+    companies: 'Companies',
+    campaigns: 'Campaigns',
+    resumes: 'Resumes',
+    discovery: 'Discovery',
+    analytics: 'Analytics',
+    settings: 'Settings',
+  },
+  topbar: {
+    search: 'Search jobs, companies, applications…',
+    searchHint: 'Search / command',
+    language: 'Language',
+    theme: 'Theme',
+  },
+  common: {
+    comingSoon: 'This workspace will connect to live data in the next slice.',
+    loading: 'Loading…',
+    retry: 'Retry',
+    noData: 'No data yet',
+    unexpectedError: 'The workspace could not be loaded.',
+    notFoundTitle: 'Page not found',
+    notFoundDescription: 'This address does not map to a Job Harness workspace.',
+    backOverview: 'Back to overview',
+  },
+  pages: {
+    overview: { title: 'Overview', description: 'See active search targets, funnel state, and recent changes.' },
+    inbox: { title: 'Inbox', description: 'Triage opportunities discovered by Agents and imports.' },
+    jobs: { title: 'Jobs', description: 'Search, compare, and manage known Opportunities and Listings.' },
+    applications: { title: 'Applications', description: 'Operate the hiring pipeline from Applied through Offer.' },
+    companies: { title: 'Companies', description: 'Browse canonical companies and their related opportunities.' },
+    campaigns: { title: 'Campaigns', description: 'Define target roles, locations, resume lanes, and search constraints.' },
+    resumes: { title: 'Resumes', description: 'Inspect Resume Harness references and application usage.' },
+    discovery: { title: 'Discovery', description: 'Audit job discovery runs from ChatGPT, importers, and other executors.' },
+    analytics: { title: 'Analytics', description: 'Explore explainable funnel, resume, and discovery projections.' },
+    settings: { title: 'Settings', description: 'Manage language, appearance, and Job Harness connection settings.' },
+  },
+};
