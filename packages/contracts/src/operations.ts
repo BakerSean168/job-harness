@@ -8,14 +8,11 @@ import {
   EntityIdSchema,
   IdempotencyKeySchema,
   IsoDateTimeSchema,
-  JobExternalIdentitySchema,
   JobSchema,
-  JobSourceSchema,
   JobSourceKindSchema,
   JobStateSchema,
   JobSearchCampaignSchema,
   ResumeProfileRefSchema,
-  UrlSchema,
 } from './schemas';
 
 export const PageSchema = z
@@ -41,17 +38,44 @@ export const SearchJobsOutputSchema = z
 export const GetJobInputSchema = z.object({ jobId: EntityIdSchema }).strict();
 export const GetJobOutputSchema = JobSchema.nullable();
 
+export const JobListingCandidateSchema = z
+  .object({
+    sourceKind: JobSourceKindSchema,
+    label: z.string().trim().min(1).max(200).nullable().optional(),
+    url: z.url().nullable().optional(),
+    externalNamespace: z.string().trim().min(1).max(100).nullable().optional(),
+    externalId: z.string().trim().min(1).max(300).nullable().optional(),
+    identityKind: z.enum(['external-id', 'url', 'scoped']),
+    status: z.enum(['active', 'closed', 'unknown']).default('active'),
+    publishedAt: IsoDateTimeSchema.nullable().optional(),
+    metadataSnapshot: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.identityKind === 'external-id' && !value.externalId) {
+      ctx.addIssue({ code: 'custom', message: 'external-id listing requires externalId', path: ['externalId'] });
+    }
+    if (value.identityKind === 'url' && !value.url) {
+      ctx.addIssue({ code: 'custom', message: 'url listing requires url', path: ['url'] });
+    }
+  });
+
 export const DuplicateCheckInputSchema = z
   .object({
     companyName: z.string().trim().min(1).max(300),
     title: z.string().trim().min(1).max(500),
     city: z.string().trim().min(1).max(200).nullable().optional(),
-    canonicalUrl: UrlSchema.nullable().optional(),
-    externalIdentity: JobExternalIdentitySchema.nullable().optional(),
+    listings: z.array(JobListingCandidateSchema).default([]),
   })
   .strict();
 export const DuplicateCheckOutputSchema = z
-  .object({ duplicate: z.boolean(), job: JobSchema.nullable(), matchedBy: z.enum(['external-id', 'url', 'composite']).nullable() })
+  .object({
+    duplicate: z.boolean(),
+    job: JobSchema.nullable(),
+    matchedBy: z.enum(['listing-external-id', 'listing-url']).nullable(),
+    potentialMatches: z.array(JobSchema).default([]),
+    identityConflict: z.boolean().default(false),
+  })
   .strict();
 
 export const UpsertJobCandidateSchema = z
@@ -59,9 +83,7 @@ export const UpsertJobCandidateSchema = z
     companyName: z.string().trim().min(1).max(300),
     title: z.string().trim().min(1).max(500),
     city: z.string().trim().min(1).max(200).nullable().optional(),
-    canonicalUrl: UrlSchema.nullable().optional(),
-    externalIdentities: z.array(JobExternalIdentitySchema).default([]),
-    sources: z.array(JobSourceSchema).min(1),
+    listings: z.array(JobListingCandidateSchema).min(1),
     description: z.string().nullable().optional(),
     observedAt: IsoDateTimeSchema,
     discoveryRunId: EntityIdSchema.nullable().optional(),
@@ -182,6 +204,7 @@ export type SearchJobsInput = z.input<typeof SearchJobsInputSchema>;
 export type SearchJobsOutput = z.output<typeof SearchJobsOutputSchema>;
 export type DuplicateCheckInput = z.input<typeof DuplicateCheckInputSchema>;
 export type DuplicateCheckOutput = z.output<typeof DuplicateCheckOutputSchema>;
+export type JobListingCandidate = z.input<typeof JobListingCandidateSchema>;
 export type UpsertJobCandidate = z.input<typeof UpsertJobCandidateSchema>;
 export type UpsertJobsBatchInput = z.input<typeof UpsertJobsBatchInputSchema>;
 export type UpsertJobsBatchOutput = z.output<typeof UpsertJobsBatchOutputSchema>;

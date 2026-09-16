@@ -1,12 +1,15 @@
-export interface JobIdentityInput {
+export interface JobListingIdentityInput {
+  readonly sourceKind: string;
+  readonly identityKind: 'external-id' | 'url' | 'scoped';
+  readonly url?: string | null;
+  readonly externalNamespace?: string | null;
+  readonly externalId?: string | null;
+}
+
+export interface OpportunityCandidateIdentityInput {
   readonly companyName: string;
   readonly title: string;
   readonly city?: string | null;
-  readonly canonicalUrl?: string | null;
-  readonly externalIdentity?: {
-    readonly source: string;
-    readonly externalId: string;
-  } | null;
 }
 
 export function normalizeIdentityText(value: string): string {
@@ -26,20 +29,28 @@ export function normalizeCanonicalUrl(value: string): string {
 }
 
 /**
- * Stable dedupe preference:
- * 1. source + external job id
- * 2. canonical job URL
- * 3. normalized company + title + city
+ * Strong JobListing identity only. A scoped listing intentionally has no global
+ * identity key because generic careers pages may legitimately be attached to
+ * multiple opportunities.
  */
-export function buildJobIdentityKey(input: JobIdentityInput): string {
-  if (input.externalIdentity?.source.trim() && input.externalIdentity.externalId.trim()) {
-    return `external:${normalizeIdentityText(input.externalIdentity.source)}:${normalizeIdentityText(input.externalIdentity.externalId)}`;
+export function buildJobListingIdentityKey(input: JobListingIdentityInput): string | null {
+  if (input.identityKind === 'external-id') {
+    const namespace = normalizeIdentityText(input.externalNamespace ?? input.sourceKind);
+    const externalId = normalizeIdentityText(input.externalId ?? '');
+    if (!namespace || !externalId) throw new Error('external-id listing identity requires namespace and externalId');
+    return `external:${namespace}:${externalId}`;
   }
-  if (input.canonicalUrl?.trim()) {
-    return `url:${normalizeCanonicalUrl(input.canonicalUrl)}`;
+  if (input.identityKind === 'url') {
+    if (!input.url?.trim()) throw new Error('url listing identity requires url');
+    return `url:${normalizeCanonicalUrl(input.url)}`;
   }
+  return null;
+}
+
+/** Composite opportunity identity is only a candidate-match key, never a destructive merge key. */
+export function buildOpportunityCandidateKey(input: OpportunityCandidateIdentityInput): string {
   return [
-    'composite',
+    'candidate',
     normalizeIdentityText(input.companyName),
     normalizeIdentityText(input.title),
     normalizeIdentityText(input.city ?? ''),

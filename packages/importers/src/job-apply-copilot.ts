@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { CareerRuntimePorts } from '@job-harness/application';
 import type { JobSourceKind, JobState } from '@job-harness/domain';
 import { normalizeIdentityText } from '@job-harness/domain';
-import type { ResumeProfileRef, UpsertJobCandidate } from '@job-harness/contracts';
+import type { JobListingCandidate, ResumeProfileRef, UpsertJobCandidate } from '@job-harness/contracts';
 
 const LegacyApplicationRowSchema = z.object({
   at: z.string().min(1),
@@ -75,6 +75,7 @@ export interface LegacyImportReport {
   readonly jobsRejected: number;
   readonly stateUpdates: number;
   readonly applicationsRecorded: number;
+  readonly applicationSubmissionsRecorded: number;
   readonly applicationsScreening: number;
   readonly resumesSynced: number;
 }
@@ -184,32 +185,54 @@ function toCandidate(
     additionalSources?: ReadonlyArray<{ url?: string | undefined; platform?: string | undefined }>;
   },
 ): UpsertJobCandidate {
-  let url: string | undefined;
-  if (options.url) {
-    try { url = new URL(options.url).toString(); } catch { url = undefined; }
-  }
-  const sources = [{ url, platform: options.platform }, ...(options.additionalSources ?? [])]
-    .map((source) => {
-      let validUrl: string | undefined;
-      if (source.url) {
-        try { validUrl = new URL(source.url).toString(); } catch { validUrl = undefined; }
-      }
-      return {
-        kind: sourceKind(source.platform),
-        ...(validUrl ? { url: validUrl } : {}),
-        ...(source.platform ? { label: source.platform } : {}),
-      };
-    });
-  const uniqueSources = sources.filter((source, index) =>
-    sources.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(source)) === index,
+  const rawSources = [{ url: options.url, platform: options.platform }, ...(options.additionalSources ?? [])];
+  const listings: JobListingCandidate[] = rawSources.map((source): JobListingCandidate => {
+    let validUrl: string | undefined;
+    if (source.url) {
+      try { validUrl = new URL(source.url).toString(); } catch { validUrl = undefined; }
+    }
+    const specificUrl = jobSpecificUrl(validUrl);
+    return {
+      sourceKind: sourceKind(source.platform),
+      label: source.platform ?? null,
+      url: validUrl ?? null,
+      identityKind: specificUrl ? 'url' as const : 'scoped' as const,
+      status: 'active' as const,
+      metadataSnapshot: { importedFrom: 'job-apply-copilot' },
+    };
+  }).filter((listing, index, items) =>
+    items.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(listing)) === index,
   );
+
+  if (options.poolId) {
+    listings.push({
+      sourceKind: 'other',
+      label: 'job-apply-copilot-pool',
+      url: null,
+      externalNamespace: 'job-apply-copilot-pool',
+      externalId: options.poolId,
+      identityKind: 'external-id',
+      status: 'active',
+      metadataSnapshot: { importedFrom: 'job-apply-copilot', legacyPoolId: true },
+    });
+  }
+
+  if (listings.length === 0) {
+    listings.push({
+      sourceKind: 'manual',
+      label: 'legacy-import',
+      url: null,
+      identityKind: 'scoped',
+      status: 'unknown',
+      metadataSnapshot: { importedFrom: 'job-apply-copilot', syntheticFallback: true },
+    });
+  }
+
   return {
     companyName: company,
     title,
     city: options.city ?? null,
-    canonicalUrl: jobSpecificUrl(url),
-    externalIdentities: options.poolId ? [{ source: 'job-apply-copilot-pool', externalId: options.poolId }] : [],
-    sources: uniqueSources,
+    listings,
     description: options.description ?? null,
     observedAt,
     discoveryRunId,
@@ -275,6 +298,7 @@ export async function importLegacyJobApplyCopilot(
       jobsRejected: run.rejectedCount,
       stateUpdates: 0,
       applicationsRecorded: 0,
+      applicationSubmissionsRecorded: 0,
       applicationsScreening: 0,
       resumesSynced: 0,
     };
@@ -370,6 +394,7 @@ export async function importLegacyJobApplyCopilot(
   const existingApplications = await career.applications.listApplications({ limit: 200, offset: 0 });
   const applicationByJob = new Map(existingApplications.items.map((item) => [item.application.jobId, item.application.id]));
   let applicationsRecorded = 0;
+  let applicationSubmissionsRecorded = 0;
   let applicationsScreening = 0;
 
   for (const [key, row] of appliedByIdentity) {
@@ -395,6 +420,7 @@ export async function importLegacyJobApplyCopilot(
       applicationId = detail.application.id;
       applicationByJob.set(jobId, applicationId);
       applicationsRecorded += 1;
+      applicationSubmissionsRecorded += 1;
     }
 
     const latest = [...sortedApplications].reverse().find((candidate) => identity(candidate.company, candidate.title) === key && candidate.status === 'applied');
@@ -414,25 +440,46 @@ export async function importLegacyJobApplyCopilot(
     }
   }
 
-  // Pool may know an application that applications.jsonl did not preserve.
+  // Pool may know an application that applications.jsonl did not preserve, or a
+  // second confirmed submission channel for the same Opportunity. The Application
+  // aggregate remains one pipeline per Job; repeated submissions are preserved as
+  // additional submission_recorded timeline events.
   for (const row of poolRows.filter((item) => item.status === 'applied')) {
     const key = identity(row.company, row.title);
     const jobId = jobIds.get(key);
-    if (!jobId || applicationByJob.has(jobId)) continue;
+    if (!jobId) continue;
+    const existingApplicationId = applicationByJob.get(jobId);
+    const sameIdentityAlreadyApplied = appliedByIdentity.has(key);
+    if (existingApplicationId && (sameIdentityAlreadyApplied || !row.appliedAt)) continue;
     const profileId = row.resumeProfile && options.resumes?.some((resume) => resume.id === row.resumeProfile)
       ? row.resumeProfile
       : null;
     const appliedAt = row.appliedAt ?? options.importedAt;
+    if (existingApplicationId) {
+      const existing = await career.applications.getApplication(existingApplicationId);
+      const alreadyRecorded = existing?.timeline.some((event) =>
+        (event.type === 'application_recorded' || event.type === 'submission_recorded') && event.occurredAt === appliedAt,
+      ) ?? false;
+      if (alreadyRecorded) continue;
+    }
     const detail = await career.applications.recordApplication({
       jobId,
       appliedAt,
       resumeProfileId: profileId,
-      idempotencyKey: `legacy-pool-application:${digest({ key, appliedAt })}`,
+      idempotencyKey: `legacy-pool-application:${digest({ key, appliedAt, channel: row.applicationChannel ?? row.channel ?? null })}`,
       actor: 'import',
-      note: [row.atsState, row.notes, row.nextAction].filter(Boolean).join('\n') || null,
+      note: [
+        row.applicationChannel ? `Application channel: ${row.applicationChannel}` : null,
+        row.channel ? `Discovery channel: ${row.channel}` : null,
+        row.resumeProfile ? `Resume profile: ${row.resumeProfile}` : null,
+        row.atsState,
+        row.notes,
+        row.nextAction,
+      ].filter(Boolean).join('\n') || null,
     });
+    if (!existingApplicationId) applicationsRecorded += 1;
+    applicationSubmissionsRecorded += 1;
     applicationByJob.set(jobId, detail.application.id);
-    applicationsRecorded += 1;
   }
 
   await career.discovery.completeDiscoveryRun({
@@ -455,6 +502,7 @@ export async function importLegacyJobApplyCopilot(
     jobsRejected,
     stateUpdates,
     applicationsRecorded,
+    applicationSubmissionsRecorded,
     applicationsScreening,
     resumesSynced,
   };

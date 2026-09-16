@@ -41,7 +41,7 @@ Completed before Web UI implementation:
 
 ## Next standalone slice
 
-1. **JH-W001:** introduce `JobListing` and migrate the current `Job.canonicalUrl + sources[]` shortcut before UI couples to it.
+1. [x] **JH-W001:** `JobListing` domain/persistence migration with conservative Opportunity dedupe.
 2. **JH-W002:** define aggregate UI read models (`JobListItem`, `JobDetail`, `DashboardSnapshot`, etc.).
 3. Minimal REST/API facade backed by the same application ports.
 4. Web shell + `zh-CN`/`en` from the first UI commit.

@@ -5,6 +5,8 @@ import {
   CAMPAIGN_STATUSES,
   DISCOVERY_EXECUTORS,
   EVENT_ACTORS,
+  JOB_LISTING_IDENTITY_KINDS,
+  JOB_LISTING_STATUSES,
   JOB_SOURCE_KINDS,
   JOB_STATES,
 } from '@job-harness/domain';
@@ -16,6 +18,8 @@ export const NullableIsoDateTimeSchema = IsoDateTimeSchema.nullable();
 export const UrlSchema = z.url();
 
 export const JobStateSchema = z.enum(JOB_STATES);
+export const JobListingStatusSchema = z.enum(JOB_LISTING_STATUSES);
+export const JobListingIdentityKindSchema = z.enum(JOB_LISTING_IDENTITY_KINDS);
 export const ApplicationStageSchema = z.enum(APPLICATION_STAGES);
 export const ApplicationEventTypeSchema = z.enum(APPLICATION_EVENT_TYPES);
 export const CampaignStatusSchema = z.enum(CAMPAIGN_STATUSES);
@@ -33,13 +37,13 @@ export const CompanySchema = z
   })
   .strict();
 
+/** Deprecated compatibility primitives for legacy import adapters. */
 export const JobExternalIdentitySchema = z
   .object({
     source: z.string().trim().min(1).max(100),
     externalId: z.string().trim().min(1).max(300),
   })
   .strict();
-
 export const JobSourceSchema = z
   .object({
     kind: JobSourceKindSchema,
@@ -48,11 +52,33 @@ export const JobSourceSchema = z
   })
   .strict();
 
-/**
- * canonicalUrl means a job-specific canonical URL. A generic company careers/listing
- * page belongs in sources[] and must not be promoted to canonicalUrl, because several
- * distinct jobs can legitimately share the same listing page.
- */
+export const JobListingSchema = z
+  .object({
+    id: EntityIdSchema,
+    jobId: EntityIdSchema,
+    sourceKind: JobSourceKindSchema,
+    label: z.string().trim().min(1).max(200).nullable().default(null),
+    url: UrlSchema.nullable().default(null),
+    externalNamespace: z.string().trim().min(1).max(100).nullable().default(null),
+    externalId: z.string().trim().min(1).max(300).nullable().default(null),
+    identityKind: JobListingIdentityKindSchema,
+    status: JobListingStatusSchema,
+    firstSeenAt: IsoDateTimeSchema,
+    lastSeenAt: IsoDateTimeSchema,
+    publishedAt: NullableIsoDateTimeSchema.default(null),
+    closedAt: NullableIsoDateTimeSchema.default(null),
+    metadataSnapshot: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.identityKind === 'external-id' && !value.externalId) {
+      ctx.addIssue({ code: 'custom', message: 'external-id listing requires externalId', path: ['externalId'] });
+    }
+    if (value.identityKind === 'url' && !value.url) {
+      ctx.addIssue({ code: 'custom', message: 'url listing requires url', path: ['url'] });
+    }
+  });
+
 export const JobSchema = z
   .object({
     id: EntityIdSchema,
@@ -61,10 +87,8 @@ export const JobSchema = z
     title: z.string().trim().min(1).max(500),
     city: z.string().trim().min(1).max(200).nullable().default(null),
     state: JobStateSchema,
-    canonicalUrl: UrlSchema.nullable().default(null),
-    externalIdentities: z.array(JobExternalIdentitySchema).default([]),
-    sources: z.array(JobSourceSchema).min(1),
     description: z.string().nullable().default(null),
+    listings: z.array(JobListingSchema).default([]),
     firstSeenAt: IsoDateTimeSchema,
     lastSeenAt: IsoDateTimeSchema,
     createdAt: IsoDateTimeSchema,
@@ -76,10 +100,10 @@ export const JobObservationSchema = z
   .object({
     id: EntityIdSchema,
     jobId: EntityIdSchema,
+    listingId: EntityIdSchema,
     discoveryRunId: EntityIdSchema.nullable().default(null),
     observedAt: IsoDateTimeSchema,
-    source: JobSourceSchema,
-    availability: z.enum(['active', 'closed', 'unknown']),
+    availability: JobListingStatusSchema,
   })
   .strict();
 
@@ -109,18 +133,11 @@ export const ApplicationSchema = z
   .strict();
 
 export const ApplicationListItemSchema = z
-  .object({
-    application: ApplicationSchema,
-    job: JobSchema,
-  })
+  .object({ application: ApplicationSchema, job: JobSchema })
   .strict();
 
 export const ApplicationDetailSchema = z
-  .object({
-    application: ApplicationSchema,
-    job: JobSchema,
-    timeline: z.array(ApplicationEventSchema),
-  })
+  .object({ application: ApplicationSchema, job: JobSchema, timeline: z.array(ApplicationEventSchema) })
   .strict();
 
 export const ResumeProfileRefSchema = z
@@ -171,6 +188,7 @@ export const DiscoveryRunSchema = z
   .strict();
 
 export type Company = z.infer<typeof CompanySchema>;
+export type JobListing = z.infer<typeof JobListingSchema>;
 export type Job = z.infer<typeof JobSchema>;
 export type JobObservation = z.infer<typeof JobObservationSchema>;
 export type Application = z.infer<typeof ApplicationSchema>;

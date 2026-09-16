@@ -61,33 +61,18 @@ function requestHash(value: unknown): string {
 }
 
 async function findCandidateDuplicate(tx: CareerStoreTransactionPort, candidate: UpsertJobCandidate) {
-  for (const externalIdentity of candidate.externalIdentities ?? []) {
-    const found = await tx.findDuplicate({
-      companyName: candidate.companyName,
-      title: candidate.title,
-      city: candidate.city ?? null,
-      canonicalUrl: null,
-      externalIdentity,
-    });
-    if (found.duplicate) return found;
-  }
-  if (candidate.canonicalUrl) {
-    const found = await tx.findDuplicate({
-      companyName: candidate.companyName,
-      title: candidate.title,
-      city: candidate.city ?? null,
-      canonicalUrl: candidate.canonicalUrl,
-      externalIdentity: null,
-    });
-    if (found.duplicate) return found;
-  }
-  return tx.findDuplicate({
+  const result = await tx.findDuplicate({
     companyName: candidate.companyName,
     title: candidate.title,
     city: candidate.city ?? null,
-    canonicalUrl: null,
-    externalIdentity: null,
+    listings: candidate.listings,
   });
+  if (result.identityConflict) {
+    throw new CareerConflictError(
+      `Candidate listings resolve to multiple existing Jobs: ${result.potentialMatches.map((job) => job.id).join(', ')}`,
+    );
+  }
+  return result;
 }
 
 async function loadReceipt<T>(
@@ -148,14 +133,14 @@ export function createCareerApplicationService(
             const duplicate = await findCandidateDuplicate(tx, candidate);
             if (duplicate.duplicate && duplicate.job) {
               const merged = await tx.mergeJobCandidate(duplicate.job.id, candidate, now());
-              for (const source of candidate.sources) {
+              for (const listing of merged.touchedListings) {
                 const observation: JobObservation = {
                   id: idFactory(),
                   jobId: duplicate.job.id,
+                  listingId: listing.id,
                   discoveryRunId: candidate.discoveryRunId ?? null,
                   observedAt: candidate.observedAt,
-                  source,
-                  availability: 'active',
+                  availability: listing.status,
                 };
                 await tx.insertObservation(observation);
               }
@@ -177,27 +162,32 @@ export function createCareerApplicationService(
               title: candidate.title,
               city: candidate.city ?? null,
               state: 'discovered',
-              canonicalUrl: candidate.canonicalUrl ?? null,
-              externalIdentities: candidate.externalIdentities ?? [],
-              sources: candidate.sources,
               description: candidate.description ?? null,
+              listings: [],
               firstSeenAt: candidate.observedAt,
               lastSeenAt: candidate.observedAt,
               createdAt: timestamp,
               updatedAt: timestamp,
             });
             await tx.insertJob(job);
-            for (const source of candidate.sources) {
+            const merged = await tx.mergeJobCandidate(job.id, candidate, timestamp);
+            for (const listing of merged.touchedListings) {
               await tx.insertObservation({
                 id: idFactory(),
                 jobId: job.id,
+                listingId: listing.id,
                 discoveryRunId: candidate.discoveryRunId ?? null,
                 observedAt: candidate.observedAt,
-                source,
-                availability: 'active',
+                availability: listing.status,
               });
             }
-            results.push({ index, status: 'inserted', jobId: job.id, reason: null });
+            const potential = duplicate.potentialMatches.map((match) => match.id);
+            results.push({
+              index,
+              status: 'inserted',
+              jobId: job.id,
+              reason: potential.length ? `potential-duplicate:${potential.join(',')}` : null,
+            });
           } catch (error) {
             results.push({
               index,
@@ -243,11 +233,32 @@ export function createCareerApplicationService(
         const job = await tx.getJob(parsed.jobId);
         if (!job) throw new CareerNotFoundError('Job', parsed.jobId);
         const existing = await tx.findApplicationByJobId(parsed.jobId);
-        if (existing) throw new CareerConflictError(`Job '${parsed.jobId}' already has an application in V1`);
         if (parsed.resumeProfileId && !(await tx.getResumeProfile(parsed.resumeProfileId))) {
           throw new CareerNotFoundError('ResumeProfileRef', parsed.resumeProfileId);
         }
         const timestamp = now();
+        if (existing) {
+          const reconciled = await tx.reconcileApplicationRecord(
+            existing.id,
+            parsed.appliedAt,
+            parsed.resumeProfileId ?? null,
+            timestamp,
+          );
+          await tx.insertApplicationEvent({
+            id: idFactory(),
+            applicationId: existing.id,
+            type: 'submission_recorded',
+            stage: null,
+            occurredAt: parsed.appliedAt,
+            actor: parsed.actor,
+            idempotencyKey: parsed.idempotencyKey,
+            note: parsed.note ?? null,
+          });
+          const detail = await tx.getApplication(reconciled.id);
+          if (!detail) throw new CareerNotFoundError('Application', reconciled.id);
+          await saveReceipt(tx, scope, parsed.idempotencyKey, parsed, detail, now());
+          return detail;
+        }
         const application = {
           id: idFactory(),
           jobId: parsed.jobId,

@@ -107,6 +107,7 @@ describe('job-apply-copilot importer', () => {
     expect(report.alreadyImported).toBe(false);
     expect(report.jobsRejected).toBe(0);
     expect(report.applicationsRecorded).toBe(1);
+    expect(report.applicationSubmissionsRecorded).toBe(1);
     expect(report.applicationsScreening).toBe(1);
     expect(report.resumesSynced).toBe(1);
 
@@ -126,5 +127,66 @@ describe('job-apply-copilot importer', () => {
     const rerun = await importLegacyJobApplyCopilot(dataset, career, { importedAt, resumes });
     expect(rerun.alreadyImported).toBe(true);
     expect((await career.applications.listApplications({ limit: 20, offset: 0 })).total).toBe(1);
+  });
+});
+
+describe('legacy alias reconciliation', () => {
+  it('merges one strong listing into one Opportunity while preserving two submission facts', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'job-harness-alias-import-'));
+    const store = new SqliteCareerStore(join(dir, 'career.db'));
+    try {
+      const career = createCareerApplicationService(store, { now: () => importedAt });
+      const dataset = {
+        applications: parseLegacyApplicationsJsonl(JSON.stringify({
+          at: '2026-09-11T11:59:54.580Z',
+          company: '论客科技 / Coremail',
+          title: 'AI开发工程师',
+          status: 'applied',
+          canonicalUrl: 'https://career.nankai.edu.cn/correcruit/content/id/117496.html',
+        })),
+        pool: parseLegacyApplicationPool(JSON.stringify({
+          ready: [{
+            id: 'coremail-ai-dev-guangzhou-2026-fresh',
+            company: '论客科技（广州）有限公司 / Coremail',
+            title: 'AI开发工程师',
+            city: '广州',
+            sourceUrl: 'https://career.nankai.edu.cn/correcruit/content/id/117496.html',
+            status: 'applied',
+            appliedAt: '2026-09-11T12:09:37.411Z',
+            applicationChannel: 'official-email',
+            resumeProfile: 'ai-agent',
+          }],
+          verifyFirst: [],
+        })),
+      };
+      const resumes = [{
+        id: 'ai-agent',
+        name: 'AI Agent Resume',
+        source: 'resume-harness' as const,
+        externalProfileId: 'ai-agent',
+        targetRole: 'AI Agent Engineer',
+        version: 'v1',
+        hash: 'hash-v1',
+        artifactUri: 'file:///resume/ai-agent.pdf',
+        updatedAt: importedAt,
+      }];
+
+      const report = await importLegacyJobApplyCopilot(dataset, career, { importedAt, resumes });
+      expect(report.jobsInserted).toBe(1);
+      expect(report.applicationsRecorded).toBe(1);
+      expect(report.applicationSubmissionsRecorded).toBe(2);
+
+      const jobs = await career.jobs.searchJobs({ limit: 20, offset: 0 });
+      expect(jobs.total).toBe(1);
+      expect(jobs.items[0]!.listings.length).toBeGreaterThanOrEqual(2);
+      const applications = await career.applications.listApplications({ limit: 20, offset: 0 });
+      expect(applications.total).toBe(1);
+      const detail = await career.applications.getApplication(applications.items[0]!.application.id);
+      expect(detail?.application.resumeProfileId).toBe('ai-agent');
+      expect(detail?.timeline.filter((event) => ['application_recorded', 'submission_recorded'].includes(event.type))).toHaveLength(2);
+    } finally {
+      store.close();
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

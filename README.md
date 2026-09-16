@@ -10,8 +10,8 @@ Its core responsibility is **not** to be an autonomous job-search AI. Instead, i
 
 Job Harness owns:
 
-- companies and jobs;
-- job observations and discovery runs;
+- companies, opportunities, and source-specific job listings;
+- listing observations and discovery runs;
 - job-search campaigns;
 - applications and application timelines;
 - resume registry metadata;
@@ -32,7 +32,7 @@ It does **not** own:
 ```text
 Campaign
   -> DiscoveryRun
-  -> batch Job upsert + dedupe
+  -> batch Opportunity + JobListing upsert + conservative dedupe
   -> Resume registry
   -> Application record
   -> Application timeline transition
@@ -40,7 +40,7 @@ Campaign
   -> MCP query/write tools
 ```
 
-The server uses SQLite for durable state and exposes the tool surface through MCP Streamable HTTP. MemoFlow integration remains intentionally unimplemented.
+The server uses SQLite schema v2 for durable state and exposes the tool surface through MCP Streamable HTTP. MemoFlow integration remains intentionally unimplemented.
 
 ## Repository shape
 

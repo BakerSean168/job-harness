@@ -9,6 +9,8 @@ import type {
   DuplicateCheckInput,
   DuplicateCheckOutput,
   Job,
+  JobListing,
+  JobListingCandidate,
   JobObservation,
   JobSearchCampaign,
   ListApplicationsInput,
@@ -30,6 +32,7 @@ import {
   ApplicationSchema,
   CompanySchema,
   DiscoveryRunSchema,
+  JobListingSchema,
   JobSchema,
   JobSearchCampaignSchema,
   ResumeProfileRefSchema,
@@ -43,6 +46,7 @@ import type {
 import {
   APPLICATION_STAGES,
   JOB_STATES,
+  buildJobListingIdentityKey,
   normalizeCanonicalUrl,
   normalizeIdentityText,
   type ApplicationStage,
@@ -56,9 +60,6 @@ function json<T>(value: unknown): T {
   return JSON.parse(String(value)) as T;
 }
 
-function sourceKey(source: { kind: string; url?: string | undefined; label?: string | undefined }): string {
-  return JSON.stringify([source.kind, source.url ?? '', source.label ?? '']);
-}
 
 function openDatabase(path: string): DatabaseSync {
   const db = new DatabaseSync(path);
@@ -78,15 +79,33 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     return CompanySchema.parse({ id: row.id, name: row.name, aliases, createdAt: row.created_at, updatedAt: row.updated_at });
   }
 
+  private listingFromRow(row: Row): JobListing {
+    return JobListingSchema.parse({
+      id: row.id,
+      jobId: row.job_id,
+      sourceKind: row.source_kind,
+      label: row.label,
+      url: row.url,
+      externalNamespace: row.external_namespace,
+      externalId: row.external_id,
+      identityKind: row.identity_kind,
+      status: row.status,
+      firstSeenAt: row.first_seen_at,
+      lastSeenAt: row.last_seen_at,
+      publishedAt: row.published_at,
+      closedAt: row.closed_at,
+      metadataSnapshot: json(row.metadata_snapshot_json),
+    });
+  }
+
+  private listingsByJobId(jobId: string): JobListing[] {
+    return (this.db.prepare('SELECT * FROM job_listings WHERE job_id = ? ORDER BY last_seen_at DESC, id').all(jobId) as Row[])
+      .map((row) => this.listingFromRow(row));
+  }
+
   private jobFromRow(row: Row): Job {
     const company = this.companyById(String(row.company_id));
     if (!company) throw new Error(`Company '${String(row.company_id)}' is missing for Job '${String(row.id)}'`);
-    const externalIdentities = (this.db.prepare('SELECT source, external_id FROM job_external_identities WHERE job_id = ? ORDER BY source, external_id').all(String(row.id)) as Row[]).map((entry) => ({ source: String(entry.source), externalId: String(entry.external_id) }));
-    const sources = (this.db.prepare('SELECT kind, url, label FROM job_sources WHERE job_id = ? ORDER BY source_key').all(String(row.id)) as Row[]).map((entry) => ({
-      kind: String(entry.kind),
-      ...(entry.url == null ? {} : { url: String(entry.url) }),
-      ...(entry.label == null ? {} : { label: String(entry.label) }),
-    }));
     return JobSchema.parse({
       id: row.id,
       companyId: row.company_id,
@@ -94,10 +113,8 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       title: row.title,
       city: row.city,
       state: row.state,
-      canonicalUrl: row.canonical_url,
-      externalIdentities,
-      sources,
       description: row.description,
+      listings: this.listingsByJobId(String(row.id)),
       firstSeenAt: row.first_seen_at,
       lastSeenAt: row.last_seen_at,
       createdAt: row.created_at,
@@ -132,7 +149,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       params.push(...input.states);
     }
     if (input.sourceKinds?.length) {
-      where.push(`EXISTS (SELECT 1 FROM job_sources js WHERE js.job_id = j.id AND js.kind IN (${input.sourceKinds.map(() => '?').join(',')}))`);
+      where.push(`EXISTS (SELECT 1 FROM job_listings jl WHERE jl.job_id = j.id AND jl.source_kind IN (${input.sourceKinds.map(() => '?').join(',')}))`);
       params.push(...input.sourceKinds);
     }
     if (input.applied !== undefined) {
@@ -150,29 +167,68 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
   }
 
   async findDuplicate(input: DuplicateCheckInput): Promise<DuplicateCheckOutput> {
-    if (input.externalIdentity) {
-      const row = this.db.prepare('SELECT j.* FROM job_external_identities e JOIN jobs j ON j.id = e.job_id WHERE e.normalized_source = ? AND e.normalized_external_id = ? LIMIT 1').get(
-        normalizeIdentityText(input.externalIdentity.source), normalizeIdentityText(input.externalIdentity.externalId),
-      ) as Row | undefined;
-      if (row) return { duplicate: true, job: this.jobFromRow(row), matchedBy: 'external-id' };
+    const strongOwners = new Map<string, { row: Row; matchedBy: 'listing-external-id' | 'listing-url' }>();
+    for (const listing of input.listings ?? []) {
+      const identityKey = buildJobListingIdentityKey({
+        sourceKind: listing.sourceKind,
+        identityKind: listing.identityKind,
+        url: listing.url ?? null,
+        externalNamespace: listing.externalNamespace ?? null,
+        externalId: listing.externalId ?? null,
+      });
+      if (!identityKey) continue;
+      const row = this.db.prepare(`
+        SELECT j.* FROM job_listings jl
+        JOIN jobs j ON j.id = jl.job_id
+        WHERE jl.identity_key = ? LIMIT 1
+      `).get(identityKey) as Row | undefined;
+      if (row) {
+        strongOwners.set(String(row.id), {
+          row,
+          matchedBy: listing.identityKind === 'external-id' ? 'listing-external-id' : 'listing-url',
+        });
+      }
     }
-    if (input.canonicalUrl) {
-      const normalized = normalizeCanonicalUrl(input.canonicalUrl);
-      const row = this.db.prepare('SELECT * FROM jobs WHERE canonical_url = ? LIMIT 1').get(normalized) as Row | undefined;
-      if (row) return { duplicate: true, job: this.jobFromRow(row), matchedBy: 'url' };
+
+    if (strongOwners.size === 1) {
+      const owner = [...strongOwners.values()][0]!;
+      return {
+        duplicate: true,
+        job: this.jobFromRow(owner.row),
+        matchedBy: owner.matchedBy,
+        potentialMatches: [],
+        identityConflict: false,
+      };
     }
+    if (strongOwners.size > 1) {
+      return {
+        duplicate: false,
+        job: null,
+        matchedBy: null,
+        potentialMatches: [...strongOwners.values()].map((owner) => this.jobFromRow(owner.row)),
+        identityConflict: true,
+      };
+    }
+
     const company = normalizeIdentityText(input.companyName);
     const title = normalizeIdentityText(input.title);
     const city = normalizeIdentityText(input.city ?? '');
-    const row = this.db.prepare(`
-      SELECT j.* FROM jobs j
+    const rows = this.db.prepare(`
+      SELECT DISTINCT j.* FROM jobs j
       JOIN companies c ON c.id = j.company_id
       LEFT JOIN company_aliases ca ON ca.company_id = c.id
       WHERE (c.normalized_name = ? OR ca.normalized_alias = ?)
         AND j.normalized_title = ? AND j.normalized_city = ?
-      LIMIT 1
-    `).get(company, company, title, city) as Row | undefined;
-    return row ? { duplicate: true, job: this.jobFromRow(row), matchedBy: 'composite' } : { duplicate: false, job: null, matchedBy: null };
+      ORDER BY j.last_seen_at DESC, j.id
+      LIMIT 20
+    `).all(company, company, title, city) as Row[];
+    return {
+      duplicate: false,
+      job: null,
+      matchedBy: null,
+      potentialMatches: rows.map((row) => this.jobFromRow(row)),
+      identityConflict: false,
+    };
   }
 
   async listApplications(input: ListApplicationsInput): Promise<ListApplicationsOutput> {
@@ -295,41 +351,152 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
   async insertJob(job: Job): Promise<void> {
     this.db.prepare(`INSERT INTO jobs(id,company_id,title,normalized_title,city,normalized_city,state,canonical_url,description,first_seen_at,last_seen_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       job.id, job.companyId, job.title, normalizeIdentityText(job.title), job.city, normalizeIdentityText(job.city ?? ''), job.state,
-      job.canonicalUrl ? normalizeCanonicalUrl(job.canonicalUrl) : null, job.description, job.firstSeenAt, job.lastSeenAt, job.createdAt, job.updatedAt,
+      null, job.description, job.firstSeenAt, job.lastSeenAt, job.createdAt, job.updatedAt,
     );
-    for (const external of job.externalIdentities) this.insertExternalIdentity(job.id, external);
-    for (const source of job.sources) this.insertSource(job.id, source);
+    for (const listing of job.listings) {
+      this.insertListingRecord(listing);
+    }
   }
 
-  private insertExternalIdentity(jobId: string, external: { source: string; externalId: string }): boolean {
-    const result = this.db.prepare('INSERT OR IGNORE INTO job_external_identities(job_id,source,external_id,normalized_source,normalized_external_id) VALUES(?,?,?,?,?)').run(jobId, external.source, external.externalId, normalizeIdentityText(external.source), normalizeIdentityText(external.externalId));
-    return Number(result.changes) > 0;
+  private insertListingRecord(listing: JobListing): void {
+    const identityKey = buildJobListingIdentityKey({
+      sourceKind: listing.sourceKind,
+      identityKind: listing.identityKind,
+      url: listing.url,
+      externalNamespace: listing.externalNamespace,
+      externalId: listing.externalId,
+    });
+    this.db.prepare(`INSERT INTO job_listings(
+      id,job_id,source_kind,label,url,normalized_url,external_namespace,external_id,
+      normalized_external_namespace,normalized_external_id,identity_kind,identity_key,status,
+      first_seen_at,last_seen_at,published_at,closed_at,metadata_snapshot_json
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      listing.id, listing.jobId, listing.sourceKind, listing.label, listing.url,
+      listing.url ? normalizeCanonicalUrl(listing.url) : null,
+      listing.externalNamespace, listing.externalId,
+      listing.externalNamespace ? normalizeIdentityText(listing.externalNamespace) : null,
+      listing.externalId ? normalizeIdentityText(listing.externalId) : null,
+      listing.identityKind, identityKey, listing.status, listing.firstSeenAt, listing.lastSeenAt,
+      listing.publishedAt, listing.closedAt, JSON.stringify(listing.metadataSnapshot),
+    );
   }
 
-  private insertSource(jobId: string, source: { kind: string; url?: string | undefined; label?: string | undefined }): boolean {
-    const result = this.db.prepare('INSERT OR IGNORE INTO job_sources(job_id,source_key,kind,url,label) VALUES(?,?,?,?,?)').run(jobId, sourceKey(source), source.kind, source.url ?? null, source.label ?? null);
-    return Number(result.changes) > 0;
+  private upsertListingCandidate(
+    jobId: string,
+    candidate: JobListingCandidate,
+    observedAt: string,
+  ): { listing: JobListing; changed: boolean } {
+    const identityKey = buildJobListingIdentityKey({
+      sourceKind: candidate.sourceKind,
+      identityKind: candidate.identityKind,
+      url: candidate.url ?? null,
+      externalNamespace: candidate.externalNamespace ?? null,
+      externalId: candidate.externalId ?? null,
+    });
+    const normalizedUrl = candidate.url ? normalizeCanonicalUrl(candidate.url) : null;
+    let row: Row | undefined;
+    if (identityKey) {
+      row = this.db.prepare('SELECT * FROM job_listings WHERE identity_key = ?').get(identityKey) as Row | undefined;
+    } else {
+      row = this.db.prepare(`
+        SELECT * FROM job_listings
+        WHERE job_id = ? AND source_kind = ? AND identity_kind = 'scoped'
+          AND COALESCE(normalized_url, '') = COALESCE(?, '')
+          AND COALESCE(label, '') = COALESCE(?, '')
+        ORDER BY id LIMIT 1
+      `).get(jobId, candidate.sourceKind, normalizedUrl, candidate.label ?? null) as Row | undefined;
+    }
+    if (row && String(row.job_id) !== jobId) {
+      throw new Error(`Listing identity is already owned by Job '${String(row.job_id)}'`);
+    }
+
+    if (!row) {
+      const listing = JobListingSchema.parse({
+        id: randomUUID(),
+        jobId,
+        sourceKind: candidate.sourceKind,
+        label: candidate.label ?? null,
+        url: candidate.url ?? null,
+        externalNamespace: candidate.externalNamespace ?? (candidate.identityKind === 'external-id' ? candidate.sourceKind : null),
+        externalId: candidate.externalId ?? null,
+        identityKind: candidate.identityKind,
+        status: candidate.status,
+        firstSeenAt: observedAt,
+        lastSeenAt: observedAt,
+        publishedAt: candidate.publishedAt ?? null,
+        closedAt: candidate.status === 'closed' ? observedAt : null,
+        metadataSnapshot: candidate.metadataSnapshot,
+      });
+      this.insertListingRecord(listing);
+      return { listing, changed: true };
+    }
+
+    const current = this.listingFromRow(row);
+    const mergedMetadata = { ...current.metadataSnapshot, ...candidate.metadataSnapshot };
+    const next = JobListingSchema.parse({
+      ...current,
+      label: current.label ?? candidate.label ?? null,
+      url: current.url ?? candidate.url ?? null,
+      externalNamespace: current.externalNamespace ?? candidate.externalNamespace ?? null,
+      externalId: current.externalId ?? candidate.externalId ?? null,
+      status: candidate.status,
+      lastSeenAt: observedAt > current.lastSeenAt ? observedAt : current.lastSeenAt,
+      publishedAt: current.publishedAt ?? candidate.publishedAt ?? null,
+      closedAt: candidate.status === 'closed' ? (current.closedAt ?? observedAt) : null,
+      metadataSnapshot: mergedMetadata,
+    });
+    const materialCurrent = { ...current, lastSeenAt: '' };
+    const materialNext = { ...next, lastSeenAt: '' };
+    const metadataChanged = JSON.stringify(materialNext) !== JSON.stringify(materialCurrent);
+    const seenChanged = next.lastSeenAt !== current.lastSeenAt;
+    if (metadataChanged || seenChanged) {
+      this.db.prepare(`UPDATE job_listings SET
+        label=?,url=?,normalized_url=?,external_namespace=?,external_id=?,normalized_external_namespace=?,normalized_external_id=?,
+        status=?,last_seen_at=?,published_at=?,closed_at=?,metadata_snapshot_json=? WHERE id=?`).run(
+        next.label, next.url, next.url ? normalizeCanonicalUrl(next.url) : null,
+        next.externalNamespace, next.externalId,
+        next.externalNamespace ? normalizeIdentityText(next.externalNamespace) : null,
+        next.externalId ? normalizeIdentityText(next.externalId) : null,
+        next.status, next.lastSeenAt, next.publishedAt, next.closedAt, JSON.stringify(next.metadataSnapshot), next.id,
+      );
+    }
+    const listing = metadataChanged || seenChanged
+      ? this.listingFromRow(this.db.prepare('SELECT * FROM job_listings WHERE id = ?').get(next.id) as Row)
+      : current;
+    return { listing, changed: metadataChanged };
   }
 
-  async mergeJobCandidate(jobId: string, candidate: UpsertJobCandidate, now: string): Promise<{ job: Job; metadataChanged: boolean }> {
+  async mergeJobCandidate(jobId: string, candidate: UpsertJobCandidate, now: string): Promise<{ job: Job; metadataChanged: boolean; touchedListings: JobListing[] }> {
     const current = await this.getJob(jobId);
     if (!current) throw new Error(`Job '${jobId}' not found`);
     let metadataChanged = false;
     let city = current.city;
-    let canonicalUrl = current.canonicalUrl;
     let description = current.description;
     if (!city && candidate.city) { city = candidate.city; metadataChanged = true; }
-    if (!canonicalUrl && candidate.canonicalUrl) { canonicalUrl = normalizeCanonicalUrl(candidate.canonicalUrl); metadataChanged = true; }
     if (candidate.description != null && candidate.description !== description) { description = candidate.description; metadataChanged = true; }
-    for (const external of candidate.externalIdentities ?? []) if (this.insertExternalIdentity(jobId, external)) metadataChanged = true;
-    for (const source of candidate.sources) if (this.insertSource(jobId, source)) metadataChanged = true;
+    const touchedListings: JobListing[] = [];
+    for (const listingCandidate of candidate.listings) {
+      const result = this.upsertListingCandidate(jobId, listingCandidate, candidate.observedAt);
+      touchedListings.push(result.listing);
+      if (result.changed) metadataChanged = true;
+    }
     const lastSeenAt = candidate.observedAt > current.lastSeenAt ? candidate.observedAt : current.lastSeenAt;
-    this.db.prepare('UPDATE jobs SET city=?, normalized_city=?, canonical_url=?, description=?, last_seen_at=?, updated_at=? WHERE id=?').run(city, normalizeIdentityText(city ?? ''), canonicalUrl, description, lastSeenAt, metadataChanged ? now : current.updatedAt, jobId);
-    return { job: (await this.getJob(jobId))!, metadataChanged };
+    this.db.prepare('UPDATE jobs SET city=?, normalized_city=?, description=?, last_seen_at=?, updated_at=? WHERE id=?').run(
+      city, normalizeIdentityText(city ?? ''), description, lastSeenAt, metadataChanged ? now : current.updatedAt, jobId,
+    );
+    return { job: (await this.getJob(jobId))!, metadataChanged, touchedListings };
   }
 
   async insertObservation(observation: JobObservation): Promise<void> {
-    this.db.prepare('INSERT INTO job_observations(id,job_id,discovery_run_id,observed_at,source_kind,source_url,source_label,availability) VALUES(?,?,?,?,?,?,?,?)').run(observation.id, observation.jobId, observation.discoveryRunId, observation.observedAt, observation.source.kind, observation.source.url ?? null, observation.source.label ?? null, observation.availability);
+    const listingRow = this.db.prepare('SELECT * FROM job_listings WHERE id = ? AND job_id = ?').get(observation.listingId, observation.jobId) as Row | undefined;
+    if (!listingRow) throw new Error(`Listing '${observation.listingId}' is missing for Job '${observation.jobId}'`);
+    const listing = this.listingFromRow(listingRow);
+    this.db.prepare(`INSERT INTO job_observations(
+      id,job_id,discovery_run_id,observed_at,source_kind,source_url,source_label,availability,listing_id
+    ) VALUES(?,?,?,?,?,?,?,?,?)`).run(
+      observation.id, observation.jobId, observation.discoveryRunId, observation.observedAt,
+      listing.sourceKind, listing.url, listing.label, observation.availability, observation.listingId,
+    );
   }
 
   async updateJobState(jobId: string, state: JobState, now: string): Promise<Job> {
@@ -341,6 +508,20 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
 
   async insertApplication(application: Application): Promise<void> {
     this.db.prepare('INSERT INTO applications(id,job_id,current_stage,applied_at,resume_profile_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').run(application.id, application.jobId, application.currentStage, application.appliedAt, application.resumeProfileId, application.createdAt, application.updatedAt);
+  }
+
+  async reconcileApplicationRecord(applicationId: string, appliedAt: string, resumeProfileId: string | null, now: string): Promise<Application> {
+    const row = this.db.prepare('SELECT * FROM applications WHERE id = ?').get(applicationId) as Row | undefined;
+    if (!row) throw new Error(`Application '${applicationId}' not found`);
+    const currentAppliedAt = String(row.applied_at);
+    const nextAppliedAt = appliedAt < currentAppliedAt ? appliedAt : currentAppliedAt;
+    const nextResumeProfileId = row.resume_profile_id == null ? resumeProfileId : String(row.resume_profile_id);
+    this.db.prepare('UPDATE applications SET applied_at=?, resume_profile_id=?, updated_at=? WHERE id=?').run(
+      nextAppliedAt, nextResumeProfileId, now, applicationId,
+    );
+    const updated = this.db.prepare('SELECT * FROM applications WHERE id = ?').get(applicationId) as Row | undefined;
+    if (!updated) throw new Error(`Application '${applicationId}' not found after reconcile`);
+    return this.applicationFromRow(updated);
   }
 
   async updateApplicationStage(applicationId: string, stage: ApplicationStage, now: string): Promise<Application> {

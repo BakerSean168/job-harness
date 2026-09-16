@@ -4,7 +4,7 @@ This plan starts after the benchmark/IA freeze. It intentionally fixes the data 
 
 ## Phase W0 — Domain correction before UI
 
-### JH-W001 — Introduce JobListing
+### JH-W001 — Introduce JobListing ✅
 
 **Goal:** Separate durable Opportunity identity from source/ATS publication identity.
 
@@ -20,7 +20,9 @@ This plan starts after the benchmark/IA freeze. It intentionally fixes the data 
 
 **Out of scope:** Contacts, InterviewRound, Assessment UI.
 
-**Protected contracts:** Existing imported 100 Jobs / 41 Applications remain semantically intact after migration; Application continues to reference Job, not JobListing.
+**Protected contracts:** In-place v1 -> v2 migration is lossless for the legacy 100 Job / 41 Application rows; a fresh canonical import may reconcile known aliases but must preserve every evidenced submission fact. Application continues to reference Job, not JobListing.
+
+**Status:** implemented in v0.2 with SQLite v1→v2 migration and real 100 Job / 41 Application corpus validation.
 
 **Acceptance:**
 - one Job can have official + BOSS listings without becoming two Jobs;

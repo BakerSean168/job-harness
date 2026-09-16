@@ -1,6 +1,12 @@
 export const JOB_STATES = ['discovered', 'shortlisted', 'ignored', 'closed', 'archived'] as const;
 export type JobState = (typeof JOB_STATES)[number];
 
+export const JOB_LISTING_STATUSES = ['active', 'closed', 'unknown'] as const;
+export type JobListingStatus = (typeof JOB_LISTING_STATUSES)[number];
+
+export const JOB_LISTING_IDENTITY_KINDS = ['external-id', 'url', 'scoped'] as const;
+export type JobListingIdentityKind = (typeof JOB_LISTING_IDENTITY_KINDS)[number];
+
 export const APPLICATION_STAGES = [
   'applied',
   'screening',
@@ -14,6 +20,7 @@ export type ApplicationStage = (typeof APPLICATION_STAGES)[number];
 
 export const APPLICATION_EVENT_TYPES = [
   'application_recorded',
+  'submission_recorded',
   'stage_changed',
   'interview_scheduled',
   'note_added',

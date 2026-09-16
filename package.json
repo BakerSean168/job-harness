@@ -1,6 +1,6 @@
 {
   "name": "job-harness",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Plugin-ready job search harness for AI-assisted career workflows",
   "license": "MIT",

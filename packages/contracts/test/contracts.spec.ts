@@ -16,10 +16,8 @@ describe('canonical contracts', () => {
       title: 'AI Agent Engineer',
       city: 'Hangzhou',
       state: 'screening',
-      canonicalUrl: null,
-      externalIdentities: [],
-      sources: [{ kind: 'official', url: 'https://example.com/jobs/1' }],
       description: null,
+      listings: [],
       firstSeenAt: now,
       lastSeenAt: now,
       createdAt: now,
@@ -41,15 +39,19 @@ describe('canonical contracts', () => {
     expect(parsed.success).toBe(false);
   });
 
-  it('accepts a batch discovered by an external AI without coupling to a search provider', () => {
+  it('accepts a listing-aware batch discovered by an external AI without coupling to a search provider', () => {
     const parsed = UpsertJobsBatchInputSchema.safeParse({
       jobs: [
         {
           companyName: 'Acme',
           title: 'AI Agent Engineer',
           city: 'Hangzhou',
-          canonicalUrl: 'https://example.com/jobs/1',
-          sources: [{ kind: 'official', url: 'https://example.com/jobs/1' }],
+          listings: [{
+            sourceKind: 'official',
+            url: 'https://example.com/jobs/1',
+            identityKind: 'url',
+            status: 'active',
+          }],
           observedAt: now,
         },
       ],

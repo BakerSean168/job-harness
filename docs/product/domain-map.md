@@ -16,14 +16,14 @@ A UI page does not create a new domain. A dashboard metric is a projection, not 
 | `JobObservation` | Evidence that an external discovery run or user observed a listing/job at a point in time | Append-oriented observation history; does not clone the Job |
 | `JobSearchCampaign` | Search intent/constraints such as target roles, cities, graduation year and resume lanes | Standalone Career object; no MemoFlow Goal foreign key |
 | `DiscoveryRun` | One external discovery execution and its counts/context | Search engine/Agent is external; run records what happened |
-| `Application` | One actual application against a Job | At most one active application per job/cycle unless an explicit new cycle is created later |
+| `Application` | One hiring pipeline for a Job/cycle | V1 keeps one pipeline per job; independently evidenced repeat submissions are `submission_recorded` events on that pipeline |
 | `ApplicationEvent` | Immutable/auditable application timeline facts | Current stage must be explainable by ordered events |
 | `ResumeProfileRef` | External Resume Harness profile/artifact metadata | Job Harness never becomes the resume source-of-truth |
 | `AnalyticsProjection` | Funnel/source/resume/campaign aggregates | Recomputable projection only |
 
-## Required pre-UI correction: JobListing
+## Implemented pre-UI correction: JobListing
 
-Current V0.1 `Job` contains `canonicalUrl`, `externalIdentities`, and `sources[]`. Benchmarking confirms that this collapses two concerns.
+As of v0.2, `JobListing` is the canonical source/ATS publication model. The former V0.1 `Job.canonicalUrl + externalIdentities + sources[]` shape remains only as SQLite migration evidence and is no longer the application contract.
 
 Target:
 
@@ -54,11 +54,11 @@ closedAt?
 metadataSnapshot?
 ```
 
-This must land before the Jobs UI becomes coupled to `Job.canonicalUrl`.
+This landed before the Jobs UI, so UI read models can depend on `Job.listings[]` rather than legacy source fields.
 
 ### Opportunity dedupe must become conservative
 
-Once Listing and Opportunity are separated, identity rules change:
+With Listing and Opportunity separated, identity rules are:
 
 1. `sourceKind + externalId` is a strong identity for **JobListing**, not automatically for the whole Opportunity;
 2. normalized listing URL is the next Listing identity;
@@ -67,7 +67,7 @@ Once Listing and Opportunity are separated, identity rules change:
 5. when multiple plausible Jobs exist, create/retain a distinct Opportunity and surface a duplicate/merge suggestion rather than losing a real HC/BU/batch;
 6. explicit merges must be auditable and reversible/migratable.
 
-The existing V0.1 composite fallback remains migration evidence, not the final Opportunity identity contract.
+The V0.1 composite fallback is migration evidence only; v0.2 returns it as a non-destructive potential duplicate signal instead of auto-merging.
 
 ## V1.1 domains reserved by the product model
 

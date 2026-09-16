@@ -11,6 +11,7 @@ import { SqliteCareerStore } from '../src';
 
 const t0 = '2026-09-16T08:00:00.000Z';
 const t1 = '2026-09-16T09:00:00.000Z';
+const t1b = '2026-09-16T09:30:00.000Z';
 const t2 = '2026-09-16T10:00:00.000Z';
 const t3 = '2026-09-16T11:00:00.000Z';
 
@@ -90,9 +91,14 @@ describe('SQLite standalone vertical slice', () => {
           companyName: 'Acme AI',
           title: 'AI Agent Engineer',
           city: 'Hangzhou',
-          canonicalUrl: 'https://jobs.example.com/roles/agent-1?utm_source=chatgpt',
-          externalIdentities: [{ source: 'official', externalId: 'agent-1' }],
-          sources: [{ kind: 'official', url: 'https://jobs.example.com/roles/agent-1' }],
+          listings: [{
+            sourceKind: 'official',
+            url: 'https://jobs.example.com/roles/agent-1?utm_source=chatgpt',
+            externalNamespace: 'official',
+            externalId: 'agent-1',
+            identityKind: 'external-id',
+            status: 'active',
+          }],
           description: 'Build agent systems',
           observedAt: t0,
           discoveryRunId: run.id,
@@ -101,8 +107,12 @@ describe('SQLite standalone vertical slice', () => {
           companyName: 'Other Co',
           title: 'Frontend Engineer',
           city: 'Shenzhen',
-          canonicalUrl: null,
-          sources: [{ kind: 'official', url: 'https://other.example.com/careers' }],
+          listings: [{
+            sourceKind: 'official',
+            url: 'https://other.example.com/careers',
+            identityKind: 'scoped',
+            status: 'active',
+          }],
           observedAt: t0,
           discoveryRunId: run.id,
         },
@@ -116,9 +126,14 @@ describe('SQLite standalone vertical slice', () => {
         companyName: 'ACME AI',
         title: 'AI Agent Engineer',
         city: 'Hangzhou',
-        canonicalUrl: 'https://jobs.example.com/roles/agent-1',
-        externalIdentities: [{ source: 'OFFICIAL', externalId: 'AGENT-1' }],
-        sources: [{ kind: 'official', url: 'https://jobs.example.com/roles/agent-1' }],
+        listings: [{
+          sourceKind: 'official',
+          url: 'https://jobs.example.com/roles/agent-1',
+          externalNamespace: 'OFFICIAL',
+          externalId: 'AGENT-1',
+          identityKind: 'external-id',
+          status: 'active',
+        }],
         description: 'Build agent systems',
         observedAt: t1,
         discoveryRunId: run.id,
@@ -132,13 +147,38 @@ describe('SQLite standalone vertical slice', () => {
         companyName: 'Other Co',
         title: 'Backend Engineer',
         city: 'Shenzhen',
-        canonicalUrl: null,
-        sources: [{ kind: 'official', url: 'https://other.example.com/careers' }],
+        listings: [{
+          sourceKind: 'official',
+          url: 'https://other.example.com/careers',
+          identityKind: 'scoped',
+          status: 'active',
+        }],
         observedAt: t1,
         discoveryRunId: run.id,
       }],
     });
     expect(sharedListing.items[0]!.status).toBe('inserted');
+
+    // Composite company/title/city is only a duplicate candidate. A distinct strong
+    // listing identity must remain a distinct Opportunity instead of being merged.
+    const separateHc = await career.jobs.upsertJobsBatch({
+      jobs: [{
+        companyName: 'Acme AI',
+        title: 'AI Agent Engineer',
+        city: 'Hangzhou',
+        listings: [{
+          sourceKind: 'official',
+          url: 'https://jobs.example.com/roles/agent-2',
+          identityKind: 'url',
+          status: 'active',
+        }],
+        observedAt: t1,
+        discoveryRunId: run.id,
+      }],
+    });
+    expect(separateHc.items[0]).toMatchObject({ status: 'inserted' });
+    expect(separateHc.items[0]!.jobId).not.toBe(firstBatch.items[0]!.jobId);
+    expect(separateHc.items[0]!.reason).toContain('potential-duplicate:');
 
     const jobId = firstBatch.items[0]!.jobId!;
     const application = await career.applications.recordApplication({
@@ -164,6 +204,17 @@ describe('SQLite standalone vertical slice', () => {
     expect(applicationRetry.application.id).toBe(application.application.id);
     expect(applicationRetry.timeline).toHaveLength(1);
 
+    const secondSubmission = await career.applications.recordApplication({
+      jobId,
+      appliedAt: t1b,
+      resumeProfileId: 'resume-ai-agent',
+      idempotencyKey: 'apply-acme-agent-referral',
+      actor: 'user',
+      note: 'Submitted again through a referral channel',
+    });
+    expect(secondSubmission.application.id).toBe(application.application.id);
+    expect(secondSubmission.timeline.filter((event) => ['application_recorded', 'submission_recorded'].includes(event.type))).toHaveLength(2);
+
     clock = t2;
     const screening = await career.applications.transitionApplication({
       applicationId: application.application.id,
@@ -174,7 +225,7 @@ describe('SQLite standalone vertical slice', () => {
       note: 'Portal shows resume screening',
     });
     expect(screening.application.currentStage).toBe('screening');
-    expect(screening.timeline.map((event) => event.stage)).toEqual(['applied', 'screening']);
+    expect(screening.timeline.map((event) => event.stage)).toEqual(['applied', null, 'screening']);
 
     await expect(career.applications.transitionApplication({
       applicationId: application.application.id,
@@ -189,19 +240,19 @@ describe('SQLite standalone vertical slice', () => {
     expect(listed.items[0]!.job.title).toBe('AI Agent Engineer');
 
     const globalStats = await career.analytics.getPipelineStats({});
-    expect(globalStats.knownJobs).toBe(3);
+    expect(globalStats.knownJobs).toBe(4);
     expect(globalStats.applications).toBe(1);
     expect(globalStats.applicationsByStage.screening).toBe(1);
 
     const campaignStats = await career.analytics.getPipelineStats({ campaignId: campaign.id });
-    expect(campaignStats.knownJobs).toBe(3);
+    expect(campaignStats.knownJobs).toBe(4);
     expect(campaignStats.applications).toBe(1);
 
     const completed = await career.discovery.completeDiscoveryRun({
       runId: run.id,
       completedAt: t3,
-      candidateCount: 4,
-      insertedCount: 3,
+      candidateCount: 5,
+      insertedCount: 4,
       duplicateCount: 1,
       rejectedCount: 0,
     });
@@ -210,6 +261,6 @@ describe('SQLite standalone vertical slice', () => {
     const context = await career.analytics.getCareerContext({ campaignId: campaign.id });
     expect(context.campaign?.id).toBe(campaign.id);
     expect(context.resumes.map((resume) => resume.id)).toContain('resume-ai-agent');
-    expect(context.pipeline.knownJobs).toBe(3);
+    expect(context.pipeline.knownJobs).toBe(4);
   });
 });

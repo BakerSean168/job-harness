@@ -7,6 +7,7 @@ import type {
   DuplicateCheckInput,
   DuplicateCheckOutput,
   Job,
+  JobListing,
   JobObservation,
   JobSearchCampaign,
   ListApplicationsInput,
@@ -51,10 +52,11 @@ export interface CareerStoreReadPort {
 export interface CareerStoreTransactionPort extends CareerStoreReadPort {
   resolveCompany(name: string, now: string): Promise<Company>;
   insertJob(job: Job): Promise<void>;
-  mergeJobCandidate(jobId: string, candidate: UpsertJobCandidate, now: string): Promise<{ job: Job; metadataChanged: boolean }>;
+  mergeJobCandidate(jobId: string, candidate: UpsertJobCandidate, now: string): Promise<{ job: Job; metadataChanged: boolean; touchedListings: JobListing[] }>;
   insertObservation(observation: JobObservation): Promise<void>;
   updateJobState(jobId: string, state: JobState, now: string): Promise<Job>;
   insertApplication(application: Application): Promise<void>;
+  reconcileApplicationRecord(applicationId: string, appliedAt: string, resumeProfileId: string | null, now: string): Promise<Application>;
   updateApplicationStage(applicationId: string, stage: ApplicationStage, now: string): Promise<Application>;
   insertApplicationEvent(event: ApplicationEvent): Promise<void>;
   upsertCampaign(campaign: JobSearchCampaign): Promise<JobSearchCampaign>;
