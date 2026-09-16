@@ -20,7 +20,10 @@ Authorization: Bearer <token>
 
 | Method | Route | Application contract |
 | --- | --- | --- |
+| GET | `/analytics` | `workspace.getAnalyticsSnapshot` |
 | GET | `/dashboard` | `workspace.getDashboardSnapshot` |
+| GET | `/companies` | `workspace.listCompanies` |
+| GET | `/companies/:companyId` | `workspace.getCompanyDetail` |
 | GET | `/jobs` | `workspace.searchJobListItems` |
 | GET | `/jobs/:jobId` | `workspace.getJobDetail` |
 | GET | `/applications` | `workspace.listApplicationBoard` |
@@ -33,7 +36,7 @@ Authorization: Bearer <token>
 
 Jobs query parameters currently map to durable filters: `limit`, `offset`, `company`, `title`, `city`, repeated/comma-separated `states`, repeated/comma-separated `sourceKinds`, `applied`, and `campaignId`.
 
-Applications support `limit`, `offset`, repeated/comma-separated `stages`, `company`, `campaignId`, `resumeProfileId`, `appliedFrom`, `appliedTo`, and `terminal=exclude|include|only`. Discovery history supports pagination plus optional `campaignId` and `executor`. Dashboard accepts `campaignId`, `recentDiscoveryLimit`, and `attentionLimit`.
+Applications support `limit`, `offset`, repeated/comma-separated `stages`, `company`, `campaignId`, `resumeProfileId`, `appliedFrom`, `appliedTo`, and `terminal=exclude|include|only`. Companies support pagination plus `query` and optional `campaignId`. Analytics supports optional `campaignId`. Discovery history supports pagination plus optional `campaignId` and `executor`. Dashboard accepts `campaignId`, `recentDiscoveryLimit`, and `attentionLimit`.
 
 ## Write routes
 

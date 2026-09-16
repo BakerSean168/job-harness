@@ -105,3 +105,41 @@
   .management-filter-bar { align-items: stretch; flex-direction: column; }
   .management-filter-bar .filter-reset { align-self: flex-start; margin-top: 0; }
 }
+
+.company-table { min-width: 1080px; }
+.company-name-link { display: grid; gap: 2px; }
+.company-name-link strong { color: var(--text); font-size: 11px; }
+.company-name-link small { color: var(--text-faint); font-size: 9px; }
+.company-detail-content { max-width: 940px; margin: 0 auto; padding: 24px; }
+.company-detail-content[data-compact='true'] { padding: 18px; }
+.company-stage-grid { display: flex; flex-wrap: wrap; gap: 7px; }
+.company-stage-grid > div { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-subtle); }
+.company-stage-grid strong { font-size: 11px; font-variant-numeric: tabular-nums; }
+.company-job-list { display: grid; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.company-job-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; padding: 9px 10px; border-bottom: 1px solid var(--border); }
+.company-job-row:last-child { border-bottom: 0; }
+.company-job-row:hover { background: var(--surface-hover); }
+.company-job-row > div:first-child { min-width: 0; display: grid; gap: 2px; }
+.company-job-row > div:first-child strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.company-job-row > div:first-child span { color: var(--text-faint); font-size: 9px; }
+.company-job-statuses { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; }
+.company-record-surface { overflow: hidden; }
+
+.analytics-filter-bar { justify-content: flex-start; }
+.analytics-state-pair { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 14px; }
+.analytics-state-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding: 12px; }
+.analytics-stage-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.analytics-state-grid a { min-width: 0; display: grid; gap: 4px; padding: 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-subtle); transition: border-color 120ms ease, background-color 120ms ease; }
+.analytics-state-grid a:hover { border-color: var(--border-strong); background: var(--surface-hover); }
+.analytics-state-grid strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.analytics-state-grid span { overflow: hidden; color: var(--text-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.analytics-comparison-grid .dashboard-panel { align-self: start; }
+
+@media (max-width: 1180px) {
+  .analytics-state-pair { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .analytics-state-grid,
+  .analytics-stage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .company-job-row { align-items: flex-start; flex-direction: column; }
+}

@@ -1,15 +1,21 @@
 import {
+  AnalyticsSnapshotSchema,
   ApplicationWorkspaceDetailSchema,
+  CompanyDetailSchema,
   DashboardSnapshotSchema,
   JobDetailSchema,
   JobSchema,
   JobSearchCampaignSchema,
   ListApplicationBoardOutputSchema,
   ListCampaignsOutputSchema,
+  ListCompaniesOutputSchema,
   ListDiscoveryRunsOutputSchema,
   ListResumeUsageOutputSchema,
   SearchJobListItemsOutputSchema,
   UpsertJobsBatchOutputSchema,
+  type AnalyticsSnapshot,
+  type AnalyticsSnapshotInput,
+  type CompanyDetail,
   type DashboardSnapshot,
   type DashboardSnapshotInput,
   type Job,
@@ -19,6 +25,8 @@ import {
   type ListApplicationBoardOutput,
   type ListCampaignsInput,
   type ListCampaignsOutput,
+  type ListCompaniesInput,
+  type ListCompaniesOutput,
   type ListDiscoveryRunsInput,
   type ListDiscoveryRunsOutput,
   type ListResumeUsageInput,
@@ -72,6 +80,21 @@ function append(query: URLSearchParams, key: string, value: string | number | bo
 
 function appendMany(query: URLSearchParams, key: string, values: readonly string[] | undefined): void {
   for (const value of values ?? []) query.append(key, value);
+}
+
+function companiesQuery(input: ListCompaniesInput): string {
+  const query = new URLSearchParams();
+  append(query, 'limit', input.limit);
+  append(query, 'offset', input.offset);
+  append(query, 'query', input.query);
+  append(query, 'campaignId', input.campaignId);
+  return query.toString();
+}
+
+function analyticsQuery(input: AnalyticsSnapshotInput): string {
+  const query = new URLSearchParams();
+  append(query, 'campaignId', input.campaignId);
+  return query.toString();
 }
 
 function jobsQuery(input: SearchJobListItemsInput): string {
@@ -174,6 +197,20 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
 
   return {
     workspace: {
+      async listCompanies(input: ListCompaniesInput = {}): Promise<ListCompaniesOutput> {
+        const query = companiesQuery(input);
+        return ListCompaniesOutputSchema.parse(await request(`/companies${query ? `?${query}` : ''}`));
+      },
+      async getCompanyDetail(companyId: string, campaignId?: string): Promise<CompanyDetail | null> {
+        const query = new URLSearchParams();
+        append(query, 'campaignId', campaignId);
+        const encoded = query.toString();
+        return nullable(async () => CompanyDetailSchema.parse(await request(`/companies/${encodeURIComponent(companyId)}${encoded ? `?${encoded}` : ''}`)));
+      },
+      async getAnalyticsSnapshot(input: AnalyticsSnapshotInput = {}): Promise<AnalyticsSnapshot> {
+        const query = analyticsQuery(input);
+        return AnalyticsSnapshotSchema.parse(await request(`/analytics${query ? `?${query}` : ''}`));
+      },
       async searchJobListItems(input: SearchJobListItemsInput = {}): Promise<SearchJobListItemsOutput> {
         const query = jobsQuery(input);
         return SearchJobListItemsOutputSchema.parse(await request(`/jobs${query ? `?${query}` : ''}`));

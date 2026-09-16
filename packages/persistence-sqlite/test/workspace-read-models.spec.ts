@@ -283,6 +283,27 @@ describe('workspace read models', () => {
       });
       expect(dashboard.recentDiscoveryRuns[0]?.run.id).toBe(run.id);
       expect(dashboard.resumeUsage.find((item) => item.resume.id === 'resume-agent')?.applications).toBe(1);
+
+      const companies = await career.workspace.listCompanies({ limit: 20, offset: 0 });
+      expect(companies.total).toBe(3);
+      expect(companies.items.find((item) => item.company.name === 'Acme AI')).toMatchObject({ jobs: 1, applications: 1, activePipeline: 1, shortlisted: 1 });
+      const scopedCompanies = await career.workspace.listCompanies({ campaignId: campaign.id, limit: 20, offset: 0 });
+      expect(scopedCompanies.total).toBe(2);
+      expect(scopedCompanies.items.map((item) => item.company.name).sort()).toEqual(['Acme AI', 'Beta Labs']);
+      const companyDetail = await career.workspace.getCompanyDetail(agentRow.companyId, campaign.id);
+      expect(companyDetail).toMatchObject({ company: { name: 'Acme AI' }, applications: 1, activePipeline: 1, applicationsByStage: { screening: 1 } });
+      expect(companyDetail?.jobs).toHaveLength(1);
+      expect(companyDetail?.sourceKinds).toEqual(['boss', 'official']);
+
+      const analytics = await career.workspace.getAnalyticsSnapshot({ campaignId: campaign.id });
+      expect(analytics.generatedAt).toBe(t3);
+      expect(analytics.campaign?.id).toBe(campaign.id);
+      expect(analytics.pipeline).toMatchObject({ knownJobs: 2, applications: 1, applicationsByStage: { screening: 1 } });
+      expect(analytics.companyPerformance.map((item) => item.companyName).sort()).toEqual(['Acme AI', 'Beta Labs']);
+      expect(analytics.companyPerformance.find((item) => item.companyName === 'Acme AI')).toMatchObject({ jobs: 1, applications: 1, applicationsByStage: { screening: 1 } });
+      expect(analytics.campaignPerformance[0]).toMatchObject({ campaign: { id: campaign.id }, jobs: 2, applications: 1, applicationsByStage: { screening: 1 } });
+      expect(analytics.sourcePerformance.find((item) => item.sourceKind === 'official')).toMatchObject({ opportunities: 2, applications: 1 });
+      expect(analytics.resumeUsage.find((item) => item.resume.id === 'resume-agent')?.applications).toBe(1);
     } finally {
       store.close();
     }

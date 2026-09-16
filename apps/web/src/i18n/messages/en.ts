@@ -31,6 +31,22 @@ export const en: MessageCatalog = {
     notFoundDescription: 'This address does not map to a Job Harness workspace.',
     backOverview: 'Back to overview',
   },
+  companiesWorkspace: {
+    filters: { query: 'Company', campaign: 'Campaign', all: 'All', apply: 'Filter', reset: 'Reset' },
+    table: { company: 'Company', jobs: 'Jobs', shortlisted: 'Shortlisted', applications: 'Applications', activePipeline: 'Active pipeline', cities: 'Cities', sources: 'Sources', lastSeen: 'Last seen', empty: 'No company data yet.' },
+    detail: { title: 'Company detail', aliases: 'Aliases', sources: 'Associated sources', pipeline: 'Application stages', jobs: 'Jobs', noJobs: 'No jobs in the current scope.', close: 'Close detail', full: 'Open full detail', openJob: 'View job' },
+  },
+  analyticsWorkspace: {
+    filters: { campaign: 'Campaign', all: 'All campaigns', apply: 'Filter', reset: 'Reset' },
+    summary: { knownJobs: 'Known jobs', applications: 'Applications', activeJobs: 'Active jobs', activePipeline: 'Active pipeline' },
+    jobs: { title: 'Job state distribution', discovered: 'Discovered', shortlisted: 'Shortlisted', ignored: 'Ignored', closed: 'Closed', archived: 'Archived' },
+    applications: { title: 'Application stage distribution', applied: 'Applied', screening: 'Screening', assessment: 'Assessment', interview: 'Interview', offer: 'Offer', rejected: 'Rejected', withdrawn: 'Withdrawn' },
+    companies: { title: 'Company association', company: 'Company', jobs: 'Jobs', applications: 'Applications', screening: 'Screening', interview: 'Interview', offer: 'Offer', empty: 'No company data yet.' },
+    campaigns: { title: 'Campaign comparison', campaign: 'Campaign', jobs: 'Jobs', applications: 'Applications', screening: 'Screening', interview: 'Interview', offer: 'Offer', empty: 'No campaign data yet.' },
+    sources: { title: 'Source association', source: 'Source', jobs: 'Jobs', applications: 'Applications', screening: 'Screening', interview: 'Interview', note: 'An Opportunity can have multiple Listing sources. These numbers do not attribute the actual submission channel.', empty: 'No source data yet.' },
+    resumes: { title: 'Resume association', resume: 'Resume', applications: 'Applications', screening: 'Screening', assessment: 'Assessment', interview: 'Interview', offer: 'Offer', note: 'This is correlation, not evidence that a resume caused an outcome.', empty: 'No resume usage data yet.' },
+    generatedAt: 'Generated',
+  },
   campaignsWorkspace: {
     list: { title: 'Campaigns', empty: 'No campaigns yet. Create one to pin target roles, cities, graduation years, and resume lanes.', create: 'New campaign', updated: 'Updated', roles: 'Roles', cities: 'Cities', resumes: 'Resume lanes' },
     form: { titleNew: 'New campaign', titleEdit: 'Edit campaign', name: 'Name', targetRoles: 'Target roles', targetRolesHint: 'Comma or newline separated; at least one', cities: 'Cities', graduationYears: 'Graduation years', experience: 'Experience', keywords: 'Keywords', exclusions: 'Exclusions', sources: 'Discovery sources', resumes: 'Resume lanes', status: 'Status', save: 'Save', saving: 'Saving…', saved: 'Saved', failed: 'Could not save campaign', required: 'Enter a name and at least one target role.' },

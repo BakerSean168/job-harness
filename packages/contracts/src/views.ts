@@ -6,6 +6,7 @@ import {
   ApplicationEventSchema,
   ApplicationSchema,
   ApplicationStageSchema,
+  CompanySchema,
   DiscoveryExecutorSchema,
   DiscoveryRunSchema,
   EntityIdSchema,
@@ -18,7 +19,27 @@ import {
   NullableIsoDateTimeSchema,
   ResumeProfileRefSchema,
 } from './schemas';
-import { PageSchema, SearchJobsInputSchema } from './operations';
+import { PageSchema, PipelineStatsOutputSchema, SearchJobsInputSchema } from './operations';
+
+export const CompanyListItemSchema = z.object({
+  company: CompanySchema,
+  jobs: z.number().int().nonnegative(),
+  shortlisted: z.number().int().nonnegative(),
+  applications: z.number().int().nonnegative(),
+  activePipeline: z.number().int().nonnegative(),
+  cities: z.array(z.string()),
+  sourceKinds: z.array(JobSourceKindSchema),
+  lastSeenAt: NullableIsoDateTimeSchema,
+}).strict();
+
+export const ListCompaniesInputSchema = PageSchema.extend({
+  query: z.string().trim().min(1).max(300).optional(),
+  campaignId: EntityIdSchema.optional(),
+});
+export const ListCompaniesOutputSchema = z.object({
+  items: z.array(CompanyListItemSchema),
+  total: z.number().int().nonnegative(),
+}).strict();
 
 export const CampaignRefSchema = JobSearchCampaignSchema.pick({
   id: true,
@@ -49,6 +70,15 @@ export const JobListItemSchema = z.object({
   resume: ResumeProfileRefSchema.nullable(),
   firstSeenAt: IsoDateTimeSchema,
   lastSeenAt: IsoDateTimeSchema,
+}).strict();
+
+export const CompanyDetailSchema = z.object({
+  company: CompanySchema,
+  jobs: z.array(JobListItemSchema),
+  applications: z.number().int().nonnegative(),
+  activePipeline: z.number().int().nonnegative(),
+  applicationsByStage: z.record(ApplicationStageSchema, z.number().int().nonnegative()),
+  sourceKinds: z.array(JobSourceKindSchema),
 }).strict();
 
 export const SearchJobListItemsInputSchema = SearchJobsInputSchema;
@@ -164,6 +194,23 @@ export const DiscoveryRunDetailSchema = z.object({
 export const GetDiscoveryRunDetailInputSchema = z.object({ runId: EntityIdSchema }).strict();
 export const GetDiscoveryRunDetailOutputSchema = DiscoveryRunDetailSchema.nullable();
 
+export const AnalyticsCompanyPerformanceSchema = z.object({
+  companyId: EntityIdSchema,
+  companyName: z.string().trim().min(1),
+  jobs: z.number().int().nonnegative(),
+  applications: z.number().int().nonnegative(),
+  applicationsByStage: z.record(ApplicationStageSchema, z.number().int().nonnegative()),
+}).strict();
+
+export const AnalyticsCampaignPerformanceSchema = z.object({
+  campaign: CampaignRefSchema,
+  jobs: z.number().int().nonnegative(),
+  applications: z.number().int().nonnegative(),
+  applicationsByStage: z.record(ApplicationStageSchema, z.number().int().nonnegative()),
+}).strict();
+
+export const AnalyticsSnapshotInputSchema = z.object({ campaignId: EntityIdSchema.optional() }).strict();
+
 export const DashboardSnapshotInputSchema = z.object({
   campaignId: EntityIdSchema.optional(),
   recentDiscoveryLimit: z.number().int().min(1).max(20).default(5),
@@ -228,6 +275,16 @@ export const DashboardSourcePerformanceSchema = z.object({
   applicationsByStage: z.record(ApplicationStageSchema, z.number().int().nonnegative()),
 }).strict();
 
+export const AnalyticsSnapshotSchema = z.object({
+  generatedAt: IsoDateTimeSchema,
+  campaign: CampaignRefSchema.nullable(),
+  pipeline: PipelineStatsOutputSchema,
+  sourcePerformance: z.array(DashboardSourcePerformanceSchema),
+  resumeUsage: z.array(ResumeUsageSummarySchema),
+  companyPerformance: z.array(AnalyticsCompanyPerformanceSchema),
+  campaignPerformance: z.array(AnalyticsCampaignPerformanceSchema),
+}).strict();
+
 export const DashboardSnapshotSchema = z.object({
   generatedAt: IsoDateTimeSchema,
   campaign: CampaignRefSchema.nullable(),
@@ -240,6 +297,12 @@ export const DashboardSnapshotSchema = z.object({
   sourcePerformance: z.array(DashboardSourcePerformanceSchema),
 }).strict();
 
+export type CompanyListItem = z.infer<typeof CompanyListItemSchema>;
+export type ListCompaniesInput = z.input<typeof ListCompaniesInputSchema>;
+export type ListCompaniesOutput = z.output<typeof ListCompaniesOutputSchema>;
+export type CompanyDetail = z.infer<typeof CompanyDetailSchema>;
+export type AnalyticsSnapshotInput = z.input<typeof AnalyticsSnapshotInputSchema>;
+export type AnalyticsSnapshot = z.infer<typeof AnalyticsSnapshotSchema>;
 export type CampaignRef = z.infer<typeof CampaignRefSchema>;
 export type JobListItem = z.infer<typeof JobListItemSchema>;
 export type SearchJobListItemsInput = z.input<typeof SearchJobListItemsInputSchema>;

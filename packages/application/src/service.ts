@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
+  AnalyticsSnapshotInputSchema,
   BeginDiscoveryInputSchema,
   BeginDiscoveryOutputSchema,
   CareerContextInputSchema,
@@ -16,6 +17,7 @@ import {
   ListApplicationBoardInputSchema,
   ListApplicationsInputSchema,
   ListCampaignsInputSchema,
+  ListCompaniesInputSchema,
   ListResumesInputSchema,
   PipelineStatsInputSchema,
   RecordApplicationInputSchema,
@@ -412,6 +414,9 @@ export function createCareerApplicationService(
   };
 
   const workspace: CareerApplicationPorts['workspace'] = {
+    listCompanies: (input) => store.listCompanyViews(ListCompaniesInputSchema.parse(input)),
+    getCompanyDetail: (companyId, campaignId) => store.getCompanyDetailView(companyId, campaignId),
+    getAnalyticsSnapshot: (input) => store.getAnalyticsSnapshot(AnalyticsSnapshotInputSchema.parse(input), now()),
     searchJobListItems: (input) => store.searchJobListItems(SearchJobListItemsInputSchema.parse(input)),
     listApplicationBoard: (input) => store.listApplicationBoard(ListApplicationBoardInputSchema.parse(input)),
     getApplicationWorkspaceDetail: (applicationId) => store.getApplicationWorkspaceDetail(applicationId),

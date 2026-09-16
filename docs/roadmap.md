@@ -49,6 +49,7 @@ Completed before Web UI implementation:
 6. [x] **JH-W202:** Applications Board/Table + Application Side Panel/detail, server-validated drag/keyboard stage transitions, outcome filtering, and retry-safe `stage_changed` writes.
 7. [x] **JH-W301:** Operational Dashboard with scoped KPI/funnel navigation, deterministic attention rules, seven-day activity, recent discovery, Resume correlation, and Listing-source association.
 8. [x] **JH-W302:** Campaign create/edit, Resume Registry/usage, and paginated Discovery history/detail surfaces.
-9. Next: **JH-W303 Companies + Analytics**, followed by hardening/deployment.
+9. [x] **JH-W303:** Company-centric workspace plus deterministic Company/Campaign/Source/Resume analytics with Campaign scope.
+10. Next: **Phase W4 Hardening** — self-host auth/session, export/backup, saved views, performance/pagination, accessibility/keyboard, and deployment packaging.
 
 Only after standalone usage is proven should a separate MemoFlow adapter be implemented.

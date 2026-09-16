@@ -5,10 +5,12 @@ import {
   type CareerRuntimePorts,
 } from '@job-harness/application';
 import {
+  AnalyticsSnapshotInputSchema,
   DashboardSnapshotInputSchema,
   EntityIdSchema,
   ListApplicationBoardInputSchema,
   ListCampaignsInputSchema,
+  ListCompaniesInputSchema,
   ListDiscoveryRunsInputSchema,
   ListResumeUsageInputSchema,
   RecordApplicationInputSchema,
@@ -102,6 +104,13 @@ function entityId(value: unknown): string {
 }
 
 export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts): void {
+  app.get(`${API_PREFIX}/analytics`, route(async (req, res) => {
+    const input = AnalyticsSnapshotInputSchema.parse({
+      ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
+    });
+    res.json(await career.workspace.getAnalyticsSnapshot(input));
+  }));
+
   app.get(`${API_PREFIX}/dashboard`, route(async (req, res) => {
     const input = DashboardSnapshotInputSchema.parse({
       ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
@@ -113,6 +122,25 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
         : {}),
     });
     res.json(await career.workspace.getDashboardSnapshot(input));
+  }));
+
+  app.get(`${API_PREFIX}/companies`, route(async (req, res) => {
+    const input = ListCompaniesInputSchema.parse({
+      ...pageQuery(req.query),
+      ...(first(req.query.query) ? { query: first(req.query.query) } : {}),
+      ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
+    });
+    res.json(await career.workspace.listCompanies(input));
+  }));
+
+  app.get(`${API_PREFIX}/companies/:companyId`, route(async (req, res) => {
+    const companyId = entityId(req.params.companyId);
+    const result = await career.workspace.getCompanyDetail(companyId, first(req.query.campaignId));
+    if (!result) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: `Company '${companyId}' was not found` } });
+      return;
+    }
+    res.json(result);
   }));
 
   app.get(`${API_PREFIX}/jobs`, route(async (req, res) => {

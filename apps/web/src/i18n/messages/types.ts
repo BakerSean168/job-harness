@@ -35,6 +35,22 @@ export interface MessageCatalog {
     backOverview: string;
   };
   pages: Record<PageKey, { title: string; description: string }>;
+  companiesWorkspace: {
+    filters: { query: string; campaign: string; all: string; apply: string; reset: string; };
+    table: { company: string; jobs: string; shortlisted: string; applications: string; activePipeline: string; cities: string; sources: string; lastSeen: string; empty: string; };
+    detail: { title: string; aliases: string; sources: string; pipeline: string; jobs: string; noJobs: string; close: string; full: string; openJob: string; };
+  };
+  analyticsWorkspace: {
+    filters: { campaign: string; all: string; apply: string; reset: string; };
+    summary: { knownJobs: string; applications: string; activeJobs: string; activePipeline: string; };
+    jobs: { title: string; discovered: string; shortlisted: string; ignored: string; closed: string; archived: string; };
+    applications: { title: string; applied: string; screening: string; assessment: string; interview: string; offer: string; rejected: string; withdrawn: string; };
+    companies: { title: string; company: string; jobs: string; applications: string; screening: string; interview: string; offer: string; empty: string; };
+    campaigns: { title: string; campaign: string; jobs: string; applications: string; screening: string; interview: string; offer: string; empty: string; };
+    sources: { title: string; source: string; jobs: string; applications: string; screening: string; interview: string; note: string; empty: string; };
+    resumes: { title: string; resume: string; applications: string; screening: string; assessment: string; interview: string; offer: string; note: string; empty: string; };
+    generatedAt: string;
+  };
   campaignsWorkspace: {
     list: { title: string; empty: string; create: string; updated: string; roles: string; cities: string; resumes: string; };
     form: { titleNew: string; titleEdit: string; name: string; targetRoles: string; targetRolesHint: string; cities: string; graduationYears: string; experience: string; keywords: string; exclusions: string; sources: string; resumes: string; status: string; save: string; saving: string; saved: string; failed: string; required: string; };

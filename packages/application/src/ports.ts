@@ -1,5 +1,8 @@
 import type {
+  AnalyticsSnapshot,
+  AnalyticsSnapshotInput,
   ApplicationDetail,
+  CompanyDetail,
   ApplicationWorkspaceDetail,
   BeginDiscoveryInput,
   CareerContextInput,
@@ -15,6 +18,8 @@ import type {
   ListApplicationsOutput,
   ListCampaignsInput,
   ListCampaignsOutput,
+  ListCompaniesInput,
+  ListCompaniesOutput,
   ListResumesInput,
   ListResumesOutput,
   PipelineStatsInput,
@@ -84,6 +89,9 @@ export interface CareerAnalyticsReadPort {
 
 
 export interface CareerWorkspaceReadPort {
+  listCompanies(input: ListCompaniesInput): Promise<ListCompaniesOutput>;
+  getCompanyDetail(companyId: string, campaignId?: string): Promise<CompanyDetail | null>;
+  getAnalyticsSnapshot(input: AnalyticsSnapshotInput): Promise<AnalyticsSnapshot>;
   searchJobListItems(input: SearchJobListItemsInput): Promise<SearchJobListItemsOutput>;
   listApplicationBoard(input: ListApplicationBoardInput): Promise<ListApplicationBoardOutput>;
   getApplicationWorkspaceDetail(applicationId: string): Promise<ApplicationWorkspaceDetail | null>;

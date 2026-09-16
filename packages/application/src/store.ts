@@ -1,6 +1,9 @@
 import type {
   Application,
+  AnalyticsSnapshot,
+  AnalyticsSnapshotInput,
   ApplicationDetail,
+  CompanyDetail,
   ApplicationWorkspaceDetail,
   ApplicationEvent,
   Company,
@@ -27,6 +30,8 @@ import type {
   ListApplicationsOutput,
   ListCampaignsInput,
   ListCampaignsOutput,
+  ListCompaniesInput,
+  ListCompaniesOutput,
   ListResumesInput,
   ListResumesOutput,
   PipelineStatsInput,
@@ -59,6 +64,9 @@ export interface CareerStoreReadPort {
   getResumeProfile(resumeProfileId: string): Promise<ResumeProfileRef | null>;
   getDiscoveryRun(runId: string): Promise<DiscoveryRun | null>;
   getPipelineStats(input: PipelineStatsInput): Promise<PipelineStatsOutput>;
+  listCompanyViews(input: ListCompaniesInput): Promise<ListCompaniesOutput>;
+  getCompanyDetailView(companyId: string, campaignId?: string): Promise<CompanyDetail | null>;
+  getAnalyticsSnapshot(input: AnalyticsSnapshotInput, generatedAt: string): Promise<AnalyticsSnapshot>;
   searchJobListItems(input: SearchJobListItemsInput): Promise<SearchJobListItemsOutput>;
   listApplicationBoard(input: ListApplicationBoardInput): Promise<ListApplicationBoardOutput>;
   getApplicationWorkspaceDetail(applicationId: string): Promise<ApplicationWorkspaceDetail | null>;

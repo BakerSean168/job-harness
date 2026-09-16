@@ -130,6 +130,36 @@ describe('Job Harness REST client', () => {
     expect(url.searchParams.get('offset')).toBe('50');
   });
 
+  it('encodes company scope filters', async () => {
+    const calls: string[] = [];
+    const client = createJobHarnessRestClient({
+      baseUrl: 'http://job-harness/api/v1',
+      fetch: async (input) => { calls.push(String(input)); return response({ items: [], total: 0 }); },
+    });
+    await client.workspace.listCompanies({ query: 'Acme', campaignId: 'campaign-1', limit: 25, offset: 0 });
+    const url = new URL(calls[0]!);
+    expect(url.pathname).toBe('/api/v1/companies');
+    expect(url.searchParams.get('query')).toBe('Acme');
+    expect(url.searchParams.get('campaignId')).toBe('campaign-1');
+  });
+
+  it('validates the analytics snapshot contract', async () => {
+    const client = createJobHarnessRestClient({
+      baseUrl: 'http://job-harness/api/v1',
+      fetch: async () => response({
+        generatedAt: now, campaign: null,
+        pipeline: {
+          knownJobs: 0, applications: 0,
+          jobsByState: { discovered: 0, shortlisted: 0, ignored: 0, closed: 0, archived: 0 },
+          applicationsByStage: { applied: 0, screening: 0, assessment: 0, interview: 0, offer: 0, rejected: 0, withdrawn: 0 },
+        },
+        sourcePerformance: [], resumeUsage: [], companyPerformance: [], campaignPerformance: [],
+      }),
+    });
+    const result = await client.workspace.getAnalyticsSnapshot({});
+    expect(result.pipeline.knownJobs).toBe(0);
+  });
+
   it('surfaces stable server error envelopes', async () => {
     const client = createJobHarnessRestClient({
       baseUrl: 'http://job-harness/api/v1',

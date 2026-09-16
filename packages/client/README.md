@@ -10,5 +10,5 @@ Current surfaces cover the Web V1 REST routes:
 
 - Job workspace list/detail + state changes + batch upsert;
 - Application board/detail + record/transition, including Campaign/Resume/date/outcome filters;
-- Dashboard, Resume usage, Discovery detail;
+- Dashboard, Analytics, Company list/detail, Resume usage, paginated Discovery history/detail;
 - Campaign list/get/upsert.

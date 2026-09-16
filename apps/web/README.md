@@ -2,7 +2,7 @@
 
 Next.js App Router workspace for Job Harness.
 
-Current slice: **W302 Search-management surfaces complete**.
+Current slice: **W303 Companies + Analytics complete**.
 
 Implemented foundation:
 
@@ -54,7 +54,14 @@ W302 connects the search-management surfaces:
 - `/discovery` and `/discovery/:runId`: paginated Discovery history, Campaign/Executor filters, context snapshot, observation count, and affected Jobs;
 - all three surfaces continue through the server-only typed REST client; browser HTML never receives the bearer token.
 
-Companies and Analytics remain the next standalone vertical slice.
+W303 completes the primary product surfaces:
+
+- `/companies` and `/companies/:companyId`: canonical Company table/detail with optional Campaign scope, Job/shortlist/Application/active-pipeline counts, aliases, cities, Listing sources and related Jobs;
+- `/analytics`: optional Campaign scope, separate Job-state and Application-stage distributions, Company/Campaign comparisons, Listing-source associations and Resume correlations;
+- Analytics keeps Source association distinct from actual submission-channel attribution and keeps Resume metrics explicitly correlational;
+- real historical data currently projects 82 Companies, 100 Jobs, 41 Applications and 5 Resume references without exposing the server bearer token.
+
+The next phase is hardening rather than another primary product surface.
 
 Run locally:
 

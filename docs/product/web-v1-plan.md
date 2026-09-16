@@ -82,9 +82,9 @@ Implemented as an operational projection over the same workspace ports: Campaign
 
 Implemented as three live management surfaces: Campaign list/create/edit over the existing Campaign application port; Resume Registry/usage with optional Campaign scope and no resume-content ownership leakage; and paginated DiscoveryRun history with Campaign/Executor filters, URL-addressable side panel/full detail, context snapshot, observation count and affected Jobs.
 
-### JH-W303 — Companies + Analytics
+### JH-W303 — Companies + Analytics ✅
 
-Company-centric view and deterministic source/resume/campaign projections.
+Implemented as canonical Company list/detail plus a Campaign-scoped deterministic Analytics workspace. Company projections expose Job/shortlist/Application/active-pipeline counts, cities, Listing sources and related Jobs without UI-side joins. Analytics keeps Job state and Application stage distributions separate and compares Company, Campaign, Listing-source and Resume associations without introducing AI scoring or causal attribution.
 
 ## Phase W4 — Hardening
 

@@ -131,6 +131,19 @@ describe('REST v1 facade', () => {
     expect(invalidTerminal.response.status).toBe(400);
     expect(invalidTerminal.body.error.code).toBe('VALIDATION_ERROR');
 
+    const companies = await json('/companies?query=acme');
+    expect(companies.response.status).toBe(200);
+    expect(companies.body.total).toBe(1);
+    expect(companies.body.items[0]).toMatchObject({ company: { name: 'Acme AI' }, jobs: 1, applications: 1 });
+    const companyId = companies.body.items[0].company.id;
+    const companyDetail = await json(`/companies/${companyId}`);
+    expect(companyDetail.response.status).toBe(200);
+    expect(companyDetail.body).toMatchObject({ company: { name: 'Acme AI' }, applications: 1, jobs: [{ companyName: 'Acme AI' }] });
+    const analytics = await json('/analytics');
+    expect(analytics.response.status).toBe(200);
+    expect(analytics.body.pipeline).toMatchObject({ knownJobs: 1, applications: 1 });
+    expect(analytics.body.companyPerformance[0]).toMatchObject({ companyName: 'Acme AI', jobs: 1, applications: 1 });
+
     const jobDetail = await json(`/jobs/${jobId}`);
     expect(jobDetail.body).toMatchObject({
       job: { id: jobId, state: 'shortlisted' },

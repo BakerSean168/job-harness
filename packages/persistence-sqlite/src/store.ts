@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import type {
+  AnalyticsSnapshot,
+  AnalyticsSnapshotInput,
   Application,
+  CompanyDetail,
   ApplicationDetail,
   ApplicationWorkspaceDetail,
   ApplicationEvent,
@@ -25,6 +28,8 @@ import type {
   ListApplicationsOutput,
   ListCampaignsInput,
   ListCampaignsOutput,
+  ListCompaniesInput,
+  ListCompaniesOutput,
   ListResumesInput,
   ListResumesOutput,
   ListDiscoveryRunsInput,
@@ -41,12 +46,15 @@ import type {
   UpsertJobCandidate,
 } from '@job-harness/contracts';
 import {
+  AnalyticsSnapshotSchema,
   ApplicationBoardItemSchema,
   ApplicationDetailSchema,
   ApplicationWorkspaceDetailSchema,
   ApplicationEventSchema,
   ApplicationSchema,
   CampaignRefSchema,
+  CompanyDetailSchema,
+  CompanyListItemSchema,
   CompanySchema,
   DashboardSnapshotSchema,
   DiscoveryRunDetailSchema,
@@ -58,6 +66,7 @@ import {
   JobSchema,
   JobSearchCampaignSchema,
   ListApplicationBoardOutputSchema,
+  ListCompaniesOutputSchema,
   ListDiscoveryRunsOutputSchema,
   ListResumeUsageOutputSchema,
   ResumeProfileRefSchema,
@@ -608,6 +617,149 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     return ListResumeUsageOutputSchema.parse({ items, total: resumePage.total });
   }
 
+  async listCompanyViews(input: ListCompaniesInput): Promise<ListCompaniesOutput> {
+    const where: string[] = [];
+    const params: Array<string | number> = [];
+    if (input.query) {
+      where.push(`(c.normalized_name LIKE ? OR EXISTS (SELECT 1 FROM company_aliases ca WHERE ca.company_id = c.id AND ca.normalized_alias LIKE ?))`);
+      const query = `%${normalizeIdentityText(input.query)}%`;
+      params.push(query, query);
+    }
+    if (input.campaignId) {
+      where.push(`EXISTS (
+        SELECT 1 FROM jobs j
+        JOIN job_observations o ON o.job_id = j.id
+        JOIN discovery_runs d ON d.id = o.discovery_run_id
+        WHERE j.company_id = c.id AND d.campaign_id = ?
+      )`);
+      params.push(input.campaignId);
+    }
+    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM companies c ${clause}`).get(...params) as Row).n);
+    const companyRows = this.db.prepare(`SELECT c.* FROM companies c ${clause} ORDER BY c.name, c.id LIMIT ? OFFSET ?`).all(
+      ...params, input.limit ?? 50, input.offset ?? 0,
+    ) as Row[];
+    const items = [];
+    for (const row of companyRows) {
+      const company = this.companyById(String(row.id));
+      if (!company) continue;
+      const scope = input.campaignId
+        ? `AND EXISTS (SELECT 1 FROM job_observations o JOIN discovery_runs d ON d.id = o.discovery_run_id WHERE o.job_id = j.id AND d.campaign_id = ?)`
+        : '';
+      const scopeParams = input.campaignId ? [input.campaignId] : [];
+      const jobs = this.db.prepare(`SELECT j.* FROM jobs j WHERE j.company_id = ? ${scope} ORDER BY j.last_seen_at DESC, j.id`).all(company.id, ...scopeParams) as Row[];
+      const stageRows = this.db.prepare(`
+        SELECT a.current_stage AS stage, COUNT(*) AS n
+        FROM applications a JOIN jobs j ON j.id = a.job_id
+        WHERE j.company_id = ? ${scope}
+        GROUP BY a.current_stage
+      `).all(company.id, ...scopeParams) as Row[];
+      const applications = stageRows.reduce((sum, entry) => sum + Number(entry.n), 0);
+      const activePipeline = stageRows.reduce((sum, entry) =>
+        ['offer','rejected','withdrawn'].includes(String(entry.stage)) ? sum : sum + Number(entry.n), 0);
+      const jobModels = jobs.map((jobRow) => this.jobFromRow(jobRow));
+      const sourceKinds = [...new Set(jobModels.flatMap((job) => job.listings.map((listing) => listing.sourceKind)))].sort();
+      const cities = [...new Set(jobModels.map((job) => job.city).filter((city): city is string => Boolean(city)))].sort();
+      const lastSeenAt = jobModels.reduce<string | null>((latest, job) => !latest || job.lastSeenAt > latest ? job.lastSeenAt : latest, null);
+      items.push(CompanyListItemSchema.parse({
+        company, jobs: jobModels.length, shortlisted: jobModels.filter((job) => job.state === 'shortlisted').length,
+        applications, activePipeline, cities, sourceKinds, lastSeenAt,
+      }));
+    }
+    items.sort((left, right) => right.applications - left.applications || right.jobs - left.jobs || left.company.name.localeCompare(right.company.name));
+    return ListCompaniesOutputSchema.parse({ items, total });
+  }
+
+  async getCompanyDetailView(companyId: string, campaignId?: string): Promise<CompanyDetail | null> {
+    const company = this.companyById(companyId);
+    if (!company) return null;
+    const scope = campaignId
+      ? `AND EXISTS (SELECT 1 FROM job_observations o JOIN discovery_runs d ON d.id = o.discovery_run_id WHERE o.job_id = j.id AND d.campaign_id = ?)`
+      : '';
+    const scopeParams = campaignId ? [campaignId] : [];
+    const rows = this.db.prepare(`SELECT j.* FROM jobs j WHERE j.company_id = ? ${scope} ORDER BY j.last_seen_at DESC, j.id`).all(companyId, ...scopeParams) as Row[];
+    const jobs = await Promise.all(rows.map((row) => this.jobListItemFromJob(this.jobFromRow(row))));
+    const stageRows = this.db.prepare(`
+      SELECT a.current_stage AS stage, COUNT(*) AS n
+      FROM applications a JOIN jobs j ON j.id = a.job_id
+      WHERE j.company_id = ? ${scope}
+      GROUP BY a.current_stage
+    `).all(companyId, ...scopeParams) as Row[];
+    const applicationsByStage = Object.fromEntries(APPLICATION_STAGES.map((stage) => [stage, 0])) as Record<ApplicationStage, number>;
+    for (const row of stageRows) applicationsByStage[row.stage as ApplicationStage] = Number(row.n);
+    const applications = Object.values(applicationsByStage).reduce((sum, value) => sum + value, 0);
+    const activePipeline = APPLICATION_STAGES
+      .filter((stage) => !['offer','rejected','withdrawn'].includes(stage))
+      .reduce((sum, stage) => sum + applicationsByStage[stage], 0);
+    const sourceKinds = [...new Set(jobs.flatMap((item) => item.sourceKinds))].sort();
+    return CompanyDetailSchema.parse({ company, jobs, applications, activePipeline, applicationsByStage, sourceKinds });
+  }
+
+  async getAnalyticsSnapshot(input: AnalyticsSnapshotInput, generatedAt: string): Promise<AnalyticsSnapshot> {
+    const pipeline = await this.getPipelineStats({ campaignId: input.campaignId });
+    const dashboard = await this.getDashboardSnapshot({
+      ...(input.campaignId ? { campaignId: input.campaignId } : {}),
+      recentDiscoveryLimit: 1, attentionLimit: 1,
+    }, generatedAt);
+    const companyPage = await this.listCompanyViews({ limit: 200, offset: 0, ...(input.campaignId ? { campaignId: input.campaignId } : {}) });
+    const campaignCondition = input.campaignId
+      ? `EXISTS (SELECT 1 FROM job_observations o JOIN discovery_runs d ON d.id = o.discovery_run_id WHERE o.job_id = j.id AND d.campaign_id = ?)`
+      : '1=1';
+    const params = input.campaignId ? [input.campaignId] : [];
+    const companyStageRows = this.db.prepare(`
+      SELECT j.company_id AS company_id, a.current_stage AS stage, COUNT(DISTINCT a.id) AS n
+      FROM jobs j JOIN applications a ON a.job_id = j.id
+      WHERE ${campaignCondition}
+      GROUP BY j.company_id, a.current_stage
+    `).all(...params) as Row[];
+    const companyStages = new Map<string, Record<ApplicationStage, number>>();
+    for (const item of companyPage.items) companyStages.set(item.company.id, Object.fromEntries(APPLICATION_STAGES.map((stage) => [stage, 0])) as Record<ApplicationStage, number>);
+    for (const row of companyStageRows) {
+      const stages = companyStages.get(String(row.company_id));
+      if (stages) stages[row.stage as ApplicationStage] = Number(row.n);
+    }
+    const companyPerformance = companyPage.items.map((item) => ({
+      companyId: item.company.id, companyName: item.company.name, jobs: item.jobs, applications: item.applications,
+      applicationsByStage: companyStages.get(item.company.id)!,
+    })).sort((left, right) => right.applications - left.applications || right.jobs - left.jobs || left.companyName.localeCompare(right.companyName));
+
+    const campaigns = await this.listCampaigns({ limit: 200, offset: 0 });
+    const campaignRows = this.db.prepare(`
+      SELECT d.campaign_id AS campaign_id, COUNT(DISTINCT o.job_id) AS jobs, COUNT(DISTINCT a.id) AS applications
+      FROM discovery_runs d
+      LEFT JOIN job_observations o ON o.discovery_run_id = d.id
+      LEFT JOIN applications a ON a.job_id = o.job_id
+      WHERE d.campaign_id IS NOT NULL
+      GROUP BY d.campaign_id
+    `).all() as Row[];
+    const campaignCounts = new Map(campaignRows.map((row) => [String(row.campaign_id), { jobs: Number(row.jobs), applications: Number(row.applications) }]));
+    const campaignStageRows = this.db.prepare(`
+      SELECT d.campaign_id AS campaign_id, a.current_stage AS stage, COUNT(DISTINCT a.id) AS n
+      FROM discovery_runs d
+      JOIN job_observations o ON o.discovery_run_id = d.id
+      JOIN applications a ON a.job_id = o.job_id
+      WHERE d.campaign_id IS NOT NULL
+      GROUP BY d.campaign_id, a.current_stage
+    `).all() as Row[];
+    const campaignStages = new Map<string, Record<ApplicationStage, number>>();
+    for (const campaign of campaigns.items) campaignStages.set(campaign.id, Object.fromEntries(APPLICATION_STAGES.map((stage) => [stage, 0])) as Record<ApplicationStage, number>);
+    for (const row of campaignStageRows) {
+      const stages = campaignStages.get(String(row.campaign_id));
+      if (stages) stages[row.stage as ApplicationStage] = Number(row.n);
+    }
+    const campaignPerformance = campaigns.items.map((campaign) => ({
+      campaign: CampaignRefSchema.parse({ id: campaign.id, name: campaign.name, status: campaign.status }),
+      jobs: campaignCounts.get(campaign.id)?.jobs ?? 0,
+      applications: campaignCounts.get(campaign.id)?.applications ?? 0,
+      applicationsByStage: campaignStages.get(campaign.id)!,
+    })).sort((left, right) => right.applications - left.applications || right.jobs - left.jobs || left.campaign.name.localeCompare(right.campaign.name));
+
+    return AnalyticsSnapshotSchema.parse({
+      generatedAt, campaign: this.campaignRefById(input.campaignId ?? null), pipeline,
+      sourcePerformance: dashboard.sourcePerformance, resumeUsage: dashboard.resumeUsage, companyPerformance, campaignPerformance,
+    });
+  }
+
   async listDiscoveryRunViews(input: ListDiscoveryRunsInput): Promise<ListDiscoveryRunsOutput> {
     const where: string[] = [];
     const params: Array<string | number> = [];
@@ -1141,6 +1293,9 @@ export class SqliteCareerStore implements CareerStorePort {
   getResumeProfile(resumeProfileId: string) { return this.readSession().getResumeProfile(resumeProfileId); }
   getDiscoveryRun(runId: string) { return this.readSession().getDiscoveryRun(runId); }
   getPipelineStats(input: PipelineStatsInput) { return this.readSession().getPipelineStats(input); }
+  listCompanyViews(input: ListCompaniesInput) { return this.readSession().listCompanyViews(input); }
+  getCompanyDetailView(companyId: string, campaignId?: string) { return this.readSession().getCompanyDetailView(companyId, campaignId); }
+  getAnalyticsSnapshot(input: AnalyticsSnapshotInput, generatedAt: string) { return this.readSession().getAnalyticsSnapshot(input, generatedAt); }
   searchJobListItems(input: SearchJobListItemsInput) { return this.readSession().searchJobListItems(input); }
   listApplicationBoard(input: ListApplicationBoardInput) { return this.readSession().listApplicationBoard(input); }
   getApplicationWorkspaceDetail(applicationId: string) { return this.readSession().getApplicationWorkspaceDetail(applicationId); }

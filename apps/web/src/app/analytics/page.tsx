@@ -1,6 +1,3 @@
-import { WorkspacePlaceholder } from '@/components/ui/workspace-placeholder';
-import { getMessages } from '@/i18n/server';
-
-export default async function Page() {
-  return <WorkspacePlaceholder page="analytics" messages={await getMessages()} />;
-}
+import { AnalyticsWorkspace } from '@/components/management/analytics-workspace';
+import type { ManagementSearchParams } from '@/components/management/campaigns-workspace';
+export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<ManagementSearchParams> }) { return <AnalyticsWorkspace searchParams={await searchParams} />; }

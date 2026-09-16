@@ -31,6 +31,22 @@ export const zhCN: MessageCatalog = {
     notFoundDescription: '这个地址没有对应的 Job Harness 工作区。',
     backOverview: '返回概览',
   },
+  companiesWorkspace: {
+    filters: { query: '公司', campaign: '求职目标', all: '全部', apply: '筛选', reset: '重置' },
+    table: { company: '公司', jobs: '岗位', shortlisted: '候选', applications: '投递', activePipeline: '活跃 Pipeline', cities: '城市', sources: '来源', lastSeen: '最近发现', empty: '暂无公司数据。' },
+    detail: { title: '公司详情', aliases: '别名', sources: '关联来源', pipeline: '投递阶段', jobs: '岗位', noJobs: '当前范围内没有岗位。', close: '关闭详情', full: '打开完整详情', openJob: '查看岗位' },
+  },
+  analyticsWorkspace: {
+    filters: { campaign: '求职目标', all: '全部求职目标', apply: '筛选', reset: '重置' },
+    summary: { knownJobs: '已知岗位', applications: '投递', activeJobs: '活跃岗位', activePipeline: '活跃 Pipeline' },
+    jobs: { title: '岗位状态分布', discovered: '发现', shortlisted: '候选', ignored: '忽略', closed: '关闭', archived: '归档' },
+    applications: { title: '投递阶段分布', applied: '已投递', screening: '筛选', assessment: '测评', interview: '面试', offer: 'Offer', rejected: '拒绝', withdrawn: '撤回' },
+    companies: { title: '公司关联表现', company: '公司', jobs: '岗位', applications: '投递', screening: '筛选', interview: '面试', offer: 'Offer', empty: '暂无公司数据。' },
+    campaigns: { title: '求职目标对比', campaign: '求职目标', jobs: '岗位', applications: '投递', screening: '筛选', interview: '面试', offer: 'Offer', empty: '暂无求职目标数据。' },
+    sources: { title: '来源关联表现', source: '来源', jobs: '岗位', applications: '投递', screening: '筛选', interview: '面试', note: '一个 Opportunity 可以关联多个 Listing 来源；这些数字不是实际提交渠道归因。', empty: '暂无来源数据。' },
+    resumes: { title: '简历关联表现', resume: '简历', applications: '投递', screening: '筛选', assessment: '测评', interview: '面试', offer: 'Offer', note: '这是相关性统计，不表示简历本身造成了招聘结果。', empty: '暂无简历使用数据。' },
+    generatedAt: '生成时间',
+  },
   campaignsWorkspace: {
     list: { title: '求职目标', empty: '还没有求职目标。创建一个 Campaign 来固定岗位、城市、届次和简历方向。', create: '新建目标', updated: '更新于', roles: '岗位', cities: '城市', resumes: '简历方向' },
     form: { titleNew: '新建求职目标', titleEdit: '编辑求职目标', name: '名称', targetRoles: '目标岗位', targetRolesHint: '逗号或换行分隔，至少一个', cities: '城市', graduationYears: '毕业届次', experience: '经验范围', keywords: '关键词', exclusions: '排除词', sources: '发现来源', resumes: '简历方向', status: '状态', save: '保存', saving: '正在保存…', saved: '已保存', failed: '保存失败', required: '请至少填写名称和一个目标岗位。' },
