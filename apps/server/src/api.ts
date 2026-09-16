@@ -107,6 +107,9 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
       ...(integer(req.query.recentDiscoveryLimit) !== undefined
         ? { recentDiscoveryLimit: integer(req.query.recentDiscoveryLimit) }
         : {}),
+      ...(integer(req.query.attentionLimit) !== undefined
+        ? { attentionLimit: integer(req.query.attentionLimit) }
+        : {}),
     });
     res.json(await career.workspace.getDashboardSnapshot(input));
   }));
@@ -120,6 +123,7 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
       ...(list(req.query.states) ? { states: list(req.query.states) } : {}),
       ...(list(req.query.sourceKinds) ? { sourceKinds: list(req.query.sourceKinds) } : {}),
       ...(boolean(req.query.applied) !== undefined ? { applied: boolean(req.query.applied) } : {}),
+      ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
     });
     res.json(await career.workspace.searchJobListItems(input));
   }));

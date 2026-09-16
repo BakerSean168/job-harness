@@ -247,6 +247,14 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     if (input.applied !== undefined) {
       where.push(`${input.applied ? '' : 'NOT '}EXISTS (SELECT 1 FROM applications a WHERE a.job_id = j.id)`);
     }
+    if (input.campaignId) {
+      where.push(`EXISTS (
+        SELECT 1 FROM job_observations o
+        JOIN discovery_runs d ON d.id = o.discovery_run_id
+        WHERE o.job_id = j.id AND d.campaign_id = ?
+      )`);
+      params.push(input.campaignId);
+    }
     const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM jobs j ${clause}`).get(...params) as Row).n);
     const rows = this.db.prepare(`SELECT j.* FROM jobs j ${clause} ORDER BY j.last_seen_at DESC, j.id LIMIT ? OFFSET ?`).all(...params, input.limit ?? 50, input.offset ?? 0) as Row[];
@@ -638,7 +646,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       WHERE ${where} AND ${campaignCondition}
     `).get(...extraParams, ...params) as Row).n);
 
-    const activePipeline = countApplications("a.current_stage NOT IN ('rejected','withdrawn')");
+    const activePipeline = countApplications("a.current_stage NOT IN ('offer','rejected','withdrawn')");
     const interviewStage = countApplications('a.current_stage = ?', ['interview']);
     const recentRunRows = input.campaignId
       ? this.db.prepare('SELECT * FROM discovery_runs WHERE campaign_id = ? ORDER BY started_at DESC, id DESC LIMIT ?').all(input.campaignId, input.recentDiscoveryLimit ?? 5) as Row[]
@@ -652,6 +660,183 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       offset: 0,
       ...(input.campaignId ? { campaignId: input.campaignId } : {}),
     });
+
+    const generatedMs = new Date(generatedAt).getTime();
+    const daysAgo = (days: number) => new Date(generatedMs - days * 86_400_000).toISOString();
+    const attention: DashboardSnapshot['attention'] = [];
+    const attentionLimit = input.attentionLimit ?? 10;
+
+    const staleApplicationRows = this.db.prepare(`
+      SELECT a.id AS application_id, j.id AS job_id, c.name AS company_name, j.title AS job_title,
+             a.current_stage AS current_stage, COALESCE(MAX(e.occurred_at), a.applied_at) AS since_at
+      FROM applications a
+      JOIN jobs j ON j.id = a.job_id
+      JOIN companies c ON c.id = j.company_id
+      LEFT JOIN application_events e ON e.application_id = a.id
+      WHERE a.current_stage IN ('applied','screening','assessment','interview') AND ${campaignCondition}
+      GROUP BY a.id, j.id, c.name, j.title, a.current_stage, a.applied_at
+      HAVING COALESCE(MAX(e.occurred_at), a.applied_at) < ?
+      ORDER BY since_at ASC
+      LIMIT ?
+    `).all(...params, daysAgo(7), attentionLimit) as Row[];
+    for (const row of staleApplicationRows) attention.push({
+      id: `stale_application:${String(row.application_id)}`,
+      kind: 'stale_application', severity: 'warning',
+      label: `${String(row.company_name)} · ${String(row.job_title)}`,
+      jobId: String(row.job_id), applicationId: String(row.application_id), campaignId: input.campaignId ?? null, resumeProfileId: null,
+      stage: row.current_stage as ApplicationStage, sinceAt: String(row.since_at),
+    });
+
+    const shortlistRows = this.db.prepare(`
+      SELECT j.id AS job_id, c.name AS company_name, j.title AS job_title, j.first_seen_at AS since_at
+      FROM jobs j JOIN companies c ON c.id = j.company_id
+      WHERE j.state = 'shortlisted'
+        AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.job_id = j.id)
+        AND ${campaignCondition}
+        AND j.first_seen_at < ?
+      ORDER BY j.first_seen_at ASC
+      LIMIT ?
+    `).all(...params, daysAgo(3), attentionLimit) as Row[];
+    for (const row of shortlistRows) attention.push({
+      id: `shortlisted_unapplied:${String(row.job_id)}`,
+      kind: 'shortlisted_unapplied', severity: 'warning',
+      label: `${String(row.company_name)} · ${String(row.job_title)}`,
+      jobId: String(row.job_id), applicationId: null, campaignId: input.campaignId ?? null, resumeProfileId: null, stage: null, sinceAt: String(row.since_at),
+    });
+
+    const closedListingRows = this.db.prepare(`
+      SELECT a.id AS application_id, j.id AS job_id, c.name AS company_name, j.title AS job_title, a.current_stage AS current_stage,
+             MAX(COALESCE(jl.closed_at, jl.last_seen_at)) AS since_at
+      FROM applications a
+      JOIN jobs j ON j.id = a.job_id
+      JOIN companies c ON c.id = j.company_id
+      JOIN job_listings jl ON jl.job_id = j.id AND jl.status = 'closed'
+      WHERE a.current_stage IN ('applied','screening','assessment','interview') AND ${campaignCondition}
+      GROUP BY a.id, j.id, c.name, j.title, a.current_stage
+      ORDER BY since_at DESC
+      LIMIT ?
+    `).all(...params, attentionLimit) as Row[];
+    for (const row of closedListingRows) attention.push({
+      id: `closed_listing_active_application:${String(row.application_id)}`,
+      kind: 'closed_listing_active_application', severity: 'critical',
+      label: `${String(row.company_name)} · ${String(row.job_title)}`,
+      jobId: String(row.job_id), applicationId: String(row.application_id), campaignId: input.campaignId ?? null, resumeProfileId: null,
+      stage: row.current_stage as ApplicationStage, sinceAt: row.since_at == null ? null : String(row.since_at),
+    });
+
+    const campaignWhere = input.campaignId ? "c.status = 'active' AND c.id = ?" : "c.status = 'active'";
+    const staleCampaignRows = this.db.prepare(`
+      SELECT c.id AS campaign_id, c.name AS campaign_name, c.created_at AS created_at, MAX(d.completed_at) AS last_completed_at
+      FROM campaigns c LEFT JOIN discovery_runs d ON d.campaign_id = c.id AND d.completed_at IS NOT NULL
+      WHERE ${campaignWhere}
+      GROUP BY c.id, c.name, c.created_at
+      HAVING last_completed_at IS NULL OR last_completed_at < ?
+      ORDER BY COALESCE(last_completed_at, c.created_at) ASC
+      LIMIT ?
+    `).all(...(input.campaignId ? [input.campaignId] : []), daysAgo(3), attentionLimit) as Row[];
+    for (const row of staleCampaignRows) attention.push({
+      id: `stale_campaign_discovery:${String(row.campaign_id)}`, kind: 'stale_campaign_discovery', severity: 'info',
+      label: String(row.campaign_name), jobId: null, applicationId: null, campaignId: String(row.campaign_id), resumeProfileId: null, stage: null,
+      sinceAt: String(row.last_completed_at ?? row.created_at),
+    });
+
+    const selectedCampaign = input.campaignId ? await this.getCampaign(input.campaignId) : null;
+    const allowedResumeIds = selectedCampaign ? new Set(selectedCampaign.resumeProfileIds) : null;
+    const resumePage = await this.listResumeProfiles({ limit: 200, offset: 0 });
+    for (const resume of resumePage.items) {
+      if (allowedResumeIds && !allowedResumeIds.has(resume.id)) continue;
+      if (!resume.artifactUri) {
+        attention.push({
+          id: `missing_resume_artifact:${resume.id}`, kind: 'missing_resume_artifact', severity: 'warning', label: resume.name,
+          jobId: null, applicationId: null, campaignId: input.campaignId ?? null, resumeProfileId: resume.id, stage: null, sinceAt: resume.updatedAt,
+        });
+      } else if (resume.updatedAt < daysAgo(30)) {
+        attention.push({
+          id: `stale_resume_artifact:${resume.id}`, kind: 'stale_resume_artifact', severity: 'info', label: resume.name,
+          jobId: null, applicationId: null, campaignId: input.campaignId ?? null, resumeProfileId: resume.id, stage: null, sinceAt: resume.updatedAt,
+        });
+      }
+    }
+    const severityRank = { critical: 0, warning: 1, info: 2 } as const;
+    attention.sort((left, right) => severityRank[left.severity] - severityRank[right.severity]
+      || (left.sinceAt ?? generatedAt).localeCompare(right.sinceAt ?? generatedAt)
+      || left.id.localeCompare(right.id));
+
+    const generatedDate = new Date(generatedAt);
+    const dayAnchor = Date.UTC(generatedDate.getUTCFullYear(), generatedDate.getUTCMonth(), generatedDate.getUTCDate());
+    const dayKeys = Array.from({ length: 7 }, (_, index) => new Date(dayAnchor - (6 - index) * 86_400_000).toISOString().slice(0, 10));
+    const weeklyStart = `${dayKeys[0]}T00:00:00.000Z`;
+    const countsByDay = (rows: Row[]) => new Map(rows.map((row) => [String(row.day), Number(row.n)]));
+
+    const observationRows = input.campaignId
+      ? this.db.prepare(`SELECT substr(o.observed_at,1,10) AS day, COUNT(DISTINCT o.job_id) AS n
+          FROM job_observations o JOIN discovery_runs d ON d.id = o.discovery_run_id
+          WHERE d.campaign_id = ? AND o.observed_at >= ? GROUP BY day`).all(input.campaignId, weeklyStart) as Row[]
+      : this.db.prepare(`SELECT substr(o.observed_at,1,10) AS day, COUNT(DISTINCT o.job_id) AS n
+          FROM job_observations o WHERE o.observed_at >= ? GROUP BY day`).all(weeklyStart) as Row[];
+    const insertedRows = this.db.prepare(`SELECT substr(j.created_at,1,10) AS day, COUNT(*) AS n FROM jobs j
+      WHERE ${campaignCondition} AND j.created_at >= ? GROUP BY day`).all(...params, weeklyStart) as Row[];
+    const eventCounts = (type: string) => this.db.prepare(`
+      SELECT substr(e.occurred_at,1,10) AS day, COUNT(*) AS n
+      FROM application_events e
+      JOIN applications a ON a.id = e.application_id
+      JOIN jobs j ON j.id = a.job_id
+      WHERE e.type = ? AND ${campaignCondition} AND e.occurred_at >= ?
+      GROUP BY day
+    `).all(type, ...params, weeklyStart) as Row[];
+    const observedByDay = countsByDay(observationRows);
+    const insertedByDay = countsByDay(insertedRows);
+    const applicationsByDay = countsByDay(eventCounts('application_recorded'));
+    const stageChangesByDay = countsByDay(eventCounts('stage_changed'));
+    const interviewsByDay = countsByDay(eventCounts('interview_scheduled'));
+    const weeklyActivity: DashboardSnapshot['weeklyActivity'] = dayKeys.map((date) => ({
+      date,
+      jobsObserved: observedByDay.get(date) ?? 0,
+      opportunitiesInserted: insertedByDay.get(date) ?? 0,
+      shortlisted: null,
+      applicationsRecorded: applicationsByDay.get(date) ?? 0,
+      stageChanges: stageChangesByDay.get(date) ?? 0,
+      interviewsScheduled: interviewsByDay.get(date) ?? 0,
+    }));
+
+    const sourceRows = this.db.prepare(`
+      SELECT jl.source_kind AS source_kind,
+             COUNT(DISTINCT j.id) AS opportunities,
+             COUNT(DISTINCT a.id) AS applications
+      FROM job_listings jl
+      JOIN jobs j ON j.id = jl.job_id
+      LEFT JOIN applications a ON a.job_id = j.id
+      WHERE ${campaignCondition}
+      GROUP BY jl.source_kind
+    `).all(...params) as Row[];
+    const sourceStageRows = this.db.prepare(`
+      SELECT jl.source_kind AS source_kind, a.current_stage AS stage, COUNT(DISTINCT a.id) AS n
+      FROM job_listings jl
+      JOIN jobs j ON j.id = jl.job_id
+      JOIN applications a ON a.job_id = j.id
+      WHERE ${campaignCondition}
+      GROUP BY jl.source_kind, a.current_stage
+    `).all(...params) as Row[];
+    const sourceStages = new Map<string, Record<ApplicationStage, number>>();
+    for (const row of sourceRows) {
+      sourceStages.set(String(row.source_kind), Object.fromEntries(
+        APPLICATION_STAGES.map((stage) => [stage, 0]),
+      ) as Record<ApplicationStage, number>);
+    }
+    for (const row of sourceStageRows) {
+      const stages = sourceStages.get(String(row.source_kind));
+      if (stages) stages[row.stage as ApplicationStage] = Number(row.n);
+    }
+    const sourcePerformance: DashboardSnapshot['sourcePerformance'] = sourceRows
+      .map((row) => ({
+        sourceKind: String(row.source_kind) as DashboardSnapshot['sourcePerformance'][number]['sourceKind'],
+        opportunities: Number(row.opportunities),
+        applications: Number(row.applications),
+        applicationsByStage: sourceStages.get(String(row.source_kind))!,
+      }))
+      .sort((left, right) => right.applications - left.applications
+        || right.opportunities - left.opportunities
+        || left.sourceKind.localeCompare(right.sourceKind));
 
     return DashboardSnapshotSchema.parse({
       generatedAt,
@@ -675,6 +860,9 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       },
       recentDiscoveryRuns,
       resumeUsage: resumeUsage.items,
+      attention: attention.slice(0, attentionLimit),
+      weeklyActivity,
+      sourcePerformance,
     });
   }
 

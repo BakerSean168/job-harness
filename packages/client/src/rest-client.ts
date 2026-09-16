@@ -79,6 +79,7 @@ function jobsQuery(input: SearchJobListItemsInput): string {
   append(query, 'title', input.title);
   append(query, 'city', input.city);
   append(query, 'applied', input.applied);
+  append(query, 'campaignId', input.campaignId);
   appendMany(query, 'states', input.states);
   appendMany(query, 'sourceKinds', input.sourceKinds);
   return query.toString();
@@ -117,6 +118,7 @@ function dashboardQuery(input: DashboardSnapshotInput): string {
   const query = new URLSearchParams();
   append(query, 'campaignId', input.campaignId);
   append(query, 'recentDiscoveryLimit', input.recentDiscoveryLimit);
+  append(query, 'attentionLimit', input.attentionLimit);
   return query.toString();
 }
 

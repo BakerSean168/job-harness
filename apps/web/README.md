@@ -2,7 +2,7 @@
 
 Next.js App Router workspace for Job Harness.
 
-Current slice: **W202 Applications workspace complete**.
+Current slice: **W301 Operational Dashboard complete**.
 
 Implemented foundation:
 
@@ -35,7 +35,18 @@ W202 also connects `/applications` and `/applications/:applicationId`:
 - optional transition notes, including rejected/withdrawn reasons;
 - retry-safe Server Actions: one user intent carries one stable idempotency key and event timestamp.
 
-Dashboard and the remaining navigation items deliberately stay as placeholders until their own vertical slices land.
+W301 replaces the Overview placeholder with an operational Dashboard:
+
+- active Campaign selector with an explicit all-campaign aggregate;
+- Campaign-scoped KPI and funnel links back into Jobs/Applications;
+- deterministic attention rules for stale applications, unapplied shortlists, closed listings, stale discovery, and Resume artifacts;
+- seven-day observation/insert/application/stage-change activity;
+- recent Discovery runs;
+- Resume outcome correlation and Listing-source association views;
+- source metrics deliberately do not claim to identify the actual submission channel;
+- weekly shortlisting stays unavailable until Job triage gets an auditable event domain.
+
+Campaigns, Resumes, Discovery, Companies and Analytics remain their own follow-up vertical slices.
 
 Run locally:
 

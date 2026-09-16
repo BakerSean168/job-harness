@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { JobSearchCampaign } from '@job-harness/contracts';
 import type { MessageCatalog } from '@/i18n';
 import { one, type WorkspaceSearchParams } from './query';
 
@@ -7,11 +8,13 @@ export function JobsFilters({
   pathname,
   params,
   messages,
+  campaigns,
 }: {
   mode: 'jobs' | 'inbox';
   pathname: string;
   params: WorkspaceSearchParams;
   messages: MessageCatalog;
+  campaigns: readonly JobSearchCampaign[];
 }) {
   const copy = messages.jobsWorkspace;
   return (
@@ -37,6 +40,13 @@ export function JobsFilters({
           </select>
         </label>
       ) : null}
+      <label className="filter-field">
+        <span>{copy.filters.campaign}</span>
+        <select name="campaign" defaultValue={one(params.campaign) ?? ''}>
+          <option value="">{copy.filters.any}</option>
+          {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
+        </select>
+      </label>
       <label className="filter-field">
         <span>{copy.filters.source}</span>
         <select name="source" defaultValue={one(params.source) ?? ''}>

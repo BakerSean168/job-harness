@@ -46,13 +46,15 @@ export async function JobsWorkspace({
       : state?.success ? { states: [state.data] } : {}),
     ...(source?.success ? { sourceKinds: [source.data] } : {}),
     ...(appliedRaw === 'yes' ? { applied: true } : appliedRaw === 'no' ? { applied: false } : {}),
+    ...(optional(one(searchParams.campaign)) ? { campaignId: optional(one(searchParams.campaign)) } : {}),
   };
 
   const client = getJobHarnessClient();
   const selectedJobId = optional(one(searchParams.job));
-  const [page, selectedDetail] = await Promise.all([
+  const [page, selectedDetail, campaignPage] = await Promise.all([
     client.workspace.searchJobListItems(input),
     selectedJobId ? client.workspace.getJobDetail(selectedJobId) : Promise.resolve(null),
+    client.campaigns.list({ limit: 200, offset: 0 }),
   ]);
   const closeHref = workspaceHref(pathname, searchParams, { job: null });
 
@@ -64,7 +66,7 @@ export async function JobsWorkspace({
         actions={<span className="workspace-result-count">{page.total} {messages.jobsWorkspace.table.results}</span>}
       />
       <div className="workspace-surface jobs-surface">
-        <JobsFilters mode={mode} pathname={pathname} params={searchParams} messages={messages} />
+        <JobsFilters mode={mode} pathname={pathname} params={searchParams} messages={messages} campaigns={campaignPage.items} />
         <JobsTable
           items={page.items}
           pathname={pathname}

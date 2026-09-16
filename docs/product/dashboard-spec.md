@@ -121,3 +121,19 @@ Click opens run detail with context snapshot and affected jobs.
 - No active campaign: show global pipeline and a callout to create/activate a campaign.
 - MCP/Agent absent: Dashboard remains fully useful; external AI is optional.
 - Projection failure: show last successful refresh and retry, without hiding persisted Jobs/Applications.
+## W301 implementation notes
+
+The first operational implementation keeps these rules explicit:
+
+- stale active Application: no new ApplicationEvent for more than 7 days;
+- shortlisted but unapplied: Opportunity has been known for more than 3 days (there is not yet a separate JobDecision event timestamp);
+- closed Listing while an Application remains in an active pre-offer stage: critical attention;
+- active Campaign without a completed DiscoveryRun for more than 3 days: informational attention;
+- Resume artifact missing: warning; Resume registry entry older than 30 days: informational attention;
+- Active Pipeline excludes Offer, Rejected and Withdrawn because they are terminal in the current lifecycle;
+- weekly aggregation currently uses UTC calendar boundaries;
+- historical Shortlisted counts are returned as unavailable rather than inferred from current Job state/updated timestamps;
+- source performance groups by associated JobListing.sourceKind. A multi-source Opportunity may appear in multiple rows, and the view does not claim which channel actually received the application;
+- failed DiscoveryRun attention remains deferred because DiscoveryRun does not yet own a success/failure outcome field.
+
+These are deterministic product rules, not LLM recommendations.

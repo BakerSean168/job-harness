@@ -144,9 +144,15 @@ describe('REST v1 facade', () => {
       stageEnteredAt: '2026-09-16T10:00:00.000Z',
     });
 
-    const dashboard = await json('/dashboard');
+    const dashboard = await json('/dashboard?recentDiscoveryLimit=3&attentionLimit=7');
     expect(dashboard.body.kpis).toMatchObject({ knownJobs: 1, shortlisted: 1, applications: 1, activePipeline: 1 });
     expect(dashboard.body.funnel.screening).toBe(1);
+    expect(dashboard.body.weeklyActivity).toHaveLength(7);
+    expect(Array.isArray(dashboard.body.attention)).toBe(true);
+    expect(Array.isArray(dashboard.body.sourcePerformance)).toBe(true);
+    const invalidDashboard = await json('/dashboard?attentionLimit=99');
+    expect(invalidDashboard.response.status).toBe(400);
+    expect(invalidDashboard.body.error.code).toBe('VALIDATION_ERROR');
 
     const campaigns = await json('/campaigns');
     expect(campaigns.body.total).toBe(1);

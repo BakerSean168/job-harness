@@ -74,9 +74,9 @@ Implemented as a presentation-ready Board/Table workspace over the same Applicat
 
 ## Phase W3 — Search-management surfaces
 
-### JH-W301 — Dashboard
+### JH-W301 — Dashboard ✅
 
-Campaign context, funnel, attention list, weekly activity, recent discovery runs.
+Implemented as an operational projection over the same workspace ports: Campaign selector/context, scoped KPI links, hiring funnel, deterministic Needs Attention rules, seven-day activity, recent Discovery runs, Resume correlation, and Listing-source association. Weekly shortlisting intentionally renders unavailable until Job triage becomes event-sourced; source metrics are Listing associations rather than submission-channel attribution.
 
 ### JH-W302 — Campaigns / Resumes / Discovery
 

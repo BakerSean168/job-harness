@@ -47,6 +47,7 @@ Completed before Web UI implementation:
 4. [x] **JH-W102:** Next.js Web shell with stable IA routes, `zh-CN`/`en`, semantic light/dark theme tokens, localized state primitives, and production build gate.
 5. [x] **JH-W201:** Inbox + Jobs Table + Job Side Panel with typed REST client and server-only triage mutations.
 6. [x] **JH-W202:** Applications Board/Table + Application Side Panel/detail, server-validated drag/keyboard stage transitions, outcome filtering, and retry-safe `stage_changed` writes.
-7. Next: **JH-W301 Dashboard**, followed by Campaigns/Resumes/Discovery and the remaining hardening/deployment work.
+7. [x] **JH-W301:** Operational Dashboard with scoped KPI/funnel navigation, deterministic attention rules, seven-day activity, recent discovery, Resume correlation, and Listing-source association.
+8. Next: **JH-W302 Campaigns / Resumes / Discovery**, followed by Companies/Analytics and hardening/deployment.
 
 Only after standalone usage is proven should a separate MemoFlow adapter be implemented.

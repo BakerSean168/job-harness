@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import './jobs.css';
 import './applications.css';
+import './dashboard.css';
 import { AppShell } from '@/components/shell/app-shell';
 import { getLocale, getMessages } from '@/i18n/server';
 

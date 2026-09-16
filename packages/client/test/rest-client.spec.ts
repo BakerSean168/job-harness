@@ -45,6 +45,7 @@ describe('Job Harness REST client', () => {
       states: ['discovered', 'shortlisted'],
       sourceKinds: ['official'],
       applied: false,
+      campaignId: 'campaign-agent',
       limit: 20,
       offset: 0,
     });
@@ -56,6 +57,7 @@ describe('Job Harness REST client', () => {
     expect(url.searchParams.getAll('states')).toEqual(['discovered', 'shortlisted']);
     expect(url.searchParams.getAll('sourceKinds')).toEqual(['official']);
     expect(url.searchParams.get('applied')).toBe('false');
+    expect(url.searchParams.get('campaignId')).toBe('campaign-agent');
     expect(new Headers(calls[0]!.init?.headers).get('authorization')).toBe('Bearer secret');
   });
 
@@ -87,6 +89,30 @@ describe('Job Harness REST client', () => {
     expect(url.searchParams.get('appliedFrom')).toBe('2026-09-01T00:00:00.000Z');
     expect(url.searchParams.get('appliedTo')).toBe('2026-09-30T23:59:59.999Z');
     expect(url.searchParams.get('terminal')).toBe('include');
+  });
+
+  it('encodes Dashboard limits and validates operational projections', async () => {
+    const calls: string[] = [];
+    const client = createJobHarnessRestClient({
+      baseUrl: 'http://job-harness/api/v1',
+      fetch: async (input) => {
+        calls.push(String(input));
+        return response({
+          generatedAt: now, campaign: null,
+          kpis: { knownJobs: 0, inbox: 0, shortlisted: 0, applications: 0, activePipeline: 0, interviewStage: 0 },
+          funnel: { discovered: 0, shortlisted: 0, applied: 0, screening: 0, assessment: 0, interview: 0, offer: 0 },
+          recentDiscoveryRuns: [], resumeUsage: [], attention: [], sourcePerformance: [],
+          weeklyActivity: Array.from({ length: 7 }, (_, index) => ({
+            date: `2026-09-${String(10 + index).padStart(2, '0')}`, jobsObserved: 0, opportunitiesInserted: 0, shortlisted: null, applicationsRecorded: 0, stageChanges: 0, interviewsScheduled: 0,
+          })),
+        });
+      },
+    });
+    const result = await client.workspace.getDashboardSnapshot({ recentDiscoveryLimit: 3, attentionLimit: 7 });
+    expect(result.weeklyActivity).toHaveLength(7);
+    const url = new URL(calls[0]!);
+    expect(url.searchParams.get('recentDiscoveryLimit')).toBe('3');
+    expect(url.searchParams.get('attentionLimit')).toBe('7');
   });
 
   it('surfaces stable server error envelopes', async () => {

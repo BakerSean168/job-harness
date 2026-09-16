@@ -31,6 +31,28 @@ export const en: MessageCatalog = {
     notFoundDescription: 'This address does not map to a Job Harness workspace.',
     backOverview: 'Back to overview',
   },
+  dashboardWorkspace: {
+    campaign: { label: 'Campaign', all: 'All campaigns', active: 'Active target', noActive: 'No active campaign is configured; global data is shown below.', roles: 'Target roles', cities: 'Cities', graduation: 'Graduation', experience: 'Experience' },
+    kpis: { knownJobs: 'Known jobs', inbox: 'Inbox', shortlisted: 'Shortlisted', applications: 'Applications', activePipeline: 'Active pipeline', interviews: 'Interview stage' },
+    funnel: { title: 'Hiring funnel', discovered: 'Discovered', shortlisted: 'Shortlisted', applied: 'Applied', screening: 'Screening', assessment: 'Assessment', interview: 'Interview', offer: 'Offer' },
+    attention: {
+      title: 'Needs attention', empty: 'No current items match the deterministic attention rules.', since: 'Since',
+      severity: { info: 'Info', warning: 'Attention', critical: 'High priority' },
+      kinds: {
+        stale_application: 'Active application has had no new event for more than 7 days',
+        shortlisted_unapplied: 'Shortlisted opportunity has been known for more than 3 days without an application',
+        closed_listing_active_application: 'A listing is closed while the application pipeline is still active',
+        stale_campaign_discovery: 'Active campaign has had no completed discovery run for more than 3 days',
+        missing_resume_artifact: 'Resume reference has no usable artifact',
+        stale_resume_artifact: 'Resume artifact has not been updated for more than 30 days',
+      },
+    },
+    weekly: { title: 'Last 7 days', jobsObserved: 'Jobs observed', opportunitiesInserted: 'New opportunities', shortlisted: 'Shortlisted', applicationsRecorded: 'Applications', stageChanges: 'Stage changes', interviewsScheduled: 'Interviews scheduled', unavailable: 'No historical event exists', utcNote: 'Currently aggregated by UTC date. Shortlisting is not event-sourced yet, so no historical count is fabricated.' },
+    recent: { title: 'Recent discovery runs', empty: 'No discovery runs yet.', candidates: 'Candidates', inserted: 'New', duplicates: 'Duplicates', rejected: 'Rejected', started: 'Started' },
+    resumes: { title: 'Resume association', applications: 'Applications', screening: 'Screening', interview: 'Interview', lastUsed: 'Last used', correlationNote: 'This is a correlation view; it does not claim the resume caused an outcome.', empty: 'No resume usage data yet.' },
+    sources: { title: 'Source association', source: 'Source', opportunities: 'Jobs', applications: 'Applications', screening: 'Screening', interview: 'Interview', associationNote: 'An Opportunity may have multiple Listing sources. These are associated sources, not attribution of the actual submission channel.', empty: 'No source data yet.' },
+    generatedAt: 'Generated',
+  },
   applicationsWorkspace: {
     views: { board: 'Board', table: 'Table' },
     filters: {
@@ -51,7 +73,7 @@ export const en: MessageCatalog = {
   },
   jobsWorkspace: {
     filters: {
-      title: 'Role', company: 'Company', city: 'City', state: 'Job state', source: 'Source', applied: 'Application',
+      title: 'Role', company: 'Company', city: 'City', state: 'Job state', source: 'Source', applied: 'Application', campaign: 'Campaign',
       any: 'Any', yes: 'Applied', no: 'Not applied', apply: 'Filter', reset: 'Reset',
     },
     table: {

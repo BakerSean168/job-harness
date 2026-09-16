@@ -1,6 +1,9 @@
-import { WorkspacePlaceholder } from '@/components/ui/workspace-placeholder';
-import { getMessages } from '@/i18n/server';
+import { DashboardWorkspace, type DashboardSearchParams } from '@/components/dashboard/dashboard-workspace';
 
-export default async function OverviewPage() {
-  return <WorkspacePlaceholder page="overview" messages={await getMessages()} />;
+export default async function OverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<DashboardSearchParams>;
+}) {
+  return <DashboardWorkspace searchParams={await searchParams} />;
 }

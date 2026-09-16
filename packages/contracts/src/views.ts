@@ -157,6 +157,7 @@ export const GetDiscoveryRunDetailOutputSchema = DiscoveryRunDetailSchema.nullab
 export const DashboardSnapshotInputSchema = z.object({
   campaignId: EntityIdSchema.optional(),
   recentDiscoveryLimit: z.number().int().min(1).max(20).default(5),
+  attentionLimit: z.number().int().min(1).max(30).default(10),
 }).strict();
 
 export const DashboardKpisSchema = z.object({
@@ -178,6 +179,45 @@ export const DashboardFunnelSchema = z.object({
   offer: z.number().int().nonnegative(),
 }).strict();
 
+export const DashboardAttentionKindSchema = z.enum([
+  'stale_application',
+  'shortlisted_unapplied',
+  'closed_listing_active_application',
+  'stale_campaign_discovery',
+  'missing_resume_artifact',
+  'stale_resume_artifact',
+]);
+
+export const DashboardAttentionItemSchema = z.object({
+  id: z.string().trim().min(1),
+  kind: DashboardAttentionKindSchema,
+  severity: z.enum(['info', 'warning', 'critical']),
+  label: z.string().trim().min(1),
+  jobId: EntityIdSchema.nullable(),
+  applicationId: EntityIdSchema.nullable(),
+  campaignId: EntityIdSchema.nullable(),
+  resumeProfileId: EntityIdSchema.nullable(),
+  stage: ApplicationStageSchema.nullable(),
+  sinceAt: NullableIsoDateTimeSchema,
+}).strict();
+
+export const DashboardWeeklyActivityPointSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  jobsObserved: z.number().int().nonnegative(),
+  opportunitiesInserted: z.number().int().nonnegative(),
+  shortlisted: z.number().int().nonnegative().nullable(),
+  applicationsRecorded: z.number().int().nonnegative(),
+  stageChanges: z.number().int().nonnegative(),
+  interviewsScheduled: z.number().int().nonnegative(),
+}).strict();
+
+export const DashboardSourcePerformanceSchema = z.object({
+  sourceKind: JobSourceKindSchema,
+  opportunities: z.number().int().nonnegative(),
+  applications: z.number().int().nonnegative(),
+  applicationsByStage: z.record(ApplicationStageSchema, z.number().int().nonnegative()),
+}).strict();
+
 export const DashboardSnapshotSchema = z.object({
   generatedAt: IsoDateTimeSchema,
   campaign: CampaignRefSchema.nullable(),
@@ -185,6 +225,9 @@ export const DashboardSnapshotSchema = z.object({
   funnel: DashboardFunnelSchema,
   recentDiscoveryRuns: z.array(DiscoveryRunSummarySchema),
   resumeUsage: z.array(ResumeUsageSummarySchema),
+  attention: z.array(DashboardAttentionItemSchema),
+  weeklyActivity: z.array(DashboardWeeklyActivityPointSchema),
+  sourcePerformance: z.array(DashboardSourcePerformanceSchema),
 }).strict();
 
 export type CampaignRef = z.infer<typeof CampaignRefSchema>;
@@ -203,5 +246,8 @@ export type ListResumeUsageInput = z.input<typeof ListResumeUsageInputSchema>;
 export type ListResumeUsageOutput = z.output<typeof ListResumeUsageOutputSchema>;
 export type DiscoveryRunSummary = z.infer<typeof DiscoveryRunSummarySchema>;
 export type DiscoveryRunDetail = z.infer<typeof DiscoveryRunDetailSchema>;
+export type DashboardAttentionItem = z.infer<typeof DashboardAttentionItemSchema>;
+export type DashboardWeeklyActivityPoint = z.infer<typeof DashboardWeeklyActivityPointSchema>;
+export type DashboardSourcePerformance = z.infer<typeof DashboardSourcePerformanceSchema>;
 export type DashboardSnapshotInput = z.input<typeof DashboardSnapshotInputSchema>;
 export type DashboardSnapshot = z.infer<typeof DashboardSnapshotSchema>;

@@ -31,6 +31,28 @@ export const zhCN: MessageCatalog = {
     notFoundDescription: '这个地址没有对应的 Job Harness 工作区。',
     backOverview: '返回概览',
   },
+  dashboardWorkspace: {
+    campaign: { label: '求职目标', all: '全部求职目标', active: '当前目标', noActive: '当前没有活跃的求职目标，以下展示全局数据。', roles: '目标岗位', cities: '城市', graduation: '毕业届次', experience: '经验范围' },
+    kpis: { knownJobs: '已知岗位', inbox: '待分流', shortlisted: '候选岗位', applications: '已投递', activePipeline: '活跃 Pipeline', interviews: '面试阶段' },
+    funnel: { title: '招聘漏斗', discovered: '发现', shortlisted: '候选', applied: '已投递', screening: '筛选', assessment: '测评', interview: '面试', offer: 'Offer' },
+    attention: {
+      title: '需要关注', empty: '当前没有命中规则的待处理事项。', since: '自',
+      severity: { info: '提示', warning: '关注', critical: '高优先级' },
+      kinds: {
+        stale_application: '活跃投递超过 7 天没有新事件',
+        shortlisted_unapplied: '候选岗位已知超过 3 天仍未投递',
+        closed_listing_active_application: '岗位来源已关闭，但投递仍处于活跃阶段',
+        stale_campaign_discovery: '活跃求职目标超过 3 天没有完成新的发现任务',
+        missing_resume_artifact: '简历引用缺少可用 artifact',
+        stale_resume_artifact: '简历 artifact 超过 30 天未更新',
+      },
+    },
+    weekly: { title: '最近 7 天活动', jobsObserved: '观察岗位', opportunitiesInserted: '新增 Opportunity', shortlisted: '加入候选', applicationsRecorded: '新增投递', stageChanges: '阶段变化', interviewsScheduled: '安排面试', unavailable: '尚未记录历史事件', utcNote: '当前按 UTC 日期边界聚合；“加入候选”没有独立历史事件，因此不伪造计数。' },
+    recent: { title: '最近发现任务', empty: '暂无发现任务记录。', candidates: '候选', inserted: '新增', duplicates: '重复', rejected: '拒绝', started: '开始于' },
+    resumes: { title: '简历关联表现', applications: '投递', screening: '筛选', interview: '面试', lastUsed: '最近使用', correlationNote: '这是相关性视图，不表示某份简历导致了结果。', empty: '暂无简历使用数据。' },
+    sources: { title: '来源关联表现', source: '来源', opportunities: '岗位', applications: '投递', screening: '筛选', interview: '面试', associationNote: '一个 Opportunity 可以同时有多个 Listing 来源；这里统计“关联来源”，不是实际提交渠道归因。', empty: '暂无来源数据。' },
+    generatedAt: '生成时间',
+  },
   applicationsWorkspace: {
     views: { board: '看板', table: '表格' },
     filters: {
@@ -51,7 +73,7 @@ export const zhCN: MessageCatalog = {
   },
   jobsWorkspace: {
     filters: {
-      title: '岗位名称', company: '公司', city: '城市', state: '岗位状态', source: '来源', applied: '投递状态',
+      title: '岗位名称', company: '公司', city: '城市', state: '岗位状态', source: '来源', applied: '投递状态', campaign: '求职目标',
       any: '全部', yes: '已投递', no: '未投递', apply: '筛选', reset: '重置',
     },
     table: {

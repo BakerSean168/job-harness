@@ -185,6 +185,9 @@ describe('workspace read models', () => {
 
       const page = await career.workspace.searchJobListItems({ limit: 20, offset: 0 });
       expect(page.total).toBe(3);
+      const scopedJobs = await career.workspace.searchJobListItems({ campaignId: campaign.id, limit: 20, offset: 0 });
+      expect(scopedJobs.total).toBe(2);
+      expect(scopedJobs.items.map((item) => item.companyName).sort()).toEqual(['Acme AI', 'Beta Labs']);
       const agentRow = page.items.find((item) => item.jobId === agentJobId)!;
       const betaRow = page.items.find((item) => item.jobId === betaJobId)!;
       expect(agentRow).toMatchObject({

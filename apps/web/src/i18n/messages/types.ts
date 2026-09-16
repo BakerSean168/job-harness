@@ -35,6 +35,21 @@ export interface MessageCatalog {
     backOverview: string;
   };
   pages: Record<PageKey, { title: string; description: string }>;
+  dashboardWorkspace: {
+    campaign: { label: string; all: string; active: string; noActive: string; roles: string; cities: string; graduation: string; experience: string; };
+    kpis: { knownJobs: string; inbox: string; shortlisted: string; applications: string; activePipeline: string; interviews: string; };
+    funnel: { title: string; discovered: string; shortlisted: string; applied: string; screening: string; assessment: string; interview: string; offer: string; };
+    attention: {
+      title: string; empty: string; since: string;
+      severity: Record<'info' | 'warning' | 'critical', string>;
+      kinds: Record<'stale_application' | 'shortlisted_unapplied' | 'closed_listing_active_application' | 'stale_campaign_discovery' | 'missing_resume_artifact' | 'stale_resume_artifact', string>;
+    };
+    weekly: { title: string; jobsObserved: string; opportunitiesInserted: string; shortlisted: string; applicationsRecorded: string; stageChanges: string; interviewsScheduled: string; unavailable: string; utcNote: string; };
+    recent: { title: string; empty: string; candidates: string; inserted: string; duplicates: string; rejected: string; started: string; };
+    resumes: { title: string; applications: string; screening: string; interview: string; lastUsed: string; correlationNote: string; empty: string; };
+    sources: { title: string; source: string; opportunities: string; applications: string; screening: string; interview: string; associationNote: string; empty: string; };
+    generatedAt: string;
+  };
   applicationsWorkspace: {
     views: { board: string; table: string };
     filters: {
@@ -61,6 +76,7 @@ export interface MessageCatalog {
       state: string;
       source: string;
       applied: string;
+      campaign: string;
       any: string;
       yes: string;
       no: string;
