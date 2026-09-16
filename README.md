@@ -40,14 +40,14 @@ Campaign
   -> MCP query/write tools
 ```
 
-The server uses SQLite schema v2 for durable state, exposes the tool surface through MCP Streamable HTTP, and now provides application-level workspace read models for the upcoming REST/Web adapters. MemoFlow integration remains intentionally unimplemented.
+The server uses SQLite schema v2 for durable state and exposes the same application/workspace semantics through MCP Streamable HTTP and a versioned `/api/v1` REST facade. The Web app remains the next adapter. MemoFlow integration remains intentionally unimplemented.
 
 ## Repository shape
 
 ```text
 job-harness/
 ├── apps/
-│   └── server/             # standalone MCP composition root
+│   └── server/             # standalone REST + MCP composition root
 ├── docs/
 │   ├── architecture/
 │   └── integration/
@@ -83,6 +83,7 @@ Defaults:
 Database: ./data/job-harness.db
 Health:   http://127.0.0.1:3000/healthz
 MCP:      http://127.0.0.1:3000/mcp
+REST:     http://127.0.0.1:3000/api/v1
 ```
 
 Configuration:
@@ -129,4 +130,4 @@ All V1 tools mutate Job Harness state only. There is no `submit_application` too
 
 MemoFlow is a future host target, not a dependency. A future adapter may consume public Job Harness contracts/client capabilities and contribute Goal/Task/Schedule/AI integrations without moving Career domain truth into MemoFlow.
 
-See [North-Star Architecture](docs/architecture/north-star.md), [Product design baseline](docs/product/README.md), [Roadmap](docs/roadmap.md), and [MemoFlow integration boundary](docs/integration/memoflow.md).
+See [REST v1](docs/api/rest-v1.md), [North-Star Architecture](docs/architecture/north-star.md), [Product design baseline](docs/product/README.md), [Roadmap](docs/roadmap.md), and [MemoFlow integration boundary](docs/integration/memoflow.md).

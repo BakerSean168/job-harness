@@ -48,9 +48,9 @@ Read models:
 
 ## Phase W1 — API + application shell
 
-### JH-W101 — Minimal REST facade
+### JH-W101 — Minimal REST facade ✅
 
-Expose the same Application Services over `/api/*`; no duplicate business rules.
+Expose the same Application/Workspace Services over versioned `/api/v1/*`; no duplicate business rules. Implemented with shared bearer auth, runtime validation, stable error mapping, and HTTP integration tests.
 
 ### JH-W102 — Web shell + i18n
 

@@ -7,6 +7,7 @@ import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js
 import { createCareerApplicationService } from '@job-harness/application';
 import { CAREER_MCP_TOOLS, createCareerMcpRuntime } from '@job-harness/mcp';
 import { SqliteCareerStore } from '@job-harness/persistence-sqlite';
+import { API_PREFIX, registerJobHarnessApi } from './api';
 
 export interface JobHarnessServerOptions {
   readonly databasePath: string;
@@ -18,6 +19,7 @@ export interface JobHarnessServerOptions {
 export interface RunningJobHarnessServer {
   readonly url: string;
   readonly mcpUrl: string;
+  readonly apiUrl: string;
   readonly server: HttpServer;
   close(): Promise<void>;
 }
@@ -27,7 +29,7 @@ function safeJson(value: unknown): string {
 }
 
 export function createProtocolServer(runtime: ReturnType<typeof createCareerMcpRuntime>): McpServer {
-  const server = new McpServer({ name: 'job-harness', version: '0.1.0' });
+  const server = new McpServer({ name: 'job-harness', version: '0.2.0' });
   for (const tool of CAREER_MCP_TOOLS) {
     server.registerTool(
       tool.name,
@@ -82,15 +84,21 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   const authToken = options.authToken?.trim() || null;
 
   app.get('/healthz', (_req, res) => {
-    res.json({ ok: true, service: 'job-harness', version: '0.1.0' });
+    res.json({ ok: true, service: 'job-harness', version: '0.2.0' });
   });
 
-  app.post('/mcp', async (req, res) => {
-    if (authToken && req.headers.authorization !== `Bearer ${authToken}`) {
-      res.status(401).json({ error: 'unauthorized' });
+  app.use((req, res, next) => {
+    const protectedPath = req.path === '/mcp' || req.path.startsWith(`${API_PREFIX}/`);
+    if (protectedPath && authToken && req.headers.authorization !== `Bearer ${authToken}`) {
+      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Bearer token is required' } });
       return;
     }
+    next();
+  });
 
+  registerJobHarnessApi(app, application);
+
+  app.post('/mcp', async (req, res) => {
     const protocolServer = createProtocolServer(runtime);
     const transport = new StreamableHTTPServerTransport({ enableJsonResponse: true });
     try {
@@ -130,6 +138,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   return {
     url,
     mcpUrl: `${url}/mcp`,
+    apiUrl: `${url}${API_PREFIX}`,
     server,
     async close() {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
