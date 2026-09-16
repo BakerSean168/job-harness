@@ -121,6 +121,16 @@ describe('REST v1 facade', () => {
       latestEvent: { type: 'stage_changed' },
     });
 
+    const activeOnly = await json('/applications?terminal=exclude');
+    expect(activeOnly.response.status).toBe(200);
+    expect(activeOnly.body.total).toBe(1);
+    const outcomesOnly = await json('/applications?terminal=only');
+    expect(outcomesOnly.response.status).toBe(200);
+    expect(outcomesOnly.body.total).toBe(0);
+    const invalidTerminal = await json('/applications?terminal=maybe');
+    expect(invalidTerminal.response.status).toBe(400);
+    expect(invalidTerminal.body.error.code).toBe('VALIDATION_ERROR');
+
     const jobDetail = await json(`/jobs/${jobId}`);
     expect(jobDetail.body).toMatchObject({
       job: { id: jobId, state: 'shortlisted' },

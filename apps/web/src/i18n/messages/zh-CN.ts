@@ -31,6 +31,24 @@ export const zhCN: MessageCatalog = {
     notFoundDescription: '这个地址没有对应的 Job Harness 工作区。',
     backOverview: '返回概览',
   },
+  applicationsWorkspace: {
+    views: { board: '看板', table: '表格' },
+    filters: {
+      company: '公司', stage: '阶段', campaign: '求职目标', resume: '简历', terminal: '结果状态', appliedFrom: '投递起始', appliedTo: '投递截止',
+      any: '全部', activeOnly: '仅主 Pipeline', includeTerminal: '包含拒绝/撤回', terminalOnly: '仅拒绝/撤回', apply: '筛选', reset: '重置',
+    },
+    board: {
+      results: '条投递', noResults: '没有符合当前筛选条件的投递。', noStageItems: '这一阶段暂无投递。', stageAge: '阶段时长', today: '今天', days: '天', submissions: '次提交',
+      dragHint: '拖动卡片可推进招聘阶段；服务端状态机仍会再次校验。', moveTo: '移动到', moving: '正在更新阶段…', transitionFailed: '更新投递阶段失败。', invalidTransition: '当前阶段不能移动到目标阶段。', outcomes: '结果 / 归档',
+    },
+    table: {
+      opportunity: '岗位 / 公司', stage: '阶段', appliedAt: '投递时间', resume: '简历', campaign: '求职目标', stageAge: '阶段时长', submissions: '提交次数', updated: '最近更新', noResults: '没有符合当前筛选条件的投递。',
+    },
+    detail: {
+      summary: '投递概览', timeline: '时间线', appliedAt: '首次投递', stageEntered: '进入当前阶段', resume: '使用简历', submissions: '提交次数', source: '主要来源', campaigns: '求职目标', latestEvent: '最近事件',
+      optionalNote: '备注（可选）', notePlaceholder: '例如：HR 邮件确认、主动撤回原因…', transition: '更新阶段', reject: '标记拒绝', withdraw: '标记撤回', closePanel: '关闭详情', openFullPage: '打开完整详情', openJob: '查看岗位',
+    },
+  },
   jobsWorkspace: {
     filters: {
       title: '岗位名称', company: '公司', city: '城市', state: '岗位状态', source: '来源', applied: '投递状态',

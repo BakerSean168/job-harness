@@ -2,7 +2,7 @@
 
 Next.js App Router workspace for Job Harness.
 
-Current slice: **W201 Inbox + Jobs workspace**.
+Current slice: **W202 Applications workspace complete**.
 
 Implemented foundation:
 
@@ -23,7 +23,19 @@ W201 now connects `/jobs`, `/inbox`, and `/jobs/:jobId` to live Job Harness data
 - shortlist / ignore / close / rediscover actions through Next Server Actions;
 - bearer token remains server-only.
 
-Applications Board remains W202. Other navigation items deliberately stay as placeholders until their own vertical slices land.
+W202 also connects `/applications` and `/applications/:applicationId`:
+
+- five-lane active hiring Board (Applied, Screening, Assessment, Interview, Offer);
+- Rejected/Withdrawn outcome view without inflating the main funnel;
+- native drag/drop plus keyboard-accessible stage select fallback;
+- optimistic card movement with rollback on domain rejection;
+- Table view using the same Application workspace projection;
+- Company/Stage/Campaign/Resume/date/outcome filters applied server-side before pagination;
+- URL-addressable Application Side Panel and full detail page sharing one read model;
+- optional transition notes, including rejected/withdrawn reasons;
+- retry-safe Server Actions: one user intent carries one stable idempotency key and event timestamp.
+
+Dashboard and the remaining navigation items deliberately stay as placeholders until their own vertical slices land.
 
 Run locally:
 

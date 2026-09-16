@@ -31,6 +31,24 @@ export const en: MessageCatalog = {
     notFoundDescription: 'This address does not map to a Job Harness workspace.',
     backOverview: 'Back to overview',
   },
+  applicationsWorkspace: {
+    views: { board: 'Board', table: 'Table' },
+    filters: {
+      company: 'Company', stage: 'Stage', campaign: 'Campaign', resume: 'Resume', terminal: 'Outcome state', appliedFrom: 'Applied from', appliedTo: 'Applied to',
+      any: 'Any', activeOnly: 'Main pipeline only', includeTerminal: 'Include rejected/withdrawn', terminalOnly: 'Rejected/withdrawn only', apply: 'Filter', reset: 'Reset',
+    },
+    board: {
+      results: 'applications', noResults: 'No applications match the current filters.', noStageItems: 'No applications in this stage.', stageAge: 'Stage age', today: 'Today', days: 'days', submissions: 'submissions',
+      dragHint: 'Drag cards to advance stages; the server domain state machine validates every transition again.', moveTo: 'Move to', moving: 'Updating stage…', transitionFailed: 'Could not update application stage.', invalidTransition: 'The current stage cannot transition to that stage.', outcomes: 'Outcomes / archive',
+    },
+    table: {
+      opportunity: 'Role / Company', stage: 'Stage', appliedAt: 'Applied at', resume: 'Resume', campaign: 'Campaign', stageAge: 'Stage age', submissions: 'Submissions', updated: 'Updated', noResults: 'No applications match the current filters.',
+    },
+    detail: {
+      summary: 'Application summary', timeline: 'Timeline', appliedAt: 'First applied', stageEntered: 'Entered current stage', resume: 'Resume used', submissions: 'Submissions', source: 'Primary source', campaigns: 'Campaigns', latestEvent: 'Latest event',
+      optionalNote: 'Note (optional)', notePlaceholder: 'Example: recruiter email confirmation, reason for withdrawal…', transition: 'Update stage', reject: 'Mark rejected', withdraw: 'Mark withdrawn', closePanel: 'Close detail', openFullPage: 'Open full detail', openJob: 'View job',
+    },
+  },
   jobsWorkspace: {
     filters: {
       title: 'Role', company: 'Company', city: 'City', state: 'Job state', source: 'Source', applied: 'Application',

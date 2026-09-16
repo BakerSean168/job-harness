@@ -1,6 +1,10 @@
-import { WorkspacePlaceholder } from '@/components/ui/workspace-placeholder';
-import { getMessages } from '@/i18n/server';
+import { ApplicationsWorkspace } from '@/components/applications/applications-workspace';
+import type { ApplicationsSearchParams } from '@/components/applications/query';
 
-export default async function Page() {
-  return <WorkspacePlaceholder page="applications" messages={await getMessages()} />;
+export default async function ApplicationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<ApplicationsSearchParams>;
+}) {
+  return <ApplicationsWorkspace searchParams={await searchParams} />;
 }

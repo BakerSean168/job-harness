@@ -45,7 +45,8 @@ Completed before Web UI implementation:
 2. [x] **JH-W002:** aggregate UI read models behind `CareerWorkspaceReadPort` (`JobListItem`, `JobDetail`, Application Board/Detail, Dashboard, Discovery, Resume usage).
 3. [x] **JH-W101:** versioned REST v1 facade backed by the same application/workspace ports, with bearer auth and HTTP contract tests.
 4. [x] **JH-W102:** Next.js Web shell with stable IA routes, `zh-CN`/`en`, semantic light/dark theme tokens, localized state primitives, and production build gate.
-5. [x] **JH-W201:** Inbox + Jobs Table + Job Side Panel with typed REST client and server-only triage mutations. Next: **JH-W202 Applications Board**.
-6. Resume Harness continuous registry sync adapter, dashboard/analytics, auth hardening, export/backup, and deployment packaging.
+5. [x] **JH-W201:** Inbox + Jobs Table + Job Side Panel with typed REST client and server-only triage mutations.
+6. [x] **JH-W202:** Applications Board/Table + Application Side Panel/detail, server-validated drag/keyboard stage transitions, outcome filtering, and retry-safe `stage_changed` writes.
+7. Next: **JH-W301 Dashboard**, followed by Campaigns/Resumes/Discovery and the remaining hardening/deployment work.
 
 Only after standalone usage is proven should a separate MemoFlow adapter be implemented.

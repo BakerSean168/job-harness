@@ -59,6 +59,36 @@ describe('Job Harness REST client', () => {
     expect(new Headers(calls[0]!.init?.headers).get('authorization')).toBe('Bearer secret');
   });
 
+  it('encodes application workspace filters before transport', async () => {
+    const calls: string[] = [];
+    const client = createJobHarnessRestClient({
+      baseUrl: 'http://job-harness/api/v1',
+      fetch: async (input) => {
+        calls.push(String(input));
+        return response({ items: [], total: 0 });
+      },
+    });
+    await client.workspace.listApplicationBoard({
+      company: 'Acme',
+      stages: ['screening'],
+      campaignId: 'campaign-1',
+      resumeProfileId: 'resume-1',
+      appliedFrom: '2026-09-01T00:00:00.000Z',
+      appliedTo: '2026-09-30T23:59:59.999Z',
+      terminal: 'include',
+      limit: 50,
+      offset: 0,
+    });
+    const url = new URL(calls[0]!);
+    expect(url.searchParams.get('company')).toBe('Acme');
+    expect(url.searchParams.getAll('stages')).toEqual(['screening']);
+    expect(url.searchParams.get('campaignId')).toBe('campaign-1');
+    expect(url.searchParams.get('resumeProfileId')).toBe('resume-1');
+    expect(url.searchParams.get('appliedFrom')).toBe('2026-09-01T00:00:00.000Z');
+    expect(url.searchParams.get('appliedTo')).toBe('2026-09-30T23:59:59.999Z');
+    expect(url.searchParams.get('terminal')).toBe('include');
+  });
+
   it('surfaces stable server error envelopes', async () => {
     const client = createJobHarnessRestClient({
       baseUrl: 'http://job-harness/api/v1',

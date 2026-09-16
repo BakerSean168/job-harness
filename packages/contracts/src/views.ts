@@ -98,6 +98,11 @@ export const ApplicationBoardItemSchema = z.object({
 export const ListApplicationBoardInputSchema = PageSchema.extend({
   stages: z.array(ApplicationStageSchema).optional(),
   company: z.string().trim().min(1).max(300).optional(),
+  campaignId: EntityIdSchema.optional(),
+  resumeProfileId: EntityIdSchema.optional(),
+  appliedFrom: IsoDateTimeSchema.optional(),
+  appliedTo: IsoDateTimeSchema.optional(),
+  terminal: z.enum(['exclude', 'include', 'only']).default('exclude'),
 });
 export const ListApplicationBoardOutputSchema = z.object({
   items: z.array(ApplicationBoardItemSchema),

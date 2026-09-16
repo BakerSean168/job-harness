@@ -68,9 +68,9 @@ external MCP discovery -> SQLite -> REST -> Inbox/Jobs Table -> Side Panel -> sh
 
 This is the first UI acceptance slice.
 
-### JH-W202 — Applications Board
+### JH-W202 — Applications Board ✅
 
-Board drag -> Application Service transition -> ApplicationEvent -> refreshed board/timeline.
+Implemented as a presentation-ready Board/Table workspace over the same Application read model. Main lanes are Applied → Screening → Assessment → Interview → Offer; Rejected/Withdrawn live behind the outcome filter. Drag/drop and keyboard stage controls call a Next Server Action → typed REST client → Application Service, append `stage_changed`, and reconcile the Board from server truth. Campaign/Resume/date/outcome filters run in SQLite before pagination, and Application Side Panel/full detail share one contract.
 
 ## Phase W3 — Search-management surfaces
 

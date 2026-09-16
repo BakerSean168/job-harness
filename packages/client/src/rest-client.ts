@@ -90,6 +90,11 @@ function applicationsQuery(input: ListApplicationBoardInput): string {
   append(query, 'offset', input.offset);
   append(query, 'company', input.company);
   appendMany(query, 'stages', input.stages);
+  append(query, 'campaignId', input.campaignId);
+  append(query, 'resumeProfileId', input.resumeProfileId);
+  append(query, 'appliedFrom', input.appliedFrom);
+  append(query, 'appliedTo', input.appliedTo);
+  append(query, 'terminal', input.terminal);
   return query.toString();
 }
 

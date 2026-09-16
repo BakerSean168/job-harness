@@ -334,6 +334,31 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       where.push(`(c.normalized_name LIKE ? OR EXISTS (SELECT 1 FROM company_aliases ca WHERE ca.company_id = c.id AND ca.normalized_alias LIKE ?))`);
       const q = `%${normalizeIdentityText(input.company)}%`; params.push(q, q);
     }
+    if (input.campaignId) {
+      where.push(`EXISTS (
+        SELECT 1 FROM job_observations o
+        JOIN discovery_runs d ON d.id = o.discovery_run_id
+        WHERE o.job_id = j.id AND d.campaign_id = ?
+      )`);
+      params.push(input.campaignId);
+    }
+    if (input.resumeProfileId) {
+      where.push('a.resume_profile_id = ?');
+      params.push(input.resumeProfileId);
+    }
+    if (input.appliedFrom) {
+      where.push('a.applied_at >= ?');
+      params.push(input.appliedFrom);
+    }
+    if (input.appliedTo) {
+      where.push('a.applied_at <= ?');
+      params.push(input.appliedTo);
+    }
+    if (input.terminal === 'exclude') {
+      where.push(`a.current_stage NOT IN ('rejected','withdrawn')`);
+    } else if (input.terminal === 'only') {
+      where.push(`a.current_stage IN ('rejected','withdrawn')`);
+    }
     const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM applications a JOIN jobs j ON j.id = a.job_id JOIN companies c ON c.id = j.company_id ${clause}`).get(...params) as Row).n);
     const rows = this.db.prepare(`SELECT a.* FROM applications a JOIN jobs j ON j.id = a.job_id JOIN companies c ON c.id = j.company_id ${clause} ORDER BY a.updated_at DESC, a.id LIMIT ? OFFSET ?`).all(...params, input.limit ?? 50, input.offset ?? 0) as Row[];

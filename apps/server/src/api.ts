@@ -148,6 +148,11 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
       ...pageQuery(req.query),
       ...(list(req.query.stages) ? { stages: list(req.query.stages) } : {}),
       ...(first(req.query.company) ? { company: first(req.query.company) } : {}),
+      ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
+      ...(first(req.query.resumeProfileId) ? { resumeProfileId: first(req.query.resumeProfileId) } : {}),
+      ...(first(req.query.appliedFrom) ? { appliedFrom: first(req.query.appliedFrom) } : {}),
+      ...(first(req.query.appliedTo) ? { appliedTo: first(req.query.appliedTo) } : {}),
+      ...(first(req.query.terminal) ? { terminal: first(req.query.terminal) } : {}),
     });
     res.json(await career.workspace.listApplicationBoard(input));
   }));

@@ -113,6 +113,11 @@ export const SetJobStateOutputSchema = JobSchema;
 export const ListApplicationsInputSchema = PageSchema.extend({
   stages: z.array(ApplicationStageSchema).optional(),
   company: z.string().trim().min(1).max(300).optional(),
+  campaignId: EntityIdSchema.optional(),
+  resumeProfileId: EntityIdSchema.optional(),
+  appliedFrom: IsoDateTimeSchema.optional(),
+  appliedTo: IsoDateTimeSchema.optional(),
+  terminal: z.enum(['exclude', 'include', 'only']).optional(),
 });
 export const ListApplicationsOutputSchema = z
   .object({ items: z.array(ApplicationListItemSchema), total: z.number().int().nonnegative() })

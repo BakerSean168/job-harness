@@ -35,6 +35,24 @@ export interface MessageCatalog {
     backOverview: string;
   };
   pages: Record<PageKey, { title: string; description: string }>;
+  applicationsWorkspace: {
+    views: { board: string; table: string };
+    filters: {
+      company: string; stage: string; campaign: string; resume: string; terminal: string; appliedFrom: string; appliedTo: string;
+      any: string; activeOnly: string; includeTerminal: string; terminalOnly: string; apply: string; reset: string;
+    };
+    board: {
+      results: string; noResults: string; noStageItems: string; stageAge: string; today: string; days: string; submissions: string;
+      dragHint: string; moveTo: string; moving: string; transitionFailed: string; invalidTransition: string; outcomes: string;
+    };
+    table: {
+      opportunity: string; stage: string; appliedAt: string; resume: string; campaign: string; stageAge: string; submissions: string; updated: string; noResults: string;
+    };
+    detail: {
+      summary: string; timeline: string; appliedAt: string; stageEntered: string; resume: string; submissions: string; source: string; campaigns: string; latestEvent: string;
+      optionalNote: string; notePlaceholder: string; transition: string; reject: string; withdraw: string; closePanel: string; openFullPage: string; openJob: string;
+    };
+  };
   jobsWorkspace: {
     filters: {
       title: string;

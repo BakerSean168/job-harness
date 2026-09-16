@@ -60,6 +60,9 @@ importers:
       '@job-harness/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@job-harness/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       lucide-react:
         specifier: 1.46.0
         version: 1.46.0(react@19.3.0)
