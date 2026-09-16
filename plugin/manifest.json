@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "job-harness",
+  "name": "Job Harness",
+  "version": "0.0.0",
+  "status": "planning",
+  "kind": "domain-extension",
+  "description": "Plugin-ready job search state, application pipeline, resume registry, and AI tool surface.",
+  "provides": [
+    "jobs.read",
+    "jobs.write",
+    "applications.read",
+    "applications.write",
+    "campaigns.read",
+    "campaigns.write",
+    "resumes.read",
+    "discovery.record"
+  ],
+  "integrationTargets": [
+    "mcp",
+    "http",
+    "sdk",
+    "memoflow-future-extension"
+  ],
+  "runtimeIntegration": false
+}
