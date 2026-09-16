@@ -4,7 +4,7 @@ const JOB_TRANSITIONS: Readonly<Record<JobState, readonly JobState[]>> = {
   discovered: ['shortlisted', 'ignored', 'closed', 'archived'],
   shortlisted: ['discovered', 'ignored', 'closed', 'archived'],
   ignored: ['discovered', 'shortlisted', 'archived'],
-  closed: ['archived'],
+  closed: ['discovered', 'archived'],
   archived: ['discovered'],
 };
 

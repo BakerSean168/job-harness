@@ -1,0 +1,16 @@
+{
+  "name": "@job-harness/importers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@job-harness/application": "workspace:*",
+    "@job-harness/contracts": "workspace:*",
+    "@job-harness/domain": "workspace:*",
+    "zod": "^4.1.8"
+  },
+  "devDependencies": {
+    "@job-harness/persistence-sqlite": "workspace:*"
+  }
+}

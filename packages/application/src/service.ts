@@ -31,7 +31,7 @@ import {
   type UpsertJobCandidate,
 } from '@job-harness/contracts';
 import { canTransitionApplicationStage, canTransitionJobState } from '@job-harness/domain';
-import type { CareerApplicationPorts, CareerResumeRegistryPort } from './ports';
+import type { CareerApplicationPorts, CareerResumeRegistryPort, CareerRuntimePorts } from './ports';
 import {
   CareerConflictError,
   CareerIdempotencyConflictError,
@@ -126,7 +126,7 @@ async function saveReceipt(
 export function createCareerApplicationService(
   store: CareerStorePort,
   options: CareerServiceOptions = {},
-): CareerApplicationPorts & { resumeRegistry: CareerResumeRegistryPort } {
+): CareerRuntimePorts {
   const now = options.now ?? (() => new Date().toISOString());
   const idFactory = options.idFactory ?? randomUUID;
 
@@ -330,7 +330,7 @@ export function createCareerApplicationService(
       return store.transaction(async (tx) => {
         const scope = 'career_discovery_begin';
         const cached = await loadReceipt(tx, scope, parsed.idempotencyKey, parsed, (value) => BeginDiscoveryOutputSchema.parse(value));
-        if (cached) return cached;
+        if (cached) return (await tx.getDiscoveryRun(cached.id)) ?? cached;
         if (parsed.campaignId && !(await tx.getCampaign(parsed.campaignId))) {
           throw new CareerNotFoundError('JobSearchCampaign', parsed.campaignId);
         }

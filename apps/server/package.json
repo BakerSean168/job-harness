@@ -5,7 +5,8 @@
   "type": "module",
   "exports": "./src/index.ts",
   "scripts": {
-    "start": "tsx src/cli.ts"
+    "start": "tsx src/cli.ts",
+    "import:legacy": "tsx src/import-legacy.ts"
   },
   "dependencies": {
     "@job-harness/application": "workspace:*",
@@ -13,7 +14,9 @@
     "@job-harness/persistence-sqlite": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "zod": "^4.1.8",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "@job-harness/contracts": "workspace:*",
+    "@job-harness/importers": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.20.5",

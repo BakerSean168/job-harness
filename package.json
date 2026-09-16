@@ -11,7 +11,8 @@
     "test": "vitest run",
     "check": "pnpm check:manifest && pnpm check:boundaries && pnpm typecheck && pnpm test",
     "check:boundaries": "node scripts/check-boundaries.mjs",
-    "server": "pnpm --filter @job-harness/server start"
+    "server": "pnpm --filter @job-harness/server start",
+    "import:legacy": "pnpm --filter @job-harness/server import:legacy"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",

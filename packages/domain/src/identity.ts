@@ -15,7 +15,8 @@ export function normalizeIdentityText(value: string): string {
 
 export function normalizeCanonicalUrl(value: string): string {
   const url = new URL(value);
-  url.hash = '';
+  const semanticHash = /^#\/?(?:job|position)\//i.test(url.hash);
+  if (!semanticHash) url.hash = '';
   for (const key of [...url.searchParams.keys()]) {
     if (key.toLowerCase().startsWith('utm_')) url.searchParams.delete(key);
   }

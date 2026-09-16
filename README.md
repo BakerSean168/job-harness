@@ -96,6 +96,21 @@ JOB_HARNESS_AUTH_TOKEN
 
 The CLI refuses to bind to `0.0.0.0` or `::` unless `JOB_HARNESS_AUTH_TOKEN` is configured.
 
+
+## Legacy migration
+
+Historical `job-apply-copilot` data can be imported without bypassing the Job Harness application layer:
+
+```bash
+pnpm import:legacy -- \
+  --applications /path/to/applications.jsonl \
+  --pool /path/to/application-pool/current.json \
+  --resume-manifest /path/to/resumes.json \
+  --db ./data/job-harness.db
+```
+
+The import is fingerprinted and idempotent. See [migration documentation](docs/migration/job-apply-copilot.md).
+
 ## MCP model
 
 MCP is an adapter, not a business owner:

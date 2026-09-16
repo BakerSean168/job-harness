@@ -23,6 +23,12 @@ importers:
       '@job-harness/application':
         specifier: workspace:*
         version: link:../../packages/application
+      '@job-harness/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@job-harness/importers':
+        specifier: workspace:*
+        version: link:../../packages/importers
       '@job-harness/mcp':
         specifier: workspace:*
         version: link:../../packages/mcp
@@ -71,6 +77,25 @@ importers:
         version: 4.6.5
 
   packages/domain: {}
+
+  packages/importers:
+    dependencies:
+      '@job-harness/application':
+        specifier: workspace:*
+        version: link:../application
+      '@job-harness/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@job-harness/domain':
+        specifier: workspace:*
+        version: link:../domain
+      zod:
+        specifier: ^4.1.8
+        version: 4.6.5
+    devDependencies:
+      '@job-harness/persistence-sqlite':
+        specifier: workspace:*
+        version: link:../persistence-sqlite
 
   packages/mcp:
     dependencies:

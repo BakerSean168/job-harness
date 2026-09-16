@@ -19,9 +19,9 @@ describe('career domain vocabulary', () => {
     expect(canTransitionApplicationStage('interview', 'interview')).toBe(true);
   });
 
-  it('supports reversible human triage without reopening closed jobs implicitly', () => {
+  it('supports reversible human triage and explicit rediscovery of a closed job', () => {
     expect(canTransitionJobState('ignored', 'shortlisted')).toBe(true);
-    expect(canTransitionJobState('closed', 'discovered')).toBe(false);
+    expect(canTransitionJobState('closed', 'discovered')).toBe(true);
   });
 });
 
@@ -44,6 +44,25 @@ describe('job identity', () => {
         companyName: 'Acme',
         title: 'Agent Engineer',
         canonicalUrl: 'https://example.com/jobs/1/?utm_source=chatgpt#details',
+      }),
+    ).toBe('url:https://example.com/jobs/1');
+  });
+});
+
+describe('hash-router job identity', () => {
+  it('preserves semantic Moka #/job routes while still dropping decorative hashes', () => {
+    expect(
+      buildJobIdentityKey({
+        companyName: 'DeepSeek',
+        title: 'Agent Harness',
+        canonicalUrl: 'https://app.mokahr.com/social-recruitment/high-flyer/140576#/job/8d40c764-d2b2-49b1-826c-e3f2adb75c01',
+      }),
+    ).toContain('#/job/8d40c764-d2b2-49b1-826c-e3f2adb75c01');
+    expect(
+      buildJobIdentityKey({
+        companyName: 'Acme',
+        title: 'Agent',
+        canonicalUrl: 'https://example.com/jobs/1#details',
       }),
     ).toBe('url:https://example.com/jobs/1');
   });

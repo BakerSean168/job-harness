@@ -81,3 +81,7 @@ export interface CareerApplicationPorts {
 export interface CareerResumeRegistryPort {
   syncResumeProfiles(profiles: readonly ResumeProfileRef[]): Promise<{ synced: number }>;
 }
+
+export type CareerRuntimePorts = CareerApplicationPorts & {
+  readonly resumeRegistry: CareerResumeRegistryPort;
+};

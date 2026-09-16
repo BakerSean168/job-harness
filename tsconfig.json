@@ -21,6 +21,9 @@
     },
     {
       "path": "./apps/server"
+    },
+    {
+      "path": "./packages/importers"
     }
   ]
 }
