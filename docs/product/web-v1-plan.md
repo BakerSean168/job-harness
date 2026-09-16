@@ -31,18 +31,20 @@ This plan starts after the benchmark/IA freeze. It intentionally fixes the data 
 - old SQLite data migrates deterministically;
 - `pnpm check` passes.
 
-### JH-W002 — Define UI read models
+### JH-W002 — Define UI read models ✅
 
 **Goal:** Return presentation-ready aggregate views without leaking SQL/table joins into the Web app.
 
 Read models:
 - `JobListItem` / `JobDetail`;
-- `ApplicationListItem` / `ApplicationDetail`;
+- existing MCP `ApplicationListItem` / `ApplicationDetail` plus Web-specific `ApplicationBoardItem` / `ApplicationWorkspaceDetail`;
 - `DashboardSnapshot`;
 - `DiscoveryRunDetail`;
 - `ResumeUsageSummary`.
 
-**Acceptance:** side panel/full page can consume the same JobDetail; no UI direct DB imports.
+**Status:** implemented behind `CareerWorkspaceReadPort` with real SQLite projection tests. The initial Dashboard intentionally exposes only facts supported by existing domains; source-performance, InterviewRound, and historical triage metrics remain deferred until their authoritative data exists.
+
+**Acceptance:** side panel/full page consume the same JobDetail; Board does not build joins client-side; no UI direct DB imports.
 
 ## Phase W1 — API + application shell
 

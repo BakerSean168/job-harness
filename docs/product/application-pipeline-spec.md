@@ -2,7 +2,7 @@
 
 ## Pipeline vs submission facts
 
-A board card represents one `Application` pipeline, not one form/email submission. If the same Opportunity is submitted again through another channel, Job Harness appends another `application_recorded` timeline event while keeping the same card. This prevents funnel inflation and preserves auditable channel history.
+A board card represents one `Application` pipeline, not one form/email submission. If the same Opportunity is submitted again through another channel, Job Harness appends a `submission_recorded` timeline event while keeping the same card and current stage. This prevents funnel inflation and preserves auditable channel history.
 
 ## Default mode: Kanban
 

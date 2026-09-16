@@ -1,15 +1,26 @@
 import type {
   Application,
   ApplicationDetail,
+  ApplicationWorkspaceDetail,
   ApplicationEvent,
   Company,
   DiscoveryRun,
   DuplicateCheckInput,
   DuplicateCheckOutput,
+  DashboardSnapshot,
+  DashboardSnapshotInput,
+  DiscoveryRunDetail,
+  JobDetail,
+  ListResumeUsageInput,
+  ListResumeUsageOutput,
+  SearchJobListItemsInput,
+  SearchJobListItemsOutput,
   Job,
   JobListing,
   JobObservation,
   JobSearchCampaign,
+  ListApplicationBoardInput,
+  ListApplicationBoardOutput,
   ListApplicationsInput,
   ListApplicationsOutput,
   ListCampaignsInput,
@@ -46,6 +57,13 @@ export interface CareerStoreReadPort {
   getResumeProfile(resumeProfileId: string): Promise<ResumeProfileRef | null>;
   getDiscoveryRun(runId: string): Promise<DiscoveryRun | null>;
   getPipelineStats(input: PipelineStatsInput): Promise<PipelineStatsOutput>;
+  searchJobListItems(input: SearchJobListItemsInput): Promise<SearchJobListItemsOutput>;
+  listApplicationBoard(input: ListApplicationBoardInput): Promise<ListApplicationBoardOutput>;
+  getApplicationWorkspaceDetail(applicationId: string): Promise<ApplicationWorkspaceDetail | null>;
+  getJobDetailView(jobId: string): Promise<JobDetail | null>;
+  getDashboardSnapshot(input: DashboardSnapshotInput, generatedAt: string): Promise<DashboardSnapshot>;
+  getDiscoveryRunDetailView(runId: string): Promise<DiscoveryRunDetail | null>;
+  listResumeUsage(input: ListResumeUsageInput): Promise<ListResumeUsageOutput>;
   getIdempotencyReceipt(scope: string, key: string): Promise<IdempotencyReceipt | null>;
 }
 

@@ -3,39 +3,62 @@ import { DatabaseSync } from 'node:sqlite';
 import type {
   Application,
   ApplicationDetail,
+  ApplicationWorkspaceDetail,
   ApplicationEvent,
   Company,
+  DashboardSnapshot,
+  DashboardSnapshotInput,
   DiscoveryRun,
+  DiscoveryRunDetail,
   DuplicateCheckInput,
   DuplicateCheckOutput,
   Job,
   JobListing,
   JobListingCandidate,
   JobObservation,
+  JobDetail,
+  JobListItem,
   JobSearchCampaign,
+  ListApplicationBoardInput,
+  ListApplicationBoardOutput,
   ListApplicationsInput,
   ListApplicationsOutput,
   ListCampaignsInput,
   ListCampaignsOutput,
   ListResumesInput,
   ListResumesOutput,
+  ListResumeUsageInput,
+  ListResumeUsageOutput,
   PipelineStatsInput,
   PipelineStatsOutput,
   ResumeProfileRef,
   SearchJobsInput,
   SearchJobsOutput,
+  SearchJobListItemsInput,
+  SearchJobListItemsOutput,
   UpsertJobCandidate,
 } from '@job-harness/contracts';
 import {
+  ApplicationBoardItemSchema,
   ApplicationDetailSchema,
+  ApplicationWorkspaceDetailSchema,
   ApplicationEventSchema,
   ApplicationSchema,
+  CampaignRefSchema,
   CompanySchema,
+  DashboardSnapshotSchema,
+  DiscoveryRunDetailSchema,
   DiscoveryRunSchema,
+  JobDetailSchema,
+  JobListItemSchema,
   JobListingSchema,
+  JobObservationSchema,
   JobSchema,
   JobSearchCampaignSchema,
+  ListApplicationBoardOutputSchema,
+  ListResumeUsageOutputSchema,
   ResumeProfileRefSchema,
+  ResumeUsageSummarySchema,
 } from '@job-harness/contracts';
 import type {
   CareerStorePort,
@@ -119,6 +142,75 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       lastSeenAt: row.last_seen_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+    });
+  }
+
+  private primaryListing(job: Job): JobListing | null {
+    const statusRank: Record<JobListing['status'], number> = { active: 0, unknown: 1, closed: 2 };
+    const sourceRank: Record<string, number> = {
+      official: 0,
+      moka: 1,
+      greenhouse: 2,
+      lever: 3,
+      ashby: 4,
+      boss: 5,
+      zhilian: 6,
+      liepin: 7,
+      email: 8,
+      manual: 9,
+      other: 10,
+    };
+    return [...job.listings].sort((left, right) =>
+      statusRank[left.status] - statusRank[right.status]
+      || Number(Boolean(right.url)) - Number(Boolean(left.url))
+      || (sourceRank[left.sourceKind] ?? 99) - (sourceRank[right.sourceKind] ?? 99)
+      || right.lastSeenAt.localeCompare(left.lastSeenAt)
+      || left.id.localeCompare(right.id)
+    )[0] ?? null;
+  }
+
+  private campaignRefsForJob(jobId: string) {
+    const rows = this.db.prepare(`
+      SELECT DISTINCT c.id, c.name, c.status
+      FROM campaigns c
+      JOIN discovery_runs d ON d.campaign_id = c.id
+      JOIN job_observations o ON o.discovery_run_id = d.id
+      WHERE o.job_id = ?
+      ORDER BY c.name, c.id
+    `).all(jobId) as Row[];
+    return rows.map((row) => CampaignRefSchema.parse({ id: row.id, name: row.name, status: row.status }));
+  }
+
+  private campaignRefById(campaignId: string | null) {
+    if (!campaignId) return null;
+    const row = this.db.prepare('SELECT id,name,status FROM campaigns WHERE id = ?').get(campaignId) as Row | undefined;
+    return row ? CampaignRefSchema.parse({ id: row.id, name: row.name, status: row.status }) : null;
+  }
+
+  private async jobListItemFromJob(job: Job): Promise<JobListItem> {
+    const application = await this.findApplicationByJobId(job.id);
+    const resume = application?.resumeProfileId ? await this.getResumeProfile(application.resumeProfileId) : null;
+    return JobListItemSchema.parse({
+      jobId: job.id,
+      companyId: job.companyId,
+      companyName: job.companyName,
+      title: job.title,
+      city: job.city,
+      state: job.state,
+      application: application ? {
+        id: application.id,
+        currentStage: application.currentStage,
+        appliedAt: application.appliedAt,
+        resumeProfileId: application.resumeProfileId,
+        updatedAt: application.updatedAt,
+      } : null,
+      primaryListing: this.primaryListing(job),
+      listingCount: job.listings.length,
+      sourceKinds: [...new Set(job.listings.map((listing) => listing.sourceKind))].sort(),
+      campaigns: this.campaignRefsForJob(job.id),
+      resume,
+      firstSeenAt: job.firstSeenAt,
+      lastSeenAt: job.lastSeenAt,
     });
   }
 
@@ -332,6 +424,233 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     const applicationsByStage = Object.fromEntries(APPLICATION_STAGES.map((stage: ApplicationStage) => [stage, 0])) as Record<ApplicationStage, number>;
     for (const row of this.db.prepare(`SELECT a.current_stage AS k, COUNT(*) AS n FROM applications a JOIN jobs j ON j.id = a.job_id WHERE 1=1${campaignClause} GROUP BY a.current_stage`).all(...campaignParams) as Row[]) applicationsByStage[row.k as ApplicationStage] = Number(row.n);
     return { knownJobs, applications, jobsByState, applicationsByStage };
+  }
+
+  private stageEnteredAt(application: Application, timeline: ApplicationEvent[]): string {
+    if (application.currentStage === 'applied') {
+      return timeline.find((event) => event.type === 'application_recorded')?.occurredAt ?? application.appliedAt;
+    }
+    const transition = [...timeline].reverse().find((event) =>
+      event.type === 'stage_changed' && event.stage === application.currentStage
+    );
+    return transition?.occurredAt ?? application.appliedAt;
+  }
+
+  async listApplicationBoard(input: ListApplicationBoardInput): Promise<ListApplicationBoardOutput> {
+    const page = await this.listApplications(input);
+    const items = await Promise.all(page.items.map(async ({ application, job }) => {
+      const detail = await this.getApplication(application.id);
+      if (!detail) throw new Error(`Application '${application.id}' disappeared during board projection`);
+      const resume = application.resumeProfileId ? await this.getResumeProfile(application.resumeProfileId) : null;
+      const latestEvent = detail.timeline.length ? detail.timeline[detail.timeline.length - 1]! : null;
+      return ApplicationBoardItemSchema.parse({
+        application,
+        companyId: job.companyId,
+        companyName: job.companyName,
+        title: job.title,
+        city: job.city,
+        jobState: job.state,
+        primaryListing: this.primaryListing(job),
+        campaigns: this.campaignRefsForJob(job.id),
+        resume,
+        latestEvent,
+        stageEnteredAt: this.stageEnteredAt(application, detail.timeline),
+        submissionCount: detail.timeline.filter((event) =>
+          event.type === 'application_recorded' || event.type === 'submission_recorded'
+        ).length,
+      });
+    }));
+    return ListApplicationBoardOutputSchema.parse({ items, total: page.total });
+  }
+
+  async getApplicationWorkspaceDetail(applicationId: string): Promise<ApplicationWorkspaceDetail | null> {
+    const detail = await this.getApplication(applicationId);
+    if (!detail) return null;
+    const resume = detail.application.resumeProfileId
+      ? await this.getResumeProfile(detail.application.resumeProfileId)
+      : null;
+    const latestEvent = detail.timeline.length ? detail.timeline[detail.timeline.length - 1]! : null;
+    return ApplicationWorkspaceDetailSchema.parse({
+      application: detail.application,
+      job: detail.job,
+      primaryListing: this.primaryListing(detail.job),
+      campaigns: this.campaignRefsForJob(detail.job.id),
+      resume,
+      timeline: detail.timeline,
+      latestEvent,
+      stageEnteredAt: this.stageEnteredAt(detail.application, detail.timeline),
+      submissionCount: detail.timeline.filter((event) =>
+        event.type === 'application_recorded' || event.type === 'submission_recorded'
+      ).length,
+    });
+  }
+
+  async searchJobListItems(input: SearchJobListItemsInput): Promise<SearchJobListItemsOutput> {
+    const page = await this.searchJobs(input);
+    return {
+      items: await Promise.all(page.items.map((job) => this.jobListItemFromJob(job))),
+      total: page.total,
+    };
+  }
+
+  async getJobDetailView(jobId: string): Promise<JobDetail | null> {
+    const job = await this.getJob(jobId);
+    if (!job) return null;
+    const application = await this.findApplicationByJobId(jobId);
+    const applicationDetail = application ? await this.getApplication(application.id) : null;
+    const resume = application?.resumeProfileId ? await this.getResumeProfile(application.resumeProfileId) : null;
+    const observationRows = this.db.prepare(`
+      SELECT * FROM job_observations
+      WHERE job_id = ?
+      ORDER BY observed_at DESC, id DESC
+    `).all(jobId) as Row[];
+    const observations = observationRows.map((row) => {
+      const listingRow = this.db.prepare('SELECT * FROM job_listings WHERE id = ?').get(String(row.listing_id)) as Row | undefined;
+      if (!listingRow) throw new Error(`Listing '${String(row.listing_id)}' is missing for Observation '${String(row.id)}'`);
+      return {
+        observation: JobObservationSchema.parse({
+          id: row.id,
+          jobId: row.job_id,
+          listingId: row.listing_id,
+          discoveryRunId: row.discovery_run_id,
+          observedAt: row.observed_at,
+          availability: row.availability,
+        }),
+        listing: this.listingFromRow(listingRow),
+      };
+    });
+    const timeline = applicationDetail?.timeline ?? [];
+    const latestEvent = timeline.length ? timeline[timeline.length - 1]! : null;
+    return JobDetailSchema.parse({
+      job,
+      primaryListing: this.primaryListing(job),
+      campaigns: this.campaignRefsForJob(job.id),
+      application: applicationDetail ? {
+        application: applicationDetail.application,
+        timeline,
+        resume,
+        latestEvent,
+        submissionCount: timeline.filter((event) =>
+          event.type === 'application_recorded' || event.type === 'submission_recorded'
+        ).length,
+      } : null,
+      observations,
+    });
+  }
+
+  async listResumeUsage(input: ListResumeUsageInput): Promise<ListResumeUsageOutput> {
+    const resumePage = await this.listResumeProfiles({ limit: input.limit ?? 50, offset: input.offset ?? 0 });
+    const campaignFilter = input.campaignId
+      ? ` AND EXISTS (
+          SELECT 1 FROM job_observations o
+          JOIN discovery_runs d ON d.id = o.discovery_run_id
+          WHERE o.job_id = j.id AND d.campaign_id = ?
+        )`
+      : '';
+    const campaignParams = input.campaignId ? [input.campaignId] : [];
+    const items = resumePage.items.map((resume) => {
+      const rows = this.db.prepare(`
+        SELECT a.current_stage AS stage, COUNT(*) AS n, MAX(a.applied_at) AS last_used_at
+        FROM applications a
+        JOIN jobs j ON j.id = a.job_id
+        WHERE a.resume_profile_id = ?${campaignFilter}
+        GROUP BY a.current_stage
+      `).all(resume.id, ...campaignParams) as Row[];
+      const applicationsByStage = Object.fromEntries(APPLICATION_STAGES.map((stage) => [stage, 0])) as Record<ApplicationStage, number>;
+      let applications = 0;
+      let lastUsedAt: string | null = null;
+      for (const row of rows) {
+        const stage = row.stage as ApplicationStage;
+        const count = Number(row.n);
+        applicationsByStage[stage] = count;
+        applications += count;
+        const candidate = row.last_used_at == null ? null : String(row.last_used_at);
+        if (candidate && (!lastUsedAt || candidate > lastUsedAt)) lastUsedAt = candidate;
+      }
+      return ResumeUsageSummarySchema.parse({ resume, applications, applicationsByStage, lastUsedAt });
+    });
+    return ListResumeUsageOutputSchema.parse({ items, total: resumePage.total });
+  }
+
+  async getDiscoveryRunDetailView(runId: string): Promise<DiscoveryRunDetail | null> {
+    const run = await this.getDiscoveryRun(runId);
+    if (!run) return null;
+    const jobRows = this.db.prepare(`
+      SELECT DISTINCT j.*
+      FROM jobs j
+      JOIN job_observations o ON o.job_id = j.id
+      WHERE o.discovery_run_id = ?
+      ORDER BY j.last_seen_at DESC, j.id
+    `).all(runId) as Row[];
+    const observationCount = Number((this.db.prepare(
+      'SELECT COUNT(*) AS n FROM job_observations WHERE discovery_run_id = ?',
+    ).get(runId) as Row).n);
+    return DiscoveryRunDetailSchema.parse({
+      run,
+      campaign: this.campaignRefById(run.campaignId),
+      affectedJobs: await Promise.all(jobRows.map((row) => this.jobListItemFromJob(this.jobFromRow(row)))),
+      observationCount,
+    });
+  }
+
+  async getDashboardSnapshot(input: DashboardSnapshotInput, generatedAt: string): Promise<DashboardSnapshot> {
+    const pipeline = await this.getPipelineStats({ campaignId: input.campaignId });
+    const campaignCondition = input.campaignId
+      ? `EXISTS (
+          SELECT 1 FROM job_observations o
+          JOIN discovery_runs d ON d.id = o.discovery_run_id
+          WHERE o.job_id = j.id AND d.campaign_id = ?
+        )`
+      : '1=1';
+    const params = input.campaignId ? [input.campaignId] : [];
+    const countJobsInState = (state: JobState) => Number((this.db.prepare(
+      `SELECT COUNT(*) AS n FROM jobs j WHERE j.state = ? AND ${campaignCondition}`,
+    ).get(state, ...params) as Row).n);
+    const countApplications = (where: string, extraParams: Array<string | number> = []) => Number((this.db.prepare(`
+      SELECT COUNT(*) AS n
+      FROM applications a
+      JOIN jobs j ON j.id = a.job_id
+      WHERE ${where} AND ${campaignCondition}
+    `).get(...extraParams, ...params) as Row).n);
+
+    const activePipeline = countApplications("a.current_stage NOT IN ('rejected','withdrawn')");
+    const interviewStage = countApplications('a.current_stage = ?', ['interview']);
+    const recentRunRows = input.campaignId
+      ? this.db.prepare('SELECT * FROM discovery_runs WHERE campaign_id = ? ORDER BY started_at DESC, id DESC LIMIT ?').all(input.campaignId, input.recentDiscoveryLimit ?? 5) as Row[]
+      : this.db.prepare('SELECT * FROM discovery_runs ORDER BY started_at DESC, id DESC LIMIT ?').all(input.recentDiscoveryLimit ?? 5) as Row[];
+    const recentDiscoveryRuns = recentRunRows.map((row) => {
+      const run = this.discoveryFromRow(row);
+      return { run, campaign: this.campaignRefById(run.campaignId) };
+    });
+    const resumeUsage = await this.listResumeUsage({
+      limit: 200,
+      offset: 0,
+      ...(input.campaignId ? { campaignId: input.campaignId } : {}),
+    });
+
+    return DashboardSnapshotSchema.parse({
+      generatedAt,
+      campaign: this.campaignRefById(input.campaignId ?? null),
+      kpis: {
+        knownJobs: pipeline.knownJobs,
+        inbox: countJobsInState('discovered'),
+        shortlisted: countJobsInState('shortlisted'),
+        applications: pipeline.applications,
+        activePipeline,
+        interviewStage,
+      },
+      funnel: {
+        discovered: pipeline.jobsByState.discovered,
+        shortlisted: pipeline.jobsByState.shortlisted,
+        applied: pipeline.applicationsByStage.applied,
+        screening: pipeline.applicationsByStage.screening,
+        assessment: pipeline.applicationsByStage.assessment,
+        interview: pipeline.applicationsByStage.interview,
+        offer: pipeline.applicationsByStage.offer,
+      },
+      recentDiscoveryRuns,
+      resumeUsage: resumeUsage.items,
+    });
   }
 
   async getIdempotencyReceipt(scope: string, key: string): Promise<IdempotencyReceipt | null> {
@@ -587,6 +906,13 @@ export class SqliteCareerStore implements CareerStorePort {
   getResumeProfile(resumeProfileId: string) { return this.readSession().getResumeProfile(resumeProfileId); }
   getDiscoveryRun(runId: string) { return this.readSession().getDiscoveryRun(runId); }
   getPipelineStats(input: PipelineStatsInput) { return this.readSession().getPipelineStats(input); }
+  searchJobListItems(input: SearchJobListItemsInput) { return this.readSession().searchJobListItems(input); }
+  listApplicationBoard(input: ListApplicationBoardInput) { return this.readSession().listApplicationBoard(input); }
+  getApplicationWorkspaceDetail(applicationId: string) { return this.readSession().getApplicationWorkspaceDetail(applicationId); }
+  getJobDetailView(jobId: string) { return this.readSession().getJobDetailView(jobId); }
+  getDashboardSnapshot(input: DashboardSnapshotInput, generatedAt: string) { return this.readSession().getDashboardSnapshot(input, generatedAt); }
+  getDiscoveryRunDetailView(runId: string) { return this.readSession().getDiscoveryRunDetailView(runId); }
+  listResumeUsage(input: ListResumeUsageInput) { return this.readSession().listResumeUsage(input); }
   getIdempotencyReceipt(scope: string, key: string) { return this.readSession().getIdempotencyReceipt(scope, key); }
 
   async transaction<T>(work: (tx: CareerStoreTransactionPort) => Promise<T>): Promise<T> {

@@ -40,7 +40,7 @@ Campaign
   -> MCP query/write tools
 ```
 
-The server uses SQLite schema v2 for durable state and exposes the tool surface through MCP Streamable HTTP. MemoFlow integration remains intentionally unimplemented.
+The server uses SQLite schema v2 for durable state, exposes the tool surface through MCP Streamable HTTP, and now provides application-level workspace read models for the upcoming REST/Web adapters. MemoFlow integration remains intentionally unimplemented.
 
 ## Repository shape
 

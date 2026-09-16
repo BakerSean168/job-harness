@@ -42,7 +42,7 @@ Completed before Web UI implementation:
 ## Next standalone slice
 
 1. [x] **JH-W001:** `JobListing` domain/persistence migration with conservative Opportunity dedupe.
-2. **JH-W002:** define aggregate UI read models (`JobListItem`, `JobDetail`, `DashboardSnapshot`, etc.).
+2. [x] **JH-W002:** aggregate UI read models behind `CareerWorkspaceReadPort` (`JobListItem`, `JobDetail`, Application Board/Detail, Dashboard, Discovery, Resume usage).
 3. Minimal REST/API facade backed by the same application ports.
 4. Web shell + `zh-CN`/`en` from the first UI commit.
 5. Primary UI vertical slice: Inbox + Jobs Table + Job side panel, followed by Applications Board.

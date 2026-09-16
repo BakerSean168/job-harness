@@ -6,16 +6,20 @@ import {
   CareerContextOutputSchema,
   CompleteDiscoveryInputSchema,
   CompleteDiscoveryOutputSchema,
+  DashboardSnapshotInputSchema,
   DuplicateCheckInputSchema,
   GetApplicationOutputSchema,
+  ListResumeUsageInputSchema,
   JobSchema,
   JobSearchCampaignSchema,
+  ListApplicationBoardInputSchema,
   ListApplicationsInputSchema,
   ListCampaignsInputSchema,
   ListResumesInputSchema,
   PipelineStatsInputSchema,
   RecordApplicationInputSchema,
   ResumeProfileRefSchema,
+  SearchJobListItemsInputSchema,
   SearchJobsInputSchema,
   SetJobStateInputSchema,
   TransitionApplicationInputSchema,
@@ -406,6 +410,16 @@ export function createCareerApplicationService(
     },
   };
 
+  const workspace: CareerApplicationPorts['workspace'] = {
+    searchJobListItems: (input) => store.searchJobListItems(SearchJobListItemsInputSchema.parse(input)),
+    listApplicationBoard: (input) => store.listApplicationBoard(ListApplicationBoardInputSchema.parse(input)),
+    getApplicationWorkspaceDetail: (applicationId) => store.getApplicationWorkspaceDetail(applicationId),
+    getJobDetail: (jobId) => store.getJobDetailView(jobId),
+    getDashboardSnapshot: (input) => store.getDashboardSnapshot(DashboardSnapshotInputSchema.parse(input), now()),
+    getDiscoveryRunDetail: (runId) => store.getDiscoveryRunDetailView(runId),
+    listResumeUsage: (input = {}) => store.listResumeUsage(ListResumeUsageInputSchema.parse(input)),
+  };
+
   const resumeRegistry: CareerResumeRegistryPort = {
     async syncResumeProfiles(profiles) {
       const parsed = profiles.map((profile) => ResumeProfileRefSchema.parse(profile));
@@ -414,5 +428,5 @@ export function createCareerApplicationService(
     },
   };
 
-  return { jobs, applications, campaigns, discovery, resumes, analytics, resumeRegistry };
+  return { jobs, applications, campaigns, discovery, resumes, analytics, workspace, resumeRegistry };
 }

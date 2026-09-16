@@ -1,5 +1,6 @@
 import type {
   ApplicationDetail,
+  ApplicationWorkspaceDetail,
   BeginDiscoveryInput,
   CareerContextInput,
   CompleteDiscoveryInput,
@@ -8,6 +9,8 @@ import type {
   DuplicateCheckOutput,
   Job,
   JobSearchCampaign,
+  ListApplicationBoardInput,
+  ListApplicationBoardOutput,
   ListApplicationsInput,
   ListApplicationsOutput,
   ListCampaignsInput,
@@ -17,6 +20,14 @@ import type {
   PipelineStatsInput,
   PipelineStatsOutput,
   CareerContextOutput,
+  DashboardSnapshot,
+  DashboardSnapshotInput,
+  DiscoveryRunDetail,
+  JobDetail,
+  ListResumeUsageInput,
+  ListResumeUsageOutput,
+  SearchJobListItemsInput,
+  SearchJobListItemsOutput,
   RecordApplicationInput,
   ResumeProfileRef,
   SearchJobsInput,
@@ -69,6 +80,17 @@ export interface CareerAnalyticsReadPort {
   getCareerContext(input: CareerContextInput): Promise<CareerContextOutput>;
 }
 
+
+export interface CareerWorkspaceReadPort {
+  searchJobListItems(input: SearchJobListItemsInput): Promise<SearchJobListItemsOutput>;
+  listApplicationBoard(input: ListApplicationBoardInput): Promise<ListApplicationBoardOutput>;
+  getApplicationWorkspaceDetail(applicationId: string): Promise<ApplicationWorkspaceDetail | null>;
+  getJobDetail(jobId: string): Promise<JobDetail | null>;
+  getDashboardSnapshot(input: DashboardSnapshotInput): Promise<DashboardSnapshot>;
+  getDiscoveryRunDetail(runId: string): Promise<DiscoveryRunDetail | null>;
+  listResumeUsage(input?: ListResumeUsageInput): Promise<ListResumeUsageOutput>;
+}
+
 export interface CareerApplicationPorts {
   jobs: CareerJobReadPort & CareerJobCommandPort;
   applications: CareerApplicationReadPort & CareerApplicationCommandPort;
@@ -76,6 +98,7 @@ export interface CareerApplicationPorts {
   discovery: CareerDiscoveryPort;
   resumes: CareerResumeReadPort;
   analytics: CareerAnalyticsReadPort;
+  workspace: CareerWorkspaceReadPort;
 }
 
 export interface CareerResumeRegistryPort {

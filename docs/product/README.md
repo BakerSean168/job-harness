@@ -18,3 +18,5 @@ Documents:
 - [Web V1 implementation plan](./web-v1-plan.md)
 
 Status: **frozen for Web V1 planning**. Domain changes identified here must land before UI code depends on the old shape.
+
+- [`ui-read-models.md`](ui-read-models.md) — presentation-ready workspace contracts and deliberate projection boundaries.
