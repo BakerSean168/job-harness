@@ -5,6 +5,7 @@ import {
   ApplicationWorkspaceDetailSchema,
   CompanyDetailSchema,
   DashboardSnapshotSchema,
+  DeleteSavedViewOutputSchema,
   JobDetailSchema,
   JobSchema,
   JobSearchCampaignSchema,
@@ -356,11 +357,9 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
         }));
       },
       async delete(savedViewId: string): Promise<{ deleted: boolean }> {
-        const result = await request(`/saved-views/${encodeURIComponent(savedViewId)}`, { method: 'DELETE' });
-        if (!result || typeof result !== 'object' || !('deleted' in result) || typeof (result as { deleted?: unknown }).deleted !== 'boolean') {
-          throw new Error('Invalid Saved View delete response');
-        }
-        return { deleted: (result as { deleted: boolean }).deleted };
+        return DeleteSavedViewOutputSchema.parse(
+          await request(`/saved-views/${encodeURIComponent(savedViewId)}`, { method: 'DELETE' }),
+        );
       },
     },
   };

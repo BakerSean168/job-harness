@@ -31,8 +31,9 @@ Completed:
 - [x] retired JobSync `20800` only after archive + reconciliation gates passed
 - [x] Digital Biome production navigation cut over to Job Harness
 - [x] **CH-0004:** narrow `CareerGateway` + host-owned Goal -> Campaign `CareerIntegrationBinding` frozen; REST host parity added for Pipeline and Discovery lifecycle
+- [x] Cross-repository REST contract artifact: canonical route registry + generated OpenAPI 3.1 + `/openapi.json` + drift gate
 
-**Next:** CH-0005 — derive the smallest Goal metric / Scheduler handler / TaskSuggestion / Mastra tool contribution seams from the real MemoFlow host. No dynamic plugin loader.
+**Next:** CH-0005 — consume the generated contract from an isolated MemoFlow worktree and implement the smallest Goal metric / Scheduler handler / TaskSuggestion / Mastra tool contribution seams. No dynamic plugin loader.
 
 Deferred intentionally:
 

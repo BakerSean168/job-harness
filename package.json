@@ -13,18 +13,21 @@
     "e2e:headed": "pnpm build:web && playwright test --headed",
     "typecheck": "tsc -b && pnpm --filter @job-harness/web typecheck",
     "test": "vitest run",
-    "check": "pnpm check:manifest && pnpm check:boundaries && pnpm typecheck && pnpm test && pnpm build:web",
+    "check": "pnpm check:manifest && pnpm check:boundaries && pnpm typecheck && pnpm check:openapi && pnpm test && pnpm build:web",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "server": "pnpm --filter @job-harness/server start",
     "import:legacy": "pnpm --filter @job-harness/server import:legacy",
     "build:web": "pnpm --filter @job-harness/web build",
-    "web": "pnpm --filter @job-harness/web dev"
+    "web": "pnpm --filter @job-harness/web dev",
+    "openapi:generate": "tsx scripts/openapi-artifact.ts --write",
+    "check:openapi": "tsx scripts/openapi-artifact.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",
     "@types/node": "^24.5.2",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "tsx": "^4.20.5"
   },
   "engines": {
     "node": ">=24.0.0"

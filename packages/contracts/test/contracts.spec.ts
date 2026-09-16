@@ -77,3 +77,31 @@ describe('canonical contracts', () => {
   });
 
 });
+
+import { generateJobHarnessOpenApiDocument, JOB_HARNESS_REST_V1_ROUTES } from '../src';
+
+describe('REST v1 OpenAPI projection', () => {
+  it('projects every registered REST contract exactly once with unique operationIds', () => {
+    const document = generateJobHarnessOpenApiDocument() as {
+      openapi: string;
+      paths: Record<string, Record<string, { operationId?: string; security?: unknown }>>;
+    };
+    expect(document.openapi).toBe('3.1.0');
+    const operations = Object.values(document.paths).flatMap((path) => Object.values(path));
+    expect(operations).toHaveLength(Object.keys(JOB_HARNESS_REST_V1_ROUTES).length);
+    const operationIds = operations.map((operation) => operation.operationId);
+    expect(new Set(operationIds).size).toBe(operationIds.length);
+    expect(operationIds).toContain('getPipelineStats');
+    expect(operationIds).toContain('beginDiscovery');
+    expect(operationIds).toContain('completeDiscovery');
+    expect(operations.every((operation) => Array.isArray(operation.security))).toBe(true);
+  });
+
+  it('uses canonical route paths for the integration-critical surface', () => {
+    const routes = JOB_HARNESS_REST_V1_ROUTES;
+    expect(routes.pipeline).toMatchObject({ method: 'get', path: '/pipeline' });
+    expect(routes.beginDiscovery).toMatchObject({ method: 'post', path: '/discovery' });
+    expect(routes.completeDiscovery).toMatchObject({ method: 'post', path: '/discovery/:runId/complete' });
+    expect(routes.backup).toMatchObject({ method: 'get', path: '/backup', binaryResponse: true });
+  });
+});

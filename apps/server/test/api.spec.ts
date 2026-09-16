@@ -255,6 +255,24 @@ describe('REST v1 facade', () => {
     expect(invalid.body.error.code).toBe('VALIDATION_ERROR');
   });
 
+  it('serves the generated OpenAPI contract outside the bearer boundary', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'job-harness-openapi-'));
+    running = await startJobHarnessServer({
+      databasePath: join(dir, 'career.db'),
+      host: '127.0.0.1',
+      port: 0,
+      authToken: 'test-secret',
+    });
+
+    const response = await fetch(running.openApiUrl);
+    expect(response.status).toBe(200);
+    const document = await response.json() as { openapi: string; paths: Record<string, unknown> };
+    expect(document.openapi).toBe('3.1.0');
+    expect(document.paths).toHaveProperty('/api/v1/pipeline');
+    expect(document.paths).toHaveProperty('/api/v1/discovery');
+    expect(document.paths).toHaveProperty('/api/v1/discovery/{runId}/complete');
+  });
+
   it('protects REST with the same bearer boundary as MCP', async () => {
     dir = await mkdtemp(join(tmpdir(), 'job-harness-api-auth-'));
     running = await startJobHarnessServer({

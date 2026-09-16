@@ -4,8 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Express, Response } from 'express';
 import { buildCareerExportSnapshot, createCareerApplicationService } from '@job-harness/application';
-import type { CareerExportSnapshot } from '@job-harness/contracts';
+import { JOB_HARNESS_REST_V1_ROUTES, type CareerExportSnapshot } from '@job-harness/contracts';
 import { createSqliteBackup, SqliteCareerStore } from '@job-harness/persistence-sqlite';
+import { registerRestV1Route } from './rest-route';
 
 function fileTimestamp(iso: string): string {
   return iso.replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
@@ -64,7 +65,7 @@ function sendInternalError(res: Response): void {
 }
 
 export function registerJobHarnessDataAdminApi(app: Express, databasePath: string, apiPrefix = '/api/v1'): void {
-  app.get(`${apiPrefix}/export`, async (_req, res) => {
+  registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.export, async (_req, res) => {
     try {
       const exportedAt = new Date().toISOString();
       const snapshot = await exportCareerSnapshotFromSqlite(databasePath, exportedAt);
@@ -81,7 +82,7 @@ export function registerJobHarnessDataAdminApi(app: Express, databasePath: strin
     }
   });
 
-  app.get(`${apiPrefix}/backup`, async (_req, res) => {
+  registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.backup, async (_req, res) => {
     let backup: TemporarySqliteBackup | null = null;
     try {
       const exportedAt = new Date().toISOString();

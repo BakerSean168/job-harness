@@ -16,6 +16,13 @@ Authorization: Bearer <token>
 
 `/healthz` remains unauthenticated for service health checks.
 
+
+## Machine-readable contract
+
+The repository publishes a generated OpenAPI 3.1 projection at `openapi/job-harness-v1.json`. The running server exposes the same generated document at `GET /openapi.json`; this endpoint is intentionally outside the bearer-protected `/api/v1/*` boundary so trusted build/codegen consumers can fetch the contract without receiving a Career data credential. The current deployment is Tailnet-only, so the document is not a public-Internet discovery surface.
+
+The artifact is generated directly from the canonical Zod request/response schemas and the versioned REST route registry. `pnpm check:openapi` fails on drift; do not hand-edit the JSON artifact.
+
 ## Read routes
 
 | Method | Route | Application contract |

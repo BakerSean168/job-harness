@@ -92,6 +92,22 @@ Ownership is explicit:
 - no cross-database foreign key is allowed;
 - V1 is intentionally Goal -> Campaign only. A second real external resource type is required before generalizing this into a universal extension binding.
 
+## Cross-repository contract distribution
+
+CH-0004 originally proved the typed in-repo `CareerGateway`, but the package itself is intentionally private/workspace-local. Cross-repository integration therefore does **not** depend on publishing the entire Job Harness monorepo as npm packages.
+
+The stable boundary is now:
+
+```text
+canonical Job Harness Zod schemas
+        -> generated OpenAPI 3.1
+        -> openapi/job-harness-v1.json
+        -> GET /openapi.json
+        -> MemoFlow integration codegen/adapter
+```
+
+This preserves the same boundary-first rule already used by MemoFlow: schema is truth, OpenAPI is a transport projection, and the host may generate a local client without copying Career DTOs by hand. `pnpm check:openapi` guards artifact drift.
+
 ## MemoFlow seams verified read-only on 2026-09-16
 
 The current MemoFlow repository already exposes the boundaries needed for the next ticket:

@@ -64,6 +64,8 @@ export const ListSavedViewsOutputSchema = z.object({
   total: z.number().int().nonnegative(),
 }).strict();
 
+export const DeleteSavedViewOutputSchema = z.object({ deleted: z.boolean() }).strict();
+
 export type SavedViewWorkspace = z.infer<typeof SavedViewWorkspaceSchema>;
 export type JobSavedViewDefinition = z.infer<typeof JobSavedViewDefinitionSchema>;
 export type ApplicationSavedViewDefinition = z.infer<typeof ApplicationSavedViewDefinitionSchema>;

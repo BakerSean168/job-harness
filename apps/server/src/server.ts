@@ -7,6 +7,7 @@ import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js
 import { createCareerApplicationService } from '@job-harness/application';
 import { CAREER_MCP_TOOLS, createCareerMcpRuntime } from '@job-harness/mcp';
 import { SqliteCareerStore } from '@job-harness/persistence-sqlite';
+import { generateJobHarnessOpenApiDocument } from '@job-harness/contracts';
 import { API_PREFIX, registerJobHarnessApi } from './api';
 import { registerJobHarnessDataAdminApi } from './data-admin';
 
@@ -21,6 +22,7 @@ export interface RunningJobHarnessServer {
   readonly url: string;
   readonly mcpUrl: string;
   readonly apiUrl: string;
+  readonly openApiUrl: string;
   readonly server: HttpServer;
   close(): Promise<void>;
 }
@@ -88,6 +90,11 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     res.json({ ok: true, service: 'job-harness', version: '0.2.0' });
   });
 
+  app.get('/openapi.json', (_req, res) => {
+    res.setHeader('cache-control', 'no-store');
+    res.json(generateJobHarnessOpenApiDocument());
+  });
+
   app.use((req, res, next) => {
     const protectedPath = req.path === '/mcp' || req.path.startsWith(`${API_PREFIX}/`);
     if (protectedPath && authToken && req.headers.authorization !== `Bearer ${authToken}`) {
@@ -141,6 +148,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     url,
     mcpUrl: `${url}/mcp`,
     apiUrl: `${url}${API_PREFIX}`,
+    openApiUrl: `${url}/openapi.json`,
     server,
     async close() {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

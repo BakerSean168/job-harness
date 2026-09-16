@@ -15,6 +15,7 @@ import {
   ListCompaniesInputSchema,
   ListDiscoveryRunsInputSchema,
   ListResumeUsageInputSchema,
+  JOB_HARNESS_REST_V1_ROUTES,
   ListSavedViewsInputSchema,
   PipelineStatsInputSchema,
   RecordApplicationInputSchema,
@@ -25,6 +26,7 @@ import {
   UpsertSavedViewInputSchema,
   UpsertJobsBatchInputSchema,
 } from '@job-harness/contracts';
+import { registerRestV1Route } from './rest-route';
 
 const API_PREFIX = '/api/v1';
 
@@ -113,21 +115,21 @@ function entityId(value: unknown): string {
 }
 
 export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts): void {
-  app.get(`${API_PREFIX}/analytics`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.analytics, route(async (req, res) => {
     const input = AnalyticsSnapshotInputSchema.parse({
       ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
     });
     res.json(await career.workspace.getAnalyticsSnapshot(input));
   }));
 
-  app.get(`${API_PREFIX}/pipeline`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.pipeline, route(async (req, res) => {
     const input = PipelineStatsInputSchema.parse({
       ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
     });
     res.json(await career.analytics.getPipelineStats(input));
   }));
 
-  app.get(`${API_PREFIX}/dashboard`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.dashboard, route(async (req, res) => {
     const input = DashboardSnapshotInputSchema.parse({
       ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
       ...(integer(req.query.recentDiscoveryLimit) !== undefined
@@ -140,7 +142,7 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
     res.json(await career.workspace.getDashboardSnapshot(input));
   }));
 
-  app.get(`${API_PREFIX}/companies`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.companies, route(async (req, res) => {
     const input = ListCompaniesInputSchema.parse({
       ...pageQuery(req.query),
       ...(first(req.query.query) ? { query: first(req.query.query) } : {}),
@@ -149,7 +151,7 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
     res.json(await career.workspace.listCompanies(input));
   }));
 
-  app.get(`${API_PREFIX}/companies/:companyId`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.companyDetail, route(async (req, res) => {
     const companyId = entityId(req.params.companyId);
     const result = await career.workspace.getCompanyDetail(companyId, first(req.query.campaignId));
     if (!result) {
@@ -159,7 +161,7 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
     res.json(result);
   }));
 
-  app.get(`${API_PREFIX}/jobs`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.jobs, route(async (req, res) => {
     const input = SearchJobListItemsInputSchema.parse({
       ...pageQuery(req.query),
       ...(first(req.query.company) ? { company: first(req.query.company) } : {}),
@@ -173,7 +175,7 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
     res.json(await career.workspace.searchJobListItems(input));
   }));
 
-  app.get(`${API_PREFIX}/jobs/:jobId`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.jobDetail, route(async (req, res) => {
     const result = await career.workspace.getJobDetail(entityId(req.params.jobId));
     if (!result) {
       res.status(404).json({ error: { code: 'NOT_FOUND', message: `Job '${req.params.jobId}' was not found` } });
@@ -182,17 +184,17 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
     res.json(result);
   }));
 
-  app.post(`${API_PREFIX}/jobs/batch`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.upsertJobsBatch, route(async (req, res) => {
     const input = UpsertJobsBatchInputSchema.parse(req.body);
     res.status(200).json(await career.jobs.upsertJobsBatch(input));
   }));
 
-  app.patch(`${API_PREFIX}/jobs/:jobId/state`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.setJobState, route(async (req, res) => {
     const input = SetJobStateInputSchema.parse({ ...req.body, jobId: entityId(req.params.jobId) });
     res.json(await career.jobs.setJobState(input));
   }));
 
-  app.get(`${API_PREFIX}/applications`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.applications, route(async (req, res) => {
     const input = ListApplicationBoardInputSchema.parse({
       ...pageQuery(req.query),
       ...(list(req.query.stages) ? { stages: list(req.query.stages) } : {}),
@@ -206,7 +208,7 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
     res.json(await career.workspace.listApplicationBoard(input));
   }));
 
-  app.get(`${API_PREFIX}/applications/:applicationId`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.applicationDetail, route(async (req, res) => {
     const result = await career.workspace.getApplicationWorkspaceDetail(entityId(req.params.applicationId));
     if (!result) {
       res.status(404).json({ error: { code: 'NOT_FOUND', message: `Application '${req.params.applicationId}' was not found` } });
@@ -215,12 +217,12 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
     res.json(result);
   }));
 
-  app.post(`${API_PREFIX}/applications`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.recordApplication, route(async (req, res) => {
     const input = RecordApplicationInputSchema.parse(req.body);
     res.status(201).json(await career.applications.recordApplication(input));
   }));
 
-  app.post(`${API_PREFIX}/applications/:applicationId/transition`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.transitionApplication, route(async (req, res) => {
     const input = TransitionApplicationInputSchema.parse({
       ...req.body,
       applicationId: entityId(req.params.applicationId),
@@ -228,12 +230,12 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
     res.json(await career.applications.transitionApplication(input));
   }));
 
-  app.get(`${API_PREFIX}/campaigns`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.campaigns, route(async (req, res) => {
     const input = ListCampaignsInputSchema.parse(pageQuery(req.query));
     res.json(await career.campaigns.listCampaigns(input));
   }));
 
-  app.get(`${API_PREFIX}/campaigns/:campaignId`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.campaignDetail, route(async (req, res) => {
     const campaignId = entityId(req.params.campaignId);
     const result = await career.campaigns.getCampaign(campaignId);
     if (!result) {
@@ -243,12 +245,12 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
     res.json(result);
   }));
 
-  app.put(`${API_PREFIX}/campaigns/:campaignId`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.upsertCampaign, route(async (req, res) => {
     const input = UpsertCampaignInputSchema.parse({ ...req.body, id: entityId(req.params.campaignId) });
     res.json(await career.campaigns.upsertCampaign(input));
   }));
 
-  app.get(`${API_PREFIX}/resumes`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.resumes, route(async (req, res) => {
     const input = ListResumeUsageInputSchema.parse({
       ...pageQuery(req.query),
       ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
@@ -256,7 +258,7 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
     res.json(await career.workspace.listResumeUsage(input));
   }));
 
-  app.get(`${API_PREFIX}/saved-views`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.savedViews, route(async (req, res) => {
     const input = ListSavedViewsInputSchema.parse({
       ...pageQuery(req.query),
       ...(first(req.query.workspace) ? { workspace: first(req.query.workspace) } : {}),
@@ -264,21 +266,21 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
     res.json(await career.savedViews.listSavedViews(input));
   }));
 
-  app.post(`${API_PREFIX}/saved-views`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.upsertSavedView, route(async (req, res) => {
     const input = UpsertSavedViewInputSchema.parse(req.body);
     res.json(await career.savedViews.upsertSavedView(input));
   }));
 
-  app.delete(`${API_PREFIX}/saved-views/:savedViewId`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.deleteSavedView, route(async (req, res) => {
     res.json(await career.savedViews.deleteSavedView(entityId(req.params.savedViewId)));
   }));
 
-  app.post(`${API_PREFIX}/discovery`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.beginDiscovery, route(async (req, res) => {
     const input = BeginDiscoveryInputSchema.parse(req.body);
     res.status(201).json(await career.discovery.beginDiscoveryRun(input));
   }));
 
-  app.post(`${API_PREFIX}/discovery/:runId/complete`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.completeDiscovery, route(async (req, res) => {
     const input = CompleteDiscoveryInputSchema.parse({
       ...req.body,
       runId: entityId(req.params.runId),
@@ -286,7 +288,7 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
     res.json(await career.discovery.completeDiscoveryRun(input));
   }));
 
-  app.get(`${API_PREFIX}/discovery`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.discovery, route(async (req, res) => {
     const input = ListDiscoveryRunsInputSchema.parse({
       ...pageQuery(req.query),
       ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
@@ -295,7 +297,7 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
     res.json(await career.workspace.listDiscoveryRuns(input));
   }));
 
-  app.get(`${API_PREFIX}/discovery/:runId`, route(async (req, res) => {
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.discoveryDetail, route(async (req, res) => {
     const runId = entityId(req.params.runId);
     const result = await career.workspace.getDiscoveryRunDetail(runId);
     if (!result) {
