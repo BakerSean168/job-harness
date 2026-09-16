@@ -2,7 +2,7 @@
 
 Next.js App Router workspace for Job Harness.
 
-Current slice: **W303 Companies + Analytics complete**.
+Current slice: **W401 self-hosted Web session hardening complete**.
 
 Implemented foundation:
 
@@ -77,6 +77,12 @@ Server-side Web configuration:
 ```bash
 JOB_HARNESS_API_URL=http://127.0.0.1:3000/api/v1
 JOB_HARNESS_AUTH_TOKEN=... # only when the standalone server requires it
+
+# Optional single-user browser login
+JOB_HARNESS_WEB_PASSWORD=...
+JOB_HARNESS_WEB_SESSION_SECRET=... # >=32 random characters
+JOB_HARNESS_WEB_SESSION_TTL_HOURS=168
+JOB_HARNESS_WEB_COOKIE_SECURE=true
 ```
 
-Never expose `JOB_HARNESS_AUTH_TOKEN` with a `NEXT_PUBLIC_` prefix.
+Never expose `JOB_HARNESS_AUTH_TOKEN`, the Web password, or the session secret with a `NEXT_PUBLIC_` prefix. When Web auth is enabled, `/login` uses a signed HttpOnly/SameSite=Strict session cookie and the workspace fails closed if the signing configuration is invalid. See `docs/security/self-hosted-web-auth.md`.

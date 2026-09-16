@@ -31,6 +31,12 @@ export const zhCN: MessageCatalog = {
     notFoundDescription: '这个地址没有对应的 Job Harness 工作区。',
     backOverview: '返回概览',
   },
+  authWorkspace: {
+    title: '登录 Job Harness', description: '这是单用户自托管工作台。登录只保护 Web 会话；REST/MCP 的 Bearer Token 仍只保留在服务端。', password: '密码', signIn: '登录', invalid: '密码不正确。', configError: 'Web 登录已启用，但 Session Secret 未正确配置。', back: '返回工作台', sessionNote: '登录会创建 HttpOnly、SameSite=Strict 的签名 Session Cookie。'
+  },
+  settingsWorkspace: {
+    security: '安全与访问', session: 'Web Session', enabled: '已启用', disabled: '未启用', sessionDescription: '启用后，所有工作区页面和 Server Action 都要求有效的签名 Session。', apiBoundary: 'API 凭据边界', apiBoundaryDescription: 'JOB_HARNESS_AUTH_TOKEN 仅由 Next 服务端 REST client 使用，不会发送到浏览器。', logout: '退出登录', localOnlyNote: '未配置 Web 密码时适合本地或受信 Tailnet 使用；公开入口应启用登录并使用 HTTPS。'
+  },
   companiesWorkspace: {
     filters: { query: '公司', campaign: '求职目标', all: '全部', apply: '筛选', reset: '重置' },
     table: { company: '公司', jobs: '岗位', shortlisted: '候选', applications: '投递', activePipeline: '活跃 Pipeline', cities: '城市', sources: '来源', lastSeen: '最近发现', empty: '暂无公司数据。' },

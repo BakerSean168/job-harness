@@ -31,6 +31,12 @@ export const en: MessageCatalog = {
     notFoundDescription: 'This address does not map to a Job Harness workspace.',
     backOverview: 'Back to overview',
   },
+  authWorkspace: {
+    title: 'Sign in to Job Harness', description: 'This is a single-user self-hosted workspace. The login protects the Web session; REST/MCP bearer credentials remain server-only.', password: 'Password', signIn: 'Sign in', invalid: 'Incorrect password.', configError: 'Web login is enabled, but the session secret is not configured correctly.', back: 'Back to workspace', sessionNote: 'Sign-in creates an HttpOnly, SameSite=Strict signed session cookie.'
+  },
+  settingsWorkspace: {
+    security: 'Security & access', session: 'Web session', enabled: 'Enabled', disabled: 'Disabled', sessionDescription: 'When enabled, every workspace page and Server Action requires a valid signed session.', apiBoundary: 'API credential boundary', apiBoundaryDescription: 'JOB_HARNESS_AUTH_TOKEN is used only by the server-side Next REST client and is never sent to the browser.', logout: 'Sign out', localOnlyNote: 'Without a Web password this is appropriate for local or trusted Tailnet access. Public endpoints should enable login and HTTPS.'
+  },
   companiesWorkspace: {
     filters: { query: 'Company', campaign: 'Campaign', all: 'All', apply: 'Filter', reset: 'Reset' },
     table: { company: 'Company', jobs: 'Jobs', shortlisted: 'Shortlisted', applications: 'Applications', activePipeline: 'Active pipeline', cities: 'Cities', sources: 'Sources', lastSeen: 'Last seen', empty: 'No company data yet.' },

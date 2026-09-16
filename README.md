@@ -97,9 +97,14 @@ JOB_HARNESS_DB
 JOB_HARNESS_HOST
 JOB_HARNESS_PORT
 JOB_HARNESS_AUTH_TOKEN
+JOB_HARNESS_API_URL
+JOB_HARNESS_WEB_PASSWORD
+JOB_HARNESS_WEB_SESSION_SECRET
+JOB_HARNESS_WEB_SESSION_TTL_HOURS
+JOB_HARNESS_WEB_COOKIE_SECURE
 ```
 
-The CLI refuses to bind to `0.0.0.0` or `::` unless `JOB_HARNESS_AUTH_TOKEN` is configured.
+The CLI refuses to bind to `0.0.0.0` or `::` unless `JOB_HARNESS_AUTH_TOKEN` is configured. The Web login is optional and independent from the REST/MCP bearer boundary; see [self-hosted Web authentication](docs/security/self-hosted-web-auth.md).
 
 
 ## Legacy migration

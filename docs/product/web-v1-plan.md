@@ -88,8 +88,8 @@ Implemented as canonical Company list/detail plus a Campaign-scoped deterministi
 
 ## Phase W4 — Hardening
 
-- auth/session appropriate for self-hosted deployment;
-- export/backup;
+- [x] **JH-W401:** optional single-user self-hosted Web session with signed HttpOnly cookie, fail-closed configuration, same-origin login/logout and reverse-proxy-safe redirects;
+- [ ] **JH-W402:** export/backup;
 - pagination/performance for larger corpora;
 - saved system/user views;
 - keyboard/ARIA pass;

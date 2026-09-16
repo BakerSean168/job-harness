@@ -35,6 +35,12 @@ export interface MessageCatalog {
     backOverview: string;
   };
   pages: Record<PageKey, { title: string; description: string }>;
+  authWorkspace: {
+    title: string; description: string; password: string; signIn: string; invalid: string; configError: string; back: string; sessionNote: string;
+  };
+  settingsWorkspace: {
+    security: string; session: string; enabled: string; disabled: string; sessionDescription: string; apiBoundary: string; apiBoundaryDescription: string; logout: string; localOnlyNote: string;
+  };
   companiesWorkspace: {
     filters: { query: string; campaign: string; all: string; apply: string; reset: string; };
     table: { company: string; jobs: string; shortlisted: string; applications: string; activePipeline: string; cities: string; sources: string; lastSeen: string; empty: string; };
