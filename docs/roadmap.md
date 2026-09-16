@@ -28,12 +28,24 @@ Deferred intentionally:
 - [ ] built-in general web search
 - [ ] external job-application submission automation
 
+## Product benchmark / IA checkpoint
+
+Completed before Web UI implementation:
+
+- [x] Open-source product benchmark covering opportunity-centric trackers, CareerPulse/JobSync, Twenty/Plane, and Reactive Resume
+- [x] Web V1 domain map and ownership boundary
+- [x] Information architecture and route map
+- [x] Dashboard, Jobs workspace, and Application pipeline specifications
+- [x] Design-language and i18n baseline
+- [x] Execution-ready Web V1 plan
+
 ## Next standalone slice
 
-1. Minimal REST/API read/write surface backed by the same application ports.
-2. Minimal Web UI for Jobs, Applications, Campaigns, Resumes, and pipeline dashboard.
-3. Resume Harness continuous registry sync adapter.
-4. Auth hardening, export/backup, and deployment packaging.
-5. Import adapters for any additional legacy ledgers discovered later.
+1. **JH-W001:** introduce `JobListing` and migrate the current `Job.canonicalUrl + sources[]` shortcut before UI couples to it.
+2. **JH-W002:** define aggregate UI read models (`JobListItem`, `JobDetail`, `DashboardSnapshot`, etc.).
+3. Minimal REST/API facade backed by the same application ports.
+4. Web shell + `zh-CN`/`en` from the first UI commit.
+5. Primary UI vertical slice: Inbox + Jobs Table + Job side panel, followed by Applications Board.
+6. Resume Harness continuous registry sync adapter, dashboard/analytics, auth hardening, export/backup, and deployment packaging.
 
 Only after standalone usage is proven should a separate MemoFlow adapter be implemented.

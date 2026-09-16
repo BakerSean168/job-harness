@@ -129,4 +129,4 @@ All V1 tools mutate Job Harness state only. There is no `submit_application` too
 
 MemoFlow is a future host target, not a dependency. A future adapter may consume public Job Harness contracts/client capabilities and contribute Goal/Task/Schedule/AI integrations without moving Career domain truth into MemoFlow.
 
-See [North-Star Architecture](docs/architecture/north-star.md), [Roadmap](docs/roadmap.md), and [MemoFlow integration boundary](docs/integration/memoflow.md).
+See [North-Star Architecture](docs/architecture/north-star.md), [Product design baseline](docs/product/README.md), [Roadmap](docs/roadmap.md), and [MemoFlow integration boundary](docs/integration/memoflow.md).
