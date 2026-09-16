@@ -127,4 +127,15 @@ W406 packages the standalone product for self-hosting:
 - both containers have health checks, Web waits for Server health, and the runtime runs as the non-root `node` user with `no-new-privileges`;
 - CI performs a fresh image build plus Compose runtime smoke including a Server restart to verify schema-v4 reopen and SQLite persistence.
 
-See `docs/deployment/self-hosted.md`. The remaining Web hardening item is responsive behavior plus primary-path browser E2E coverage.
+See `docs/deployment/self-hosted.md`.
+
+W407 completes the standalone Web V1 hardening baseline:
+
+- desktop keeps the persistent sidebar; tablet keeps the icon rail; phone widths use a fixed horizontally scrollable bottom navigation;
+- workspace headers and Settings controls stack on phone widths without page-level horizontal overflow;
+- dense tables remain horizontally scrollable inside their own containers instead of mutating the information model;
+- the Applications board uses viewport-sized snap lanes on phones;
+- record Side Panels become full-viewport modal dialogs on phones;
+- Playwright runs the production build against an isolated SQLite/API fixture and covers login, Job details, a real Screening → Assessment transition, Settings JSON export/logout, and a 390×844 responsive regression.
+
+See `docs/testing/browser-e2e.md`.

@@ -94,7 +94,7 @@ Implemented as canonical Company list/detail plus a Campaign-scoped deterministi
 - [x] **JH-W404:** batch Jobs/Application workspace projections, stable bounded offset pagination, and schema v4 hot-path indexes;
 - [x] **JH-W405:** skip navigation, named landmarks/tables, visible focus/reduced-motion, and shared keyboard-trapped side-panel dialogs;
 - [x] **JH-W406:** Docker/Compose self-host packaging with private REST networking, loopback-only Web host default, persistent SQLite bind mount, health checks, restart smoke and CI container validation;
-- [ ] **JH-W407:** responsive behavior plus browser E2E coverage for the primary Jobs / Applications / Settings / auth paths.
+- [x] **JH-W407:** responsive phone layout plus production-mode Playwright Chromium coverage for auth, Jobs, server-validated Application transition, Settings export/logout and 390px mobile containment.
 
 ## Deferred after Web V1 evidence
 

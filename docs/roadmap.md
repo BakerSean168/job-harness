@@ -56,6 +56,6 @@ Completed before Web UI implementation:
 13. [x] **JH-W404:** batch Jobs/Application projections, stable max-200 offset pagination, and SQLite schema v4 hot-path indexes verified with query-plan regression.
 14. [x] **JH-W405:** skip navigation, semantic landmarks/tables, visible keyboard focus, reduced-motion, and modal side-panel focus trapping/Escape/focus restore.
 15. [x] **JH-W406:** Docker/Compose self-host packaging with private REST networking, loopback Web default, persistent SQLite bind mount, container health checks, restart smoke, and CI image/deployment validation.
-16. Next: **JH-W407 Responsive + Browser E2E** for primary Web paths.
+16. [x] **JH-W407:** responsive phone layout plus production-mode Playwright Chromium coverage for auth, Jobs, Application transition, Settings export and mobile containment.
 
-Only after standalone usage is proven should a separate MemoFlow adapter be implemented.
+The standalone Web V1 hardening plan is complete. Only after standalone usage is proven should a separate MemoFlow adapter be implemented.

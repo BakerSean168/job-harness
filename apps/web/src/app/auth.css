@@ -30,3 +30,19 @@
 .settings-logout-form { padding: 12px 14px; }
 .settings-content { display: grid; gap: 14px; }
 .settings-download-row .action-button { flex: 0 0 auto; text-decoration: none; }
+
+@media (max-width: 640px) {
+  .auth-page { padding: 14px; }
+  .auth-card { padding: 18px; }
+  .settings-content { padding: 8px; }
+  .settings-panel { max-width: none; }
+  .settings-row {
+    min-height: 0;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .settings-state { align-self: flex-start; }
+  .settings-download-row .action-button { width: 100%; }
+  .settings-logout-form .action-button { width: 100%; }
+}

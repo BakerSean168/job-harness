@@ -192,3 +192,29 @@
   .applications-board-grid { min-width: 1080px; }
   .application-definition-grid { grid-template-columns: 1fr; }
 }
+
+@media (max-width: 640px) {
+  .applications-header-actions {
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    flex-direction: row;
+  }
+  .applications-surface { margin: 8px; }
+  .applications-filter-bar { padding-inline: 8px; }
+  .applications-board-scroll {
+    padding: 8px;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-inline: contain;
+  }
+  .applications-board-grid {
+    width: max-content;
+    min-width: 0;
+    grid-template-columns: repeat(5, minmax(280px, 82vw));
+    gap: 8px;
+  }
+  .applications-board-grid-outcomes { grid-template-columns: repeat(2, minmax(280px, 82vw)); }
+  .application-lane { scroll-snap-align: start; }
+  .application-transition-row { align-items: stretch; flex-direction: column; }
+  .application-transition-row .action-button { width: 100%; }
+}

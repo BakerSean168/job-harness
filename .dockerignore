@@ -17,4 +17,7 @@ deploy/*.env
 !deploy/*.env.example
 /tmp
 coverage
+.tmp
+playwright-report
+test-results
 .DS_Store

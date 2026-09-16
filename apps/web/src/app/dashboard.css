@@ -108,3 +108,10 @@ a.dashboard-attention-item:hover { background: var(--surface-hover); }
   .dashboard-campaign-selector-row select { width: 100%; min-width: 0; }
   .dashboard-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+@media (max-width: 480px) {
+  .dashboard-content { padding: 8px; }
+  .dashboard-kpi-grid { grid-template-columns: 1fr; }
+  .dashboard-discovery-item { align-items: flex-start; flex-direction: column; }
+  .dashboard-discovery-item dl { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

@@ -8,5 +8,8 @@ coverage/
 *.log
 *.tsbuildinfo
 data/
+.tmp/
+playwright-report/
+test-results/
 
 .next/

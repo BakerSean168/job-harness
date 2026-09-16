@@ -9,6 +9,8 @@
     "check:manifest": "node scripts/check-manifest.mjs",
     "check:deployment": "node scripts/check-deployment.mjs",
     "smoke:deployment": "bash scripts/smoke-deployment.sh",
+    "e2e": "pnpm build:web && playwright test",
+    "e2e:headed": "pnpm build:web && playwright test --headed",
     "typecheck": "tsc -b && pnpm --filter @job-harness/web typecheck",
     "test": "vitest run",
     "check": "pnpm check:manifest && pnpm check:boundaries && pnpm typecheck && pnpm test && pnpm build:web",
@@ -19,6 +21,7 @@
     "web": "pnpm --filter @job-harness/web dev"
   },
   "devDependencies": {
+    "@playwright/test": "1.55.0",
     "@types/node": "^24.5.2",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"

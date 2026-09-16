@@ -123,7 +123,14 @@ pnpm check:deployment
 JOB_HARNESS_SMOKE_IMAGE=job-harness:local pnpm smoke:deployment
 ```
 
-See [self-hosted deployment](docs/deployment/self-hosted.md) for security defaults, upgrades, backup/restore, and reverse-proxy guidance.
+Browser E2E uses an isolated temporary SQLite database and a production Next build:
+
+```bash
+pnpm exec playwright install chromium # once per machine
+pnpm e2e
+```
+
+See [self-hosted deployment](docs/deployment/self-hosted.md) for security defaults, upgrades, backup/restore, and reverse-proxy guidance, and [browser E2E](docs/testing/browser-e2e.md) for the responsive/auth/application regression suite.
 
 ## Legacy migration
 
