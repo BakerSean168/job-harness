@@ -33,13 +33,20 @@ export interface MessageCatalog {
     notFoundTitle: string;
     notFoundDescription: string;
     backOverview: string;
+    skipToContent: string;
+    mainNavigation: string;
+    close: string;
   };
   pages: Record<PageKey, { title: string; description: string }>;
+  savedViewsWorkspace: {
+    label: string; saveCurrent: string; namePlaceholder: string; apply: string; update: string; delete: string; empty: string; saved: string; updated: string; deleted: string; conflict: string; failed: string; currentFilters: string;
+  };
   authWorkspace: {
     title: string; description: string; password: string; signIn: string; invalid: string; configError: string; back: string; sessionNote: string;
   };
   settingsWorkspace: {
     security: string; session: string; enabled: string; disabled: string; sessionDescription: string; apiBoundary: string; apiBoundaryDescription: string; logout: string; localOnlyNote: string;
+    data: string; exportJson: string; exportJsonDescription: string; backupSqlite: string; backupSqliteDescription: string; download: string; backupNote: string;
   };
   companiesWorkspace: {
     filters: { query: string; campaign: string; all: string; apply: string; reset: string; };

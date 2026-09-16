@@ -14,7 +14,9 @@ export function AppShell({
   messages: MessageCatalog;
 }>) {
   return (
-    <div className="app-shell">
+    <>
+      <a className="skip-link" href="#main-content">{messages.common.skipToContent}</a>
+      <div className="app-shell">
       <AppSidebar messages={messages} />
       <div className="app-workspace">
         <header className="global-topbar">
@@ -27,8 +29,9 @@ export function AppShell({
             <ThemeToggle label={messages.topbar.theme} />
           </div>
         </header>
-        <main className="workspace-main">{children}</main>
+        <main id="main-content" className="workspace-main" tabIndex={-1}>{children}</main>
       </div>
     </div>
+    </>
   );
 }

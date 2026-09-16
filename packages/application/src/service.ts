@@ -9,6 +9,7 @@ import {
   CompleteDiscoveryOutputSchema,
   DashboardSnapshotInputSchema,
   DuplicateCheckInputSchema,
+  EntityIdSchema,
   GetApplicationOutputSchema,
   ListDiscoveryRunsInputSchema,
   ListResumeUsageInputSchema,
@@ -19,14 +20,17 @@ import {
   ListCampaignsInputSchema,
   ListCompaniesInputSchema,
   ListResumesInputSchema,
+  ListSavedViewsInputSchema,
   PipelineStatsInputSchema,
   RecordApplicationInputSchema,
   ResumeProfileRefSchema,
+  SavedViewSchema,
   SearchJobListItemsInputSchema,
   SearchJobsInputSchema,
   SetJobStateInputSchema,
   TransitionApplicationInputSchema,
   UpsertCampaignInputSchema,
+  UpsertSavedViewInputSchema,
   UpsertJobsBatchInputSchema,
   UpsertJobsBatchOutputSchema,
   type ApplicationDetail,
@@ -400,6 +404,32 @@ export function createCareerApplicationService(
     listResumeProfiles: (input = {}) => store.listResumeProfiles(ListResumesInputSchema.parse(input)),
   };
 
+  const savedViews: CareerApplicationPorts['savedViews'] = {
+    listSavedViews: (input = {}) => store.listSavedViews(ListSavedViewsInputSchema.parse(input)),
+
+    async upsertSavedView(input) {
+      const parsed = UpsertSavedViewInputSchema.parse(input);
+      return store.transaction(async (tx) => {
+        const existing = await tx.getSavedView(parsed.id);
+        const nameConflict = await tx.findSavedViewByName(parsed.workspace, parsed.name);
+        if (nameConflict && nameConflict.id !== parsed.id) {
+          throw new CareerConflictError(`Saved view '${parsed.name}' already exists in workspace '${parsed.workspace}'`);
+        }
+        const timestamp = now();
+        return tx.upsertSavedView(SavedViewSchema.parse({
+          ...parsed,
+          createdAt: existing?.createdAt ?? timestamp,
+          updatedAt: timestamp,
+        }));
+      });
+    },
+
+    async deleteSavedView(savedViewId) {
+      const id = EntityIdSchema.parse(savedViewId);
+      return store.transaction(async (tx) => ({ deleted: await tx.deleteSavedView(id) }));
+    },
+  };
+
   const analytics: CareerApplicationPorts['analytics'] = {
     getPipelineStats: (input) => store.getPipelineStats(PipelineStatsInputSchema.parse(input)),
     async getCareerContext(input) {
@@ -435,5 +465,5 @@ export function createCareerApplicationService(
     },
   };
 
-  return { jobs, applications, campaigns, discovery, resumes, analytics, workspace, resumeRegistry };
+  return { jobs, applications, campaigns, discovery, resumes, analytics, workspace, savedViews, resumeRegistry };
 }

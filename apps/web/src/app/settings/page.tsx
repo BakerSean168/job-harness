@@ -25,6 +25,19 @@ export default async function SettingsPage() {
             <form method="post" action="/auth/logout" className="settings-logout-form"><button className="action-button" type="submit">{copy.logout}</button></form>
           ) : null}
         </section>
+
+        <section className="settings-panel">
+          <div className="management-panel-heading"><h2>{copy.data}</h2></div>
+          <div className="settings-row settings-download-row">
+            <div><strong>{copy.exportJson}</strong><p>{copy.exportJsonDescription}</p></div>
+            <a className="action-button" href="/downloads/export">{copy.download}</a>
+          </div>
+          <div className="settings-row settings-download-row">
+            <div><strong>{copy.backupSqlite}</strong><p>{copy.backupSqliteDescription}</p></div>
+            <a className="action-button" href="/downloads/backup">{copy.download}</a>
+          </div>
+          <p className="settings-note">{copy.backupNote}</p>
+        </section>
       </div>
     </div>
   );

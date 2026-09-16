@@ -28,3 +28,5 @@
 .settings-state[data-enabled='true'] { background: var(--success-soft); color: var(--success); }
 .settings-note { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text-faint); }
 .settings-logout-form { padding: 12px 14px; }
+.settings-content { display: grid; gap: 14px; }
+.settings-download-row .action-button { flex: 0 0 auto; text-decoration: none; }

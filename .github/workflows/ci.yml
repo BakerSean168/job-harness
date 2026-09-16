@@ -19,3 +19,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+
+  deployment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/check-deployment.mjs
+      - run: docker build -t job-harness:ci .
+      - run: JOB_HARNESS_SMOKE_IMAGE=job-harness:ci bash scripts/smoke-deployment.sh

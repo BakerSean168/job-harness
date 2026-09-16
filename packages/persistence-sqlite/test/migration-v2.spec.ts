@@ -38,6 +38,27 @@ describe('SQLite schema v1 -> v2 JobListing migration', () => {
         normalized_external_id TEXT NOT NULL,
         PRIMARY KEY (job_id, normalized_source, normalized_external_id)
       );
+      CREATE TABLE discovery_runs (
+        id TEXT PRIMARY KEY,
+        campaign_id TEXT,
+        executor TEXT NOT NULL,
+        context_snapshot_json TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        completed_at TEXT,
+        candidate_count INTEGER NOT NULL DEFAULT 0,
+        inserted_count INTEGER NOT NULL DEFAULT 0,
+        duplicate_count INTEGER NOT NULL DEFAULT 0,
+        rejected_count INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE applications (
+        id TEXT PRIMARY KEY,
+        job_id TEXT NOT NULL UNIQUE,
+        current_stage TEXT NOT NULL,
+        applied_at TEXT NOT NULL,
+        resume_profile_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
       CREATE TABLE job_observations (
         id TEXT PRIMARY KEY,
         job_id TEXT NOT NULL,
@@ -69,7 +90,7 @@ describe('SQLite schema v1 -> v2 JobListing migration', () => {
 
     migrateSqliteDatabase(db);
 
-    expect(db.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 2 });
+    expect(db.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 4 });
     const listings = db.prepare('SELECT * FROM job_listings WHERE job_id = ?').all('job-deepseek') as Array<Record<string, unknown>>;
     expect(listings).toHaveLength(1);
     expect(listings[0]).toMatchObject({

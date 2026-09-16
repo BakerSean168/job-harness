@@ -8,6 +8,7 @@ import { createCareerApplicationService } from '@job-harness/application';
 import { CAREER_MCP_TOOLS, createCareerMcpRuntime } from '@job-harness/mcp';
 import { SqliteCareerStore } from '@job-harness/persistence-sqlite';
 import { API_PREFIX, registerJobHarnessApi } from './api';
+import { registerJobHarnessDataAdminApi } from './data-admin';
 
 export interface JobHarnessServerOptions {
   readonly databasePath: string;
@@ -96,6 +97,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     next();
   });
 
+  registerJobHarnessDataAdminApi(app, options.databasePath, API_PREFIX);
   registerJobHarnessApi(app, application);
 
   app.post('/mcp', async (req, res) => {

@@ -1,8 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { ApplicationStageSchema, type ListApplicationBoardInput } from '@job-harness/contracts';
 import { getLocale, getMessages } from '@/i18n/server';
 import { getJobHarnessClient } from '@/lib/job-harness-client';
 import { WorkspaceHeader } from '@/components/shell/workspace-header';
+import { SavedViewsBar } from '@/components/saved-views/saved-views-bar';
+import { applicationSavedViewDefinitionFromParams } from '@/components/saved-views/query';
 import { ApplicationsFilters } from './applications-filters';
 import { ApplicationsBoard } from './applications-board';
 import { ApplicationsTable } from './applications-table';
@@ -36,6 +39,9 @@ function terminalMode(raw: string | undefined, stage: string | undefined): Termi
 export async function ApplicationsWorkspace({ searchParams }: { searchParams: ApplicationsSearchParams }) {
   const [messages, locale] = await Promise.all([getMessages(), getLocale()]);
   const client = getJobHarnessClient();
+  const savedViewsPage = await client.savedViews.list({ workspace: 'applications', limit: 100, offset: 0 });
+  const currentSavedViewDefinition = applicationSavedViewDefinitionFromParams(searchParams);
+  const savedViewCreateId = randomUUID();
   const view = one(searchParams.view) === 'table' ? 'table' : 'board';
   const offset = view === 'table' ? nonNegativeInteger(searchParams.offset, 0) : 0;
   const stageRaw = optional(one(searchParams.stage));
@@ -87,6 +93,7 @@ export async function ApplicationsWorkspace({ searchParams }: { searchParams: Ap
         )}
       />
       <div className="workspace-surface applications-surface">
+        <SavedViewsBar workspace="applications" views={savedViewsPage.items} currentDefinition={currentSavedViewDefinition} createId={savedViewCreateId} messages={messages} />
         <ApplicationsFilters params={searchParams} campaigns={campaignPage.items} resumes={resumePage.items} messages={messages} />
         {view === 'board' ? (
           <ApplicationsBoard

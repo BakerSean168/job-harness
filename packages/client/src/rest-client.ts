@@ -11,6 +11,8 @@ import {
   ListCompaniesOutputSchema,
   ListDiscoveryRunsOutputSchema,
   ListResumeUsageOutputSchema,
+  ListSavedViewsOutputSchema,
+  SavedViewSchema,
   SearchJobListItemsOutputSchema,
   UpsertJobsBatchOutputSchema,
   type AnalyticsSnapshot,
@@ -31,12 +33,16 @@ import {
   type ListDiscoveryRunsOutput,
   type ListResumeUsageInput,
   type ListResumeUsageOutput,
+  type ListSavedViewsInput,
+  type ListSavedViewsOutput,
   type RecordApplicationInput,
   type SearchJobListItemsInput,
   type SearchJobListItemsOutput,
+  type SavedView,
   type SetJobStateInput,
   type TransitionApplicationInput,
   type UpsertCampaignInput,
+  type UpsertSavedViewInput,
   type UpsertJobsBatchInput,
   type UpsertJobsBatchOutput,
   RecordApplicationOutputSchema,
@@ -154,6 +160,14 @@ function dashboardQuery(input: DashboardSnapshotInput): string {
   append(query, 'campaignId', input.campaignId);
   append(query, 'recentDiscoveryLimit', input.recentDiscoveryLimit);
   append(query, 'attentionLimit', input.attentionLimit);
+  return query.toString();
+}
+
+function savedViewsQuery(input: ListSavedViewsInput): string {
+  const query = new URLSearchParams();
+  append(query, 'limit', input.limit);
+  append(query, 'offset', input.offset);
+  append(query, 'workspace', input.workspace);
   return query.toString();
 }
 
@@ -288,6 +302,25 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
           method: 'PUT',
           body: JSON.stringify(input),
         }));
+      },
+    },
+    savedViews: {
+      async list(input: ListSavedViewsInput = {}): Promise<ListSavedViewsOutput> {
+        const query = savedViewsQuery(input);
+        return ListSavedViewsOutputSchema.parse(await request(`/saved-views${query ? `?${query}` : ''}`));
+      },
+      async upsert(input: UpsertSavedViewInput): Promise<SavedView> {
+        return SavedViewSchema.parse(await request('/saved-views', {
+          method: 'POST',
+          body: JSON.stringify(input),
+        }));
+      },
+      async delete(savedViewId: string): Promise<{ deleted: boolean }> {
+        const result = await request(`/saved-views/${encodeURIComponent(savedViewId)}`, { method: 'DELETE' });
+        if (!result || typeof result !== 'object' || !('deleted' in result) || typeof (result as { deleted?: unknown }).deleted !== 'boolean') {
+          throw new Error('Invalid Saved View delete response');
+        }
+        return { deleted: (result as { deleted: boolean }).deleted };
       },
     },
   };

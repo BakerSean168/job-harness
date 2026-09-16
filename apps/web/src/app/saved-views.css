@@ -1,0 +1,33 @@
+.saved-views-bar {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow-x: auto;
+}
+.saved-views-heading { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); }
+.saved-views-heading strong { font-size: 10px; font-weight: 700; white-space: nowrap; }
+.saved-view-list { min-width: 0; display: flex; align-items: center; gap: 5px; }
+.saved-view-empty { color: var(--text-faint); font-size: 10px; white-space: nowrap; }
+.saved-view-chip { flex: 0 0 auto; display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; background: var(--surface-subtle); }
+.saved-view-chip > a { max-width: 150px; padding: 4px 7px; overflow: hidden; color: var(--text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.saved-view-chip > a:hover { color: var(--text); background: var(--surface-hover); }
+.saved-view-chip > button { width: 26px; height: 24px; display: grid; place-items: center; border: 0; border-left: 1px solid var(--border); background: transparent; color: var(--text-faint); cursor: pointer; }
+.saved-view-chip > button:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
+.saved-view-chip > button:disabled { opacity: 0.45; cursor: wait; }
+.saved-view-create { flex: 0 0 auto; display: flex; align-items: center; gap: 5px; margin-left: auto; }
+.saved-view-create input { width: 150px; height: 28px; padding: 0 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 10px; }
+.saved-view-create button { height: 28px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-subtle); color: var(--text-muted); font: inherit; font-size: 10px; font-weight: 650; cursor: pointer; white-space: nowrap; }
+.saved-view-create button:hover:not(:disabled) { border-color: var(--border-strong); color: var(--text); }
+.saved-view-create button:disabled { opacity: 0.45; cursor: default; }
+.saved-view-status { flex: 0 0 auto; color: var(--text-faint); font-size: 9px; white-space: nowrap; }
+@media (max-width: 800px) {
+  .saved-views-bar { align-items: stretch; flex-wrap: wrap; overflow: visible; }
+  .saved-view-list { width: 100%; overflow-x: auto; }
+  .saved-view-create { width: 100%; margin-left: 0; }
+  .saved-view-create input { flex: 1; width: auto; }
+}

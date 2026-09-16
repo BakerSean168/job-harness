@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 2;
+export const SQLITE_SCHEMA_VERSION = 4;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -317,7 +317,7 @@ function migrateV1ToV2(db: DatabaseSync): void {
   db.exec('CREATE INDEX IF NOT EXISTS job_observations_listing_idx ON job_observations(listing_id, observed_at)');
 }
 
-export function migrateSqliteDatabase(db: DatabaseSync): void {
+function migrateSqliteDatabaseV2(db: DatabaseSync): void {
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA busy_timeout = 5000');
@@ -347,5 +347,65 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
       db.exec('ROLLBACK');
       throw error;
     }
+  }
+}
+
+const SAVED_VIEWS_SCHEMA_V3 = `
+CREATE TABLE IF NOT EXISTS saved_views (
+  id TEXT PRIMARY KEY,
+  workspace TEXT NOT NULL CHECK(workspace IN ('jobs','applications')),
+  name TEXT NOT NULL COLLATE NOCASE,
+  definition_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(workspace, name)
+);
+CREATE INDEX IF NOT EXISTS saved_views_workspace_updated_idx ON saved_views(workspace, updated_at DESC, id);
+`;
+
+function migrateSavedViewsV3(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 3) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(SAVED_VIEWS_SCHEMA_V3);
+    db.exec('PRAGMA user_version = 3');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+export function migrateSqliteDatabase(db: DatabaseSync): void {
+  migrateSqliteDatabaseV2(db);
+  migrateSavedViewsV3(db);
+  migratePerformanceIndexesV4(db);
+}
+
+const PERFORMANCE_INDEXES_SCHEMA_V4 = `
+CREATE INDEX IF NOT EXISTS jobs_last_seen_idx ON jobs(last_seen_at DESC, id);
+CREATE INDEX IF NOT EXISTS jobs_state_last_seen_idx ON jobs(state, last_seen_at DESC, id);
+CREATE INDEX IF NOT EXISTS applications_updated_idx ON applications(updated_at DESC, id);
+CREATE INDEX IF NOT EXISTS applications_stage_updated_idx ON applications(current_stage, updated_at DESC, id);
+CREATE INDEX IF NOT EXISTS applications_resume_applied_idx ON applications(resume_profile_id, applied_at DESC, id);
+CREATE INDEX IF NOT EXISTS discovery_runs_started_idx ON discovery_runs(started_at DESC, id);
+CREATE INDEX IF NOT EXISTS discovery_runs_campaign_started_idx ON discovery_runs(campaign_id, started_at DESC, id);
+CREATE INDEX IF NOT EXISTS job_observations_job_run_idx ON job_observations(job_id, discovery_run_id);
+`;
+
+function migratePerformanceIndexesV4(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 4) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(PERFORMANCE_INDEXES_SCHEMA_V4);
+    db.exec('PRAGMA user_version = 4');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
   }
 }

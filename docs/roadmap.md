@@ -51,6 +51,11 @@ Completed before Web UI implementation:
 8. [x] **JH-W302:** Campaign create/edit, Resume Registry/usage, and paginated Discovery history/detail surfaces.
 9. [x] **JH-W303:** Company-centric workspace plus deterministic Company/Campaign/Source/Resume analytics with Campaign scope.
 10. [x] **JH-W401:** optional single-user Web session authentication; REST/MCP bearer stays server-only.
-11. Next: **JH-W402 Export / Backup**, then saved views, performance/pagination, accessibility/keyboard and deployment packaging.
+11. [x] **JH-W402:** versioned Career JSON export and WAL-safe standalone SQLite backup with Web download proxy and restore guidance.
+12. [x] **JH-W403:** persistent typed Saved Views for Jobs and Applications, stored in SQLite schema v3 rather than browser-local state.
+13. [x] **JH-W404:** batch Jobs/Application projections, stable max-200 offset pagination, and SQLite schema v4 hot-path indexes verified with query-plan regression.
+14. [x] **JH-W405:** skip navigation, semantic landmarks/tables, visible keyboard focus, reduced-motion, and modal side-panel focus trapping/Escape/focus restore.
+15. [x] **JH-W406:** Docker/Compose self-host packaging with private REST networking, loopback Web default, persistent SQLite bind mount, container health checks, restart smoke, and CI image/deployment validation.
+16. Next: **JH-W407 Responsive + Browser E2E** for primary Web paths.
 
 Only after standalone usage is proven should a separate MemoFlow adapter be implemented.

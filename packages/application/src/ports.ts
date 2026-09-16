@@ -22,6 +22,8 @@ import type {
   ListCompaniesOutput,
   ListResumesInput,
   ListResumesOutput,
+  ListSavedViewsInput,
+  ListSavedViewsOutput,
   PipelineStatsInput,
   PipelineStatsOutput,
   CareerContextOutput,
@@ -37,6 +39,7 @@ import type {
   SearchJobListItemsOutput,
   RecordApplicationInput,
   ResumeProfileRef,
+  SavedView,
   SearchJobsInput,
   SearchJobsOutput,
   SetJobStateInput,
@@ -44,6 +47,7 @@ import type {
   UpsertJobsBatchInput,
   UpsertJobsBatchOutput,
   UpsertCampaignInput,
+  UpsertSavedViewInput,
 } from '@job-harness/contracts';
 
 export interface CareerJobReadPort {
@@ -82,6 +86,12 @@ export interface CareerResumeReadPort {
   listResumeProfiles(input?: ListResumesInput): Promise<ListResumesOutput>;
 }
 
+export interface CareerSavedViewPort {
+  listSavedViews(input?: ListSavedViewsInput): Promise<ListSavedViewsOutput>;
+  upsertSavedView(input: UpsertSavedViewInput): Promise<SavedView>;
+  deleteSavedView(savedViewId: string): Promise<{ deleted: boolean }>;
+}
+
 export interface CareerAnalyticsReadPort {
   getPipelineStats(input: PipelineStatsInput): Promise<PipelineStatsOutput>;
   getCareerContext(input: CareerContextInput): Promise<CareerContextOutput>;
@@ -108,6 +118,7 @@ export interface CareerApplicationPorts {
   campaigns: CareerCampaignPort;
   discovery: CareerDiscoveryPort;
   resumes: CareerResumeReadPort;
+  savedViews: CareerSavedViewPort;
   analytics: CareerAnalyticsReadPort;
   workspace: CareerWorkspaceReadPort;
 }

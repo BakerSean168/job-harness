@@ -30,12 +30,19 @@ export const zhCN: MessageCatalog = {
     notFoundTitle: '页面不存在',
     notFoundDescription: '这个地址没有对应的 Job Harness 工作区。',
     backOverview: '返回概览',
+    skipToContent: '跳到主要内容',
+    mainNavigation: '主导航',
+    close: '关闭',
+  },
+  savedViewsWorkspace: {
+    label: '已保存视图', saveCurrent: '保存当前视图', namePlaceholder: '视图名称', apply: '应用', update: '用当前条件覆盖', delete: '删除', empty: '还没有保存视图', saved: '已保存', updated: '已更新', deleted: '已删除', conflict: '同一工作区已经有同名视图。', failed: '操作失败', currentFilters: '当前筛选'
   },
   authWorkspace: {
     title: '登录 Job Harness', description: '这是单用户自托管工作台。登录只保护 Web 会话；REST/MCP 的 Bearer Token 仍只保留在服务端。', password: '密码', signIn: '登录', invalid: '密码不正确。', configError: 'Web 登录已启用，但 Session Secret 未正确配置。', back: '返回工作台', sessionNote: '登录会创建 HttpOnly、SameSite=Strict 的签名 Session Cookie。'
   },
   settingsWorkspace: {
-    security: '安全与访问', session: 'Web Session', enabled: '已启用', disabled: '未启用', sessionDescription: '启用后，所有工作区页面和 Server Action 都要求有效的签名 Session。', apiBoundary: 'API 凭据边界', apiBoundaryDescription: 'JOB_HARNESS_AUTH_TOKEN 仅由 Next 服务端 REST client 使用，不会发送到浏览器。', logout: '退出登录', localOnlyNote: '未配置 Web 密码时适合本地或受信 Tailnet 使用；公开入口应启用登录并使用 HTTPS。'
+    security: '安全与访问', session: 'Web Session', enabled: '已启用', disabled: '未启用', sessionDescription: '启用后，所有工作区页面和 Server Action 都要求有效的签名 Session。', apiBoundary: 'API 凭据边界', apiBoundaryDescription: 'JOB_HARNESS_AUTH_TOKEN 仅由 Next 服务端 REST client 使用，不会发送到浏览器。', logout: '退出登录', localOnlyNote: '未配置 Web 密码时适合本地或受信 Tailnet 使用；公开入口应启用登录并使用 HTTPS。',
+    data: '数据与备份', exportJson: '导出 Career JSON', exportJsonDescription: '下载可移植、可审阅的业务真值快照：公司、岗位、Listing、观察记录、投递时间线、求职目标、简历引用和发现任务。', backupSqlite: '下载 SQLite 备份', backupSqliteDescription: '下载通过 SQLite VACUUM INTO 生成的物理一致性数据库，可用于完整灾备恢复。', download: '下载', backupNote: 'JSON 导出不包含内部幂等收据和旧迁移证据；需要完整恢复时请使用 SQLite 备份。'
   },
   companiesWorkspace: {
     filters: { query: '公司', campaign: '求职目标', all: '全部', apply: '筛选', reset: '重置' },

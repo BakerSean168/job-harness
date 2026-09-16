@@ -21,6 +21,8 @@ Authorization: Bearer <token>
 | Method | Route | Application contract |
 | --- | --- | --- |
 | GET | `/analytics` | `workspace.getAnalyticsSnapshot` |
+| GET | `/export` | consistent logical Career JSON snapshot |
+| GET | `/backup` | consistent SQLite backup |
 | GET | `/dashboard` | `workspace.getDashboardSnapshot` |
 | GET | `/companies` | `workspace.listCompanies` |
 | GET | `/companies/:companyId` | `workspace.getCompanyDetail` |
@@ -31,10 +33,15 @@ Authorization: Bearer <token>
 | GET | `/campaigns` | `campaigns.listCampaigns` |
 | GET | `/campaigns/:campaignId` | `campaigns.getCampaign` |
 | GET | `/resumes` | `workspace.listResumeUsage` |
+| GET | `/saved-views` | `savedViews.listSavedViews` |
+| POST | `/saved-views` | `savedViews.upsertSavedView` |
+| DELETE | `/saved-views/:savedViewId` | `savedViews.deleteSavedView` |
 | GET | `/discovery` | `workspace.listDiscoveryRuns` |
 | GET | `/discovery/:runId` | `workspace.getDiscoveryRunDetail` |
 
 Jobs query parameters currently map to durable filters: `limit`, `offset`, `company`, `title`, `city`, repeated/comma-separated `states`, repeated/comma-separated `sourceKinds`, `applied`, and `campaignId`.
+
+Saved Views support pagination plus optional `workspace=jobs|applications`. Definitions are strict typed contracts; transient page offsets and selected side-panel IDs are not valid fields.
 
 Applications support `limit`, `offset`, repeated/comma-separated `stages`, `company`, `campaignId`, `resumeProfileId`, `appliedFrom`, `appliedTo`, and `terminal=exclude|include|only`. Companies support pagination plus `query` and optional `campaignId`. Analytics supports optional `campaignId`. Discovery history supports pagination plus optional `campaignId` and `executor`. Dashboard accepts `campaignId`, `recentDiscoveryLimit`, and `attentionLimit`.
 

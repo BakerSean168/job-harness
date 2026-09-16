@@ -1,8 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { JobSourceKindSchema, JobStateSchema, type SearchJobListItemsInput } from '@job-harness/contracts';
 import type { PageKey } from '@/i18n';
 import { getLocale, getMessages } from '@/i18n/server';
 import { getJobHarnessClient } from '@/lib/job-harness-client';
 import { WorkspaceHeader } from '@/components/shell/workspace-header';
+import { SavedViewsBar } from '@/components/saved-views/saved-views-bar';
+import { jobSavedViewDefinitionFromParams } from '@/components/saved-views/query';
 import { JobsFilters } from './jobs-filters';
 import { JobsPagination } from './jobs-pagination';
 import { JobsTable } from './jobs-table';
@@ -50,6 +53,9 @@ export async function JobsWorkspace({
   };
 
   const client = getJobHarnessClient();
+  const savedViewsPage = await client.savedViews.list({ workspace: 'jobs', limit: 100, offset: 0 });
+  const currentSavedViewDefinition = jobSavedViewDefinitionFromParams(searchParams);
+  const savedViewCreateId = randomUUID();
   const selectedJobId = optional(one(searchParams.job));
   const [page, selectedDetail, campaignPage] = await Promise.all([
     client.workspace.searchJobListItems(input),
@@ -66,6 +72,7 @@ export async function JobsWorkspace({
         actions={<span className="workspace-result-count">{page.total} {messages.jobsWorkspace.table.results}</span>}
       />
       <div className="workspace-surface jobs-surface">
+        <SavedViewsBar workspace="jobs" views={savedViewsPage.items} currentDefinition={currentSavedViewDefinition} createId={savedViewCreateId} messages={messages} />
         <JobsFilters mode={mode} pathname={pathname} params={searchParams} messages={messages} campaigns={campaignPage.items} />
         <JobsTable
           items={page.items}

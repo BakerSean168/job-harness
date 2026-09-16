@@ -89,13 +89,12 @@ Implemented as canonical Company list/detail plus a Campaign-scoped deterministi
 ## Phase W4 — Hardening
 
 - [x] **JH-W401:** optional single-user self-hosted Web session with signed HttpOnly cookie, fail-closed configuration, same-origin login/logout and reverse-proxy-safe redirects;
-- [ ] **JH-W402:** export/backup;
-- pagination/performance for larger corpora;
-- saved system/user views;
-- keyboard/ARIA pass;
-- responsive behavior;
-- Docker/deployment to durable host;
-- E2E browser coverage for primary paths.
+- [x] **JH-W402:** versioned logical Career JSON export plus WAL-safe SQLite `VACUUM INTO` backup, both downloadable through the server-only Web/API credential boundary;
+- [x] **JH-W403:** persistent typed Saved Views for Jobs and Applications;
+- [x] **JH-W404:** batch Jobs/Application workspace projections, stable bounded offset pagination, and schema v4 hot-path indexes;
+- [x] **JH-W405:** skip navigation, named landmarks/tables, visible focus/reduced-motion, and shared keyboard-trapped side-panel dialogs;
+- [x] **JH-W406:** Docker/Compose self-host packaging with private REST networking, loopback-only Web host default, persistent SQLite bind mount, health checks, restart smoke and CI container validation;
+- [ ] **JH-W407:** responsive behavior plus browser E2E coverage for the primary Jobs / Applications / Settings / auth paths.
 
 ## Deferred after Web V1 evidence
 

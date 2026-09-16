@@ -2,7 +2,7 @@
 
 Next.js App Router workspace for Job Harness.
 
-Current slice: **W401 self-hosted Web session hardening complete**.
+Current slice: **W405 Accessibility / Keyboard hardening complete**.
 
 Implemented foundation:
 
@@ -61,7 +61,7 @@ W303 completes the primary product surfaces:
 - Analytics keeps Source association distinct from actual submission-channel attribution and keeps Resume metrics explicitly correlational;
 - real historical data currently projects 82 Companies, 100 Jobs, 41 Applications and 5 Resume references without exposing the server bearer token.
 
-The next phase is hardening rather than another primary product surface.
+W402 adds Settings → Data & backup: logical versioned Career JSON export and a WAL-safe standalone SQLite backup. Browser downloads proxy through Next so the REST bearer remains server-only. JSON is currently an export/audit format; full restore uses the SQLite backup and must be performed with the service stopped. See `docs/data/export-backup.md`.
 
 Run locally:
 
@@ -86,3 +86,45 @@ JOB_HARNESS_WEB_COOKIE_SECURE=true
 ```
 
 Never expose `JOB_HARNESS_AUTH_TOKEN`, the Web password, or the session secret with a `NEXT_PUBLIC_` prefix. When Web auth is enabled, `/login` uses a signed HttpOnly/SameSite=Strict session cookie and the workspace fails closed if the signing configuration is invalid. See `docs/security/self-hosted-web-auth.md`.
+
+W403 adds persistent Saved Views to Jobs and Applications:
+
+- definitions store only canonical workspace filter/view fields;
+- pagination offsets and selected side-panel IDs are never persisted;
+- create, overwrite, apply and delete all go through the server-only typed REST client and CareerSavedViewsPort;
+- names are case-insensitively unique per workspace;
+- Saved Views live in SQLite schema v3, not browser `localStorage`;
+- logical Career JSON export excludes UI preferences, while the physical SQLite backup preserves them.
+
+See `docs/product/saved-views.md`.
+
+W404 keeps offset pagination intentionally while hardening the read path:
+
+- Jobs and Applications page projections batch related Application/Resume/Campaign/Listing/Timeline data instead of issuing row-by-row reads;
+- the shared contract continues to cap page size at 200;
+- SQLite schema v4 adds indexes for the actual Jobs/Application/Discovery ordering and filter paths;
+- CI verifies representative query plans instead of relying on unstable wall-clock thresholds;
+- cursor pagination remains deferred until real production traces show deep indexed offsets are a material bottleneck.
+
+See `docs/performance/pagination.md`.
+
+W405 establishes the keyboard/accessibility baseline:
+
+- skip-to-content and named main/navigation landmarks;
+- visible `:focus-visible` treatment and reduced-motion support;
+- shared modal side-panel primitive for Job/Application/Company/Discovery with automatic focus, Tab trapping, Escape close, and focus restoration;
+- accessible names and explicit column-header scope for primary data tables;
+- Application stage changes retain the non-drag keyboard control.
+
+See `docs/accessibility/web.md`.
+
+W406 packages the standalone product for self-hosting:
+
+- one Docker image is reused by the REST/MCP Server and Next.js Web containers;
+- Server stays on the private Compose network and publishes no host port;
+- Web binds to `127.0.0.1` by default and keeps the API bearer server-side;
+- `/data/job-harness.db` is a persistent host bind mount;
+- both containers have health checks, Web waits for Server health, and the runtime runs as the non-root `node` user with `no-new-privileges`;
+- CI performs a fresh image build plus Compose runtime smoke including a Server restart to verify schema-v4 reopen and SQLite persistence.
+
+See `docs/deployment/self-hosted.md`. The remaining Web hardening item is responsive behavior plus primary-path browser E2E coverage.

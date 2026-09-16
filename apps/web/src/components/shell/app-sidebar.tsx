@@ -19,7 +19,7 @@ function NavigationGroup({
   messages: MessageCatalog;
 }) {
   return (
-    <nav className="sidebar-nav" aria-label={messages.brand.subtitle}>
+    <nav className="sidebar-nav" aria-label={messages.common.mainNavigation}>
       {items.map(({ href, labelKey, icon: Icon }) => {
         const active = isActive(pathname, href);
         return (

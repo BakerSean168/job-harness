@@ -34,9 +34,13 @@ import type {
   ListCompaniesOutput,
   ListResumesInput,
   ListResumesOutput,
+  ListSavedViewsInput,
+  ListSavedViewsOutput,
   PipelineStatsInput,
   PipelineStatsOutput,
   ResumeProfileRef,
+  SavedView,
+  SavedViewWorkspace,
   SearchJobsInput,
   SearchJobsOutput,
   UpsertJobCandidate,
@@ -75,6 +79,9 @@ export interface CareerStoreReadPort {
   listDiscoveryRunViews(input: ListDiscoveryRunsInput): Promise<ListDiscoveryRunsOutput>;
   getDiscoveryRunDetailView(runId: string): Promise<DiscoveryRunDetail | null>;
   listResumeUsage(input: ListResumeUsageInput): Promise<ListResumeUsageOutput>;
+  listSavedViews(input: ListSavedViewsInput): Promise<ListSavedViewsOutput>;
+  getSavedView(savedViewId: string): Promise<SavedView | null>;
+  findSavedViewByName(workspace: SavedViewWorkspace, name: string): Promise<SavedView | null>;
   getIdempotencyReceipt(scope: string, key: string): Promise<IdempotencyReceipt | null>;
 }
 
@@ -92,6 +99,8 @@ export interface CareerStoreTransactionPort extends CareerStoreReadPort {
   insertDiscoveryRun(run: DiscoveryRun): Promise<void>;
   updateDiscoveryRun(run: DiscoveryRun): Promise<DiscoveryRun>;
   upsertResumeProfiles(profiles: readonly ResumeProfileRef[]): Promise<void>;
+  upsertSavedView(savedView: SavedView): Promise<SavedView>;
+  deleteSavedView(savedViewId: string): Promise<boolean>;
   putIdempotencyReceipt(receipt: IdempotencyReceipt): Promise<void>;
 }
 

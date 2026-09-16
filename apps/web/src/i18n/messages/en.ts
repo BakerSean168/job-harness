@@ -30,12 +30,19 @@ export const en: MessageCatalog = {
     notFoundTitle: 'Page not found',
     notFoundDescription: 'This address does not map to a Job Harness workspace.',
     backOverview: 'Back to overview',
+    skipToContent: 'Skip to main content',
+    mainNavigation: 'Main navigation',
+    close: 'Close',
+  },
+  savedViewsWorkspace: {
+    label: 'Saved views', saveCurrent: 'Save current view', namePlaceholder: 'View name', apply: 'Apply', update: 'Overwrite with current filters', delete: 'Delete', empty: 'No saved views yet', saved: 'Saved', updated: 'Updated', deleted: 'Deleted', conflict: 'A view with this name already exists in this workspace.', failed: 'Action failed', currentFilters: 'Current filters'
   },
   authWorkspace: {
     title: 'Sign in to Job Harness', description: 'This is a single-user self-hosted workspace. The login protects the Web session; REST/MCP bearer credentials remain server-only.', password: 'Password', signIn: 'Sign in', invalid: 'Incorrect password.', configError: 'Web login is enabled, but the session secret is not configured correctly.', back: 'Back to workspace', sessionNote: 'Sign-in creates an HttpOnly, SameSite=Strict signed session cookie.'
   },
   settingsWorkspace: {
-    security: 'Security & access', session: 'Web session', enabled: 'Enabled', disabled: 'Disabled', sessionDescription: 'When enabled, every workspace page and Server Action requires a valid signed session.', apiBoundary: 'API credential boundary', apiBoundaryDescription: 'JOB_HARNESS_AUTH_TOKEN is used only by the server-side Next REST client and is never sent to the browser.', logout: 'Sign out', localOnlyNote: 'Without a Web password this is appropriate for local or trusted Tailnet access. Public endpoints should enable login and HTTPS.'
+    security: 'Security & access', session: 'Web session', enabled: 'Enabled', disabled: 'Disabled', sessionDescription: 'When enabled, every workspace page and Server Action requires a valid signed session.', apiBoundary: 'API credential boundary', apiBoundaryDescription: 'JOB_HARNESS_AUTH_TOKEN is used only by the server-side Next REST client and is never sent to the browser.', logout: 'Sign out', localOnlyNote: 'Without a Web password this is appropriate for local or trusted Tailnet access. Public endpoints should enable login and HTTPS.',
+    data: 'Data & backup', exportJson: 'Export Career JSON', exportJsonDescription: 'Download a portable, reviewable logical snapshot of companies, jobs, Listings, observations, application timelines, campaigns, resume references, and discovery runs.', backupSqlite: 'Download SQLite backup', backupSqliteDescription: 'Download a physically consistent database generated with SQLite VACUUM INTO for full disaster recovery.', download: 'Download', backupNote: 'The JSON export omits internal idempotency receipts and legacy migration evidence. Use the SQLite backup for full restoration.'
   },
   companiesWorkspace: {
     filters: { query: 'Company', campaign: 'Campaign', all: 'All', apply: 'Filter', reset: 'Reset' },

@@ -38,7 +38,11 @@ import type {
   ListResumeUsageOutput,
   PipelineStatsInput,
   PipelineStatsOutput,
+  ListSavedViewsInput,
+  ListSavedViewsOutput,
   ResumeProfileRef,
+  SavedView,
+  SavedViewWorkspace,
   SearchJobsInput,
   SearchJobsOutput,
   SearchJobListItemsInput,
@@ -70,6 +74,7 @@ import {
   ListDiscoveryRunsOutputSchema,
   ListResumeUsageOutputSchema,
   ResumeProfileRefSchema,
+  SavedViewSchema,
   ResumeUsageSummarySchema,
 } from '@job-harness/contracts';
 import type {
@@ -199,31 +204,85 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     return row ? CampaignRefSchema.parse({ id: row.id, name: row.name, status: row.status }) : null;
   }
 
-  private async jobListItemFromJob(job: Job): Promise<JobListItem> {
-    const application = await this.findApplicationByJobId(job.id);
-    const resume = application?.resumeProfileId ? await this.getResumeProfile(application.resumeProfileId) : null;
-    return JobListItemSchema.parse({
-      jobId: job.id,
-      companyId: job.companyId,
-      companyName: job.companyName,
-      title: job.title,
-      city: job.city,
-      state: job.state,
-      application: application ? {
-        id: application.id,
-        currentStage: application.currentStage,
-        appliedAt: application.appliedAt,
-        resumeProfileId: application.resumeProfileId,
-        updatedAt: application.updatedAt,
-      } : null,
-      primaryListing: this.primaryListing(job),
-      listingCount: job.listings.length,
-      sourceKinds: [...new Set(job.listings.map((listing) => listing.sourceKind))].sort(),
-      campaigns: this.campaignRefsForJob(job.id),
-      resume,
-      firstSeenAt: job.firstSeenAt,
-      lastSeenAt: job.lastSeenAt,
+  private async jobListItemsFromJobs(jobs: readonly Job[]): Promise<JobListItem[]> {
+    if (jobs.length === 0) return [];
+    const jobIds = jobs.map((job) => job.id);
+    const placeholders = jobIds.map(() => '?').join(',');
+
+    const applicationRows = this.db.prepare(
+      `SELECT * FROM applications WHERE job_id IN (${placeholders})`,
+    ).all(...jobIds) as Row[];
+    const applicationByJobId = new Map<string, Application>();
+    for (const row of applicationRows) {
+      const application = this.applicationFromRow(row);
+      applicationByJobId.set(application.jobId, application);
+    }
+
+    const resumeIds = [...new Set(
+      [...applicationByJobId.values()]
+        .map((application) => application.resumeProfileId)
+        .filter((resumeId): resumeId is string => Boolean(resumeId)),
+    )];
+    const resumeById = new Map<string, ResumeProfileRef>();
+    if (resumeIds.length) {
+      const resumePlaceholders = resumeIds.map(() => '?').join(',');
+      const rows = this.db.prepare(
+        `SELECT * FROM resume_profile_refs WHERE id IN (${resumePlaceholders})`,
+      ).all(...resumeIds) as Row[];
+      for (const row of rows) {
+        const resume = this.resumeFromRow(row);
+        resumeById.set(resume.id, resume);
+      }
+    }
+
+    const campaignsByJobId = new Map<string, ReturnType<typeof CampaignRefSchema.parse>[]>();
+    const campaignRows = this.db.prepare(`
+      SELECT DISTINCT o.job_id AS job_id, c.id AS id, c.name AS name, c.status AS status
+      FROM job_observations o
+      JOIN discovery_runs d ON d.id = o.discovery_run_id
+      JOIN campaigns c ON c.id = d.campaign_id
+      WHERE o.job_id IN (${placeholders})
+      ORDER BY c.name, c.id
+    `).all(...jobIds) as Row[];
+    for (const row of campaignRows) {
+      const jobId = String(row.job_id);
+      const list = campaignsByJobId.get(jobId) ?? [];
+      list.push(CampaignRefSchema.parse({ id: row.id, name: row.name, status: row.status }));
+      campaignsByJobId.set(jobId, list);
+    }
+
+    return jobs.map((job) => {
+      const application = applicationByJobId.get(job.id) ?? null;
+      const resume = application?.resumeProfileId ? resumeById.get(application.resumeProfileId) ?? null : null;
+      return JobListItemSchema.parse({
+        jobId: job.id,
+        companyId: job.companyId,
+        companyName: job.companyName,
+        title: job.title,
+        city: job.city,
+        state: job.state,
+        application: application ? {
+          id: application.id,
+          currentStage: application.currentStage,
+          appliedAt: application.appliedAt,
+          resumeProfileId: application.resumeProfileId,
+          updatedAt: application.updatedAt,
+        } : null,
+        primaryListing: this.primaryListing(job),
+        listingCount: job.listings.length,
+        sourceKinds: [...new Set(job.listings.map((listing) => listing.sourceKind))].sort(),
+        campaigns: campaignsByJobId.get(job.id) ?? [],
+        resume,
+        firstSeenAt: job.firstSeenAt,
+        lastSeenAt: job.lastSeenAt,
+      });
     });
+  }
+
+  private async jobListItemFromJob(job: Job): Promise<JobListItem> {
+    const [item] = await this.jobListItemsFromJobs([job]);
+    if (!item) throw new Error(`Job '${job.id}' could not be projected`);
+    return item;
   }
 
   private applicationFromRow(row: Row): Application {
@@ -533,7 +592,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
   async searchJobListItems(input: SearchJobListItemsInput): Promise<SearchJobListItemsOutput> {
     const page = await this.searchJobs(input);
     return {
-      items: await Promise.all(page.items.map((job) => this.jobListItemFromJob(job))),
+      items: await this.jobListItemsFromJobs(page.items),
       total: page.total,
     };
   }
@@ -1040,6 +1099,61 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     });
   }
 
+  private savedViewFromRow(row: Row): SavedView {
+    return SavedViewSchema.parse({
+      id: row.id,
+      workspace: row.workspace,
+      name: row.name,
+      definition: json(row.definition_json),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    });
+  }
+
+  async listSavedViews(input: ListSavedViewsInput): Promise<ListSavedViewsOutput> {
+    const params: Array<string | number> = [];
+    const where = input.workspace ? 'WHERE workspace = ?' : '';
+    if (input.workspace) params.push(input.workspace);
+    const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM saved_views ${where}`).get(...params) as Row).n);
+    const rows = this.db.prepare(
+      `SELECT * FROM saved_views ${where} ORDER BY updated_at DESC, id LIMIT ? OFFSET ?`,
+    ).all(...params, input.limit ?? 50, input.offset ?? 0) as Row[];
+    return { items: rows.map((row) => this.savedViewFromRow(row)), total };
+  }
+
+  async getSavedView(savedViewId: string): Promise<SavedView | null> {
+    const row = this.db.prepare('SELECT * FROM saved_views WHERE id = ?').get(savedViewId) as Row | undefined;
+    return row ? this.savedViewFromRow(row) : null;
+  }
+
+  async findSavedViewByName(workspace: SavedViewWorkspace, name: string): Promise<SavedView | null> {
+    const row = this.db.prepare('SELECT * FROM saved_views WHERE workspace = ? AND name = ? COLLATE NOCASE LIMIT 1').get(
+      workspace, name.trim(),
+    ) as Row | undefined;
+    return row ? this.savedViewFromRow(row) : null;
+  }
+
+  async upsertSavedView(savedView: SavedView): Promise<SavedView> {
+    this.db.prepare(`INSERT INTO saved_views(id,workspace,name,definition_json,created_at,updated_at)
+      VALUES(?,?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET
+        workspace=excluded.workspace,
+        name=excluded.name,
+        definition_json=excluded.definition_json,
+        updated_at=excluded.updated_at`).run(
+      savedView.id, savedView.workspace, savedView.name, JSON.stringify(savedView.definition),
+      savedView.createdAt, savedView.updatedAt,
+    );
+    const result = await this.getSavedView(savedView.id);
+    if (!result) throw new Error(`SavedView '${savedView.id}' was not found after upsert`);
+    return result;
+  }
+
+  async deleteSavedView(savedViewId: string): Promise<boolean> {
+    const result = this.db.prepare('DELETE FROM saved_views WHERE id = ?').run(savedViewId);
+    return Number(result.changes) > 0;
+  }
+
   async getIdempotencyReceipt(scope: string, key: string): Promise<IdempotencyReceipt | null> {
     const row = this.db.prepare('SELECT * FROM idempotency_receipts WHERE scope = ? AND key = ?').get(scope, key) as Row | undefined;
     return row ? { scope: String(row.scope), key: String(row.key), requestHash: String(row.request_hash), result: json(row.result_json), createdAt: String(row.created_at) } : null;
@@ -1304,6 +1418,9 @@ export class SqliteCareerStore implements CareerStorePort {
   listDiscoveryRunViews(input: ListDiscoveryRunsInput) { return this.readSession().listDiscoveryRunViews(input); }
   getDiscoveryRunDetailView(runId: string) { return this.readSession().getDiscoveryRunDetailView(runId); }
   listResumeUsage(input: ListResumeUsageInput) { return this.readSession().listResumeUsage(input); }
+  listSavedViews(input: ListSavedViewsInput) { return this.readSession().listSavedViews(input); }
+  getSavedView(savedViewId: string) { return this.readSession().getSavedView(savedViewId); }
+  findSavedViewByName(workspace: SavedViewWorkspace, name: string) { return this.readSession().findSavedViewByName(workspace, name); }
   getIdempotencyReceipt(scope: string, key: string) { return this.readSession().getIdempotencyReceipt(scope, key); }
 
   async transaction<T>(work: (tx: CareerStoreTransactionPort) => Promise<T>): Promise<T> {

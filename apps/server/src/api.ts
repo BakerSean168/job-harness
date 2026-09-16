@@ -13,11 +13,13 @@ import {
   ListCompaniesInputSchema,
   ListDiscoveryRunsInputSchema,
   ListResumeUsageInputSchema,
+  ListSavedViewsInputSchema,
   RecordApplicationInputSchema,
   SearchJobListItemsInputSchema,
   SetJobStateInputSchema,
   TransitionApplicationInputSchema,
   UpsertCampaignInputSchema,
+  UpsertSavedViewInputSchema,
   UpsertJobsBatchInputSchema,
 } from '@job-harness/contracts';
 
@@ -69,6 +71,10 @@ function errorStatus(error: CareerApplicationError): number {
 }
 
 function sendError(res: Response, error: unknown): void {
+  if (res.headersSent) {
+    res.end();
+    return;
+  }
   if (error instanceof ZodError) {
     res.status(400).json({
       error: {
@@ -238,6 +244,23 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
       ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
     });
     res.json(await career.workspace.listResumeUsage(input));
+  }));
+
+  app.get(`${API_PREFIX}/saved-views`, route(async (req, res) => {
+    const input = ListSavedViewsInputSchema.parse({
+      ...pageQuery(req.query),
+      ...(first(req.query.workspace) ? { workspace: first(req.query.workspace) } : {}),
+    });
+    res.json(await career.savedViews.listSavedViews(input));
+  }));
+
+  app.post(`${API_PREFIX}/saved-views`, route(async (req, res) => {
+    const input = UpsertSavedViewInputSchema.parse(req.body);
+    res.json(await career.savedViews.upsertSavedView(input));
+  }));
+
+  app.delete(`${API_PREFIX}/saved-views/:savedViewId`, route(async (req, res) => {
+    res.json(await career.savedViews.deleteSavedView(entityId(req.params.savedViewId)));
   }));
 
   app.get(`${API_PREFIX}/discovery`, route(async (req, res) => {

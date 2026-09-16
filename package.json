@@ -7,6 +7,8 @@
   "packageManager": "pnpm@10.15.1",
   "scripts": {
     "check:manifest": "node scripts/check-manifest.mjs",
+    "check:deployment": "node scripts/check-deployment.mjs",
+    "smoke:deployment": "bash scripts/smoke-deployment.sh",
     "typecheck": "tsc -b && pnpm --filter @job-harness/web typecheck",
     "test": "vitest run",
     "check": "pnpm check:manifest && pnpm check:boundaries && pnpm typecheck && pnpm test && pnpm build:web",

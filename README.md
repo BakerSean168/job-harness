@@ -40,7 +40,7 @@ Campaign
   -> MCP query/write tools
 ```
 
-The server uses SQLite schema v2 for durable state and exposes the same application/workspace semantics through MCP Streamable HTTP and a versioned `/api/v1` REST facade. The Web app remains the next adapter. MemoFlow integration remains intentionally unimplemented.
+The server uses SQLite schema v4 for durable state and exposes the same application/workspace semantics through MCP Streamable HTTP and a versioned `/api/v1` REST facade. The Next.js Web workspace, self-host session boundary, backup/export, Saved Views, accessibility baseline, and Docker/Compose deployment packaging are implemented. MemoFlow integration remains intentionally unimplemented.
 
 ## Repository shape
 
@@ -106,6 +106,24 @@ JOB_HARNESS_WEB_COOKIE_SECURE
 
 The CLI refuses to bind to `0.0.0.0` or `::` unless `JOB_HARNESS_AUTH_TOKEN` is configured. The Web login is optional and independent from the REST/MCP bearer boundary; see [self-hosted Web authentication](docs/security/self-hosted-web-auth.md).
 
+## Docker Compose self-hosting
+
+The supported packaged deployment uses one image for a private REST/MCP Server container and a host-published Web container. By default only Web is bound to `127.0.0.1`; SQLite is persisted through a host bind mount.
+
+```bash
+cp deploy/self-host.env.example deploy/self-host.env
+# Fill JOB_HARNESS_AUTH_TOKEN and optional Web session settings.
+docker compose --env-file deploy/self-host.env up -d --build
+```
+
+Validate packaging locally with:
+
+```bash
+pnpm check:deployment
+JOB_HARNESS_SMOKE_IMAGE=job-harness:local pnpm smoke:deployment
+```
+
+See [self-hosted deployment](docs/deployment/self-hosted.md) for security defaults, upgrades, backup/restore, and reverse-proxy guidance.
 
 ## Legacy migration
 
