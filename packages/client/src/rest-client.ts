@@ -1,5 +1,7 @@
 import {
   AnalyticsSnapshotSchema,
+  BeginDiscoveryOutputSchema,
+  CompleteDiscoveryOutputSchema,
   ApplicationWorkspaceDetailSchema,
   CompanyDetailSchema,
   DashboardSnapshotSchema,
@@ -12,12 +14,16 @@ import {
   ListDiscoveryRunsOutputSchema,
   ListResumeUsageOutputSchema,
   ListSavedViewsOutputSchema,
+  PipelineStatsOutputSchema,
   SavedViewSchema,
   SearchJobListItemsOutputSchema,
   UpsertJobsBatchOutputSchema,
   type AnalyticsSnapshot,
   type AnalyticsSnapshotInput,
+  type BeginDiscoveryInput,
   type CompanyDetail,
+  type CompleteDiscoveryInput,
+  type DiscoveryRun,
   type DashboardSnapshot,
   type DashboardSnapshotInput,
   type Job,
@@ -35,6 +41,8 @@ import {
   type ListResumeUsageOutput,
   type ListSavedViewsInput,
   type ListSavedViewsOutput,
+  type PipelineStatsInput,
+  type PipelineStatsOutput,
   type RecordApplicationInput,
   type SearchJobListItemsInput,
   type SearchJobListItemsOutput,
@@ -98,6 +106,12 @@ function companiesQuery(input: ListCompaniesInput): string {
 }
 
 function analyticsQuery(input: AnalyticsSnapshotInput): string {
+  const query = new URLSearchParams();
+  append(query, 'campaignId', input.campaignId);
+  return query.toString();
+}
+
+function pipelineQuery(input: PipelineStatsInput): string {
   const query = new URLSearchParams();
   append(query, 'campaignId', input.campaignId);
   return query.toString();
@@ -210,6 +224,12 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
   }
 
   return {
+    analytics: {
+      async getPipelineStats(input: PipelineStatsInput = {}): Promise<PipelineStatsOutput> {
+        const query = pipelineQuery(input);
+        return PipelineStatsOutputSchema.parse(await request(`/pipeline${query ? `?${query}` : ''}`));
+      },
+    },
     workspace: {
       async listCompanies(input: ListCompaniesInput = {}): Promise<ListCompaniesOutput> {
         const query = companiesQuery(input);
@@ -301,6 +321,26 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
         return JobSearchCampaignSchema.parse(await request(`/campaigns/${encodeURIComponent(input.id)}`, {
           method: 'PUT',
           body: JSON.stringify(input),
+        }));
+      },
+    },
+    discovery: {
+      async begin(input: BeginDiscoveryInput): Promise<DiscoveryRun> {
+        return BeginDiscoveryOutputSchema.parse(await request('/discovery', {
+          method: 'POST',
+          body: JSON.stringify(input),
+        }));
+      },
+      async complete(input: CompleteDiscoveryInput): Promise<DiscoveryRun> {
+        return CompleteDiscoveryOutputSchema.parse(await request(`/discovery/${encodeURIComponent(input.runId)}/complete`, {
+          method: 'POST',
+          body: JSON.stringify({
+            completedAt: input.completedAt,
+            candidateCount: input.candidateCount,
+            insertedCount: input.insertedCount,
+            duplicateCount: input.duplicateCount,
+            rejectedCount: input.rejectedCount,
+          }),
         }));
       },
     },

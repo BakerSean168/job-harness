@@ -1092,13 +1092,13 @@ TaskSuggestion -> confirmed Task create
 **Dependencies:** CH-0002。
 **Acceptance:** “搜索 -> 去重 -> 入库 -> 投递记录 -> pipeline 查询”不需要 DB access。
 
-### CH-0004 — Define future MemoFlow CareerGateway + IntegrationBinding (deferred)
+### CH-0004 — Freeze MemoFlow CareerGateway + IntegrationBinding — completed 2026-09-16
 
-**Goal:** 仅在独立 Job Harness V1 稳定后，冻结 Goal ↔ Campaign 绑定和 MemoFlow 到 Career 的 narrow gateway。当前仓库只保留兼容性设计，不实施 MemoFlow runtime integration。
+**Goal:** 在独立 Job Harness V1 获得生产证据后，冻结 Goal ↔ Campaign 绑定和 MemoFlow 到 Career 的 narrow gateway。已通过 `@job-harness/client` CareerGateway、host-owned `CareerIntegrationBindingSchema` 与 REST Pipeline/Discovery parity 落地；MemoFlow runtime integration 仍未实施。
 **Dependencies:** CH-0002 + standalone V1 evidence。
 **Protected contracts:** 不扩 Relation closed vocabulary；不直接访问 Career DB；Job Harness core 不依赖 `@memoflow/*`。
 
-### CH-0005 — Define first host contribution seams from real use cases (deferred)
+### CH-0005 — Define first host contribution seams from real MemoFlow code — next
 
 **Goal:** 等 Job Harness standalone flow 可用后，再根据真实接入需求定义 AI tool / schedule handler / metric / task suggestion seams。
 **Dependencies:** CH-0004。

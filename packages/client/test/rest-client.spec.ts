@@ -160,6 +160,54 @@ describe('Job Harness REST client', () => {
     expect(result.pipeline.knownJobs).toBe(0);
   });
 
+  it('exposes host integration pipeline and Discovery mutation endpoints', async () => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const run = {
+      id: 'run-1', campaignId: 'campaign-1', executor: 'memoflow-ai',
+      contextSnapshot: { trigger: 'career.discovery.run' },
+      startedAt: now, completedAt: null, candidateCount: 0, insertedCount: 0, duplicateCount: 0, rejectedCount: 0,
+    };
+    const client = createJobHarnessRestClient({
+      baseUrl: 'http://job-harness/api/v1',
+      fetch: async (input, init) => {
+        const url = String(input);
+        const method = init?.method ?? 'GET';
+        const body = init?.body ? JSON.parse(String(init.body)) : null;
+        calls.push({ url, method, body });
+        if (url.includes('/pipeline')) {
+          return response({
+            knownJobs: 2, applications: 1,
+            jobsByState: { discovered: 1, shortlisted: 1, ignored: 0, closed: 0, archived: 0 },
+            applicationsByStage: { applied: 1, screening: 0, assessment: 0, interview: 0, offer: 0, rejected: 0, withdrawn: 0 },
+          });
+        }
+        if (url.endsWith('/discovery')) return response(run, 201);
+        return response({ ...run, completedAt: '2026-09-16T08:10:00.000Z', candidateCount: 2, insertedCount: 1, duplicateCount: 1 });
+      },
+    });
+
+    const pipeline = await client.analytics.getPipelineStats({ campaignId: 'campaign-1' });
+    expect(pipeline).toMatchObject({ knownJobs: 2, applications: 1 });
+    await client.discovery.begin({
+      campaignId: 'campaign-1', executor: 'memoflow-ai', contextSnapshot: { trigger: 'career.discovery.run' },
+      startedAt: now, idempotencyKey: 'begin-1',
+    });
+    await client.discovery.complete({
+      runId: 'run-1', completedAt: '2026-09-16T08:10:00.000Z',
+      candidateCount: 2, insertedCount: 1, duplicateCount: 1, rejectedCount: 0,
+    });
+
+    expect(new URL(calls[0]!.url).pathname).toBe('/api/v1/pipeline');
+    expect(new URL(calls[0]!.url).searchParams.get('campaignId')).toBe('campaign-1');
+    expect(calls[1]).toMatchObject({ method: 'POST', body: { executor: 'memoflow-ai', idempotencyKey: 'begin-1' } });
+    expect(new URL(calls[1]!.url).pathname).toBe('/api/v1/discovery');
+    expect(calls[2]).toMatchObject({
+      method: 'POST',
+      body: { completedAt: '2026-09-16T08:10:00.000Z', candidateCount: 2, insertedCount: 1, duplicateCount: 1, rejectedCount: 0 },
+    });
+    expect(new URL(calls[2]!.url).pathname).toBe('/api/v1/discovery/run-1/complete');
+  });
+
   it('surfaces stable server error envelopes', async () => {
     const client = createJobHarnessRestClient({
       baseUrl: 'http://job-harness/api/v1',

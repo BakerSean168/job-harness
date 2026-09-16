@@ -162,6 +162,6 @@ All V1 tools mutate Job Harness state only. There is no `submit_application` too
 
 ## Future MemoFlow compatibility
 
-MemoFlow is a future host target, not a dependency. A future adapter may consume public Job Harness contracts/client capabilities and contribute Goal/Task/Schedule/AI integrations without moving Career domain truth into MemoFlow.
+MemoFlow is a future host target, not a dependency. CH-0004 now freezes the host-neutral `CareerGateway` and Goal -> Campaign binding value after standalone production proof. A future adapter may consume only public Job Harness contracts/client capabilities and contribute Goal/Task/Schedule/AI integrations without moving Career domain truth into MemoFlow.
 
 See [REST v1](docs/api/rest-v1.md), [North-Star Architecture](docs/architecture/north-star.md), [Product design baseline](docs/product/README.md), [Roadmap](docs/roadmap.md), and [MemoFlow integration boundary](docs/integration/memoflow.md).

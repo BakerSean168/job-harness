@@ -1,6 +1,6 @@
 # Roadmap
 
-## Current checkpoint — Standalone alpha
+## Current checkpoint — Standalone V1 proven / host integration contract
 
 Completed:
 
@@ -20,9 +20,23 @@ Completed:
 - [x] Core-boundary guard preventing `@memoflow/*` dependencies
 - [x] GitHub CI baseline
 
+
+### Production proof — 2026-09-16
+
+- [x] Oracle2 durable deployment with Tailnet Web `20900` and bearer-protected REST/MCP `20901`
+- [x] restart/persistence and official-SDK MCP verification against real state
+- [x] JobSync reconciliation: `66/66` Jobs resolved, `37/37` applied records mapped, `0` unresolved
+- [x] Resume Registry artifacts moved to durable `/data/resumes/` with 5/5 SHA-256 verification
+- [x] Oracle2 runtime backup v5 + restore drill includes SQLite, env/Compose/revision and all Resume artifacts
+- [x] retired JobSync `20800` only after archive + reconciliation gates passed
+- [x] Digital Biome production navigation cut over to Job Harness
+- [x] **CH-0004:** narrow `CareerGateway` + host-owned Goal -> Campaign `CareerIntegrationBinding` frozen; REST host parity added for Pipeline and Discovery lifecycle
+
+**Next:** CH-0005 — derive the smallest Goal metric / Scheduler handler / TaskSuggestion / Mastra tool contribution seams from the real MemoFlow host. No dynamic plugin loader.
+
 Deferred intentionally:
 
-- [ ] MemoFlow runtime integration
+- [ ] MemoFlow runtime integration (CH-0005+; CH-0004 contract baseline is complete)
 - [ ] dynamic plugin loader / marketplace
 - [ ] built-in AI provider
 - [ ] built-in general web search
@@ -58,4 +72,4 @@ Completed before Web UI implementation:
 15. [x] **JH-W406:** Docker/Compose self-host packaging with private REST networking, loopback Web default, persistent SQLite bind mount, container health checks, restart smoke, and CI image/deployment validation.
 16. [x] **JH-W407:** responsive phone layout plus production-mode Playwright Chromium coverage for auth, Jobs, Application transition, Settings export and mobile containment.
 
-The standalone Web V1 hardening plan is complete. Only after standalone usage is proven should a separate MemoFlow adapter be implemented.
+The standalone Web V1 hardening plan is complete and production evidence now satisfies the proof gate. CH-0004 freezes the host-neutral gateway/binding contract; CH-0005 is the next implementation slice before any MemoFlow runtime adapter is wired.

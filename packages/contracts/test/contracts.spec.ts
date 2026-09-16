@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ApplicationSchema,
+  CareerIntegrationBindingSchema,
   JobSchema,
   UpsertJobsBatchInputSchema,
 } from '../src';
@@ -58,4 +59,21 @@ describe('canonical contracts', () => {
     });
     expect(parsed.success).toBe(true);
   });
+  it('freezes Goal -> Campaign binding as host-owned integration truth', () => {
+    const binding = CareerIntegrationBindingSchema.parse({
+      identityId: 'identity-1',
+      hostKind: 'goal',
+      hostId: 'goal-1',
+      extensionId: 'career',
+      resourceKind: 'campaign',
+      resourceId: 'campaign-1',
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    });
+    expect(binding.resourceId).toBe('campaign-1');
+    expect(CareerIntegrationBindingSchema.safeParse({ ...binding, hostKind: 'task' }).success).toBe(false);
+    expect(CareerIntegrationBindingSchema.safeParse({ ...binding, resourceKind: 'job' }).success).toBe(false);
+  });
+
 });

@@ -21,6 +21,7 @@ Authorization: Bearer <token>
 | Method | Route | Application contract |
 | --- | --- | --- |
 | GET | `/analytics` | `workspace.getAnalyticsSnapshot` |
+| GET | `/pipeline` | `analytics.getPipelineStats` |
 | GET | `/export` | consistent logical Career JSON snapshot |
 | GET | `/backup` | consistent SQLite backup |
 | GET | `/dashboard` | `workspace.getDashboardSnapshot` |
@@ -43,7 +44,7 @@ Jobs query parameters currently map to durable filters: `limit`, `offset`, `comp
 
 Saved Views support pagination plus optional `workspace=jobs|applications`. Definitions are strict typed contracts; transient page offsets and selected side-panel IDs are not valid fields.
 
-Applications support `limit`, `offset`, repeated/comma-separated `stages`, `company`, `campaignId`, `resumeProfileId`, `appliedFrom`, `appliedTo`, and `terminal=exclude|include|only`. Companies support pagination plus `query` and optional `campaignId`. Analytics supports optional `campaignId`. Discovery history supports pagination plus optional `campaignId` and `executor`. Dashboard accepts `campaignId`, `recentDiscoveryLimit`, and `attentionLimit`.
+Applications support `limit`, `offset`, repeated/comma-separated `stages`, `company`, `campaignId`, `resumeProfileId`, `appliedFrom`, `appliedTo`, and `terminal=exclude|include|only`. Companies support pagination plus `query` and optional `campaignId`. Analytics and Pipeline stats support optional `campaignId`. Discovery history supports pagination plus optional `campaignId` and `executor`. Dashboard accepts `campaignId`, `recentDiscoveryLimit`, and `attentionLimit`.
 
 ## Write routes
 
@@ -54,6 +55,8 @@ Applications support `limit`, `offset`, repeated/comma-separated `stages`, `comp
 | POST | `/applications` | `applications.recordApplication` |
 | POST | `/applications/:applicationId/transition` | `applications.transitionApplication` |
 | PUT | `/campaigns/:campaignId` | `campaigns.upsertCampaign` |
+| POST | `/discovery` | `discovery.beginDiscoveryRun` |
+| POST | `/discovery/:runId/complete` | `discovery.completeDiscoveryRun` |
 
 Every Agent/user retry-sensitive write keeps the canonical idempotency requirements from the application contract. REST never performs an external job application.
 

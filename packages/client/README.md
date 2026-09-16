@@ -10,5 +10,12 @@ Current surfaces cover the Web V1 REST routes:
 
 - Job workspace list/detail + state changes + batch upsert;
 - Application board/detail + record/transition, including Campaign/Resume/date/outcome filters;
-- Dashboard, Analytics, Company list/detail, Resume usage, paginated Discovery history/detail;
-- Campaign list/get/upsert.
+- Dashboard, Analytics/Pipeline stats, Company list/detail, Resume usage, paginated Discovery history/detail;
+- Campaign list/get/upsert;
+- retry-safe Discovery begin/complete mutations;
+- `CareerGateway`, the narrow host-facing adapter used by future first-party integrations.
+
+
+## CareerGateway
+
+`createCareerGateway(client)` intentionally exposes a smaller capability than the whole REST client: Campaign lookup/progress, Job search/upsert, Application read/write, and Discovery request/complete. Host integrations depend on this interface rather than Express, MCP, SQLite, or a generic service locator.

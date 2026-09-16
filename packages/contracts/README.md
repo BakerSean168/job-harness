@@ -1,5 +1,5 @@
 # @job-harness/contracts
 
-Reserved package boundary for Job Harness **contracts**.
+Canonical runtime-validated Job Harness contracts shared by application, REST, MCP, Web and host integrations.
 
-No production implementation is committed yet. The boundary exists now so later work preserves dependency direction instead of growing a monolith accidentally.
+The package owns data shapes only; it contains no persistence, transport or host-runtime implementation. `CareerIntegrationBindingSchema` is explicitly a **host-owned integration value**: Job Harness exports the schema so adapters agree on the shape, but Career persistence must not store Goal truth or create cross-database foreign keys.

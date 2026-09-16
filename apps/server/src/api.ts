@@ -6,6 +6,8 @@ import {
 } from '@job-harness/application';
 import {
   AnalyticsSnapshotInputSchema,
+  BeginDiscoveryInputSchema,
+  CompleteDiscoveryInputSchema,
   DashboardSnapshotInputSchema,
   EntityIdSchema,
   ListApplicationBoardInputSchema,
@@ -14,6 +16,7 @@ import {
   ListDiscoveryRunsInputSchema,
   ListResumeUsageInputSchema,
   ListSavedViewsInputSchema,
+  PipelineStatsInputSchema,
   RecordApplicationInputSchema,
   SearchJobListItemsInputSchema,
   SetJobStateInputSchema,
@@ -115,6 +118,13 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
       ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
     });
     res.json(await career.workspace.getAnalyticsSnapshot(input));
+  }));
+
+  app.get(`${API_PREFIX}/pipeline`, route(async (req, res) => {
+    const input = PipelineStatsInputSchema.parse({
+      ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
+    });
+    res.json(await career.analytics.getPipelineStats(input));
   }));
 
   app.get(`${API_PREFIX}/dashboard`, route(async (req, res) => {
@@ -261,6 +271,19 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
 
   app.delete(`${API_PREFIX}/saved-views/:savedViewId`, route(async (req, res) => {
     res.json(await career.savedViews.deleteSavedView(entityId(req.params.savedViewId)));
+  }));
+
+  app.post(`${API_PREFIX}/discovery`, route(async (req, res) => {
+    const input = BeginDiscoveryInputSchema.parse(req.body);
+    res.status(201).json(await career.discovery.beginDiscoveryRun(input));
+  }));
+
+  app.post(`${API_PREFIX}/discovery/:runId/complete`, route(async (req, res) => {
+    const input = CompleteDiscoveryInputSchema.parse({
+      ...req.body,
+      runId: entityId(req.params.runId),
+    });
+    res.json(await career.discovery.completeDiscoveryRun(input));
   }));
 
   app.get(`${API_PREFIX}/discovery`, route(async (req, res) => {

@@ -200,6 +200,61 @@ describe('REST v1 facade', () => {
     expect(missing.body.error.code).toBe('NOT_FOUND');
   });
 
+  it('exposes campaign pipeline stats and retry-safe Discovery mutations for host gateways', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'job-harness-api-host-'));
+    running = await startJobHarnessServer({ databasePath: join(dir, 'career.db'), host: '127.0.0.1', port: 0 });
+
+    await json('/campaigns/campaign-host', {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: 'Host Career Search', targetRoles: ['AI Agent Engineer'], cities: ['Hangzhou'],
+        graduationYears: [2026], experience: ['0-1y'], keywords: ['Agent'], exclusions: [],
+        sources: ['official'], resumeProfileIds: [], status: 'active',
+      }),
+    });
+
+    const pipeline = await json('/pipeline?campaignId=campaign-host');
+    expect(pipeline.response.status).toBe(200);
+    expect(pipeline.body).toMatchObject({ knownJobs: 0, applications: 0 });
+
+    const beginInput = {
+      campaignId: 'campaign-host',
+      executor: 'memoflow-ai',
+      contextSnapshot: { trigger: 'career.discovery.run', host: 'memoflow' },
+      startedAt: '2026-09-16T12:00:00.000Z',
+      idempotencyKey: 'host-discovery-1',
+    };
+    const begun = await json('/discovery', { method: 'POST', body: JSON.stringify(beginInput) });
+    expect(begun.response.status).toBe(201);
+    expect(begun.body).toMatchObject({ campaignId: 'campaign-host', executor: 'memoflow-ai', completedAt: null });
+    const runId = String(begun.body.id);
+
+    const retried = await json('/discovery', { method: 'POST', body: JSON.stringify(beginInput) });
+    expect(retried.response.status).toBe(201);
+    expect(retried.body.id).toBe(runId);
+
+    const completed = await json(`/discovery/${runId}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({
+        completedAt: '2026-09-16T12:10:00.000Z',
+        candidateCount: 3, insertedCount: 2, duplicateCount: 1, rejectedCount: 0,
+      }),
+    });
+    expect(completed.response.status).toBe(200);
+    expect(completed.body).toMatchObject({ id: runId, candidateCount: 3, insertedCount: 2, duplicateCount: 1 });
+
+    const detail = await json(`/discovery/${runId}`);
+    expect(detail.response.status).toBe(200);
+    expect(detail.body.run).toMatchObject({ id: runId, executor: 'memoflow-ai', completedAt: '2026-09-16T12:10:00.000Z' });
+
+    const invalid = await json('/discovery', {
+      method: 'POST',
+      body: JSON.stringify({ ...beginInput, executor: 'unknown-executor', idempotencyKey: 'host-discovery-invalid' }),
+    });
+    expect(invalid.response.status).toBe(400);
+    expect(invalid.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
   it('protects REST with the same bearer boundary as MCP', async () => {
     dir = await mkdtemp(join(tmpdir(), 'job-harness-api-auth-'));
     running = await startJobHarnessServer({
