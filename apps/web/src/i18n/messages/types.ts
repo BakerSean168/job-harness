@@ -35,4 +35,69 @@ export interface MessageCatalog {
     backOverview: string;
   };
   pages: Record<PageKey, { title: string; description: string }>;
+  jobsWorkspace: {
+    filters: {
+      title: string;
+      company: string;
+      city: string;
+      state: string;
+      source: string;
+      applied: string;
+      any: string;
+      yes: string;
+      no: string;
+      apply: string;
+      reset: string;
+    };
+    table: {
+      opportunity: string;
+      city: string;
+      state: string;
+      application: string;
+      source: string;
+      resume: string;
+      lastSeen: string;
+      listings: string;
+      results: string;
+      noResults: string;
+    };
+    detail: {
+      overview: string;
+      listings: string;
+      application: string;
+      timeline: string;
+      observations: string;
+      firstSeen: string;
+      lastSeen: string;
+      description: string;
+      noDescription: string;
+      noApplication: string;
+      appliedAt: string;
+      currentStage: string;
+      resume: string;
+      submissions: string;
+      openOriginal: string;
+      closePanel: string;
+      openFullPage: string;
+      sourceSeen: string;
+    };
+    actions: {
+      shortlist: string;
+      ignore: string;
+      close: string;
+      rediscover: string;
+      updating: string;
+      failed: string;
+    };
+    pagination: {
+      showing: string;
+      previous: string;
+      next: string;
+    };
+    states: Record<'discovered' | 'shortlisted' | 'ignored' | 'closed' | 'archived', string>;
+    applicationStages: Record<'applied' | 'screening' | 'assessment' | 'interview' | 'offer' | 'rejected' | 'withdrawn', string>;
+    listingStatuses: Record<'active' | 'closed' | 'unknown', string>;
+    eventTypes: Record<'application_recorded' | 'submission_recorded' | 'stage_changed' | 'interview_scheduled' | 'note_added', string>;
+    sourceKinds: Record<'official' | 'boss' | 'zhilian' | 'liepin' | 'moka' | 'greenhouse' | 'lever' | 'ashby' | 'email' | 'manual' | 'other', string>;
+  };
 }

@@ -2,7 +2,7 @@
 
 Next.js App Router workspace for Job Harness.
 
-Current slice: **W102 Web shell + i18n**.
+Current slice: **W201 Inbox + Jobs workspace**.
 
 Implemented foundation:
 
@@ -14,7 +14,16 @@ Implemented foundation:
 - localized loading/error/not-found surfaces;
 - production build as part of the repository quality gate.
 
-The shell intentionally shows placeholders only. Jobs/Application business screens begin in W201/W202 and consume `/api/v1` through a typed client rather than importing SQLite or server modules.
+W201 now connects `/jobs`, `/inbox`, and `/jobs/:jobId` to live Job Harness data through `@job-harness/client`:
+
+- dense Jobs Table + server-side filters and pagination;
+- Inbox as the `discovered` triage projection (no duplicate Inbox lifecycle state);
+- URL-addressable right-side Job detail panel plus full detail deep link;
+- Listing/Application/Timeline/Observation detail sections;
+- shortlist / ignore / close / rediscover actions through Next Server Actions;
+- bearer token remains server-only.
+
+Applications Board remains W202. Other navigation items deliberately stay as placeholders until their own vertical slices land.
 
 Run locally:
 
@@ -23,3 +32,13 @@ pnpm web
 ```
 
 The Web process is independent from `@job-harness/server`; the latter owns `/api/v1` and `/mcp`.
+
+
+Server-side Web configuration:
+
+```bash
+JOB_HARNESS_API_URL=http://127.0.0.1:3000/api/v1
+JOB_HARNESS_AUTH_TOKEN=... # only when the standalone server requires it
+```
+
+Never expose `JOB_HARNESS_AUTH_TOKEN` with a `NEXT_PUBLIC_` prefix.

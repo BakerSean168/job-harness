@@ -58,7 +58,7 @@ Implemented as a Next.js App Router workspace with persistent sidebar/topbar, st
 
 ## Phase W2 — Primary vertical slice
 
-### JH-W201 — Inbox + Jobs Table + Job Side Panel
+### JH-W201 — Inbox + Jobs Table + Job Side Panel ✅
 
 End-to-end path:
 

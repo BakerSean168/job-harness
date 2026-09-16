@@ -31,6 +31,29 @@ export const en: MessageCatalog = {
     notFoundDescription: 'This address does not map to a Job Harness workspace.',
     backOverview: 'Back to overview',
   },
+  jobsWorkspace: {
+    filters: {
+      title: 'Role', company: 'Company', city: 'City', state: 'Job state', source: 'Source', applied: 'Application',
+      any: 'Any', yes: 'Applied', no: 'Not applied', apply: 'Filter', reset: 'Reset',
+    },
+    table: {
+      opportunity: 'Role / Company', city: 'City', state: 'State', application: 'Application', source: 'Primary source',
+      resume: 'Resume', lastSeen: 'Last seen', listings: 'Listings', results: 'jobs', noResults: 'No opportunities match the current filters.',
+    },
+    detail: {
+      overview: 'Overview', listings: 'Listings', application: 'Application', timeline: 'Timeline', observations: 'Observations',
+      firstSeen: 'First seen', lastSeen: 'Last seen', description: 'Description', noDescription: 'No job description is stored yet.',
+      noApplication: 'This opportunity has not been applied to yet.', appliedAt: 'Applied at', currentStage: 'Current stage', resume: 'Resume', submissions: 'Submissions',
+      openOriginal: 'Open original', closePanel: 'Close detail', openFullPage: 'Open full detail', sourceSeen: 'Observed at',
+    },
+    actions: { shortlist: 'Shortlist', ignore: 'Ignore', close: 'Mark closed', rediscover: 'Rediscover', updating: 'Updating…', failed: 'Could not update job state.' },
+    pagination: { showing: 'Showing', previous: 'Previous', next: 'Next' },
+    states: { discovered: 'Inbox', shortlisted: 'Shortlisted', ignored: 'Ignored', closed: 'Closed', archived: 'Archived' },
+    applicationStages: { applied: 'Applied', screening: 'Screening', assessment: 'Assessment', interview: 'Interview', offer: 'Offer', rejected: 'Rejected', withdrawn: 'Withdrawn' },
+    listingStatuses: { active: 'Active', closed: 'Closed', unknown: 'Unknown' },
+    eventTypes: { application_recorded: 'Application recorded', submission_recorded: 'Additional submission', stage_changed: 'Stage changed', interview_scheduled: 'Interview scheduled', note_added: 'Note added' },
+    sourceKinds: { official: 'Official', boss: 'BOSS', zhilian: 'Zhilian', liepin: 'Liepin', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: 'Email', manual: 'Manual', other: 'Other' },
+  },
   pages: {
     overview: { title: 'Overview', description: 'See active search targets, funnel state, and recent changes.' },
     inbox: { title: 'Inbox', description: 'Triage opportunities discovered by Agents and imports.' },

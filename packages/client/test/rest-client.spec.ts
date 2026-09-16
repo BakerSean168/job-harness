@@ -1,0 +1,93 @@
+import { describe, expect, it } from 'vitest';
+import { createJobHarnessRestClient, JobHarnessRestError } from '../src';
+
+const now = '2026-09-16T08:00:00.000Z';
+
+function response(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+describe('Job Harness REST client', () => {
+  it('encodes list filters, injects bearer auth and validates a Jobs workspace response', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      calls.push({ url: String(input), init });
+      return response({
+        items: [{
+          jobId: 'job-1',
+          companyId: 'company-1',
+          companyName: 'Acme',
+          title: 'AI Agent Engineer',
+          city: 'Hangzhou',
+          state: 'discovered',
+          application: null,
+          primaryListing: null,
+          listingCount: 0,
+          sourceKinds: [],
+          campaigns: [],
+          resume: null,
+          firstSeenAt: now,
+          lastSeenAt: now,
+        }],
+        total: 1,
+      });
+    };
+    const client = createJobHarnessRestClient({
+      baseUrl: 'http://127.0.0.1:3000/api/v1/',
+      authToken: 'secret',
+      fetch: fetchImpl,
+    });
+
+    const result = await client.workspace.searchJobListItems({
+      states: ['discovered', 'shortlisted'],
+      sourceKinds: ['official'],
+      applied: false,
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(result.total).toBe(1);
+    expect(calls).toHaveLength(1);
+    const url = new URL(calls[0]!.url);
+    expect(url.pathname).toBe('/api/v1/jobs');
+    expect(url.searchParams.getAll('states')).toEqual(['discovered', 'shortlisted']);
+    expect(url.searchParams.getAll('sourceKinds')).toEqual(['official']);
+    expect(url.searchParams.get('applied')).toBe('false');
+    expect(new Headers(calls[0]!.init?.headers).get('authorization')).toBe('Bearer secret');
+  });
+
+  it('surfaces stable server error envelopes', async () => {
+    const client = createJobHarnessRestClient({
+      baseUrl: 'http://job-harness/api/v1',
+      fetch: async () => response({ error: { code: 'INVALID_TRANSITION', message: 'nope' } }, 422),
+    });
+    try {
+      await client.jobs.setJobState({
+        jobId: 'job-1',
+        state: 'shortlisted',
+        idempotencyKey: 'test-1',
+      });
+      throw new Error('expected request to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(JobHarnessRestError);
+      expect(error).toMatchObject({
+        status: 422,
+        payload: { code: 'INVALID_TRANSITION', message: 'nope' },
+      });
+    }
+  });
+});
+
+it('maps entity 404 reads to null without swallowing other errors', async () => {
+  const client = createJobHarnessRestClient({
+    baseUrl: 'http://job-harness/api/v1',
+    fetch: async () => response({ error: { code: 'NOT_FOUND', message: 'missing' } }, 404),
+  });
+  await expect(client.workspace.getJobDetail('missing')).resolves.toBeNull();
+  await expect(client.workspace.getApplicationWorkspaceDetail('missing')).resolves.toBeNull();
+  await expect(client.workspace.getDiscoveryRunDetail('missing')).resolves.toBeNull();
+  await expect(client.campaigns.get('missing')).resolves.toBeNull();
+});

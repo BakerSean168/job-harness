@@ -1,5 +1,14 @@
 # @job-harness/client
 
-Reserved package boundary for Job Harness **client**.
+Host-neutral typed REST client for Job Harness.
 
-No production implementation is committed yet. The boundary exists now so later work preserves dependency direction instead of growing a monolith accidentally.
+It consumes canonical `@job-harness/contracts`, validates every successful response at runtime, preserves stable server error envelopes through `JobHarnessRestError`, and accepts an injected `fetch` implementation / bearer token.
+
+The package contains no browser credential storage and no persistence imports. In the Web app it is instantiated only from server-side code so `JOB_HARNESS_AUTH_TOKEN` never becomes a `NEXT_PUBLIC_*` value or serialized client prop.
+
+Current surfaces cover the Web V1 REST routes:
+
+- Job workspace list/detail + state changes + batch upsert;
+- Application board/detail + record/transition;
+- Dashboard, Resume usage, Discovery detail;
+- Campaign list/get/upsert.

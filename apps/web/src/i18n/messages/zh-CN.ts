@@ -31,6 +31,29 @@ export const zhCN: MessageCatalog = {
     notFoundDescription: '这个地址没有对应的 Job Harness 工作区。',
     backOverview: '返回概览',
   },
+  jobsWorkspace: {
+    filters: {
+      title: '岗位名称', company: '公司', city: '城市', state: '岗位状态', source: '来源', applied: '投递状态',
+      any: '全部', yes: '已投递', no: '未投递', apply: '筛选', reset: '重置',
+    },
+    table: {
+      opportunity: '岗位 / 公司', city: '城市', state: '状态', application: '投递', source: '主要来源',
+      resume: '简历', lastSeen: '最近发现', listings: '来源数', results: '条岗位', noResults: '没有符合当前筛选条件的岗位。',
+    },
+    detail: {
+      overview: '概览', listings: '发布来源', application: '投递状态', timeline: '时间线', observations: '发现记录',
+      firstSeen: '首次发现', lastSeen: '最近发现', description: '岗位描述', noDescription: '尚未保存岗位描述。',
+      noApplication: '尚未投递这个岗位。', appliedAt: '投递时间', currentStage: '当前阶段', resume: '使用简历', submissions: '提交次数',
+      openOriginal: '打开原岗位', closePanel: '关闭详情', openFullPage: '打开完整详情', sourceSeen: '观察时间',
+    },
+    actions: { shortlist: '加入候选', ignore: '忽略', close: '标记关闭', rediscover: '重新发现', updating: '正在更新…', failed: '更新岗位状态失败。' },
+    pagination: { showing: '当前显示', previous: '上一页', next: '下一页' },
+    states: { discovered: '待分流', shortlisted: '候选', ignored: '已忽略', closed: '已关闭', archived: '已归档' },
+    applicationStages: { applied: '已投递', screening: '筛选中', assessment: '测评', interview: '面试', offer: 'Offer', rejected: '已拒绝', withdrawn: '已撤回' },
+    listingStatuses: { active: '可用', closed: '已关闭', unknown: '未知' },
+    eventTypes: { application_recorded: '首次投递', submission_recorded: '再次提交', stage_changed: '阶段变化', interview_scheduled: '安排面试', note_added: '添加备注' },
+    sourceKinds: { official: '官网', boss: 'BOSS', zhilian: '智联', liepin: '猎聘', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: '邮件', manual: '手动', other: '其他' },
+  },
   pages: {
     overview: { title: '概览', description: '查看当前求职目标、漏斗状态和最近变化。' },
     inbox: { title: '收件箱', description: '审核 Agent 与导入流程发现、但尚未完成分流的岗位。' },
