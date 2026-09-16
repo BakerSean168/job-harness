@@ -1,11 +1,20 @@
 {
   "name": "job-harness",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Plugin-ready job search harness for AI-assisted career workflows",
   "license": "MIT",
   "packageManager": "pnpm@10.15.1",
   "scripts": {
-    "check:manifest": "node scripts/check-manifest.mjs"
+    "check:manifest": "node scripts/check-manifest.mjs",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "check": "pnpm check:manifest && pnpm check:boundaries && pnpm typecheck && pnpm test",
+    "check:boundaries": "node scripts/check-boundaries.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
   }
 }

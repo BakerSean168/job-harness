@@ -45,7 +45,9 @@ The repository is intentionally **plugin-ready, not plugin-coupled**. No MemoFlo
 
 ## Integration status
 
-Current status: **planning / contract-first**.
+Current status: **Phase 0 / contract-first foundation**.
+
+Implemented baseline: canonical career vocabulary, runtime-validated DTO schemas, transport-neutral application ports, and a frozen MCP tool contract. Persistence and web UI are intentionally not implemented yet.
 
 MemoFlow integration is not implemented yet. A future adapter may consume the public client/contracts and register Goal/Task/Schedule/AI contributions on the MemoFlow side without moving Job Harness domain ownership into MemoFlow.
 

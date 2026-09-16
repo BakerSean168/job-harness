@@ -1092,22 +1092,22 @@ TaskSuggestion -> confirmed Task create
 **Dependencies:** CH-0002。
 **Acceptance:** “搜索 -> 去重 -> 入库 -> 投递记录 -> pipeline 查询”不需要 DB access。
 
-### CH-0004 — Define MemoFlow CareerGateway + IntegrationBinding
+### CH-0004 — Define future MemoFlow CareerGateway + IntegrationBinding (deferred)
 
-**Goal:** 冻结 Goal ↔ Campaign 绑定和 MemoFlow 到 Career 的 narrow gateway。
-**Dependencies:** CH-0002。
-**Protected contracts:** 不扩 Relation closed vocabulary；不直接访问 Career DB。
+**Goal:** 仅在独立 Job Harness V1 稳定后，冻结 Goal ↔ Campaign 绑定和 MemoFlow 到 Career 的 narrow gateway。当前仓库只保留兼容性设计，不实施 MemoFlow runtime integration。
+**Dependencies:** CH-0002 + standalone V1 evidence。
+**Protected contracts:** 不扩 Relation closed vocabulary；不直接访问 Career DB；Job Harness core 不依赖 `@memoflow/*`。
 
-### CH-0005 — Define first contribution seams from real use cases
+### CH-0005 — Define first host contribution seams from real use cases (deferred)
 
-**Goal:** 仅定义 Career 真正需要的 AI tool / schedule handler / metric / task suggestion seams。
+**Goal:** 等 Job Harness standalone flow 可用后，再根据真实接入需求定义 AI tool / schedule handler / metric / task suggestion seams。
 **Dependencies:** CH-0004。
-**Acceptance:** 不出现万能 PluginContext/ServiceLocator。
+**Acceptance:** 不出现万能 PluginContext/ServiceLocator，不为了未来插件化提前侵入 host。
 
-### CH-0006 — Create Career Harness repository skeleton
+### CH-0006 — Create Career Harness repository skeleton — completed early
 
-**Goal:** 在前五个 contract review 通过后创建新仓库，只建立目录、contracts、test harness 与 ADR/architecture，不先堆 UI。
-**Dependencies:** CH-0001..0005。
+**Goal:** 独立仓库已经先行创建，以确保 Career/Job Harness 从第一天就是独立 bounded context。仓库只建立目录、contracts、test harness 与 architecture，不先堆 UI，也不接入 MemoFlow。
+**Dependencies:** repository bootstrap 已完成；CH-0001..0003 在该独立仓库内继续冻结。
 
 ---
 

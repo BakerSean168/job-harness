@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "job-harness",
   "name": "Job Harness",
-  "version": "0.0.0",
-  "status": "planning",
+  "version": "0.1.0",
+  "status": "foundation",
   "kind": "domain-extension",
   "description": "Plugin-ready job search state, application pipeline, resume registry, and AI tool surface.",
   "provides": [

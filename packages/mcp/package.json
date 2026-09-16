@@ -1,0 +1,11 @@
+{
+  "name": "@job-harness/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@job-harness/contracts": "workspace:*",
+    "zod": "^4.1.8"
+  }
+}

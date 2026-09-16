@@ -1,0 +1,10 @@
+{
+  "name": "@job-harness/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@job-harness/application": "workspace:*"
+  }
+}
