@@ -115,6 +115,21 @@ describe('Job Harness REST client', () => {
     expect(url.searchParams.get('attentionLimit')).toBe('7');
   });
 
+  it('encodes Discovery history filters', async () => {
+    const calls: string[] = [];
+    const client = createJobHarnessRestClient({
+      baseUrl: 'http://job-harness/api/v1',
+      fetch: async (input) => { calls.push(String(input)); return response({ items: [], total: 0 }); },
+    });
+    await client.workspace.listDiscoveryRuns({ campaignId: 'campaign-1', executor: 'chatgpt-web', limit: 25, offset: 50 });
+    const url = new URL(calls[0]!);
+    expect(url.pathname).toBe('/api/v1/discovery');
+    expect(url.searchParams.get('campaignId')).toBe('campaign-1');
+    expect(url.searchParams.get('executor')).toBe('chatgpt-web');
+    expect(url.searchParams.get('limit')).toBe('25');
+    expect(url.searchParams.get('offset')).toBe('50');
+  });
+
   it('surfaces stable server error envelopes', async () => {
     const client = createJobHarnessRestClient({
       baseUrl: 'http://job-harness/api/v1',

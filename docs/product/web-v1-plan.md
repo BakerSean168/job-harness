@@ -78,9 +78,9 @@ Implemented as a presentation-ready Board/Table workspace over the same Applicat
 
 Implemented as an operational projection over the same workspace ports: Campaign selector/context, scoped KPI links, hiring funnel, deterministic Needs Attention rules, seven-day activity, recent Discovery runs, Resume correlation, and Listing-source association. Weekly shortlisting intentionally renders unavailable until Job triage becomes event-sourced; source metrics are Listing associations rather than submission-channel attribution.
 
-### JH-W302 — Campaigns / Resumes / Discovery
+### JH-W302 — Campaigns / Resumes / Discovery ✅
 
-Read/manage campaigns, view resume registry and usage, inspect discovery run history.
+Implemented as three live management surfaces: Campaign list/create/edit over the existing Campaign application port; Resume Registry/usage with optional Campaign scope and no resume-content ownership leakage; and paginated DiscoveryRun history with Campaign/Executor filters, URL-addressable side panel/full detail, context snapshot, observation count and affected Jobs.
 
 ### JH-W303 — Companies + Analytics
 

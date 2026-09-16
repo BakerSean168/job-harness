@@ -6,6 +6,7 @@ import {
   ApplicationEventSchema,
   ApplicationSchema,
   ApplicationStageSchema,
+  DiscoveryExecutorSchema,
   DiscoveryRunSchema,
   EntityIdSchema,
   IsoDateTimeSchema,
@@ -144,6 +145,15 @@ export const DiscoveryRunSummarySchema = z.object({
   campaign: CampaignRefSchema.nullable(),
 }).strict();
 
+export const ListDiscoveryRunsInputSchema = PageSchema.extend({
+  campaignId: EntityIdSchema.optional(),
+  executor: DiscoveryExecutorSchema.optional(),
+});
+export const ListDiscoveryRunsOutputSchema = z.object({
+  items: z.array(DiscoveryRunSummarySchema),
+  total: z.number().int().nonnegative(),
+}).strict();
+
 export const DiscoveryRunDetailSchema = z.object({
   run: DiscoveryRunSchema,
   campaign: CampaignRefSchema.nullable(),
@@ -245,6 +255,8 @@ export type ResumeUsageSummary = z.infer<typeof ResumeUsageSummarySchema>;
 export type ListResumeUsageInput = z.input<typeof ListResumeUsageInputSchema>;
 export type ListResumeUsageOutput = z.output<typeof ListResumeUsageOutputSchema>;
 export type DiscoveryRunSummary = z.infer<typeof DiscoveryRunSummarySchema>;
+export type ListDiscoveryRunsInput = z.input<typeof ListDiscoveryRunsInputSchema>;
+export type ListDiscoveryRunsOutput = z.output<typeof ListDiscoveryRunsOutputSchema>;
 export type DiscoveryRunDetail = z.infer<typeof DiscoveryRunDetailSchema>;
 export type DashboardAttentionItem = z.infer<typeof DashboardAttentionItemSchema>;
 export type DashboardWeeklyActivityPoint = z.infer<typeof DashboardWeeklyActivityPointSchema>;

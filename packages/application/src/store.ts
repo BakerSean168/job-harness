@@ -11,6 +11,8 @@ import type {
   DashboardSnapshotInput,
   DiscoveryRunDetail,
   JobDetail,
+  ListDiscoveryRunsInput,
+  ListDiscoveryRunsOutput,
   ListResumeUsageInput,
   ListResumeUsageOutput,
   SearchJobListItemsInput,
@@ -62,6 +64,7 @@ export interface CareerStoreReadPort {
   getApplicationWorkspaceDetail(applicationId: string): Promise<ApplicationWorkspaceDetail | null>;
   getJobDetailView(jobId: string): Promise<JobDetail | null>;
   getDashboardSnapshot(input: DashboardSnapshotInput, generatedAt: string): Promise<DashboardSnapshot>;
+  listDiscoveryRunViews(input: ListDiscoveryRunsInput): Promise<ListDiscoveryRunsOutput>;
   getDiscoveryRunDetailView(runId: string): Promise<DiscoveryRunDetail | null>;
   listResumeUsage(input: ListResumeUsageInput): Promise<ListResumeUsageOutput>;
   getIdempotencyReceipt(scope: string, key: string): Promise<IdempotencyReceipt | null>;

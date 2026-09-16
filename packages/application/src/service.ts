@@ -9,6 +9,7 @@ import {
   DashboardSnapshotInputSchema,
   DuplicateCheckInputSchema,
   GetApplicationOutputSchema,
+  ListDiscoveryRunsInputSchema,
   ListResumeUsageInputSchema,
   JobSchema,
   JobSearchCampaignSchema,
@@ -416,6 +417,7 @@ export function createCareerApplicationService(
     getApplicationWorkspaceDetail: (applicationId) => store.getApplicationWorkspaceDetail(applicationId),
     getJobDetail: (jobId) => store.getJobDetailView(jobId),
     getDashboardSnapshot: (input) => store.getDashboardSnapshot(DashboardSnapshotInputSchema.parse(input), now()),
+    listDiscoveryRuns: (input) => store.listDiscoveryRunViews(ListDiscoveryRunsInputSchema.parse(input)),
     getDiscoveryRunDetail: (runId) => store.getDiscoveryRunDetailView(runId),
     listResumeUsage: (input = {}) => store.listResumeUsage(ListResumeUsageInputSchema.parse(input)),
   };

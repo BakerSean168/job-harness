@@ -27,6 +27,8 @@ import type {
   ListCampaignsOutput,
   ListResumesInput,
   ListResumesOutput,
+  ListDiscoveryRunsInput,
+  ListDiscoveryRunsOutput,
   ListResumeUsageInput,
   ListResumeUsageOutput,
   PipelineStatsInput,
@@ -56,6 +58,7 @@ import {
   JobSchema,
   JobSearchCampaignSchema,
   ListApplicationBoardOutputSchema,
+  ListDiscoveryRunsOutputSchema,
   ListResumeUsageOutputSchema,
   ResumeProfileRefSchema,
   ResumeUsageSummarySchema,
@@ -605,6 +608,25 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     return ListResumeUsageOutputSchema.parse({ items, total: resumePage.total });
   }
 
+  async listDiscoveryRunViews(input: ListDiscoveryRunsInput): Promise<ListDiscoveryRunsOutput> {
+    const where: string[] = [];
+    const params: Array<string | number> = [];
+    if (input.campaignId) { where.push('d.campaign_id = ?'); params.push(input.campaignId); }
+    if (input.executor) { where.push('d.executor = ?'); params.push(input.executor); }
+    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM discovery_runs d ${clause}`).get(...params) as Row).n);
+    const rows = this.db.prepare(`SELECT d.* FROM discovery_runs d ${clause} ORDER BY d.started_at DESC, d.id DESC LIMIT ? OFFSET ?`).all(
+      ...params, input.limit ?? 50, input.offset ?? 0,
+    ) as Row[];
+    return ListDiscoveryRunsOutputSchema.parse({
+      items: rows.map((row) => {
+        const run = this.discoveryFromRow(row);
+        return { run, campaign: this.campaignRefById(run.campaignId) };
+      }),
+      total,
+    });
+  }
+
   async getDiscoveryRunDetailView(runId: string): Promise<DiscoveryRunDetail | null> {
     const run = await this.getDiscoveryRun(runId);
     if (!run) return null;
@@ -1124,6 +1146,7 @@ export class SqliteCareerStore implements CareerStorePort {
   getApplicationWorkspaceDetail(applicationId: string) { return this.readSession().getApplicationWorkspaceDetail(applicationId); }
   getJobDetailView(jobId: string) { return this.readSession().getJobDetailView(jobId); }
   getDashboardSnapshot(input: DashboardSnapshotInput, generatedAt: string) { return this.readSession().getDashboardSnapshot(input, generatedAt); }
+  listDiscoveryRunViews(input: ListDiscoveryRunsInput) { return this.readSession().listDiscoveryRunViews(input); }
   getDiscoveryRunDetailView(runId: string) { return this.readSession().getDiscoveryRunDetailView(runId); }
   listResumeUsage(input: ListResumeUsageInput) { return this.readSession().listResumeUsage(input); }
   getIdempotencyReceipt(scope: string, key: string) { return this.readSession().getIdempotencyReceipt(scope, key); }

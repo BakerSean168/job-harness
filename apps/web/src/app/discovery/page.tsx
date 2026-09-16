@@ -1,6 +1,6 @@
-import { WorkspacePlaceholder } from '@/components/ui/workspace-placeholder';
-import { getMessages } from '@/i18n/server';
+import { DiscoveryWorkspace } from '@/components/management/discovery-workspace';
+import type { ManagementSearchParams } from '@/components/management/campaigns-workspace';
 
-export default async function Page() {
-  return <WorkspacePlaceholder page="discovery" messages={await getMessages()} />;
+export default async function DiscoveryPage({ searchParams }: { searchParams: Promise<ManagementSearchParams> }) {
+  return <DiscoveryWorkspace searchParams={await searchParams} />;
 }

@@ -31,6 +31,24 @@ export const zhCN: MessageCatalog = {
     notFoundDescription: '这个地址没有对应的 Job Harness 工作区。',
     backOverview: '返回概览',
   },
+  campaignsWorkspace: {
+    list: { title: '求职目标', empty: '还没有求职目标。创建一个 Campaign 来固定岗位、城市、届次和简历方向。', create: '新建目标', updated: '更新于', roles: '岗位', cities: '城市', resumes: '简历方向' },
+    form: { titleNew: '新建求职目标', titleEdit: '编辑求职目标', name: '名称', targetRoles: '目标岗位', targetRolesHint: '逗号或换行分隔，至少一个', cities: '城市', graduationYears: '毕业届次', experience: '经验范围', keywords: '关键词', exclusions: '排除词', sources: '发现来源', resumes: '简历方向', status: '状态', save: '保存', saving: '正在保存…', saved: '已保存', failed: '保存失败', required: '请至少填写名称和一个目标岗位。' },
+    status: { active: '活跃', paused: '暂停', completed: '完成', archived: '归档' },
+    links: { jobs: '查看岗位', applications: '查看投递', dashboard: '查看概览' },
+  },
+  resumesWorkspace: {
+    filters: { campaign: '求职目标', all: '全部', apply: '筛选', reset: '重置' },
+    summary: { registry: '注册简历', used: '已使用简历', applications: '关联投递', missingArtifact: '缺少 artifact' },
+    table: { resume: '简历', targetRole: '目标方向', version: '版本', applications: '投递', screening: '筛选', assessment: '测评', interview: '面试', offer: 'Offer', lastUsed: '最近使用', artifact: 'Artifact', linked: '已关联', missing: '缺失', updated: '最近更新', empty: '暂无 Resume Registry 数据。', viewApplications: '查看投递' },
+    note: '简历正文仍由 Resume Harness/外部源维护；Job Harness 只保存引用和投递使用统计。',
+  },
+  discoveryWorkspace: {
+    filters: { campaign: '求职目标', executor: '执行器', all: '全部', apply: '筛选', reset: '重置' },
+    list: { runs: '次发现任务', empty: '暂无发现任务。外部 ChatGPT、导入器或其他执行器运行后会出现在这里。', running: '运行中', completed: '已完成', started: '开始', campaign: '求职目标', executor: '执行器', candidates: '候选', inserted: '新增', duplicates: '重复', rejected: '拒绝' },
+    detail: { title: '发现任务详情', observations: '观察记录', affectedJobs: '受影响岗位', context: '执行上下文', completedAt: '完成时间', noCampaign: '未绑定求职目标', noAffectedJobs: '该任务没有关联岗位。', openJob: '查看岗位', close: '关闭详情', full: '打开完整详情' },
+    executors: { 'chatgpt-web': 'ChatGPT Web', 'memoflow-ai': 'MemoFlow AI', import: '历史导入', manual: '手动', other: '其他' },
+  },
   dashboardWorkspace: {
     campaign: { label: '求职目标', all: '全部求职目标', active: '当前目标', noActive: '当前没有活跃的求职目标，以下展示全局数据。', roles: '目标岗位', cities: '城市', graduation: '毕业届次', experience: '经验范围' },
     kpis: { knownJobs: '已知岗位', inbox: '待分流', shortlisted: '候选岗位', applications: '已投递', activePipeline: '活跃 Pipeline', interviews: '面试阶段' },

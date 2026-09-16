@@ -28,11 +28,12 @@ Authorization: Bearer <token>
 | GET | `/campaigns` | `campaigns.listCampaigns` |
 | GET | `/campaigns/:campaignId` | `campaigns.getCampaign` |
 | GET | `/resumes` | `workspace.listResumeUsage` |
+| GET | `/discovery` | `workspace.listDiscoveryRuns` |
 | GET | `/discovery/:runId` | `workspace.getDiscoveryRunDetail` |
 
-Jobs query parameters currently map to durable filters: `limit`, `offset`, `company`, `title`, `city`, repeated/comma-separated `states`, repeated/comma-separated `sourceKinds`, and `applied`.
+Jobs query parameters currently map to durable filters: `limit`, `offset`, `company`, `title`, `city`, repeated/comma-separated `states`, repeated/comma-separated `sourceKinds`, `applied`, and `campaignId`.
 
-Applications currently support `limit`, `offset`, repeated/comma-separated `stages`, and `company`. Campaign/Resume/date filters intentionally land with the Applications Board ticket rather than being invented in the transport layer.
+Applications support `limit`, `offset`, repeated/comma-separated `stages`, `company`, `campaignId`, `resumeProfileId`, `appliedFrom`, `appliedTo`, and `terminal=exclude|include|only`. Discovery history supports pagination plus optional `campaignId` and `executor`. Dashboard accepts `campaignId`, `recentDiscoveryLimit`, and `attentionLimit`.
 
 ## Write routes
 

@@ -24,6 +24,8 @@ import type {
   DashboardSnapshotInput,
   DiscoveryRunDetail,
   JobDetail,
+  ListDiscoveryRunsInput,
+  ListDiscoveryRunsOutput,
   ListResumeUsageInput,
   ListResumeUsageOutput,
   SearchJobListItemsInput,
@@ -87,6 +89,7 @@ export interface CareerWorkspaceReadPort {
   getApplicationWorkspaceDetail(applicationId: string): Promise<ApplicationWorkspaceDetail | null>;
   getJobDetail(jobId: string): Promise<JobDetail | null>;
   getDashboardSnapshot(input: DashboardSnapshotInput): Promise<DashboardSnapshot>;
+  listDiscoveryRuns(input: ListDiscoveryRunsInput): Promise<ListDiscoveryRunsOutput>;
   getDiscoveryRunDetail(runId: string): Promise<DiscoveryRunDetail | null>;
   listResumeUsage(input?: ListResumeUsageInput): Promise<ListResumeUsageOutput>;
 }

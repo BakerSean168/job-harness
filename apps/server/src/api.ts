@@ -9,6 +9,7 @@ import {
   EntityIdSchema,
   ListApplicationBoardInputSchema,
   ListCampaignsInputSchema,
+  ListDiscoveryRunsInputSchema,
   ListResumeUsageInputSchema,
   RecordApplicationInputSchema,
   SearchJobListItemsInputSchema,
@@ -209,6 +210,15 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
       ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
     });
     res.json(await career.workspace.listResumeUsage(input));
+  }));
+
+  app.get(`${API_PREFIX}/discovery`, route(async (req, res) => {
+    const input = ListDiscoveryRunsInputSchema.parse({
+      ...pageQuery(req.query),
+      ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
+      ...(first(req.query.executor) ? { executor: first(req.query.executor) } : {}),
+    });
+    res.json(await career.workspace.listDiscoveryRuns(input));
   }));
 
   app.get(`${API_PREFIX}/discovery/:runId`, route(async (req, res) => {

@@ -6,6 +6,7 @@ import {
   JobSearchCampaignSchema,
   ListApplicationBoardOutputSchema,
   ListCampaignsOutputSchema,
+  ListDiscoveryRunsOutputSchema,
   ListResumeUsageOutputSchema,
   SearchJobListItemsOutputSchema,
   UpsertJobsBatchOutputSchema,
@@ -18,6 +19,8 @@ import {
   type ListApplicationBoardOutput,
   type ListCampaignsInput,
   type ListCampaignsOutput,
+  type ListDiscoveryRunsInput,
+  type ListDiscoveryRunsOutput,
   type ListResumeUsageInput,
   type ListResumeUsageOutput,
   type RecordApplicationInput,
@@ -106,6 +109,15 @@ function pageQuery(input: ListCampaignsInput): string {
   return query.toString();
 }
 
+function discoveryQuery(input: ListDiscoveryRunsInput): string {
+  const query = new URLSearchParams();
+  append(query, 'limit', input.limit);
+  append(query, 'offset', input.offset);
+  append(query, 'campaignId', input.campaignId);
+  append(query, 'executor', input.executor);
+  return query.toString();
+}
+
 function resumeQuery(input: ListResumeUsageInput): string {
   const query = new URLSearchParams();
   append(query, 'limit', input.limit);
@@ -183,6 +195,10 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
       async listResumeUsage(input: ListResumeUsageInput = {}): Promise<ListResumeUsageOutput> {
         const query = resumeQuery(input);
         return ListResumeUsageOutputSchema.parse(await request(`/resumes${query ? `?${query}` : ''}`));
+      },
+      async listDiscoveryRuns(input: ListDiscoveryRunsInput = {}): Promise<ListDiscoveryRunsOutput> {
+        const query = discoveryQuery(input);
+        return ListDiscoveryRunsOutputSchema.parse(await request(`/discovery${query ? `?${query}` : ''}`));
       },
       async getDiscoveryRunDetail(runId: string): Promise<DiscoveryRunDetail | null> {
         return nullable(async () => DiscoveryRunDetailSchema.parse(await request(`/discovery/${encodeURIComponent(runId)}`)));

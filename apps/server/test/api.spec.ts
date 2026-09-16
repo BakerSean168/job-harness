@@ -154,6 +154,13 @@ describe('REST v1 facade', () => {
     expect(invalidDashboard.response.status).toBe(400);
     expect(invalidDashboard.body.error.code).toBe('VALIDATION_ERROR');
 
+    const discoveryList = await json('/discovery?campaignId=campaign-agent&limit=20&offset=0');
+    expect(discoveryList.response.status).toBe(200);
+    expect(discoveryList.body.total).toBe(0);
+    const invalidDiscovery = await json('/discovery?executor=unknown-executor');
+    expect(invalidDiscovery.response.status).toBe(400);
+    expect(invalidDiscovery.body.error.code).toBe('VALIDATION_ERROR');
+
     const campaigns = await json('/campaigns');
     expect(campaigns.body.total).toBe(1);
     const campaignDetail = await json('/campaigns/campaign-agent');

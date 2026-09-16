@@ -35,6 +35,24 @@ export interface MessageCatalog {
     backOverview: string;
   };
   pages: Record<PageKey, { title: string; description: string }>;
+  campaignsWorkspace: {
+    list: { title: string; empty: string; create: string; updated: string; roles: string; cities: string; resumes: string; };
+    form: { titleNew: string; titleEdit: string; name: string; targetRoles: string; targetRolesHint: string; cities: string; graduationYears: string; experience: string; keywords: string; exclusions: string; sources: string; resumes: string; status: string; save: string; saving: string; saved: string; failed: string; required: string; };
+    status: Record<'active' | 'paused' | 'completed' | 'archived', string>;
+    links: { jobs: string; applications: string; dashboard: string; };
+  };
+  resumesWorkspace: {
+    filters: { campaign: string; all: string; apply: string; reset: string; };
+    summary: { registry: string; used: string; applications: string; missingArtifact: string; };
+    table: { resume: string; targetRole: string; version: string; applications: string; screening: string; assessment: string; interview: string; offer: string; lastUsed: string; artifact: string; linked: string; missing: string; updated: string; empty: string; viewApplications: string; };
+    note: string;
+  };
+  discoveryWorkspace: {
+    filters: { campaign: string; executor: string; all: string; apply: string; reset: string; };
+    list: { runs: string; empty: string; running: string; completed: string; started: string; campaign: string; executor: string; candidates: string; inserted: string; duplicates: string; rejected: string; };
+    detail: { title: string; observations: string; affectedJobs: string; context: string; completedAt: string; noCampaign: string; noAffectedJobs: string; openJob: string; close: string; full: string; };
+    executors: Record<'chatgpt-web' | 'memoflow-ai' | 'import' | 'manual' | 'other', string>;
+  };
   dashboardWorkspace: {
     campaign: { label: string; all: string; active: string; noActive: string; roles: string; cities: string; graduation: string; experience: string; };
     kpis: { knownJobs: string; inbox: string; shortlisted: string; applications: string; activePipeline: string; interviews: string; };

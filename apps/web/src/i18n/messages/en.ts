@@ -31,6 +31,24 @@ export const en: MessageCatalog = {
     notFoundDescription: 'This address does not map to a Job Harness workspace.',
     backOverview: 'Back to overview',
   },
+  campaignsWorkspace: {
+    list: { title: 'Campaigns', empty: 'No campaigns yet. Create one to pin target roles, cities, graduation years, and resume lanes.', create: 'New campaign', updated: 'Updated', roles: 'Roles', cities: 'Cities', resumes: 'Resume lanes' },
+    form: { titleNew: 'New campaign', titleEdit: 'Edit campaign', name: 'Name', targetRoles: 'Target roles', targetRolesHint: 'Comma or newline separated; at least one', cities: 'Cities', graduationYears: 'Graduation years', experience: 'Experience', keywords: 'Keywords', exclusions: 'Exclusions', sources: 'Discovery sources', resumes: 'Resume lanes', status: 'Status', save: 'Save', saving: 'Saving…', saved: 'Saved', failed: 'Could not save campaign', required: 'Enter a name and at least one target role.' },
+    status: { active: 'Active', paused: 'Paused', completed: 'Completed', archived: 'Archived' },
+    links: { jobs: 'View jobs', applications: 'View applications', dashboard: 'View overview' },
+  },
+  resumesWorkspace: {
+    filters: { campaign: 'Campaign', all: 'All', apply: 'Filter', reset: 'Reset' },
+    summary: { registry: 'Registered resumes', used: 'Used resumes', applications: 'Linked applications', missingArtifact: 'Missing artifacts' },
+    table: { resume: 'Resume', targetRole: 'Target role', version: 'Version', applications: 'Applications', screening: 'Screening', assessment: 'Assessment', interview: 'Interview', offer: 'Offer', lastUsed: 'Last used', artifact: 'Artifact', linked: 'Linked', missing: 'Missing', updated: 'Updated', empty: 'No Resume Registry data yet.', viewApplications: 'View applications' },
+    note: 'Resume content remains owned by Resume Harness/external sources. Job Harness stores references and application usage only.',
+  },
+  discoveryWorkspace: {
+    filters: { campaign: 'Campaign', executor: 'Executor', all: 'All', apply: 'Filter', reset: 'Reset' },
+    list: { runs: 'discovery runs', empty: 'No discovery runs yet. External ChatGPT, importers, and other executors will appear here.', running: 'Running', completed: 'Completed', started: 'Started', campaign: 'Campaign', executor: 'Executor', candidates: 'Candidates', inserted: 'New', duplicates: 'Duplicates', rejected: 'Rejected' },
+    detail: { title: 'Discovery run detail', observations: 'Observations', affectedJobs: 'Affected jobs', context: 'Execution context', completedAt: 'Completed at', noCampaign: 'No campaign', noAffectedJobs: 'This run has no related jobs.', openJob: 'View job', close: 'Close detail', full: 'Open full detail' },
+    executors: { 'chatgpt-web': 'ChatGPT Web', 'memoflow-ai': 'MemoFlow AI', import: 'Import', manual: 'Manual', other: 'Other' },
+  },
   dashboardWorkspace: {
     campaign: { label: 'Campaign', all: 'All campaigns', active: 'Active target', noActive: 'No active campaign is configured; global data is shown below.', roles: 'Target roles', cities: 'Cities', graduation: 'Graduation', experience: 'Experience' },
     kpis: { knownJobs: 'Known jobs', inbox: 'Inbox', shortlisted: 'Shortlisted', applications: 'Applications', activePipeline: 'Active pipeline', interviews: 'Interview stage' },

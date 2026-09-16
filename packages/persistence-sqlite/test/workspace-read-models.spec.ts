@@ -245,6 +245,12 @@ describe('workspace read models', () => {
       });
       expect(resumeUsage.items.find((item) => item.resume.id === 'resume-fullstack')?.applications).toBe(0);
 
+      const discoveryList = await career.workspace.listDiscoveryRuns({ campaignId: campaign.id, limit: 20, offset: 0 });
+      expect(discoveryList.total).toBe(1);
+      expect(discoveryList.items[0]).toMatchObject({ run: { id: run.id, executor: 'chatgpt-web' }, campaign: { id: campaign.id } });
+      const noManualRuns = await career.workspace.listDiscoveryRuns({ executor: 'manual', limit: 20, offset: 0 });
+      expect(noManualRuns.total).toBe(0);
+
       const runDetail = await career.workspace.getDiscoveryRunDetail(run.id);
       expect(runDetail?.run.id).toBe(run.id);
       expect(runDetail?.campaign?.id).toBe(campaign.id);

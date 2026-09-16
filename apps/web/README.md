@@ -2,7 +2,7 @@
 
 Next.js App Router workspace for Job Harness.
 
-Current slice: **W301 Operational Dashboard complete**.
+Current slice: **W302 Search-management surfaces complete**.
 
 Implemented foundation:
 
@@ -46,7 +46,15 @@ W301 replaces the Overview placeholder with an operational Dashboard:
 - source metrics deliberately do not claim to identify the actual submission channel;
 - weekly shortlisting stays unavailable until Job triage gets an auditable event domain.
 
-Campaigns, Resumes, Discovery, Companies and Analytics remain their own follow-up vertical slices.
+W302 connects the search-management surfaces:
+
+- `/campaigns`: list plus create/edit of target roles, cities, graduation years, experience, keywords, exclusions, discovery sources, Resume lanes and lifecycle status;
+- Campaign create/edit uses the existing upsert application port with a stable form-generated ID, so retries update the same Campaign;
+- `/resumes`: Resume Harness/external registry metadata and application-stage usage, optionally scoped by Campaign; raw server artifact paths are not surfaced;
+- `/discovery` and `/discovery/:runId`: paginated Discovery history, Campaign/Executor filters, context snapshot, observation count, and affected Jobs;
+- all three surfaces continue through the server-only typed REST client; browser HTML never receives the bearer token.
+
+Companies and Analytics remain the next standalone vertical slice.
 
 Run locally:
 

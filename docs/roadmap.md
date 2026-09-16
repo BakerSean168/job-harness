@@ -48,6 +48,7 @@ Completed before Web UI implementation:
 5. [x] **JH-W201:** Inbox + Jobs Table + Job Side Panel with typed REST client and server-only triage mutations.
 6. [x] **JH-W202:** Applications Board/Table + Application Side Panel/detail, server-validated drag/keyboard stage transitions, outcome filtering, and retry-safe `stage_changed` writes.
 7. [x] **JH-W301:** Operational Dashboard with scoped KPI/funnel navigation, deterministic attention rules, seven-day activity, recent discovery, Resume correlation, and Listing-source association.
-8. Next: **JH-W302 Campaigns / Resumes / Discovery**, followed by Companies/Analytics and hardening/deployment.
+8. [x] **JH-W302:** Campaign create/edit, Resume Registry/usage, and paginated Discovery history/detail surfaces.
+9. Next: **JH-W303 Companies + Analytics**, followed by hardening/deployment.
 
 Only after standalone usage is proven should a separate MemoFlow adapter be implemented.
