@@ -10,6 +10,7 @@ import {
 } from '@job-harness/domain';
 
 export const EntityIdSchema = z.string().trim().min(1).max(200);
+export const IdempotencyKeySchema = z.string().trim().min(1).max(300);
 export const IsoDateTimeSchema = z.iso.datetime({ offset: true });
 export const NullableIsoDateTimeSchema = IsoDateTimeSchema.nullable();
 export const UrlSchema = z.url();
@@ -47,10 +48,16 @@ export const JobSourceSchema = z
   })
   .strict();
 
+/**
+ * canonicalUrl means a job-specific canonical URL. A generic company careers/listing
+ * page belongs in sources[] and must not be promoted to canonicalUrl, because several
+ * distinct jobs can legitimately share the same listing page.
+ */
 export const JobSchema = z
   .object({
     id: EntityIdSchema,
     companyId: EntityIdSchema,
+    companyName: z.string().trim().min(1).max(300),
     title: z.string().trim().min(1).max(500),
     city: z.string().trim().min(1).max(200).nullable().default(null),
     state: JobStateSchema,
@@ -84,7 +91,7 @@ export const ApplicationEventSchema = z
     stage: ApplicationStageSchema.nullable().default(null),
     occurredAt: IsoDateTimeSchema,
     actor: EventActorSchema,
-    idempotencyKey: z.string().trim().min(1).max(300),
+    idempotencyKey: IdempotencyKeySchema,
     note: z.string().trim().max(4000).nullable().default(null),
   })
   .strict();
@@ -98,6 +105,21 @@ export const ApplicationSchema = z
     resumeProfileId: EntityIdSchema.nullable().default(null),
     createdAt: IsoDateTimeSchema,
     updatedAt: IsoDateTimeSchema,
+  })
+  .strict();
+
+export const ApplicationListItemSchema = z
+  .object({
+    application: ApplicationSchema,
+    job: JobSchema,
+  })
+  .strict();
+
+export const ApplicationDetailSchema = z
+  .object({
+    application: ApplicationSchema,
+    job: JobSchema,
+    timeline: z.array(ApplicationEventSchema),
   })
   .strict();
 
@@ -153,6 +175,8 @@ export type Job = z.infer<typeof JobSchema>;
 export type JobObservation = z.infer<typeof JobObservationSchema>;
 export type Application = z.infer<typeof ApplicationSchema>;
 export type ApplicationEvent = z.infer<typeof ApplicationEventSchema>;
+export type ApplicationListItem = z.infer<typeof ApplicationListItemSchema>;
+export type ApplicationDetail = z.infer<typeof ApplicationDetailSchema>;
 export type ResumeProfileRef = z.infer<typeof ResumeProfileRefSchema>;
 export type JobSearchCampaign = z.infer<typeof JobSearchCampaignSchema>;
 export type DiscoveryRun = z.infer<typeof DiscoveryRunSchema>;

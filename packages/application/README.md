@@ -1,5 +1,5 @@
 # @job-harness/application
 
-Reserved package boundary for Job Harness **application**.
+Transport-neutral Job Harness use cases and ports.
 
-No production implementation is committed yet. The boundary exists now so later work preserves dependency direction instead of growing a monolith accidentally.
+The application service owns runtime validation, lifecycle transitions, transaction orchestration, and idempotency semantics. HTTP/MCP/UI adapters must call these ports instead of persistence directly.

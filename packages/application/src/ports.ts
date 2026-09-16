@@ -1,6 +1,5 @@
 import type {
-  Application,
-  ApplicationEvent,
+  ApplicationDetail,
   BeginDiscoveryInput,
   CareerContextInput,
   CompleteDiscoveryInput,
@@ -42,12 +41,12 @@ export interface CareerJobCommandPort {
 
 export interface CareerApplicationReadPort {
   listApplications(input: ListApplicationsInput): Promise<ListApplicationsOutput>;
-  getApplication(applicationId: string): Promise<{ application: Application; timeline: ApplicationEvent[] } | null>;
+  getApplication(applicationId: string): Promise<ApplicationDetail | null>;
 }
 
 export interface CareerApplicationCommandPort {
-  recordApplication(input: RecordApplicationInput): Promise<{ application: Application; timeline: ApplicationEvent[] }>;
-  transitionApplication(input: TransitionApplicationInput): Promise<{ application: Application; timeline: ApplicationEvent[] }>;
+  recordApplication(input: RecordApplicationInput): Promise<ApplicationDetail>;
+  transitionApplication(input: TransitionApplicationInput): Promise<ApplicationDetail>;
 }
 
 export interface CareerCampaignPort {
@@ -77,4 +76,8 @@ export interface CareerApplicationPorts {
   discovery: CareerDiscoveryPort;
   resumes: CareerResumeReadPort;
   analytics: CareerAnalyticsReadPort;
+}
+
+export interface CareerResumeRegistryPort {
+  syncResumeProfiles(profiles: readonly ResumeProfileRef[]): Promise<{ synced: number }>;
 }

@@ -1,13 +1,20 @@
 # Roadmap
 
-## Current checkpoint — Phase 0 foundation
+## Current checkpoint — Standalone alpha
 
 Completed:
 
 - [x] Independent public `job-harness` repository bootstrap
 - [x] CH-0001 — canonical Career domain vocabulary and lifecycle
 - [x] CH-0002 — transport-neutral application ports and runtime-validated contracts
-- [x] CH-0003 — frozen MCP tool contract for read/write job-search memory workflows
+- [x] CH-0003 — stable MCP tool contract for job-search memory workflows
+- [x] SQLite persistence for Company, Job, JobObservation, Application, ApplicationEvent, Campaign, DiscoveryRun, ResumeProfileRef
+- [x] Durable idempotency receipts for Agent retry safety
+- [x] Application service with transaction + lifecycle enforcement
+- [x] Real SQLite vertical-slice tests for dedupe, timeline, Resume Registry, and campaign pipeline stats
+- [x] Transport-neutral MCP runtime backed only by application ports
+- [x] Standalone MCP Streamable HTTP server using the official SDK
+- [x] Bearer-token guard for non-loopback deployment
 - [x] Core-boundary guard preventing `@memoflow/*` dependencies
 - [x] GitHub CI baseline
 
@@ -21,12 +28,10 @@ Deferred intentionally:
 
 ## Next standalone slice
 
-The next implementation milestone is standalone persistence and use cases:
+1. Minimal REST/API read/write surface backed by the same application ports.
+2. Minimal Web UI for Jobs, Applications, Campaigns, Resumes, and pipeline dashboard.
+3. Import/migration adapter for the existing historical job-application dataset.
+4. Resume Harness registry sync adapter.
+5. Auth hardening, export/backup, and deployment packaging.
 
-1. SQLite persistence for Company, Job, JobObservation, Application, ApplicationEvent, Campaign, DiscoveryRun, ResumeProfileRef.
-2. Application services implementing the frozen ports with transaction + idempotency semantics.
-3. Contract tests for dedupe and application timeline projection.
-4. MCP runtime adapter backed only by application ports.
-5. Minimal web/API surface after the domain slice is proven.
-
-MemoFlow remains a future host compatibility target, not a dependency or delivery blocker.
+Only after standalone usage is proven should a separate MemoFlow adapter be implemented.

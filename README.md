@@ -15,40 +15,103 @@ Job Harness owns:
 - job-search campaigns;
 - applications and application timelines;
 - resume registry metadata;
-- deduplication and search history.
+- deduplication, idempotency, and search history.
 
 It does **not** own:
 
 - MemoFlow Goals, Tasks, Schedules, or AI runtime;
 - Resume source content;
 - Thought Forest knowledge content;
-- a built-in general web-search agent.
+- a built-in general web-search agent;
+- external job-application submission automation.
+
+## Current status
+
+**Standalone alpha.** The first end-to-end slice is runnable:
+
+```text
+Campaign
+  -> DiscoveryRun
+  -> batch Job upsert + dedupe
+  -> Resume registry
+  -> Application record
+  -> Application timeline transition
+  -> Pipeline stats
+  -> MCP query/write tools
+```
+
+The server uses SQLite for durable state and exposes the tool surface through MCP Streamable HTTP. MemoFlow integration remains intentionally unimplemented.
 
 ## Repository shape
 
 ```text
 job-harness/
+├── apps/
+│   └── server/             # standalone MCP composition root
 ├── docs/
 │   ├── architecture/
 │   └── integration/
 ├── packages/
-│   ├── contracts/      # public schemas and stable DTO/tool contracts
-│   ├── domain/         # career domain truth
-│   ├── application/    # use-cases and ports
-│   ├── mcp/            # ChatGPT/agent-facing MCP adapter
-│   └── client/         # host-neutral SDK/client
+│   ├── contracts/          # canonical Zod DTO/operation schemas
+│   ├── domain/             # career vocabulary, identity, lifecycle rules
+│   ├── application/        # use cases, ports, transactions, idempotency
+│   ├── persistence-sqlite/ # Node 24 SQLite adapter
+│   ├── mcp/                # tool contracts + transport-neutral runtime
+│   └── client/             # future host-neutral client SDK
 └── plugin/
-    └── manifest.json   # declarative capability metadata only
+    └── manifest.json       # declarative capability metadata only
 ```
 
-The repository is intentionally **plugin-ready, not plugin-coupled**. No MemoFlow runtime dependency is allowed in core packages.
+The repository is intentionally **plugin-ready, not plugin-coupled**. Core packages are guarded against `@memoflow/*` dependencies.
 
-## Integration status
+## Run locally
 
-Current status: **Phase 0 / contract-first foundation**.
+Requirements:
 
-Implemented baseline: canonical career vocabulary, runtime-validated DTO schemas, transport-neutral application ports, and a frozen MCP tool contract. Persistence and web UI are intentionally not implemented yet.
+- Node.js 24+
+- pnpm 10.15.1+
 
-MemoFlow integration is not implemented yet. A future adapter may consume the public client/contracts and register Goal/Task/Schedule/AI contributions on the MemoFlow side without moving Job Harness domain ownership into MemoFlow.
+```bash
+pnpm install
+pnpm check
+pnpm server
+```
 
-See [North-Star Architecture](docs/architecture/north-star.md) and [MemoFlow integration boundary](docs/integration/memoflow.md).
+Defaults:
+
+```text
+Database: ./data/job-harness.db
+Health:   http://127.0.0.1:3000/healthz
+MCP:      http://127.0.0.1:3000/mcp
+```
+
+Configuration:
+
+```text
+JOB_HARNESS_DB
+JOB_HARNESS_HOST
+JOB_HARNESS_PORT
+JOB_HARNESS_AUTH_TOKEN
+```
+
+The CLI refuses to bind to `0.0.0.0` or `::` unless `JOB_HARNESS_AUTH_TOKEN` is configured.
+
+## MCP model
+
+MCP is an adapter, not a business owner:
+
+```text
+ChatGPT / Agent
+      -> MCP protocol transport
+      -> CareerMcpRuntime
+      -> CareerApplicationPorts
+      -> SQLite repositories
+```
+
+All V1 tools mutate Job Harness state only. There is no `submit_application` tool and no built-in web-search provider.
+
+## Future MemoFlow compatibility
+
+MemoFlow is a future host target, not a dependency. A future adapter may consume public Job Harness contracts/client capabilities and contribute Goal/Task/Schedule/AI integrations without moving Career domain truth into MemoFlow.
+
+See [North-Star Architecture](docs/architecture/north-star.md), [Roadmap](docs/roadmap.md), and [MemoFlow integration boundary](docs/integration/memoflow.md).

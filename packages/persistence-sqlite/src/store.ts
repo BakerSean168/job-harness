@@ -1,0 +1,431 @@
+import { randomUUID } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
+import type {
+  Application,
+  ApplicationDetail,
+  ApplicationEvent,
+  Company,
+  DiscoveryRun,
+  DuplicateCheckInput,
+  DuplicateCheckOutput,
+  Job,
+  JobObservation,
+  JobSearchCampaign,
+  ListApplicationsInput,
+  ListApplicationsOutput,
+  ListCampaignsInput,
+  ListCampaignsOutput,
+  ListResumesInput,
+  ListResumesOutput,
+  PipelineStatsInput,
+  PipelineStatsOutput,
+  ResumeProfileRef,
+  SearchJobsInput,
+  SearchJobsOutput,
+  UpsertJobCandidate,
+} from '@job-harness/contracts';
+import {
+  ApplicationDetailSchema,
+  ApplicationEventSchema,
+  ApplicationSchema,
+  CompanySchema,
+  DiscoveryRunSchema,
+  JobSchema,
+  JobSearchCampaignSchema,
+  ResumeProfileRefSchema,
+} from '@job-harness/contracts';
+import type {
+  CareerStorePort,
+  CareerStoreReadPort,
+  CareerStoreTransactionPort,
+  IdempotencyReceipt,
+} from '@job-harness/application';
+import {
+  APPLICATION_STAGES,
+  JOB_STATES,
+  normalizeCanonicalUrl,
+  normalizeIdentityText,
+  type ApplicationStage,
+  type JobState,
+} from '@job-harness/domain';
+import { migrateSqliteDatabase } from './schema';
+
+type Row = Record<string, unknown>;
+
+function json<T>(value: unknown): T {
+  return JSON.parse(String(value)) as T;
+}
+
+function sourceKey(source: { kind: string; url?: string | undefined; label?: string | undefined }): string {
+  return JSON.stringify([source.kind, source.url ?? '', source.label ?? '']);
+}
+
+function openDatabase(path: string): DatabaseSync {
+  const db = new DatabaseSync(path);
+  db.exec('PRAGMA foreign_keys = ON');
+  db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA busy_timeout = 5000');
+  return db;
+}
+
+class SqliteCareerSession implements CareerStoreTransactionPort {
+  constructor(private readonly db: DatabaseSync) {}
+
+  private companyById(id: string): Company | null {
+    const row = this.db.prepare('SELECT * FROM companies WHERE id = ?').get(id) as Row | undefined;
+    if (!row) return null;
+    const aliases = (this.db.prepare('SELECT alias FROM company_aliases WHERE company_id = ? ORDER BY alias').all(id) as Row[]).map((entry) => String(entry.alias));
+    return CompanySchema.parse({ id: row.id, name: row.name, aliases, createdAt: row.created_at, updatedAt: row.updated_at });
+  }
+
+  private jobFromRow(row: Row): Job {
+    const company = this.companyById(String(row.company_id));
+    if (!company) throw new Error(`Company '${String(row.company_id)}' is missing for Job '${String(row.id)}'`);
+    const externalIdentities = (this.db.prepare('SELECT source, external_id FROM job_external_identities WHERE job_id = ? ORDER BY source, external_id').all(String(row.id)) as Row[]).map((entry) => ({ source: String(entry.source), externalId: String(entry.external_id) }));
+    const sources = (this.db.prepare('SELECT kind, url, label FROM job_sources WHERE job_id = ? ORDER BY source_key').all(String(row.id)) as Row[]).map((entry) => ({
+      kind: String(entry.kind),
+      ...(entry.url == null ? {} : { url: String(entry.url) }),
+      ...(entry.label == null ? {} : { label: String(entry.label) }),
+    }));
+    return JobSchema.parse({
+      id: row.id,
+      companyId: row.company_id,
+      companyName: company.name,
+      title: row.title,
+      city: row.city,
+      state: row.state,
+      canonicalUrl: row.canonical_url,
+      externalIdentities,
+      sources,
+      description: row.description,
+      firstSeenAt: row.first_seen_at,
+      lastSeenAt: row.last_seen_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    });
+  }
+
+  private applicationFromRow(row: Row): Application {
+    return ApplicationSchema.parse({
+      id: row.id,
+      jobId: row.job_id,
+      currentStage: row.current_stage,
+      appliedAt: row.applied_at,
+      resumeProfileId: row.resume_profile_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    });
+  }
+
+  async searchJobs(input: SearchJobsInput): Promise<SearchJobsOutput> {
+    const where: string[] = [];
+    const params: Array<string | number> = [];
+    if (input.company) {
+      where.push(`EXISTS (SELECT 1 FROM companies c LEFT JOIN company_aliases ca ON ca.company_id = c.id WHERE c.id = j.company_id AND (c.normalized_name LIKE ? OR ca.normalized_alias LIKE ?))`);
+      const q = `%${normalizeIdentityText(input.company)}%`;
+      params.push(q, q);
+    }
+    if (input.title) { where.push('j.normalized_title LIKE ?'); params.push(`%${normalizeIdentityText(input.title)}%`); }
+    if (input.city) { where.push('j.normalized_city LIKE ?'); params.push(`%${normalizeIdentityText(input.city)}%`); }
+    if (input.states?.length) {
+      where.push(`j.state IN (${input.states.map(() => '?').join(',')})`);
+      params.push(...input.states);
+    }
+    if (input.sourceKinds?.length) {
+      where.push(`EXISTS (SELECT 1 FROM job_sources js WHERE js.job_id = j.id AND js.kind IN (${input.sourceKinds.map(() => '?').join(',')}))`);
+      params.push(...input.sourceKinds);
+    }
+    if (input.applied !== undefined) {
+      where.push(`${input.applied ? '' : 'NOT '}EXISTS (SELECT 1 FROM applications a WHERE a.job_id = j.id)`);
+    }
+    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM jobs j ${clause}`).get(...params) as Row).n);
+    const rows = this.db.prepare(`SELECT j.* FROM jobs j ${clause} ORDER BY j.last_seen_at DESC, j.id LIMIT ? OFFSET ?`).all(...params, input.limit ?? 50, input.offset ?? 0) as Row[];
+    return { items: rows.map((row) => this.jobFromRow(row)), total };
+  }
+
+  async getJob(jobId: string): Promise<Job | null> {
+    const row = this.db.prepare('SELECT * FROM jobs WHERE id = ?').get(jobId) as Row | undefined;
+    return row ? this.jobFromRow(row) : null;
+  }
+
+  async findDuplicate(input: DuplicateCheckInput): Promise<DuplicateCheckOutput> {
+    if (input.externalIdentity) {
+      const row = this.db.prepare('SELECT j.* FROM job_external_identities e JOIN jobs j ON j.id = e.job_id WHERE e.normalized_source = ? AND e.normalized_external_id = ? LIMIT 1').get(
+        normalizeIdentityText(input.externalIdentity.source), normalizeIdentityText(input.externalIdentity.externalId),
+      ) as Row | undefined;
+      if (row) return { duplicate: true, job: this.jobFromRow(row), matchedBy: 'external-id' };
+    }
+    if (input.canonicalUrl) {
+      const normalized = normalizeCanonicalUrl(input.canonicalUrl);
+      const row = this.db.prepare('SELECT * FROM jobs WHERE canonical_url = ? LIMIT 1').get(normalized) as Row | undefined;
+      if (row) return { duplicate: true, job: this.jobFromRow(row), matchedBy: 'url' };
+    }
+    const company = normalizeIdentityText(input.companyName);
+    const title = normalizeIdentityText(input.title);
+    const city = normalizeIdentityText(input.city ?? '');
+    const row = this.db.prepare(`
+      SELECT j.* FROM jobs j
+      JOIN companies c ON c.id = j.company_id
+      LEFT JOIN company_aliases ca ON ca.company_id = c.id
+      WHERE (c.normalized_name = ? OR ca.normalized_alias = ?)
+        AND j.normalized_title = ? AND j.normalized_city = ?
+      LIMIT 1
+    `).get(company, company, title, city) as Row | undefined;
+    return row ? { duplicate: true, job: this.jobFromRow(row), matchedBy: 'composite' } : { duplicate: false, job: null, matchedBy: null };
+  }
+
+  async listApplications(input: ListApplicationsInput): Promise<ListApplicationsOutput> {
+    const where: string[] = [];
+    const params: Array<string | number> = [];
+    if (input.stages?.length) {
+      where.push(`a.current_stage IN (${input.stages.map(() => '?').join(',')})`);
+      params.push(...input.stages);
+    }
+    if (input.company) {
+      where.push(`(c.normalized_name LIKE ? OR EXISTS (SELECT 1 FROM company_aliases ca WHERE ca.company_id = c.id AND ca.normalized_alias LIKE ?))`);
+      const q = `%${normalizeIdentityText(input.company)}%`; params.push(q, q);
+    }
+    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM applications a JOIN jobs j ON j.id = a.job_id JOIN companies c ON c.id = j.company_id ${clause}`).get(...params) as Row).n);
+    const rows = this.db.prepare(`SELECT a.* FROM applications a JOIN jobs j ON j.id = a.job_id JOIN companies c ON c.id = j.company_id ${clause} ORDER BY a.updated_at DESC, a.id LIMIT ? OFFSET ?`).all(...params, input.limit ?? 50, input.offset ?? 0) as Row[];
+    const items = [];
+    for (const row of rows) {
+      const job = await this.getJob(String(row.job_id));
+      if (!job) throw new Error(`Job '${String(row.job_id)}' is missing for Application '${String(row.id)}'`);
+      items.push({ application: this.applicationFromRow(row), job });
+    }
+    return { items, total };
+  }
+
+  async getApplication(applicationId: string): Promise<ApplicationDetail | null> {
+    const row = this.db.prepare('SELECT * FROM applications WHERE id = ?').get(applicationId) as Row | undefined;
+    if (!row) return null;
+    const job = await this.getJob(String(row.job_id));
+    if (!job) throw new Error(`Job '${String(row.job_id)}' is missing for Application '${applicationId}'`);
+    const timeline = (this.db.prepare('SELECT * FROM application_events WHERE application_id = ? ORDER BY occurred_at, id').all(applicationId) as Row[]).map((event) => ApplicationEventSchema.parse({
+      id: event.id,
+      applicationId: event.application_id,
+      type: event.type,
+      stage: event.stage,
+      occurredAt: event.occurred_at,
+      actor: event.actor,
+      idempotencyKey: event.idempotency_key,
+      note: event.note,
+    }));
+    return ApplicationDetailSchema.parse({ application: this.applicationFromRow(row), job, timeline });
+  }
+
+  async findApplicationByJobId(jobId: string): Promise<Application | null> {
+    const row = this.db.prepare('SELECT * FROM applications WHERE job_id = ?').get(jobId) as Row | undefined;
+    return row ? this.applicationFromRow(row) : null;
+  }
+
+  async listCampaigns(input: ListCampaignsInput): Promise<ListCampaignsOutput> {
+    const total = Number((this.db.prepare('SELECT COUNT(*) AS n FROM campaigns').get() as Row).n);
+    const rows = this.db.prepare('SELECT * FROM campaigns ORDER BY updated_at DESC, id LIMIT ? OFFSET ?').all(input.limit ?? 50, input.offset ?? 0) as Row[];
+    return { items: rows.map((row) => this.campaignFromRow(row)), total };
+  }
+
+  private campaignFromRow(row: Row): JobSearchCampaign {
+    return JobSearchCampaignSchema.parse({
+      id: row.id, name: row.name,
+      targetRoles: json(row.target_roles_json), cities: json(row.cities_json), graduationYears: json(row.graduation_years_json),
+      experience: json(row.experience_json), keywords: json(row.keywords_json), exclusions: json(row.exclusions_json),
+      sources: json(row.sources_json), resumeProfileIds: json(row.resume_profile_ids_json), status: row.status,
+      createdAt: row.created_at, updatedAt: row.updated_at,
+    });
+  }
+
+  async getCampaign(campaignId: string): Promise<JobSearchCampaign | null> {
+    const row = this.db.prepare('SELECT * FROM campaigns WHERE id = ?').get(campaignId) as Row | undefined;
+    return row ? this.campaignFromRow(row) : null;
+  }
+
+  async listResumeProfiles(input: ListResumesInput): Promise<ListResumesOutput> {
+    const total = Number((this.db.prepare('SELECT COUNT(*) AS n FROM resume_profile_refs').get() as Row).n);
+    const rows = this.db.prepare('SELECT * FROM resume_profile_refs ORDER BY updated_at DESC, id LIMIT ? OFFSET ?').all(input.limit ?? 50, input.offset ?? 0) as Row[];
+    return { items: rows.map((row) => this.resumeFromRow(row)), total };
+  }
+
+  private resumeFromRow(row: Row): ResumeProfileRef {
+    return ResumeProfileRefSchema.parse({ id: row.id, name: row.name, source: row.source, externalProfileId: row.external_profile_id, targetRole: row.target_role, version: row.version, hash: row.hash, artifactUri: row.artifact_uri, updatedAt: row.updated_at });
+  }
+
+  async getResumeProfile(resumeProfileId: string): Promise<ResumeProfileRef | null> {
+    const row = this.db.prepare('SELECT * FROM resume_profile_refs WHERE id = ?').get(resumeProfileId) as Row | undefined;
+    return row ? this.resumeFromRow(row) : null;
+  }
+
+  private discoveryFromRow(row: Row): DiscoveryRun {
+    return DiscoveryRunSchema.parse({ id: row.id, campaignId: row.campaign_id, executor: row.executor, contextSnapshot: json(row.context_snapshot_json), startedAt: row.started_at, completedAt: row.completed_at, candidateCount: Number(row.candidate_count), insertedCount: Number(row.inserted_count), duplicateCount: Number(row.duplicate_count), rejectedCount: Number(row.rejected_count) });
+  }
+
+  async getDiscoveryRun(runId: string): Promise<DiscoveryRun | null> {
+    const row = this.db.prepare('SELECT * FROM discovery_runs WHERE id = ?').get(runId) as Row | undefined;
+    return row ? this.discoveryFromRow(row) : null;
+  }
+
+  async getPipelineStats(input: PipelineStatsInput): Promise<PipelineStatsOutput> {
+    const campaignClause = input.campaignId ? ` AND EXISTS (SELECT 1 FROM job_observations o JOIN discovery_runs d ON d.id = o.discovery_run_id WHERE o.job_id = j.id AND d.campaign_id = ?)` : '';
+    const campaignParams = input.campaignId ? [input.campaignId] : [];
+    const knownJobs = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM jobs j WHERE 1=1${campaignClause}`).get(...campaignParams) as Row).n);
+    const applications = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM applications a JOIN jobs j ON j.id = a.job_id WHERE 1=1${campaignClause}`).get(...campaignParams) as Row).n);
+    const jobsByState = Object.fromEntries(JOB_STATES.map((state: JobState) => [state, 0])) as Record<JobState, number>;
+    for (const row of this.db.prepare(`SELECT j.state AS k, COUNT(*) AS n FROM jobs j WHERE 1=1${campaignClause} GROUP BY j.state`).all(...campaignParams) as Row[]) jobsByState[row.k as JobState] = Number(row.n);
+    const applicationsByStage = Object.fromEntries(APPLICATION_STAGES.map((stage: ApplicationStage) => [stage, 0])) as Record<ApplicationStage, number>;
+    for (const row of this.db.prepare(`SELECT a.current_stage AS k, COUNT(*) AS n FROM applications a JOIN jobs j ON j.id = a.job_id WHERE 1=1${campaignClause} GROUP BY a.current_stage`).all(...campaignParams) as Row[]) applicationsByStage[row.k as ApplicationStage] = Number(row.n);
+    return { knownJobs, applications, jobsByState, applicationsByStage };
+  }
+
+  async getIdempotencyReceipt(scope: string, key: string): Promise<IdempotencyReceipt | null> {
+    const row = this.db.prepare('SELECT * FROM idempotency_receipts WHERE scope = ? AND key = ?').get(scope, key) as Row | undefined;
+    return row ? { scope: String(row.scope), key: String(row.key), requestHash: String(row.request_hash), result: json(row.result_json), createdAt: String(row.created_at) } : null;
+  }
+
+  async resolveCompany(name: string, now: string): Promise<Company> {
+    const normalized = normalizeIdentityText(name);
+    const row = this.db.prepare(`SELECT c.* FROM companies c LEFT JOIN company_aliases ca ON ca.company_id = c.id WHERE c.normalized_name = ? OR ca.normalized_alias = ? LIMIT 1`).get(normalized, normalized) as Row | undefined;
+    if (row) return this.companyById(String(row.id))!;
+    const id = randomUUID();
+    this.db.prepare('INSERT INTO companies(id, name, normalized_name, created_at, updated_at) VALUES(?,?,?,?,?)').run(id, name.trim(), normalized, now, now);
+    return this.companyById(id)!;
+  }
+
+  async insertJob(job: Job): Promise<void> {
+    this.db.prepare(`INSERT INTO jobs(id,company_id,title,normalized_title,city,normalized_city,state,canonical_url,description,first_seen_at,last_seen_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      job.id, job.companyId, job.title, normalizeIdentityText(job.title), job.city, normalizeIdentityText(job.city ?? ''), job.state,
+      job.canonicalUrl ? normalizeCanonicalUrl(job.canonicalUrl) : null, job.description, job.firstSeenAt, job.lastSeenAt, job.createdAt, job.updatedAt,
+    );
+    for (const external of job.externalIdentities) this.insertExternalIdentity(job.id, external);
+    for (const source of job.sources) this.insertSource(job.id, source);
+  }
+
+  private insertExternalIdentity(jobId: string, external: { source: string; externalId: string }): boolean {
+    const result = this.db.prepare('INSERT OR IGNORE INTO job_external_identities(job_id,source,external_id,normalized_source,normalized_external_id) VALUES(?,?,?,?,?)').run(jobId, external.source, external.externalId, normalizeIdentityText(external.source), normalizeIdentityText(external.externalId));
+    return Number(result.changes) > 0;
+  }
+
+  private insertSource(jobId: string, source: { kind: string; url?: string | undefined; label?: string | undefined }): boolean {
+    const result = this.db.prepare('INSERT OR IGNORE INTO job_sources(job_id,source_key,kind,url,label) VALUES(?,?,?,?,?)').run(jobId, sourceKey(source), source.kind, source.url ?? null, source.label ?? null);
+    return Number(result.changes) > 0;
+  }
+
+  async mergeJobCandidate(jobId: string, candidate: UpsertJobCandidate, now: string): Promise<{ job: Job; metadataChanged: boolean }> {
+    const current = await this.getJob(jobId);
+    if (!current) throw new Error(`Job '${jobId}' not found`);
+    let metadataChanged = false;
+    let city = current.city;
+    let canonicalUrl = current.canonicalUrl;
+    let description = current.description;
+    if (!city && candidate.city) { city = candidate.city; metadataChanged = true; }
+    if (!canonicalUrl && candidate.canonicalUrl) { canonicalUrl = normalizeCanonicalUrl(candidate.canonicalUrl); metadataChanged = true; }
+    if (candidate.description != null && candidate.description !== description) { description = candidate.description; metadataChanged = true; }
+    for (const external of candidate.externalIdentities ?? []) if (this.insertExternalIdentity(jobId, external)) metadataChanged = true;
+    for (const source of candidate.sources) if (this.insertSource(jobId, source)) metadataChanged = true;
+    const lastSeenAt = candidate.observedAt > current.lastSeenAt ? candidate.observedAt : current.lastSeenAt;
+    this.db.prepare('UPDATE jobs SET city=?, normalized_city=?, canonical_url=?, description=?, last_seen_at=?, updated_at=? WHERE id=?').run(city, normalizeIdentityText(city ?? ''), canonicalUrl, description, lastSeenAt, metadataChanged ? now : current.updatedAt, jobId);
+    return { job: (await this.getJob(jobId))!, metadataChanged };
+  }
+
+  async insertObservation(observation: JobObservation): Promise<void> {
+    this.db.prepare('INSERT INTO job_observations(id,job_id,discovery_run_id,observed_at,source_kind,source_url,source_label,availability) VALUES(?,?,?,?,?,?,?,?)').run(observation.id, observation.jobId, observation.discoveryRunId, observation.observedAt, observation.source.kind, observation.source.url ?? null, observation.source.label ?? null, observation.availability);
+  }
+
+  async updateJobState(jobId: string, state: JobState, now: string): Promise<Job> {
+    this.db.prepare('UPDATE jobs SET state=?, updated_at=? WHERE id=?').run(state, now, jobId);
+    const job = await this.getJob(jobId);
+    if (!job) throw new Error(`Job '${jobId}' not found after state update`);
+    return job;
+  }
+
+  async insertApplication(application: Application): Promise<void> {
+    this.db.prepare('INSERT INTO applications(id,job_id,current_stage,applied_at,resume_profile_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').run(application.id, application.jobId, application.currentStage, application.appliedAt, application.resumeProfileId, application.createdAt, application.updatedAt);
+  }
+
+  async updateApplicationStage(applicationId: string, stage: ApplicationStage, now: string): Promise<Application> {
+    this.db.prepare('UPDATE applications SET current_stage=?, updated_at=? WHERE id=?').run(stage, now, applicationId);
+    const row = this.db.prepare('SELECT * FROM applications WHERE id = ?').get(applicationId) as Row | undefined;
+    if (!row) throw new Error(`Application '${applicationId}' not found after stage update`);
+    return this.applicationFromRow(row);
+  }
+
+  async insertApplicationEvent(event: ApplicationEvent): Promise<void> {
+    this.db.prepare('INSERT INTO application_events(id,application_id,type,stage,occurred_at,actor,idempotency_key,note) VALUES(?,?,?,?,?,?,?,?)').run(event.id, event.applicationId, event.type, event.stage, event.occurredAt, event.actor, event.idempotencyKey, event.note);
+  }
+
+  async upsertCampaign(campaign: JobSearchCampaign): Promise<JobSearchCampaign> {
+    this.db.prepare(`INSERT INTO campaigns(id,name,target_roles_json,cities_json,graduation_years_json,experience_json,keywords_json,exclusions_json,sources_json,resume_profile_ids_json,status,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,target_roles_json=excluded.target_roles_json,cities_json=excluded.cities_json,graduation_years_json=excluded.graduation_years_json,experience_json=excluded.experience_json,keywords_json=excluded.keywords_json,exclusions_json=excluded.exclusions_json,sources_json=excluded.sources_json,resume_profile_ids_json=excluded.resume_profile_ids_json,status=excluded.status,updated_at=excluded.updated_at`).run(
+      campaign.id, campaign.name, JSON.stringify(campaign.targetRoles), JSON.stringify(campaign.cities), JSON.stringify(campaign.graduationYears), JSON.stringify(campaign.experience), JSON.stringify(campaign.keywords), JSON.stringify(campaign.exclusions), JSON.stringify(campaign.sources), JSON.stringify(campaign.resumeProfileIds), campaign.status, campaign.createdAt, campaign.updatedAt,
+    );
+    return (await this.getCampaign(campaign.id))!;
+  }
+
+  async insertDiscoveryRun(run: DiscoveryRun): Promise<void> {
+    this.db.prepare('INSERT INTO discovery_runs(id,campaign_id,executor,context_snapshot_json,started_at,completed_at,candidate_count,inserted_count,duplicate_count,rejected_count) VALUES(?,?,?,?,?,?,?,?,?,?)').run(run.id, run.campaignId, run.executor, JSON.stringify(run.contextSnapshot), run.startedAt, run.completedAt, run.candidateCount, run.insertedCount, run.duplicateCount, run.rejectedCount);
+  }
+
+  async updateDiscoveryRun(run: DiscoveryRun): Promise<DiscoveryRun> {
+    this.db.prepare('UPDATE discovery_runs SET completed_at=?,candidate_count=?,inserted_count=?,duplicate_count=?,rejected_count=? WHERE id=?').run(run.completedAt, run.candidateCount, run.insertedCount, run.duplicateCount, run.rejectedCount, run.id);
+    return (await this.getDiscoveryRun(run.id))!;
+  }
+
+  async upsertResumeProfiles(profiles: readonly ResumeProfileRef[]): Promise<void> {
+    const statement = this.db.prepare(`INSERT INTO resume_profile_refs(id,name,source,external_profile_id,target_role,version,hash,artifact_uri,updated_at) VALUES(?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET name=excluded.name,source=excluded.source,external_profile_id=excluded.external_profile_id,target_role=excluded.target_role,version=excluded.version,hash=excluded.hash,artifact_uri=excluded.artifact_uri,updated_at=excluded.updated_at`);
+    for (const profile of profiles) statement.run(profile.id, profile.name, profile.source, profile.externalProfileId, profile.targetRole, profile.version, profile.hash, profile.artifactUri, profile.updatedAt);
+  }
+
+  async putIdempotencyReceipt(receipt: IdempotencyReceipt): Promise<void> {
+    this.db.prepare('INSERT INTO idempotency_receipts(scope,key,request_hash,result_json,created_at) VALUES(?,?,?,?,?)').run(receipt.scope, receipt.key, receipt.requestHash, JSON.stringify(receipt.result), receipt.createdAt);
+  }
+}
+
+export class SqliteCareerStore implements CareerStorePort {
+  private readonly readDb: DatabaseSync;
+  private transactionTail: Promise<void> = Promise.resolve();
+
+  constructor(readonly databasePath: string) {
+    this.readDb = openDatabase(databasePath);
+    migrateSqliteDatabase(this.readDb);
+  }
+
+  close(): void { this.readDb.close(); }
+
+  private readSession(): CareerStoreReadPort { return new SqliteCareerSession(this.readDb); }
+  searchJobs(input: SearchJobsInput) { return this.readSession().searchJobs(input); }
+  getJob(jobId: string) { return this.readSession().getJob(jobId); }
+  findDuplicate(input: DuplicateCheckInput) { return this.readSession().findDuplicate(input); }
+  listApplications(input: ListApplicationsInput) { return this.readSession().listApplications(input); }
+  getApplication(applicationId: string) { return this.readSession().getApplication(applicationId); }
+  findApplicationByJobId(jobId: string) { return this.readSession().findApplicationByJobId(jobId); }
+  listCampaigns(input: ListCampaignsInput) { return this.readSession().listCampaigns(input); }
+  getCampaign(campaignId: string) { return this.readSession().getCampaign(campaignId); }
+  listResumeProfiles(input: ListResumesInput) { return this.readSession().listResumeProfiles(input); }
+  getResumeProfile(resumeProfileId: string) { return this.readSession().getResumeProfile(resumeProfileId); }
+  getDiscoveryRun(runId: string) { return this.readSession().getDiscoveryRun(runId); }
+  getPipelineStats(input: PipelineStatsInput) { return this.readSession().getPipelineStats(input); }
+  getIdempotencyReceipt(scope: string, key: string) { return this.readSession().getIdempotencyReceipt(scope, key); }
+
+  async transaction<T>(work: (tx: CareerStoreTransactionPort) => Promise<T>): Promise<T> {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const previous = this.transactionTail;
+    this.transactionTail = previous.then(() => gate);
+    await previous;
+    const db = openDatabase(this.databasePath);
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const result = await work(new SqliteCareerSession(db));
+      db.exec('COMMIT');
+      return result;
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    } finally {
+      db.close();
+      release();
+    }
+  }
+}

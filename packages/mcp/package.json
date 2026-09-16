@@ -6,6 +6,7 @@
   "exports": "./src/index.ts",
   "dependencies": {
     "@job-harness/contracts": "workspace:*",
-    "zod": "^4.1.8"
+    "zod": "^4.1.8",
+    "@job-harness/application": "workspace:*"
   }
 }

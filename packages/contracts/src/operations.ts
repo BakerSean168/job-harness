@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import {
-  ApplicationEventSchema,
-  ApplicationSchema,
+  ApplicationDetailSchema,
+  ApplicationListItemSchema,
   ApplicationStageSchema,
   DiscoveryExecutorSchema,
   DiscoveryRunSchema,
   EntityIdSchema,
+  IdempotencyKeySchema,
   IsoDateTimeSchema,
   JobExternalIdentitySchema,
   JobSchema,
@@ -83,7 +84,7 @@ export const UpsertJobsBatchOutputSchema = z
   .strict();
 
 export const SetJobStateInputSchema = z
-  .object({ jobId: EntityIdSchema, state: JobStateSchema, idempotencyKey: z.string().trim().min(1).max(300) })
+  .object({ jobId: EntityIdSchema, state: JobStateSchema, idempotencyKey: IdempotencyKeySchema })
   .strict();
 export const SetJobStateOutputSchema = JobSchema;
 
@@ -92,20 +93,18 @@ export const ListApplicationsInputSchema = PageSchema.extend({
   company: z.string().trim().min(1).max(300).optional(),
 });
 export const ListApplicationsOutputSchema = z
-  .object({ items: z.array(ApplicationSchema), total: z.number().int().nonnegative() })
+  .object({ items: z.array(ApplicationListItemSchema), total: z.number().int().nonnegative() })
   .strict();
 
 export const GetApplicationInputSchema = z.object({ applicationId: EntityIdSchema }).strict();
-export const GetApplicationOutputSchema = z
-  .object({ application: ApplicationSchema, timeline: z.array(ApplicationEventSchema) })
-  .nullable();
+export const GetApplicationOutputSchema = ApplicationDetailSchema.nullable();
 
 export const RecordApplicationInputSchema = z
   .object({
     jobId: EntityIdSchema,
     appliedAt: IsoDateTimeSchema,
     resumeProfileId: EntityIdSchema.nullable().optional(),
-    idempotencyKey: z.string().trim().min(1).max(300),
+    idempotencyKey: IdempotencyKeySchema,
     actor: z.enum(['user', 'chatgpt-web', 'import', 'system', 'other']),
     note: z.string().trim().max(4000).nullable().optional(),
   })
@@ -117,7 +116,7 @@ export const TransitionApplicationInputSchema = z
     applicationId: EntityIdSchema,
     toStage: ApplicationStageSchema,
     occurredAt: IsoDateTimeSchema,
-    idempotencyKey: z.string().trim().min(1).max(300),
+    idempotencyKey: IdempotencyKeySchema,
     actor: z.enum(['user', 'chatgpt-web', 'import', 'system', 'other']),
     note: z.string().trim().max(4000).nullable().optional(),
   })
@@ -144,6 +143,7 @@ export const BeginDiscoveryInputSchema = z
     executor: DiscoveryExecutorSchema,
     contextSnapshot: z.record(z.string(), z.unknown()).default({}),
     startedAt: IsoDateTimeSchema,
+    idempotencyKey: IdempotencyKeySchema,
   })
   .strict();
 export const BeginDiscoveryOutputSchema = DiscoveryRunSchema;
@@ -182,6 +182,7 @@ export type SearchJobsInput = z.input<typeof SearchJobsInputSchema>;
 export type SearchJobsOutput = z.output<typeof SearchJobsOutputSchema>;
 export type DuplicateCheckInput = z.input<typeof DuplicateCheckInputSchema>;
 export type DuplicateCheckOutput = z.output<typeof DuplicateCheckOutputSchema>;
+export type UpsertJobCandidate = z.input<typeof UpsertJobCandidateSchema>;
 export type UpsertJobsBatchInput = z.input<typeof UpsertJobsBatchInputSchema>;
 export type UpsertJobsBatchOutput = z.output<typeof UpsertJobsBatchOutputSchema>;
 export type SetJobStateInput = z.input<typeof SetJobStateInputSchema>;

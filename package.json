@@ -10,11 +10,15 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "check": "pnpm check:manifest && pnpm check:boundaries && pnpm typecheck && pnpm test",
-    "check:boundaries": "node scripts/check-boundaries.mjs"
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "server": "pnpm --filter @job-harness/server start"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

@@ -1,0 +1,22 @@
+{
+  "name": "@job-harness/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "start": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@job-harness/application": "workspace:*",
+    "@job-harness/mcp": "workspace:*",
+    "@job-harness/persistence-sqlite": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.1.8",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5",
+    "@types/express": "^5.0.3"
+  }
+}

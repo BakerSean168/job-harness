@@ -1,5 +1,5 @@
 # @job-harness/mcp
 
-Reserved package boundary for Job Harness **mcp**.
+Agent-facing Job Harness tool contract and transport-neutral MCP runtime.
 
-No production implementation is committed yet. The boundary exists now so later work preserves dependency direction instead of growing a monolith accidentally.
+`CareerMcpRuntime` validates every invocation against the canonical schemas and dispatches only through `CareerApplicationPorts`; it has no SQLite/database dependency. `apps/server` supplies the official Streamable HTTP protocol transport.

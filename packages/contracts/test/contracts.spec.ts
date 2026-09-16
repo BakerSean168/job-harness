@@ -12,6 +12,7 @@ describe('canonical contracts', () => {
     const parsed = JobSchema.safeParse({
       id: 'job-1',
       companyId: 'company-1',
+      companyName: 'Acme',
       title: 'AI Agent Engineer',
       city: 'Hangzhou',
       state: 'screening',
