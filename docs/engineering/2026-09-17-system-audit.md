@@ -382,3 +382,11 @@ A second pass over the deterministic browser-driver contract found that both the
 This is a deterministic-automation correctness bug, not a theoretical style issue. Recruitment forms frequently insert conditional controls after a previous answer.
 
 **Required change before live form-fill promotion:** allocate document-scoped unique refs independent of current array position; preserve an existing ref only when it is unique, repair pre-existing duplicates, and keep radio-group ids unique per group. Add a live DOM mutation regression test proving insertion/reordering cannot create duplicate `controlRef` / `actionRef` values in either browser backend.
+
+### Finding A22 — Browser Bridge result-ack transport failure is conflated with page-action failure (P1)
+
+After separating page-action delivery from page-driver application errors, the result-return leg still has a second ambiguity. `executeEnvelope()` currently wraps both the page action and the `POST /results` acknowledgement in one `try/catch`. If the browser action succeeds, the server processes the success result, but the HTTP response is lost/times out, the extension enters the catch branch and attempts to report the **same executed command as a failure**. Conversely, if the first result POST never reaches the server, the extension does not have an idempotent retry contract for the success result.
+
+This does not currently permit a final recruiting-site submit because the generic extension bridge has no final-submit command, but it can misclassify a successful fill/application-entry action and can encourage a later operator retry of a pre-submit side effect.
+
+**Required change:** separate command execution from result delivery. Produce one immutable result record (`ok/result` or `ok=false/error`) exactly once, then retry only that result acknowledgement with the same `commandId`. Make the server result endpoint idempotently acknowledge duplicate delivery for a short bounded receipt window. Never re-execute the page action merely because result acknowledgement is uncertain.
