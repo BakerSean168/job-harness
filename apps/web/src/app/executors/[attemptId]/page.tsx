@@ -30,12 +30,28 @@ export default async function ExecutorAttemptDetailPage({ params }: { params: Pr
     && attempt.externalEffectState === 'not_crossed'
     && !activeAuthorization,
   );
+  const handoffIsLive = Boolean(attempt.browserSessionHandoff && Date.parse(attempt.browserSessionHandoff.expiresAt) > now);
   const canResumeAuthorized = Boolean(
     activeAuthorization
     && attempt.state === 'waiting_for_user'
     && attempt.externalEffectState === 'not_crossed'
-    && attempt.browserSessionHandoff
-    && Date.parse(attempt.browserSessionHandoff.expiresAt) > now,
+    && handoffIsLive,
+  );
+  const humanEntryReasons = new Set([
+    'application_entry_required',
+    'login_required',
+    'security_challenge',
+    'application_form_not_detected',
+    'authentication_surface_detected',
+  ]);
+  const canResumeHumanEntry = Boolean(
+    attempt.state === 'waiting_for_user'
+    && attempt.externalEffectState === 'not_crossed'
+    && handoffIsLive
+    && !latestReview
+    && !activeAuthorization
+    && attempt.errorCode
+    && humanEntryReasons.has(attempt.errorCode),
   );
   const decisionNonce = randomUUID();
 
@@ -74,6 +90,25 @@ export default async function ExecutorAttemptDetailPage({ params }: { params: Pr
             </div>
           ) : null}
         </section>
+
+        {attempt.state === 'waiting_for_user' && !latestReview && attempt.errorCode && humanEntryReasons.has(attempt.errorCode) ? (
+          <section className="management-panel executor-review-card executor-human-action-card">
+            <h2>{copy.detail.humanAction}</h2>
+            <p>{copy.detail.humanActionDescription}</p>
+            <div className="executor-detail-grid">
+              <div><span>{copy.detail.waitingReason}</span><code>{attempt.errorCode}</code></div>
+              <div><span>{copy.attempts.checkpoint}</span><code>{attempt.checkpoint ?? '—'}</code></div>
+            </div>
+            {attempt.errorSummary ? <p className="muted-copy">{attempt.errorSummary}</p> : null}
+            {!handoffIsLive && attempt.browserSessionHandoff ? <p className="executor-boundary-note">{copy.detail.handoffExpired}</p> : null}
+            {canResumeHumanEntry ? (
+              <form action={resumeExecutionAttemptAction}>
+                <input type="hidden" name="attemptId" value={attempt.id} />
+                <button className="filter-submit" type="submit">{copy.detail.continueAfterHuman}</button>
+              </form>
+            ) : null}
+          </section>
+        ) : null}
 
         <section className="management-panel executor-review-card">
           <h2>{copy.detail.review}</h2>
