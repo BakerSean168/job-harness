@@ -41,7 +41,7 @@ References:
 
 ## Activation checklist
 
-1. In OpenAI Tunnels management, create a **dedicated Job Harness tunnel** and a runtime API key. Keep the admin key out of the daemon.
+1. In OpenAI Tunnels management, create a **dedicated Job Harness tunnel**. Use a restricted runtime key whose principal has Tunnels Read + Use for the tunnel; a one-tunnel-only key is recommended hardening, not a protocol requirement. Keep admin keys out of the daemon.
 2. Install a current supported `openai/tunnel-client` release on Oracle2.
 3. Copy the profile example to the private tunnel-client profile directory and replace only the tunnel ID. Keep `control_plane.api_key` and downstream `Authorization` as `env:`/`file:` secret references.
 4. Make the tunnel daemon depend on the Job Harness Server health, run `tunnel-client doctor`, then verify `/readyz` before configuring ChatGPT.
@@ -64,4 +64,6 @@ The smoke performs MCP discovery and only safe reads (`career_pipeline_stats`, `
 
 ## Current activation boundary
 
-The code/package can be fully validated without a ChatGPT account credential. Creating the dedicated OpenAI tunnel ID and approving the custom app are control-plane/workspace actions and are intentionally not encoded in this repository. Until a dedicated tunnel is provisioned, Oracle2's existing unrelated Secure MCP Tunnel must remain untouched.
+As of 2026-09-17, the dedicated Job Harness Secure MCP Tunnel is provisioned and its isolated Oracle2 runtime is active. The daemon initializes a real MCP session against `job-harness` v0.2.0, `/readyz` is healthy, and the runtime has completed a successful OpenAI control-plane poll. The existing unrelated Oracle2 tunnel remains active and unchanged.
+
+The only remaining workspace action is to create/refresh the ChatGPT custom MCP app using **Connection: Tunnel**, select the dedicated Job Harness tunnel, run the tool scan, and approve/enable the resulting app. The real tunnel ID and runtime credentials remain private deployment state and are intentionally not committed here.
