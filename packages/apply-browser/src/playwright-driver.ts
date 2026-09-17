@@ -148,9 +148,27 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
         .filter((element): element is HTMLElement => element instanceof HTMLElement)
         .filter(visible)
         .slice(0, 500);
-      return nodes.map((element, index): Action => {
-        const id = element.getAttribute('data-job-harness-action-id') || `jha-${index}`;
+      const existingActionIds = nodes.map((element) => element.getAttribute('data-job-harness-action-id')).filter((value): value is string => Boolean(value));
+      const actionIdCounts = new Map<string, number>();
+      for (const value of existingActionIds) actionIdCounts.set(value, (actionIdCounts.get(value) ?? 0) + 1);
+      const reservedActionIds = new Set(existingActionIds);
+      const usedActionIds = new Set<string>();
+      const allocateActionId = (element: HTMLElement) => {
+        const candidate = element.getAttribute('data-job-harness-action-id');
+        if (candidate && actionIdCounts.get(candidate) === 1 && !usedActionIds.has(candidate)) {
+          usedActionIds.add(candidate);
+          return candidate;
+        }
+        let index = 0;
+        let id = `jha-${index}`;
+        while (reservedActionIds.has(id) || usedActionIds.has(id)) id = `jha-${++index}`;
         element.setAttribute('data-job-harness-action-id', id);
+        reservedActionIds.add(id);
+        usedActionIds.add(id);
+        return id;
+      };
+      return nodes.map((element): Action => {
+        const id = allocateActionId(element);
         const tagName = element.tagName.toLowerCase();
         const anchor = element instanceof HTMLAnchorElement ? element : null;
         const button = element instanceof HTMLButtonElement ? element : null;
@@ -234,6 +252,25 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
       const all = [...document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]), textarea, select')]
         .filter((node): node is HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement => node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement || node instanceof HTMLSelectElement)
         .filter(visible);
+      const existingFieldIds = all.map((element) => element.getAttribute('data-job-harness-field-id')).filter((value): value is string => Boolean(value));
+      const fieldIdCounts = new Map<string, number>();
+      for (const value of existingFieldIds) fieldIdCounts.set(value, (fieldIdCounts.get(value) ?? 0) + 1);
+      const reservedFieldIds = new Set(existingFieldIds);
+      const usedFieldIds = new Set<string>();
+      const allocateFieldId = (element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement) => {
+        const candidate = element.getAttribute('data-job-harness-field-id');
+        if (candidate && fieldIdCounts.get(candidate) === 1 && !usedFieldIds.has(candidate)) {
+          usedFieldIds.add(candidate);
+          return candidate;
+        }
+        let index = 0;
+        let id = `jh-${index}`;
+        while (reservedFieldIds.has(id) || usedFieldIds.has(id)) id = `jh-${++index}`;
+        element.setAttribute('data-job-harness-field-id', id);
+        reservedFieldIds.add(id);
+        usedFieldIds.add(id);
+        return id;
+      };
       const result: Snapshot[] = [];
       const radioGroups = new Map<string, HTMLInputElement[]>();
       for (const element of all) {
@@ -244,8 +281,7 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
           radioGroups.set(key, group);
           continue;
         }
-        const fieldId = element.getAttribute('data-job-harness-field-id') || `jh-${all.indexOf(element)}`;
-        element.setAttribute('data-job-harness-field-id', fieldId);
+        const fieldId = allocateFieldId(element);
         const kind = typeFor(element);
         result.push({
           controlRef: `[data-job-harness-field-id="${CSS.escape(fieldId)}"]`,
@@ -263,9 +299,29 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
           sectionLabel: sectionFor(element),
         });
       }
-      for (const [name, group] of radioGroups) {
+      const radioEntries = [...radioGroups.entries()];
+      const radioCandidates = radioEntries.map(([, group]) => {
+        const values = [...new Set(group.map((item) => item.getAttribute('data-job-harness-radio-group')).filter((value): value is string => Boolean(value)))];
+        return values.length === 1 ? values[0]! : null;
+      });
+      const radioCandidateCounts = new Map<string, number>();
+      for (const value of radioCandidates) if (value) radioCandidateCounts.set(value, (radioCandidateCounts.get(value) ?? 0) + 1);
+      const reservedRadioIds = new Set(radioCandidates.filter((value): value is string => Boolean(value)));
+      const usedRadioIds = new Set<string>();
+      for (let groupIndex = 0; groupIndex < radioEntries.length; groupIndex += 1) {
+        const [name, group] = radioEntries[groupIndex]!;
         const first = group[0]!;
-        const groupId = first.getAttribute('data-job-harness-radio-group') || `jhr-${result.length}`;
+        const candidate = radioCandidates[groupIndex];
+        let groupId: string;
+        if (candidate && radioCandidateCounts.get(candidate) === 1 && !usedRadioIds.has(candidate)) {
+          groupId = candidate;
+        } else {
+          let index = 0;
+          groupId = `jhr-${index}`;
+          while (reservedRadioIds.has(groupId) || usedRadioIds.has(groupId)) groupId = `jhr-${++index}`;
+        }
+        usedRadioIds.add(groupId);
+        reservedRadioIds.add(groupId);
         for (const item of group) item.setAttribute('data-job-harness-radio-group', groupId);
         result.push({
           controlRef: `[data-job-harness-radio-group="${CSS.escape(groupId)}"]`,

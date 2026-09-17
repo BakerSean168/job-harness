@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { chromium } from 'playwright';
+import { PlaywrightBrowserDriver } from '../src/playwright-driver';
 
 const driverPath = fileURLToPath(new URL('../../../integrations/browser-extension/page-driver.js', import.meta.url));
 
@@ -84,4 +85,72 @@ describe('MV3 page driver contract', () => {
       expect(secondHash).not.toBe(firstHash);
     });
   });
+
+  it('keeps MV3 control/action refs unique and stable when a dynamic form inserts earlier elements', async () => {
+    await withDriver(async (page) => {
+      const initialControls = await command(page, 'scan_controls') as Array<Record<string, unknown>>;
+      const initialActions = await command(page, 'scan_actions') as Array<Record<string, unknown>>;
+      const nameRef = String(initialControls.find((field) => field.name === 'name')!.controlRef);
+      const nextRef = String(initialActions.find((action) => action.text === '继续')!.actionRef);
+
+      await page.evaluate(() => {
+        const form = document.querySelector('form')!;
+        const injected = document.createElement('input');
+        injected.id = 'conditional'; injected.name = 'conditional'; injected.style.cssText = 'display:block;width:180px;height:30px';
+        form.insertBefore(injected, form.firstChild);
+        const action = document.createElement('button');
+        action.id = 'conditional-action'; action.type = 'button'; action.textContent = '条件操作'; action.style.cssText = 'display:block;width:180px;height:30px';
+        form.insertBefore(action, document.getElementById('next'));
+      });
+
+      const rescannedControls = await command(page, 'scan_controls') as Array<Record<string, unknown>>;
+      const rescannedActions = await command(page, 'scan_actions') as Array<Record<string, unknown>>;
+      const controlRefs = rescannedControls.map((field) => String(field.controlRef));
+      const actionRefs = rescannedActions.map((action) => String(action.actionRef));
+      expect(new Set(controlRefs).size).toBe(controlRefs.length);
+      expect(new Set(actionRefs).size).toBe(actionRefs.length);
+      expect(String(rescannedControls.find((field) => field.name === 'name')!.controlRef)).toBe(nameRef);
+      expect(String(rescannedActions.find((action) => action.text === '继续')!.actionRef)).toBe(nextRef);
+      expect(await page.locator(nameRef).count()).toBe(1);
+      expect(await page.locator(nextRef).count()).toBe(1);
+
+      await command(page, 'fill', { selector: nameRef, value: 'Stable Target' });
+      expect(await page.inputValue('#name')).toBe('Stable Target');
+      expect(await page.inputValue('#conditional')).toBe('');
+    });
+  });
+
+  it('keeps Playwright backend control/action refs unique and stable after dynamic insertion', async () => {
+    await withDriver(async (page) => {
+      const driver = new PlaywrightBrowserDriver(page);
+      const initialControls = await driver.scanControls();
+      const initialActions = await driver.scanActions();
+      const nameRef = initialControls.find((field) => field.name === 'name')!.controlRef;
+      const nextRef = initialActions.find((action) => action.text === '继续')!.actionRef;
+
+      await page.evaluate(() => {
+        const form = document.querySelector('form')!;
+        const injected = document.createElement('input');
+        injected.id = 'conditional'; injected.name = 'conditional'; injected.style.cssText = 'display:block;width:180px;height:30px';
+        form.insertBefore(injected, form.firstChild);
+        const action = document.createElement('button');
+        action.id = 'conditional-action'; action.type = 'button'; action.textContent = '条件操作'; action.style.cssText = 'display:block;width:180px;height:30px';
+        form.insertBefore(action, document.getElementById('next'));
+      });
+
+      const rescannedControls = await driver.scanControls();
+      const rescannedActions = await driver.scanActions();
+      expect(new Set(rescannedControls.map((field) => field.controlRef)).size).toBe(rescannedControls.length);
+      expect(new Set(rescannedActions.map((action) => action.actionRef)).size).toBe(rescannedActions.length);
+      expect(rescannedControls.find((field) => field.name === 'name')!.controlRef).toBe(nameRef);
+      expect(rescannedActions.find((action) => action.text === '继续')!.actionRef).toBe(nextRef);
+      expect(await page.locator(nameRef).count()).toBe(1);
+      expect(await page.locator(nextRef).count()).toBe(1);
+
+      await driver.fill(nameRef, 'Stable Target');
+      expect(await page.inputValue('#name')).toBe('Stable Target');
+      expect(await page.inputValue('#conditional')).toBe('');
+    });
+  });
+
 });

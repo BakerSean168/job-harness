@@ -97,12 +97,12 @@
   }
 
   function scanActions() {
-    return [...document.querySelectorAll('a[href],button,[role="button"]')]
+    const elements = [...document.querySelectorAll('a[href],button,[role="button"]')]
       .filter((element) => element instanceof HTMLElement && visible(element))
-      .slice(0, 500)
-      .map((element, index) => {
-        const id = element.getAttribute("data-job-harness-action-id") || `jha-${index}`;
-        element.setAttribute("data-job-harness-action-id", id);
+      .slice(0, 500);
+    const allocate = createStableRefAllocator(elements, "data-job-harness-action-id", "jha");
+    return elements.map((element) => {
+        const id = allocate(element);
         return {
           actionRef: `[data-job-harness-action-id="${cssEscape(id)}"]`,
           tag: element.tagName.toLowerCase() === "a" ? "a" : element.tagName.toLowerCase() === "button" ? "button" : "other",
@@ -121,6 +121,7 @@
       .filter((element) => (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) && visible(element));
     const result = [];
     const radios = new Map();
+    const allocateFieldRef = createStableRefAllocator(all, "data-job-harness-field-id", "jh");
     for (let index = 0; index < all.length; index += 1) {
       const element = all[index];
       if (element instanceof HTMLInputElement && element.type === "radio") {
@@ -130,13 +131,26 @@
         radios.set(key, group);
         continue;
       }
-      const id = element.getAttribute("data-job-harness-field-id") || `jh-${index}`;
-      element.setAttribute("data-job-harness-field-id", id);
+      const id = allocateFieldRef(element);
       result.push(controlSnapshot(element, `[data-job-harness-field-id="${cssEscape(id)}"]`));
     }
-    for (const [name, group] of radios.entries()) {
+    const radioGroups = [...radios.entries()];
+    const radioCandidates = radioGroups.map(([, group]) => {
+      const values = [...new Set(group.map((item) => item.getAttribute("data-job-harness-radio-group")).filter(Boolean))];
+      return values.length === 1 ? values[0] : null;
+    });
+    const radioCandidateCounts = countStrings(radioCandidates.filter(Boolean));
+    const reservedRadioIds = new Set(radioCandidates.filter(Boolean));
+    const usedRadioIds = new Set();
+    for (let groupIndex = 0; groupIndex < radioGroups.length; groupIndex += 1) {
+      const [name, group] = radioGroups[groupIndex];
       const first = group[0];
-      const id = first.getAttribute("data-job-harness-radio-group") || `jhr-${result.length}`;
+      const candidate = radioCandidates[groupIndex];
+      const id = candidate && radioCandidateCounts.get(candidate) === 1 && !usedRadioIds.has(candidate)
+        ? candidate
+        : nextStableRef("jhr", reservedRadioIds, usedRadioIds);
+      usedRadioIds.add(id);
+      reservedRadioIds.add(id);
       for (const item of group) item.setAttribute("data-job-harness-radio-group", id);
       result.push({
         ...controlSnapshot(first, `[data-job-harness-radio-group="${cssEscape(id)}"]`),
@@ -184,6 +198,35 @@
     return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
   }
 
+  function createStableRefAllocator(elements, attribute, prefix) {
+    const existing = elements.map((element) => element.getAttribute(attribute)).filter(Boolean);
+    const counts = countStrings(existing);
+    const reserved = new Set(existing);
+    const used = new Set();
+    return (element) => {
+      const candidate = element.getAttribute(attribute);
+      if (candidate && counts.get(candidate) === 1 && !used.has(candidate)) {
+        used.add(candidate);
+        return candidate;
+      }
+      const id = nextStableRef(prefix, reserved, used);
+      element.setAttribute(attribute, id);
+      reserved.add(id);
+      used.add(id);
+      return id;
+    };
+  }
+  function countStrings(values) {
+    const counts = new Map();
+    for (const value of values) counts.set(value, (counts.get(value) || 0) + 1);
+    return counts;
+  }
+  function nextStableRef(prefix, reserved, used) {
+    let index = 0;
+    let candidate = `${prefix}-${index}`;
+    while (reserved.has(candidate) || used.has(candidate)) candidate = `${prefix}-${++index}`;
+    return candidate;
+  }
   function controlKind(element) {
     if (element instanceof HTMLTextAreaElement) return "textarea";
     if (element instanceof HTMLSelectElement) return "select";
