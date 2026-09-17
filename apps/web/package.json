@@ -20,7 +20,8 @@
     "react-dom": "19.3.0",
     "server-only": "0.0.1",
     "@job-harness/resume-contracts": "workspace:*",
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.1.0",
+    "@job-harness/applicant-contracts": "workspace:*"
   },
   "devDependencies": {
     "@testing-library/react": "16.3.0",

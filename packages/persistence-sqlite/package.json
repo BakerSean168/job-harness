@@ -11,6 +11,8 @@
     "@job-harness/resume-application": "workspace:*",
     "@job-harness/resume-contracts": "workspace:*",
     "@job-harness/apply-contracts": "workspace:*",
-    "@job-harness/apply-runtime": "workspace:*"
+    "@job-harness/apply-runtime": "workspace:*",
+    "@job-harness/applicant-contracts": "workspace:*",
+    "@job-harness/applicant-application": "workspace:*"
   }
 }

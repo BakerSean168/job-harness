@@ -60,6 +60,17 @@ describe('lease-scoped applicant data derived from immutable Resume Revision', (
     const revisionId = await seedRevision(databasePath);
     running = await startJobHarnessServer({ databasePath, host: '127.0.0.1', port: 0, authToken: 'global-secret', executorAuthToken: 'worker-secret' });
 
+    const answerContext = await request('/application-answer-set', 'global-secret');
+    expect(answerContext.response.status).toBe(200);
+    const savedAnswers = await request('/application-answer-set', 'global-secret', { method: 'PUT', body: JSON.stringify({
+      expectedVersion: answerContext.body.answerSet.version,
+      answerSet: {
+        ...answerContext.body.answerSet,
+        entries: [{ id: 'sponsorship', key: 'legal.visa_sponsorship_required', label: '是否需要签证/工作许可赞助', valueType: 'boolean', sensitivity: 'legal', value: false, aliases: ['是否需要签证赞助', 'visa sponsorship'], siteHost: null, enabled: true }],
+      },
+    }) });
+    expect(savedAnswers.response.status).toBe(200);
+
     const inserted = await request('/jobs/batch', 'global-secret', { method: 'POST', body: JSON.stringify({ jobs: [{
       companyName: 'Applicant Co', title: 'Frontend Engineer', city: 'Hangzhou', observedAt: now,
       listings: [{ sourceKind: 'official', url: 'https://jobs.example.test/applicant', identityKind: 'url', status: 'active' }],
@@ -79,6 +90,13 @@ describe('lease-scoped applicant data derived from immutable Resume Revision', (
       intentId: intent.body.id, executionMode: 'fill_only', requiredAdapterId: 'generic-ats', preferredBrowserBackend: 'steel', requiredCapabilities: ['humanControl'], policySnapshot: { allowFormFill: true, shadowFill: true }, idempotencyKey: 'applicant-attempt-1',
     }) });
     const attemptId = String(dispatched.body.id);
+    expect(dispatched.body.bundle).toMatchObject({
+      applicantCatalogVersion: expect.stringMatching(/^applicant-snapshot:[a-f0-9]{64}$/),
+      applicantProfileRevisionId: expect.stringMatching(/^applicant-profile-rev-/),
+      applicantProfileHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      answerSetRevisionId: savedAnswers.body.latestRevision.id,
+      answerSetHash: savedAnswers.body.latestRevision.contentHash,
+    });
     const claimed = await request('/execution-attempts/claim', 'worker-secret', { method: 'POST', body: JSON.stringify({ executorId: 'worker-applicant', leaseSeconds: 90 }) });
     const leaseToken = String(claimed.body.leaseToken);
 
@@ -86,13 +104,14 @@ describe('lease-scoped applicant data derived from immutable Resume Revision', (
       method: 'POST', body: JSON.stringify({ executorId: 'worker-applicant', leaseToken }),
     });
     expect(catalog.response.status).toBe(200);
-    expect(catalog.body.version).toContain(`resume-revision:${revisionId}`);
+    expect(catalog.body.version).toMatch(/^applicant-snapshot:[a-f0-9]{64}$/);
     expect(catalog.body.entries).toEqual(expect.arrayContaining([
-      expect.objectContaining({ key: 'person.full_name', valueType: 'text', source: 'job-harness-resume-revision' }),
-      expect.objectContaining({ key: 'contact.email', valueType: 'email', sensitivity: 'sensitive' }),
-      expect.objectContaining({ key: 'education[0].school' }),
-      expect.objectContaining({ key: 'work[0].description' }),
-      expect.objectContaining({ key: 'projects[0].description' }),
+      expect.objectContaining({ key: 'person.full_name', valueType: 'text', source: 'job-harness-applicant-profile' }),
+      expect.objectContaining({ key: 'contact.email', valueType: 'email', sensitivity: 'sensitive', source: 'job-harness-applicant-profile' }),
+      expect.objectContaining({ key: 'education[0].school', source: 'job-harness-applicant-profile' }),
+      expect.objectContaining({ key: 'work[0].description', source: 'job-harness-resume-revision' }),
+      expect.objectContaining({ key: 'projects[0].description', source: 'job-harness-resume-revision' }),
+      expect.objectContaining({ key: 'legal.visa_sponsorship_required', sensitivity: 'legal', allowAiMapping: false, source: 'job-harness-answer-set' }),
     ]));
     const catalogSerialized = JSON.stringify(catalog.body);
     expect(catalogSerialized).not.toContain('测试候选人');
@@ -100,7 +119,7 @@ describe('lease-scoped applicant data derived from immutable Resume Revision', (
     expect(catalogSerialized).not.toContain('四川农业大学');
 
     const resolved = await request(`/execution-attempts/${attemptId}/applicant-data/resolve`, 'worker-secret', {
-      method: 'POST', body: JSON.stringify({ executorId: 'worker-applicant', leaseToken, keys: ['person.full_name','contact.email','education[0].school','work[0].description','legal.work_authorization'] }),
+      method: 'POST', body: JSON.stringify({ executorId: 'worker-applicant', leaseToken, keys: ['person.full_name','contact.email','education[0].school','work[0].description','legal.visa_sponsorship_required','legal.work_authorization'] }),
     });
     expect(resolved.response.status).toBe(200);
     expect(resolved.body.catalogVersion).toBe(catalog.body.version);
@@ -109,6 +128,7 @@ describe('lease-scoped applicant data derived from immutable Resume Revision', (
       expect.objectContaining({ key: 'contact.email', value: 'candidate@example.test', literal: true }),
       expect.objectContaining({ key: 'education[0].school', value: '四川农业大学', literal: true }),
       expect.objectContaining({ key: 'work[0].description', value: '交付：完成业务功能', literal: true }),
+      expect.objectContaining({ key: 'legal.visa_sponsorship_required', value: false, sensitivity: 'legal', literal: true }),
     ]));
     expect(resolved.body.values.some((item: { key: string }) => item.key === 'legal.work_authorization')).toBe(false);
     expect(JSON.stringify(resolved.body)).not.toContain('13800138000');

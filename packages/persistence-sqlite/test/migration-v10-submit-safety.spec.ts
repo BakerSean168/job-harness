@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { SqliteCareerStore } from '../src';
+import { SqliteCareerStore, SQLITE_SCHEMA_VERSION } from '../src';
 
 const dirs: string[] = [];
 afterEach(async () => Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))));
@@ -18,7 +18,7 @@ describe('SQLite v10 submit-safety migration', () => {
 
     const db = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 10 });
+      expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: SQLITE_SCHEMA_VERSION });
       const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('execution_review_snapshots','submit_authorizations') ORDER BY name").all() as Array<{ name: string }>).map((row) => row.name);
       expect(tables).toEqual(['execution_review_snapshots','submit_authorizations']);
       const indexes = (db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name IN ('execution_review_snapshots','submit_authorizations') ORDER BY name").all() as Array<{ name: string }>).map((row) => row.name);

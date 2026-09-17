@@ -30,6 +30,12 @@
     },
     {
       "path": "../../packages/apply-runtime"
+    },
+    {
+      "path": "../../packages/applicant-contracts"
+    },
+    {
+      "path": "../../packages/applicant-application"
     }
   ]
 }

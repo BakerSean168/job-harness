@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { SqliteCareerStore, SqliteResumeStore } from '../src';
+import { SqliteCareerStore, SqliteResumeStore, SQLITE_SCHEMA_VERSION } from '../src';
 import { createCareerApplicationService } from '@job-harness/application';
 
 const dirs: string[] = [];
@@ -46,7 +46,7 @@ describe('SQLite v5 Resume domain migration', () => {
 
     const db = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 10 });
+      expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: SQLITE_SCHEMA_VERSION });
       for (const table of ['resume_libraries','resume_profiles','resume_revisions','resume_artifacts']) {
         expect(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(table)).toEqual({ name: table });
         expect(db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()).toEqual({ n: 0 });

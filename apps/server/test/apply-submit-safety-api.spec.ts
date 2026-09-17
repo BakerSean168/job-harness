@@ -60,7 +60,7 @@ describe('supervised submit-safety REST protocol', () => {
     const reviewSnapshotId = String(snapshot.body.id);
     await request(`/execution-attempts/${attemptId}/waiting`, worker, { method: 'POST', body: JSON.stringify({
       executorId: 'protocol-worker', leaseToken: lease1, reasonCode: 'review_ready', summary: 'Ready',
-      browserSessionHandoff: { backendId: 'steel', sessionRef: 'protocol-session-1', humanControlUrl: 'https://viewer.example.test/ui', retainedAt: '2026-09-17T14:01:00.000Z', expiresAt: '2026-09-17T15:00:00.000Z' },
+      browserSessionHandoff: { backendId: 'steel', sessionRef: 'protocol-session-1', humanControlUrl: 'https://viewer.example.test/ui', retainedAt: '2026-09-17T14:01:00.000Z', expiresAt: '2099-09-17T15:00:00.000Z' },
     }) });
 
     const workerCannotAuthorize = await request(`/execution-attempts/${attemptId}/submit-authorizations`, worker, { method: 'POST', body: JSON.stringify({ reviewSnapshotId, expiresInSeconds: 300, idempotencyKey: 'should-not-work', actor: 'user' }) });

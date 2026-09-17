@@ -1,4 +1,14 @@
 import {
+  ApplicantProfileContextSchema,
+  ApplicationAnswerSetContextSchema,
+  SaveApplicantProfileInputSchema,
+  SaveApplicationAnswerSetInputSchema,
+  type ApplicantProfileContext,
+  type ApplicationAnswerSetContext,
+  type SaveApplicantProfileInput,
+  type SaveApplicationAnswerSetInput,
+} from '@job-harness/applicant-contracts';
+import {
   AuthorizeSubmitInputSchema,
   BeginSubmitInputSchema,
   BeginSubmitOutputSchema,
@@ -382,6 +392,18 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
   }
 
   return {
+    applicant: {
+      getProfile: async (): Promise<ApplicantProfileContext> => ApplicantProfileContextSchema.parse(await request('/applicant-profile')),
+      saveProfile: async (input: SaveApplicantProfileInput): Promise<ApplicantProfileContext> => {
+        const parsed = SaveApplicantProfileInputSchema.parse(input);
+        return ApplicantProfileContextSchema.parse(await request('/applicant-profile', { method: 'PUT', body: JSON.stringify(parsed) }));
+      },
+      getAnswerSet: async (): Promise<ApplicationAnswerSetContext> => ApplicationAnswerSetContextSchema.parse(await request('/application-answer-set')),
+      saveAnswerSet: async (input: SaveApplicationAnswerSetInput): Promise<ApplicationAnswerSetContext> => {
+        const parsed = SaveApplicationAnswerSetInputSchema.parse(input);
+        return ApplicationAnswerSetContextSchema.parse(await request('/application-answer-set', { method: 'PUT', body: JSON.stringify(parsed) }));
+      },
+    },
     resume: {
       async listProfiles(input: ListResumeProfilesInput = {}): Promise<ListResumeProfilesOutput> {
         const parsed = ListResumeProfilesInputSchema.parse(input);

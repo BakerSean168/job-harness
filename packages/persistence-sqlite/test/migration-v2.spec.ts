@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { migrateSqliteDatabase } from '../src';
+import { migrateSqliteDatabase, SQLITE_SCHEMA_VERSION } from '../src';
 
 describe('SQLite schema v1 -> v2 JobListing migration', () => {
   it('backfills listings and observation listing refs without collapsing semantic Moka hash routes', () => {
@@ -90,7 +90,7 @@ describe('SQLite schema v1 -> v2 JobListing migration', () => {
 
     migrateSqliteDatabase(db);
 
-    expect(db.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 10 });
+    expect(db.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: SQLITE_SCHEMA_VERSION });
     const listings = db.prepare('SELECT * FROM job_listings WHERE job_id = ?').all('job-deepseek') as Array<Record<string, unknown>>;
     expect(listings).toHaveLength(1);
     expect(listings[0]).toMatchObject({

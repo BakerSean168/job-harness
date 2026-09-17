@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { SqliteCareerStore } from '../src';
+import { SqliteCareerStore, SQLITE_SCHEMA_VERSION } from '../src';
 
 const dirs: string[] = [];
 afterEach(async () => Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))));
@@ -27,7 +27,7 @@ describe('SQLite v9 browser session handoff migration', () => {
 
     const verify = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      expect(verify.prepare('PRAGMA user_version').get()).toEqual({ user_version: 10 });
+      expect(verify.prepare('PRAGMA user_version').get()).toEqual({ user_version: SQLITE_SCHEMA_VERSION });
       const columns = (verify.prepare('PRAGMA table_info(execution_attempts)').all() as Array<Record<string, unknown>>).map((row) => row.name);
       expect(columns).toContain('browser_session_handoff_json');
       expect(verify.prepare('PRAGMA foreign_key_check').all()).toEqual([]);

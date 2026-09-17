@@ -2,10 +2,12 @@ import { WorkspaceHeader } from '@/components/shell/workspace-header';
 import { getWebAuthRuntimeConfig } from '@/auth/session';
 import { getMessages } from '@/i18n/server';
 import { BrowserExtensionPairing } from '@/components/management/browser-extension-pairing';
-import { getBrowserExtensionAgents, getBrowserExtensionPublicBridgeUrl } from '@/lib/job-harness-client';
+import { ApplicantDataSettings } from '@/components/management/applicant-data-settings';
+import { getBrowserExtensionAgents, getBrowserExtensionPublicBridgeUrl, getJobHarnessClient } from '@/lib/job-harness-client';
 
 export default async function SettingsPage() {
-  const [messages, browserExtensionAgents] = await Promise.all([getMessages(), getBrowserExtensionAgents()]);
+  const client = getJobHarnessClient();
+  const [messages, browserExtensionAgents, applicantProfile, applicationAnswerSet] = await Promise.all([getMessages(), getBrowserExtensionAgents(), client.applicant.getProfile(), client.applicant.getAnswerSet()]);
   const config = getWebAuthRuntimeConfig();
   const copy = messages.settingsWorkspace;
   const publicBridgeUrl = getBrowserExtensionPublicBridgeUrl();
@@ -28,6 +30,8 @@ export default async function SettingsPage() {
             <form method="post" action="/auth/logout" className="settings-logout-form"><button className="action-button" type="submit">{copy.logout}</button></form>
           ) : null}
         </section>
+
+        <ApplicantDataSettings profileContext={applicantProfile} answerSetContext={applicationAnswerSet} copy={copy.applicant} />
 
         <BrowserExtensionPairing publicBridgeUrl={publicBridgeUrl} agents={browserExtensionAgents} copy={copy.browserExtension} />
 

@@ -44,6 +44,12 @@
       "path": "./apps/resume-renderer-service"
     },
     {
+      "path": "./packages/applicant-contracts"
+    },
+    {
+      "path": "./packages/applicant-application"
+    },
+    {
       "path": "./packages/apply-contracts"
     },
     {

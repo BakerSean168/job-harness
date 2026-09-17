@@ -13,6 +13,12 @@ import {
 } from '@job-harness/apply-contracts';
 import { z, type ZodType } from 'zod';
 import {
+  ApplicantProfileContextSchema,
+  ApplicationAnswerSetContextSchema,
+  SaveApplicantProfileInputSchema,
+  SaveApplicationAnswerSetInputSchema,
+} from '@job-harness/applicant-contracts';
+import {
   BeginDiscoveryInputSchema,
   BeginDiscoveryOutputSchema,
   CompleteDiscoveryInputSchema,
@@ -178,6 +184,10 @@ export const RestErrorEnvelopeSchema = z.object({
 const route = (contract: JobHarnessRestV1RouteContract): JobHarnessRestV1RouteContract => contract;
 
 export const JOB_HARNESS_REST_V1_ROUTES = {
+  applicantProfile: route({ operationId: 'getApplicantProfile', method: 'get', path: '/applicant-profile', tags: ['Applicant Data'], summary: 'Read the default mutable applicant profile and its latest immutable revision', responseSchema: ApplicantProfileContextSchema, successStatus: 200 }),
+  saveApplicantProfile: route({ operationId: 'saveApplicantProfile', method: 'put', path: '/applicant-profile', tags: ['Applicant Data'], summary: 'Optimistically update applicant base facts and publish an immutable revision', bodySchema: SaveApplicantProfileInputSchema, responseSchema: ApplicantProfileContextSchema, successStatus: 200 }),
+  applicationAnswerSet: route({ operationId: 'getApplicationAnswerSet', method: 'get', path: '/application-answer-set', tags: ['Applicant Data'], summary: 'Read explicit reusable application answers and their latest immutable revision', responseSchema: ApplicationAnswerSetContextSchema, successStatus: 200 }),
+  saveApplicationAnswerSet: route({ operationId: 'saveApplicationAnswerSet', method: 'put', path: '/application-answer-set', tags: ['Applicant Data'], summary: 'Optimistically update explicit application answers and publish an immutable revision', bodySchema: SaveApplicationAnswerSetInputSchema, responseSchema: ApplicationAnswerSetContextSchema, successStatus: 200 }),
   analytics: route({ operationId: 'getAnalyticsSnapshot', method: 'get', path: '/analytics', tags: ['Analytics'], summary: 'Read the analytics snapshot', querySchema: AnalyticsSnapshotInputSchema, responseSchema: AnalyticsSnapshotSchema, successStatus: 200 }),
   pipeline: route({ operationId: 'getPipelineStats', method: 'get', path: '/pipeline', tags: ['Analytics'], summary: 'Read canonical pipeline statistics', querySchema: PipelineStatsInputSchema, responseSchema: PipelineStatsOutputSchema, successStatus: 200 }),
   dashboard: route({ operationId: 'getDashboardSnapshot', method: 'get', path: '/dashboard', tags: ['Dashboard'], summary: 'Read the operational dashboard snapshot', querySchema: DashboardSnapshotInputSchema, responseSchema: DashboardSnapshotSchema, successStatus: 200 }),

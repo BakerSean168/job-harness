@@ -8,6 +8,7 @@
     "@job-harness/domain": "workspace:*",
     "zod": "^4.1.8",
     "@job-harness/resume-contracts": "workspace:*",
-    "@job-harness/apply-contracts": "workspace:*"
+    "@job-harness/apply-contracts": "workspace:*",
+    "@job-harness/applicant-contracts": "workspace:*"
   }
 }

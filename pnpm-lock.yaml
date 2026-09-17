@@ -60,6 +60,12 @@ importers:
 
   apps/server:
     dependencies:
+      '@job-harness/applicant-application':
+        specifier: workspace:*
+        version: link:../../packages/applicant-application
+      '@job-harness/applicant-contracts':
+        specifier: workspace:*
+        version: link:../../packages/applicant-contracts
       '@job-harness/application':
         specifier: workspace:*
         version: link:../../packages/application
@@ -118,6 +124,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@job-harness/applicant-contracts':
+        specifier: workspace:*
+        version: link:../../packages/applicant-contracts
       '@job-harness/client':
         specifier: workspace:*
         version: link:../../packages/client
@@ -164,6 +173,18 @@ importers:
       jsdom:
         specifier: 27.0.0
         version: 27.0.0
+
+  packages/applicant-application:
+    dependencies:
+      '@job-harness/applicant-contracts':
+        specifier: workspace:*
+        version: link:../applicant-contracts
+
+  packages/applicant-contracts:
+    dependencies:
+      zod:
+        specifier: ^4.1.8
+        version: 4.6.5
 
   packages/application:
     dependencies:
@@ -221,6 +242,9 @@ importers:
 
   packages/client:
     dependencies:
+      '@job-harness/applicant-contracts':
+        specifier: workspace:*
+        version: link:../applicant-contracts
       '@job-harness/apply-contracts':
         specifier: workspace:*
         version: link:../apply-contracts
@@ -233,6 +257,9 @@ importers:
 
   packages/contracts:
     dependencies:
+      '@job-harness/applicant-contracts':
+        specifier: workspace:*
+        version: link:../applicant-contracts
       '@job-harness/apply-contracts':
         specifier: workspace:*
         version: link:../apply-contracts
@@ -287,6 +314,12 @@ importers:
 
   packages/persistence-sqlite:
     dependencies:
+      '@job-harness/applicant-application':
+        specifier: workspace:*
+        version: link:../applicant-application
+      '@job-harness/applicant-contracts':
+        specifier: workspace:*
+        version: link:../applicant-contracts
       '@job-harness/application':
         specifier: workspace:*
         version: link:../application

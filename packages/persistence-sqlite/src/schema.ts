@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 10;
+export const SQLITE_SCHEMA_VERSION = 11;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -392,6 +392,7 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
   migrateApplyExecutionV8(db);
   migrateApplySessionHandoffV9(db);
   migrateApplySubmitSafetyV10(db);
+  migrateApplicantDataV11(db);
 }
 
 const PERFORMANCE_INDEXES_SCHEMA_V4 = `
@@ -772,6 +773,78 @@ function migrateApplySubmitSafetyV10(db: DatabaseSync): void {
         ON submit_authorizations(attempt_id) WHERE status = 'active';
     `);
     db.exec('PRAGMA user_version = 10');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+
+const APPLICANT_DATA_SCHEMA_V11 = `
+CREATE TABLE IF NOT EXISTS applicant_profiles (
+  id TEXT PRIMARY KEY,
+  version INTEGER NOT NULL CHECK(version > 0),
+  document_json TEXT NOT NULL,
+  is_default INTEGER NOT NULL DEFAULT 0 CHECK(is_default IN (0,1)),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS applicant_profiles_one_default_idx
+  ON applicant_profiles(is_default) WHERE is_default = 1;
+CREATE INDEX IF NOT EXISTS applicant_profiles_updated_idx ON applicant_profiles(updated_at DESC, id);
+
+CREATE TABLE IF NOT EXISTS applicant_profile_revisions (
+  id TEXT PRIMARY KEY,
+  profile_id TEXT NOT NULL REFERENCES applicant_profiles(id) ON DELETE RESTRICT,
+  revision_number INTEGER NOT NULL CHECK(revision_number > 0),
+  profile_version INTEGER NOT NULL CHECK(profile_version > 0),
+  snapshot_json TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL CHECK(created_by IN ('user','import','system')),
+  UNIQUE(profile_id, revision_number),
+  UNIQUE(profile_id, content_hash)
+);
+CREATE INDEX IF NOT EXISTS applicant_profile_revisions_profile_idx
+  ON applicant_profile_revisions(profile_id, revision_number DESC);
+
+CREATE TABLE IF NOT EXISTS application_answer_sets (
+  id TEXT PRIMARY KEY,
+  version INTEGER NOT NULL CHECK(version > 0),
+  document_json TEXT NOT NULL,
+  is_default INTEGER NOT NULL DEFAULT 0 CHECK(is_default IN (0,1)),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS application_answer_sets_one_default_idx
+  ON application_answer_sets(is_default) WHERE is_default = 1;
+CREATE INDEX IF NOT EXISTS application_answer_sets_updated_idx ON application_answer_sets(updated_at DESC, id);
+
+CREATE TABLE IF NOT EXISTS application_answer_set_revisions (
+  id TEXT PRIMARY KEY,
+  answer_set_id TEXT NOT NULL REFERENCES application_answer_sets(id) ON DELETE RESTRICT,
+  revision_number INTEGER NOT NULL CHECK(revision_number > 0),
+  answer_set_version INTEGER NOT NULL CHECK(answer_set_version > 0),
+  snapshot_json TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL CHECK(created_by IN ('user','import','system')),
+  UNIQUE(answer_set_id, revision_number),
+  UNIQUE(answer_set_id, content_hash)
+);
+CREATE INDEX IF NOT EXISTS application_answer_set_revisions_set_idx
+  ON application_answer_set_revisions(answer_set_id, revision_number DESC);
+`;
+
+function migrateApplicantDataV11(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 11) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(APPLICANT_DATA_SCHEMA_V11);
+    db.exec('PRAGMA user_version = 11');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

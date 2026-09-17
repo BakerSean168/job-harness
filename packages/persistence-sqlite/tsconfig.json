@@ -23,6 +23,12 @@
     },
     {
       "path": "../apply-runtime"
+    },
+    {
+      "path": "../applicant-contracts"
+    },
+    {
+      "path": "../applicant-application"
     }
   ]
 }

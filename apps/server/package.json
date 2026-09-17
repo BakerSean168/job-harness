@@ -23,7 +23,9 @@
     "@job-harness/resume-contracts": "workspace:*",
     "@job-harness/resume-renderer": "workspace:*",
     "@job-harness/apply-contracts": "workspace:*",
-    "@job-harness/apply-runtime": "workspace:*"
+    "@job-harness/apply-runtime": "workspace:*",
+    "@job-harness/applicant-contracts": "workspace:*",
+    "@job-harness/applicant-application": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.20.5",

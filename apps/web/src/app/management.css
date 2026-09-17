@@ -306,3 +306,15 @@
 .resume-pdf-preview-status { min-height: 680px; display: grid; place-items: center; padding: 24px; color: var(--text-muted); font-size: 11px; text-align: center; }
 .resume-pdf-preview-status[data-error='true'] { color: var(--danger); }
 .resume-pdf-preview-refreshing { position: absolute; right: 18px; bottom: 18px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--text-muted); font-size: 9px; box-shadow: 0 2px 10px rgb(0 0 0 / 10%); }
+
+/* Applicant Profile / AnswerSet settings */
+.applicant-settings-panel { max-width: 980px; }
+.applicant-settings-panel .campaign-editor-fields { padding: 16px; }
+.applicant-settings-note { margin: 0; padding: 0; }
+.applicant-subsection-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 4px; font-size: 12px; }
+.applicant-subsection-heading span { color: var(--text-faint); font-size: 10px; }
+.applicant-education-card,
+.applicant-answer-card { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-subtle); }
+.applicant-inline-inputs { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
+.applicant-add-answer { justify-self: start; }
+@media (max-width: 720px) { .applicant-inline-inputs { grid-template-columns: 1fr; } }
