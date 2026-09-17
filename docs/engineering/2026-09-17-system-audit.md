@@ -374,3 +374,11 @@ Career / Resume / Applicant truth
 ```
 
 The principal remaining validation risk is now **site-specific behavior**, not a missing generic control-plane safety boundary. R019 should therefore continue with real-site pre-submit canaries and one explicitly user-authorized live submit canary rather than more generic framework expansion.
+
+### Finding A21 — scan-generated DOM references can collide after dynamic insertion (P1)
+
+A second pass over the deterministic browser-driver contract found that both the MV3 page driver and the Playwright driver assign missing control/action references from the element's **current array index** (`jh-${index}`, `jha-${index}`). Existing elements keep their previously assigned data attribute. On a dynamic SPA, inserting a new field/action before an already-scanned element can therefore assign the newcomer an id that is already retained by the old element. The resulting CSS selector matches more than one element, and the driver may write/click the first match rather than the originally classified element.
+
+This is a deterministic-automation correctness bug, not a theoretical style issue. Recruitment forms frequently insert conditional controls after a previous answer.
+
+**Required change before live form-fill promotion:** allocate document-scoped unique refs independent of current array position; preserve an existing ref only when it is unique, repair pre-existing duplicates, and keep radio-group ids unique per group. Add a live DOM mutation regression test proving insertion/reordering cannot create duplicate `controlRef` / `actionRef` values in either browser backend.
