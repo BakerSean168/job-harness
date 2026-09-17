@@ -300,3 +300,20 @@
   .listing-item { grid-template-columns: minmax(0,1fr) auto 26px; }
   .listing-time { display: none; }
 }
+
+/* Canonical human write entry points */
+.jobs-header-actions { display: flex; align-items: center; gap: 8px; }
+.job-add-form { display: grid; gap: 14px; padding: 18px; }
+.job-add-form > p { margin: 0; line-height: 1.55; }
+.job-add-fields { display: grid; gap: 11px; }
+.job-add-footer, .record-application-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.record-application-form { display: grid; gap: 10px; margin-top: 14px; padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-subtle); }
+.record-application-heading { display: grid; gap: 3px; }
+.record-application-heading strong { font-size: 11px; }
+.record-application-heading span { color: var(--text-faint); font-size: 9px; line-height: 1.45; }
+.record-application-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; }
+.record-application-evidence { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 8px; align-items: start; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer; }
+.record-application-evidence input { margin-top: 2px; }
+.record-application-evidence > span { display: grid; gap: 2px; font-size: 10px; font-weight: 600; }
+.record-application-evidence small { color: var(--text-faint); font-size: 9px; font-weight: 400; line-height: 1.4; }
+@media (max-width: 640px) { .jobs-header-actions { align-items: flex-end; flex-direction: column; } .record-application-grid { grid-template-columns: 1fr; } }

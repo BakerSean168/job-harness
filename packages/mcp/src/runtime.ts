@@ -1,4 +1,5 @@
 import type { CareerApplicationPorts } from '@job-harness/application';
+import type { ResumeArtifactRuntimePorts, ResumeRuntimePorts } from '@job-harness/resume-application';
 import {
   BeginDiscoveryInputSchema,
   BeginDiscoveryOutputSchema,
@@ -35,7 +36,26 @@ import {
   UpsertJobsBatchInputSchema,
   UpsertJobsBatchOutputSchema,
 } from '@job-harness/contracts';
-import { CAREER_MCP_TOOL_BY_NAME, CAREER_MCP_TOOLS } from './tool-contracts';
+import {
+  CAREER_MCP_TOOL_BY_NAME,
+  CAREER_MCP_TOOLS,
+  JOB_HARNESS_MCP_TOOL_BY_NAME,
+  JOB_HARNESS_MCP_TOOLS,
+  ResumeAuthoringContextInputSchema,
+  ResumeAuthoringContextOutputSchema,
+  ResumeProfileIdInputSchema,
+  ResumeProfileOverridesPatchInputSchema,
+  ResumeProfileSelectionPatchInputSchema,
+} from './tool-contracts';
+import {
+  ListResumeProfilesInputSchema,
+  ListResumeProfilesOutputSchema,
+  MaterializeResumeArtifactInputSchema,
+  MaterializeResumeArtifactOutputSchema,
+  PublishResumeRevisionInputSchema,
+  PublishResumeRevisionOutputSchema,
+  ResumeProfileContextSchema,
+} from '@job-harness/resume-contracts';
 
 export class UnknownCareerMcpToolError extends Error {
   constructor(readonly toolName: string) {
@@ -52,14 +72,29 @@ export class UnknownCareerMcpToolError extends Error {
  * direct access to persistence or domain internals.
  */
 export class CareerMcpRuntime {
-  constructor(private readonly ports: CareerApplicationPorts) {}
+  constructor(
+    private readonly ports: CareerApplicationPorts,
+    private readonly resume?: ResumeRuntimePorts,
+    private readonly resumeArtifacts?: ResumeArtifactRuntimePorts,
+  ) {}
 
   listTools() {
-    return CAREER_MCP_TOOLS;
+    return this.resume && this.resumeArtifacts ? JOB_HARNESS_MCP_TOOLS : CAREER_MCP_TOOLS;
+  }
+
+  private requireResume(): ResumeRuntimePorts {
+    if (!this.resume) throw new Error('Resume MCP capability is not configured');
+    return this.resume;
+  }
+
+  private requireResumeArtifacts(): ResumeArtifactRuntimePorts {
+    if (!this.resumeArtifacts) throw new Error('Resume Artifact MCP capability is not configured');
+    return this.resumeArtifacts;
   }
 
   async invoke(toolName: string, rawInput: unknown): Promise<unknown> {
-    if (!CAREER_MCP_TOOL_BY_NAME.has(toolName)) throw new UnknownCareerMcpToolError(toolName);
+    const registry = this.resume && this.resumeArtifacts ? JOB_HARNESS_MCP_TOOL_BY_NAME : CAREER_MCP_TOOL_BY_NAME;
+    if (!registry.has(toolName)) throw new UnknownCareerMcpToolError(toolName);
 
     switch (toolName) {
       case 'career_context_get':
@@ -134,6 +169,67 @@ export class CareerMcpRuntime {
         return UpsertCampaignOutputSchema.parse(
           await this.ports.campaigns.upsertCampaign(UpsertCampaignInputSchema.parse(rawInput)),
         );
+      case 'resume_profiles_list':
+        return ListResumeProfilesOutputSchema.parse(
+          await this.requireResume().listProfiles(ListResumeProfilesInputSchema.parse(rawInput)),
+        );
+      case 'resume_profile_get': {
+        const input = ResumeProfileIdInputSchema.parse(rawInput);
+        const context = await this.requireResume().getProfileContext(input.profileId);
+        return context ? ResumeProfileContextSchema.parse(context) : null;
+      }
+      case 'resume_authoring_context_get': {
+        const input = ResumeAuthoringContextInputSchema.parse(rawInput);
+        const resume = this.requireResume();
+        const profileContext = await resume.getProfileContext(input.profileId);
+        if (!profileContext) throw new Error(`ResumeProfile '${input.profileId}' was not found`);
+        const [job, revisions] = await Promise.all([
+          input.jobId ? this.ports.jobs.getJob(input.jobId) : Promise.resolve(null),
+          resume.listRevisions(input.profileId),
+        ]);
+        return ResumeAuthoringContextOutputSchema.parse({ profileContext, job, revisions });
+      }
+      case 'resume_profile_patch_selection': {
+        const input = ResumeProfileSelectionPatchInputSchema.parse(rawInput);
+        const resume = this.requireResume();
+        const context = await resume.getProfileContext(input.profileId);
+        if (!context) throw new Error(`ResumeProfile '${input.profileId}' was not found`);
+        if (context.library.version !== input.expectedLibraryVersion) {
+          throw new Error(`ResumeLibrary version conflict: expected ${input.expectedLibraryVersion}, actual ${context.library.version}`);
+        }
+        const next = {
+          ...context.profile,
+          ...(input.sectionOrder !== undefined ? { sectionOrder: input.sectionOrder } : {}),
+          ...(input.educationIds !== undefined ? { educationIds: input.educationIds } : {}),
+          ...(input.skillIds !== undefined ? { skillIds: input.skillIds } : {}),
+          ...(input.workSelections !== undefined ? { workSelections: input.workSelections } : {}),
+          ...(input.projectSelections !== undefined ? { projectSelections: input.projectSelections } : {}),
+          ...(input.certificateIds !== undefined ? { certificateIds: input.certificateIds } : {}),
+          ...(input.summaryIds !== undefined ? { summaryIds: input.summaryIds } : {}),
+        };
+        return ResumeProfileContextSchema.parse(await resume.saveProfile({ expectedVersion: input.expectedProfileVersion, profile: next }));
+      }
+      case 'resume_profile_patch_overrides': {
+        const input = ResumeProfileOverridesPatchInputSchema.parse(rawInput);
+        const resume = this.requireResume();
+        const context = await resume.getProfileContext(input.profileId);
+        if (!context) throw new Error(`ResumeProfile '${input.profileId}' was not found`);
+        if (context.library.version !== input.expectedLibraryVersion) {
+          throw new Error(`ResumeLibrary version conflict: expected ${input.expectedLibraryVersion}, actual ${context.library.version}`);
+        }
+        return ResumeProfileContextSchema.parse(await resume.saveProfile({
+          expectedVersion: input.expectedProfileVersion,
+          profile: { ...context.profile, overrides: input.overrides },
+        }));
+      }
+      case 'resume_revision_publish':
+        return PublishResumeRevisionOutputSchema.parse(
+          await this.requireResume().publishRevision(PublishResumeRevisionInputSchema.parse(rawInput)),
+        );
+      case 'resume_revision_artifact_materialize':
+        return MaterializeResumeArtifactOutputSchema.parse(
+          await this.requireResumeArtifacts().materialize(MaterializeResumeArtifactInputSchema.parse(rawInput)),
+        );
       default:
         throw new UnknownCareerMcpToolError(toolName);
     }
@@ -142,4 +238,8 @@ export class CareerMcpRuntime {
 
 export function createCareerMcpRuntime(ports: CareerApplicationPorts): CareerMcpRuntime {
   return new CareerMcpRuntime(ports);
+}
+
+export function createJobHarnessMcpRuntime(ports: CareerApplicationPorts, resume: ResumeRuntimePorts, resumeArtifacts: ResumeArtifactRuntimePorts): CareerMcpRuntime {
+  return new CareerMcpRuntime(ports, resume, resumeArtifacts);
 }

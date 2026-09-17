@@ -5,6 +5,21 @@
     "rootDir": "src",
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts"],
-  "references": [{ "path": "../contracts" }, { "path": "../application" }]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "../application"
+    },
+    {
+      "path": "../resume-contracts"
+    },
+    {
+      "path": "../resume-application"
+    }
+  ]
 }

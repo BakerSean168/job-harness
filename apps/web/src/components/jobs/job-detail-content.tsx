@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import type { JobDetail } from '@job-harness/contracts';
+import type { ResumeProfile } from '@job-harness/resume-contracts';
 import type { Locale, MessageCatalog } from '@/i18n';
 import { formatDateTime } from '@/lib/format';
 import { StatusBadge } from './status-badge';
 import { TriageActions } from './triage-actions';
+import { RecordApplicationForm } from './record-application-form';
 
 export function JobDetailContent({
   detail,
@@ -13,6 +15,7 @@ export function JobDetailContent({
   closeHref,
   closeAfterMutation = false,
   compact = false,
+  resumeProfiles = [],
 }: {
   detail: JobDetail;
   locale: Locale;
@@ -20,6 +23,7 @@ export function JobDetailContent({
   closeHref?: string;
   closeAfterMutation?: boolean;
   compact?: boolean;
+  resumeProfiles?: readonly ResumeProfile[];
 }) {
   const copy = messages.jobsWorkspace;
   const { job } = detail;
@@ -110,6 +114,14 @@ export function JobDetailContent({
             </dl>
           </div>
         ) : <p className="muted-copy">{copy.detail.noApplication}</p>}
+        <RecordApplicationForm
+          jobId={job.id}
+          listings={job.listings}
+          profiles={resumeProfiles}
+          locale={locale}
+          messages={messages}
+          hasExistingApplication={Boolean(detail.application)}
+        />
       </section>
 
       {detail.application?.timeline.length ? (

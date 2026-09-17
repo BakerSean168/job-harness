@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ExternalLink, GripVertical } from 'lucide-react';
-import type { ApplicationBoardItem } from '@job-harness/contracts';
+import type { ApplicationBoardItem, ListApplicationBoardInput, ListApplicationBoardOutput } from '@job-harness/contracts';
 import {
   APPLICATION_STAGES,
   canTransitionApplicationStage,
@@ -13,11 +13,14 @@ import {
 import type { Locale, MessageCatalog } from '@/i18n';
 import { formatDate } from '@/lib/format';
 import { StatusBadge } from '@/components/jobs/status-badge';
-import { transitionApplicationAction } from '@/app/applications/actions';
+import { loadApplicationLaneAction, transitionApplicationAction } from '@/app/applications/actions';
 import { applicationsHref, type ApplicationsSearchParams } from './query';
 
-const MAIN_STAGES: readonly ApplicationStage[] = ['applied', 'screening', 'assessment', 'interview', 'offer'];
 const OUTCOME_STAGES: readonly ApplicationStage[] = ['rejected', 'withdrawn'];
+
+type LanePages = Partial<Record<ApplicationStage, ListApplicationBoardOutput>>;
+type LaneOffsets = Partial<Record<ApplicationStage, number>>;
+type LaneTotals = Partial<Record<ApplicationStage, number>>;
 
 function stageAgeDays(now: string, enteredAt: string): number {
   return Math.max(0, Math.floor((new Date(now).getTime() - new Date(enteredAt).getTime()) / 86_400_000));
@@ -32,31 +35,64 @@ function replaceStage(item: ApplicationBoardItem, stage: ApplicationStage, now: 
   };
 }
 
+function flattenLanes(lanes: LanePages, visibleStages: readonly ApplicationStage[]): ApplicationBoardItem[] {
+  const seen = new Set<string>();
+  const items: ApplicationBoardItem[] = [];
+  for (const stage of visibleStages) {
+    for (const item of lanes[stage]?.items ?? []) {
+      if (seen.has(item.application.id)) continue;
+      seen.add(item.application.id);
+      items.push(item);
+    }
+  }
+  return items;
+}
+
+function initialOffsets(lanes: LanePages, visibleStages: readonly ApplicationStage[]): LaneOffsets {
+  return Object.fromEntries(visibleStages.map((stage) => [stage, lanes[stage]?.items.length ?? 0])) as LaneOffsets;
+}
+
+function initialTotals(lanes: LanePages, visibleStages: readonly ApplicationStage[]): LaneTotals {
+  return Object.fromEntries(visibleStages.map((stage) => [stage, lanes[stage]?.total ?? 0])) as LaneTotals;
+}
+
 export function ApplicationsBoard({
-  items,
+  initialLanes,
+  visibleStages,
+  lanePageSize,
+  filterInput,
   params,
   selectedApplicationId,
   generatedAt,
-  terminalMode,
   locale,
   messages,
 }: {
-  items: readonly ApplicationBoardItem[];
+  initialLanes: LanePages;
+  visibleStages: readonly ApplicationStage[];
+  lanePageSize: number;
+  filterInput: Omit<ListApplicationBoardInput, 'limit' | 'offset' | 'stages' | 'terminal'>;
   params: ApplicationsSearchParams;
   selectedApplicationId?: string;
   generatedAt: string;
-  terminalMode: 'exclude' | 'include' | 'only';
   locale: Locale;
   messages: MessageCatalog;
 }) {
   const router = useRouter();
-  const [optimisticItems, setOptimisticItems] = useState<ApplicationBoardItem[]>(() => [...items]);
+  const [optimisticItems, setOptimisticItems] = useState<ApplicationBoardItem[]>(() => flattenLanes(initialLanes, visibleStages));
+  const [laneOffsets, setLaneOffsets] = useState<LaneOffsets>(() => initialOffsets(initialLanes, visibleStages));
+  const [laneTotals, setLaneTotals] = useState<LaneTotals>(() => initialTotals(initialLanes, visibleStages));
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [loadingStage, setLoadingStage] = useState<ApplicationStage | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const copy = messages.applicationsWorkspace;
+  const visibleStageKey = visibleStages.join('|');
 
-  useEffect(() => setOptimisticItems([...items]), [items]);
+  useEffect(() => {
+    setOptimisticItems(flattenLanes(initialLanes, visibleStages));
+    setLaneOffsets(initialOffsets(initialLanes, visibleStages));
+    setLaneTotals(initialTotals(initialLanes, visibleStages));
+  }, [initialLanes, visibleStageKey]);
 
   const byStage = useMemo(() => {
     const result = new Map<ApplicationStage, ApplicationBoardItem[]>();
@@ -69,6 +105,35 @@ export function ApplicationsBoard({
     ? optimisticItems.find((item) => item.application.id === draggingId) ?? null
     : null;
 
+  async function loadMore(stage: ApplicationStage) {
+    if (loadingStage) return;
+    const offset = laneOffsets[stage] ?? 0;
+    const total = laneTotals[stage] ?? 0;
+    if (offset >= total) return;
+    setLoadingStage(stage);
+    setErrorCode(null);
+    const result = await loadApplicationLaneAction({
+      ...filterInput,
+      limit: lanePageSize,
+      offset,
+      stages: [stage],
+      terminal: 'include',
+    });
+    if (!result.ok || !result.value) {
+      setErrorCode(result.code ?? 'INTERNAL_ERROR');
+      setLoadingStage(null);
+      return;
+    }
+    const incoming = result.value.items;
+    setOptimisticItems((current) => {
+      const known = new Set(current.map((item) => item.application.id));
+      return [...current, ...incoming.filter((item) => !known.has(item.application.id))];
+    });
+    setLaneOffsets((current) => ({ ...current, [stage]: offset + incoming.length }));
+    setLaneTotals((current) => ({ ...current, [stage]: result.value!.total }));
+    setLoadingStage(null);
+  }
+
   async function move(item: ApplicationBoardItem, target: ApplicationStage) {
     if (pendingId) return;
     const current = item.application.currentStage;
@@ -79,12 +144,18 @@ export function ApplicationsBoard({
     }
 
     const before = optimisticItems;
+    const beforeTotals = laneTotals;
     const now = new Date().toISOString();
     setErrorCode(null);
     setPendingId(item.application.id);
     setOptimisticItems((currentItems) => currentItems.map((candidate) =>
       candidate.application.id === item.application.id ? replaceStage(candidate, target, now) : candidate
     ));
+    setLaneTotals((totals) => ({
+      ...totals,
+      ...(totals[current] !== undefined ? { [current]: Math.max(0, (totals[current] ?? 0) - 1) } : {}),
+      ...(totals[target] !== undefined ? { [target]: (totals[target] ?? 0) + 1 } : {}),
+    }));
 
     const intentId = crypto.randomUUID();
     const occurredAt = new Date().toISOString();
@@ -97,6 +168,7 @@ export function ApplicationsBoard({
     );
     if (!result.ok) {
       setOptimisticItems(before);
+      setLaneTotals(beforeTotals);
       setErrorCode(result.code ?? 'INTERNAL_ERROR');
     } else {
       router.refresh();
@@ -105,8 +177,12 @@ export function ApplicationsBoard({
     setDraggingId(null);
   }
 
-  function renderColumn(stage: ApplicationStage, tone: 'main' | 'outcome') {
+  function renderColumn(stage: ApplicationStage) {
     const stageItems = byStage.get(stage) ?? [];
+    const total = laneTotals[stage] ?? 0;
+    const loaded = laneOffsets[stage] ?? stageItems.length;
+    const canLoadMore = loaded < total;
+    const tone = OUTCOME_STAGES.includes(stage) ? 'outcome' : 'main';
     const canDrop = draggingItem
       ? canTransitionApplicationStage(draggingItem.application.currentStage, stage)
         && draggingItem.application.currentStage !== stage
@@ -127,7 +203,7 @@ export function ApplicationsBoard({
       >
         <header className="application-lane-header">
           <span>{messages.jobsWorkspace.applicationStages[stage]}</span>
-          <strong>{stageItems.length}</strong>
+          <strong>{total}</strong>
         </header>
         <div className="application-lane-cards">
           {stageItems.length ? stageItems.map((item) => {
@@ -197,13 +273,24 @@ export function ApplicationsBoard({
               </article>
             );
           }) : <div className="application-lane-empty">{copy.board.noStageItems}</div>}
+          {canLoadMore ? (
+            <button
+              className="application-lane-load-more"
+              type="button"
+              disabled={loadingStage !== null}
+              onClick={() => void loadMore(stage)}
+            >
+              {loadingStage === stage ? copy.board.loadingMore : copy.board.loadMore}
+              <span>{loaded} / {total}</span>
+            </button>
+          ) : null}
         </div>
       </section>
     );
   }
 
-  const showMain = terminalMode !== 'only';
-  const showOutcomes = terminalMode !== 'exclude';
+  const mainStages = visibleStages.filter((stage) => !OUTCOME_STAGES.includes(stage));
+  const outcomeStages = visibleStages.filter((stage) => OUTCOME_STAGES.includes(stage));
 
   return (
     <div className="applications-board-shell">
@@ -215,23 +302,25 @@ export function ApplicationsBoard({
             : copy.board.transitionFailed}
         </div>
       ) : null}
-      {showMain ? (
-        <div className="applications-board-scroll">
-          <div className="applications-board-grid">
-            {MAIN_STAGES.map((stage) => renderColumn(stage, 'main'))}
-          </div>
-        </div>
-      ) : null}
-      {showOutcomes ? (
-        <section className="applications-outcomes">
-          <h2>{copy.board.outcomes}</h2>
+      <div className="applications-board-viewport">
+        {mainStages.length ? (
           <div className="applications-board-scroll">
-            <div className="applications-board-grid applications-board-grid-outcomes">
-              {OUTCOME_STAGES.map((stage) => renderColumn(stage, 'outcome'))}
+            <div className="applications-board-grid" style={{ gridTemplateColumns: `repeat(${mainStages.length}, minmax(215px, 1fr))` }}>
+              {mainStages.map((stage) => renderColumn(stage))}
             </div>
           </div>
-        </section>
-      ) : null}
+        ) : null}
+        {outcomeStages.length ? (
+          <section className="applications-outcomes">
+            <h2>{copy.board.outcomes}</h2>
+            <div className="applications-board-scroll">
+              <div className="applications-board-grid applications-board-grid-outcomes" style={{ gridTemplateColumns: `repeat(${outcomeStages.length}, minmax(215px, 1fr))` }}>
+                {outcomeStages.map((stage) => renderColumn(stage))}
+              </div>
+            </div>
+          </section>
+        ) : null}
+      </div>
     </div>
   );
 }

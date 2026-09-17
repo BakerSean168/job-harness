@@ -10,6 +10,7 @@ import { JobsFilters } from './jobs-filters';
 import { JobsPagination } from './jobs-pagination';
 import { JobsTable } from './jobs-table';
 import { JobSidePanel } from './job-side-panel';
+import { AddJobPanel } from './add-job-panel';
 import { one, positiveInteger, workspaceHref, type WorkspaceSearchParams } from './query';
 
 const PAGE_SIZE = 50;
@@ -57,19 +58,28 @@ export async function JobsWorkspace({
   const currentSavedViewDefinition = jobSavedViewDefinitionFromParams(searchParams);
   const savedViewCreateId = randomUUID();
   const selectedJobId = optional(one(searchParams.job));
-  const [page, selectedDetail, campaignPage] = await Promise.all([
+  const creating = one(searchParams.new) === '1';
+  const [page, selectedDetail, campaignPage, resumeProfiles] = await Promise.all([
     client.workspace.searchJobListItems(input),
     selectedJobId ? client.workspace.getJobDetail(selectedJobId) : Promise.resolve(null),
     client.campaigns.list({ limit: 200, offset: 0 }),
+    client.resume.listProfiles(),
   ]);
   const closeHref = workspaceHref(pathname, searchParams, { job: null });
+  const closeCreateHref = workspaceHref(pathname, searchParams, { new: null });
+  const addHref = workspaceHref(pathname, searchParams, { new: 1, job: null });
 
   return (
     <div className="workspace-page jobs-workspace-page">
       <WorkspaceHeader
         title={messages.pages[pageKey].title}
         description={messages.pages[pageKey].description}
-        actions={<span className="workspace-result-count">{page.total} {messages.jobsWorkspace.table.results}</span>}
+        actions={(
+          <div className="jobs-header-actions">
+            <span className="workspace-result-count">{page.total} {messages.jobsWorkspace.table.results}</span>
+            <a className="filter-submit" href={addHref}>{messages.jobsWorkspace.add.trigger}</a>
+          </div>
+        )}
       />
       <div className="workspace-surface jobs-surface">
         <SavedViewsBar workspace="jobs" views={savedViewsPage.items} currentDefinition={currentSavedViewDefinition} createId={savedViewCreateId} messages={messages} />
@@ -91,13 +101,16 @@ export async function JobsWorkspace({
           messages={messages}
         />
       </div>
-      {selectedDetail ? (
+      {creating ? (
+        <AddJobPanel closeHref={closeCreateHref} messages={messages} />
+      ) : selectedDetail ? (
         <JobSidePanel
           detail={selectedDetail}
           closeHref={closeHref}
           closeAfterMutation={mode === 'inbox'}
           locale={locale}
           messages={messages}
+          resumeProfiles={resumeProfiles.items}
         />
       ) : null}
     </div>

@@ -74,7 +74,7 @@ export interface MessageCatalog {
     filters: { campaign: string; all: string; apply: string; reset: string; };
     summary: { registry: string; used: string; applications: string; missingArtifact: string; };
     table: { resume: string; targetRole: string; version: string; applications: string; submissions: string; screening: string; assessment: string; interview: string; offer: string; lastUsed: string; artifact: string; linked: string; missing: string; updated: string; empty: string; viewApplications: string; };
-    builder: { profiles: string; preview: string; details: string; targetRole: string; locale: string; template: string; profileVersion: string; libraryVersion: string; usage: string; noProfiles: string; readOnly: string; editProfile: string; editShared: string; formMode: string; sourceMode: string; save: string; saving: string; saved: string; saveFailed: string; sourceInvalid: string; previewFailed: string; sharedWarning: string; name: string; positioning: string; documentTitle: string; pdfName: string; header: string; displayName: string; email: string; phone: string; website: string; github: string; unsavedChanges: string; history: string; noRevisions: string; publish: string; publishing: string; publishNote: string; published: string; reusedRevision: string; saveBeforePublish: string; comparePrevious: string; compareCurrent: string; changes: string; noChanges: string; diffFailed: string; downloadPdf: string; downloadHtml: string; downloadJson: string; revisionUnused: string; revisionLastUsed: string; };
+    builder: { profiles: string; preview: string; fastPreview: string; exactPreview: string; renderingPdf: string; pdfPreviewFailed: string; details: string; targetRole: string; locale: string; template: string; profileVersion: string; libraryVersion: string; usage: string; noProfiles: string; readOnly: string; editProfile: string; editShared: string; formMode: string; composeMode: string; sourceMode: string; save: string; saving: string; saved: string; saveFailed: string; sourceInvalid: string; previewFailed: string; sharedWarning: string; name: string; positioning: string; documentTitle: string; pdfName: string; header: string; displayName: string; email: string; phone: string; website: string; github: string; unsavedChanges: string; history: string; noRevisions: string; publish: string; publishing: string; publishNote: string; published: string; reusedRevision: string; saveBeforePublish: string; comparePrevious: string; compareCurrent: string; changes: string; noChanges: string; diffFailed: string; downloadPdf: string; downloadHtml: string; downloadJson: string; revisionUnused: string; revisionLastUsed: string; composer: { title: string; selected: string; available: string; skills: string; work: string; projects: string; education: string; summaries: string; certificates: string; bullets: string; highlights: string; presentation: string; include: string; noItems: string; sectionOrder: string; moveUp: string; moveDown: string; }; };
     note: string;
   };
   discoveryWorkspace: {
@@ -106,7 +106,7 @@ export interface MessageCatalog {
     };
     board: {
       results: string; noResults: string; noStageItems: string; stageAge: string; today: string; days: string; submissions: string;
-      dragHint: string; moveTo: string; moving: string; transitionFailed: string; invalidTransition: string; outcomes: string;
+      dragHint: string; moveTo: string; moving: string; transitionFailed: string; invalidTransition: string; outcomes: string; loadMore: string; loadingMore: string;
     };
     table: {
       opportunity: string; stage: string; appliedAt: string; resume: string; campaign: string; stageAge: string; submissions: string; updated: string; noResults: string;
@@ -119,6 +119,8 @@ export interface MessageCatalog {
     submissionChannels: Record<'official' | 'boss' | 'zhilian' | 'liepin' | 'moka' | 'greenhouse' | 'lever' | 'ashby' | 'email' | 'referral' | 'manual' | 'other', string>;
   };
   jobsWorkspace: {
+    add: { trigger: string; title: string; description: string; company: string; role: string; city: string; source: string; url: string; externalId: string; jd: string; save: string; saving: string; saved: string; failed: string; };
+    record: { title: string; recordAgain: string; hint: string; appliedAt: string; listing: string; channel: string; resume: string; none: string; linkLatestRevision: string; linkLatestRevisionHint: string; note: string; notePlaceholder: string; save: string; saving: string; saved: string; failed: string; };
     filters: {
       title: string;
       company: string;

@@ -89,4 +89,16 @@ The standalone Web V1 hardening plan is complete and production evidence now sat
 - [x] **JH-R009:** Oracle2 cutover completed with 104 Jobs / 41 Applications / 84 Companies preserved, five Profile/PDF parity proven, durable editor/preview/publish/export smoke passed, and `oracle2-runtime-backup-v6` restore-drilled against every first-class Resume Artifact.
 - [x] **JH-R010:** standalone Resume runtimes archived and retired after cutover proof; old `4173`/`20400` services and Tailnet routes removed, dirty source preserved for research/history, and Job Harness `/resumes` is the single canonical runtime entry.
 
-See `docs/resume/` for the benchmark, domain model, baseline and migration plan.
+### Workspace and AI integration follow-up
+
+Detailed design: `docs/resume/agent-workflow-and-workspace-plan.md`.
+
+- [ ] **JH-R011:** scalable Applications Board with viewport layout, lane-local scrolling and lane-aware pagination/cursors; Table remains server-paginated.
+- [ ] **JH-R012:** Resume Content Composer exposing migrated skill/work-bullet/project-presentation/project-highlight/summary/certificate selections without requiring source mode.
+- [ ] **JH-R013:** exact unsaved Draft PDF preview through the production Chromium renderer with real A4 page boundaries.
+- [ ] **JH-R014:** explicit Web entry points for Add Job and Record Application, reusing canonical application services and idempotency/identity rules.
+- [ ] **JH-R015:** Resume MCP semantic authoring tools, including authoring context and narrow Profile mutation operations.
+- [ ] **JH-R016:** ChatGPT integration packaging: Skill/workflow policy plus authenticated MCP/App connectivity without direct database exposure.
+- [ ] **JH-R017:** SubmissionIntent + durable outbox + reconciliation for external automated applications.
+
+See `docs/resume/` for the benchmark, domain model, baseline, migration plan and implementation plan.

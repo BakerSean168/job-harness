@@ -29,6 +29,7 @@ A mutable Profile describes how to assemble a resume. A Revision freezes the exa
 - `domain-model-v2.md` — canonical Resume domain, invariants, ownership and lifecycle.
 - `migration-plan.md` — completed JH-R000..R010 migration and retirement evidence from the standalone Resume repository.
 - `baseline-2026-09-17.md` — verified source baseline for the migration.
+- `agent-workflow-and-workspace-plan.md` — JH-R011..R017 implementation plan for scalable Applications UX, Resume Composer, exact PDF preview, human mutation entry points, MCP authoring, ChatGPT integration and durable submission reconciliation.
 
 ## Non-goals
 

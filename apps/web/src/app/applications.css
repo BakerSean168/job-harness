@@ -21,7 +21,23 @@
 .view-switcher a:hover { color: var(--text); }
 .view-switcher a[data-active='true'] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / 0.06); }
 
-.applications-surface { overflow: hidden; }
+.applications-workspace-page {
+  height: calc(100dvh - var(--topbar-height));
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.applications-workspace-page > .workspace-header { flex: 0 0 auto; }
+.applications-surface {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.applications-surface > .saved-views-bar,
+.applications-surface > .applications-filter-bar { flex: 0 0 auto; }
 .applications-filter-bar {
   display: flex;
   align-items: end;
@@ -33,7 +49,7 @@
 }
 .applications-date-filter { min-width: 138px; }
 
-.applications-board-shell { min-width: 0; }
+.applications-board-shell { min-width: 0; min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; }
 .applications-board-guidance {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
@@ -50,13 +66,15 @@
   color: var(--danger);
   font-size: 12px;
 }
-.applications-board-scroll { width: 100%; overflow-x: auto; padding: 12px; }
+.applications-board-viewport { min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; }
+.applications-board-scroll { min-height: 0; flex: 1 1 auto; width: 100%; overflow-x: auto; overflow-y: hidden; padding: 12px; }
 .applications-board-grid {
   min-width: 1160px;
   display: grid;
   grid-template-columns: repeat(5, minmax(215px, 1fr));
   gap: 10px;
-  align-items: start;
+  align-items: stretch;
+  height: 100%;
 }
 .applications-board-grid-outcomes {
   min-width: 480px;
@@ -64,6 +82,11 @@
 }
 .application-lane {
   min-height: 220px;
+  height: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--background);
@@ -76,6 +99,7 @@
 .application-lane[data-tone='outcome'] { opacity: 0.86; }
 .application-lane-header {
   min-height: 38px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -97,7 +121,34 @@
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
-.application-lane-cards { display: grid; gap: 8px; padding: 8px; }
+.application-lane-cards {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.application-lane-load-more {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 9px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+}
+.application-lane-load-more:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
+.application-lane-load-more:disabled { opacity: .55; cursor: default; }
+.application-lane-load-more span { color: var(--text-faint); font-variant-numeric: tabular-nums; }
 .application-lane-empty { min-height: 110px; display: grid; place-items: center; padding: 16px; color: var(--text-faint); font-size: 11px; text-align: center; }
 .application-card {
   position: relative;
@@ -140,8 +191,8 @@
   font-size: 10px;
 }
 .application-card-pending { color: var(--accent); font-size: 10px; font-weight: 600; }
-.applications-outcomes { border-top: 1px solid var(--border); }
-.applications-outcomes > h2 { margin: 0; padding: 12px 12px 0; color: var(--text-muted); font-size: 12px; }
+.applications-outcomes { min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; border-top: 1px solid var(--border); overflow: hidden; }
+.applications-outcomes > h2 { flex: 0 0 auto; margin: 0; padding: 12px 12px 0; color: var(--text-muted); font-size: 12px; }
 
 .applications-table-scroll { width: 100%; overflow: auto; }
 .applications-table { width: 100%; min-width: 1060px; border-collapse: separate; border-spacing: 0; }
@@ -194,6 +245,9 @@
 }
 
 @media (max-width: 640px) {
+  .applications-workspace-page { height: auto; min-height: calc(100dvh - var(--topbar-height) - var(--mobile-nav-height)); overflow: visible; }
+  .applications-surface, .applications-board-shell, .applications-board-viewport { overflow: visible; }
+  .application-lane { height: min(68dvh, 680px); }
   .applications-header-actions {
     width: 100%;
     align-items: center;

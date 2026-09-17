@@ -19,6 +19,7 @@ import {
   ResumeArtifactCapabilityError,
   ResumeArtifactIntegrityError,
   type ResumeArtifactRuntimePorts,
+  type ResumePdfRendererPort,
   type ResumeRuntimePorts,
 } from '@job-harness/resume-application';
 import { renderResumePreviewHtml } from '@job-harness/resume-renderer';
@@ -73,7 +74,7 @@ function route(handler: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response) => { void handler(req, res).catch((error) => sendError(res, error)); };
 }
 
-export function registerResumeApi(app: Express, resume: ResumeRuntimePorts, artifacts: ResumeArtifactRuntimePorts, apiPrefix: string): void {
+export function registerResumeApi(app: Express, resume: ResumeRuntimePorts, artifacts: ResumeArtifactRuntimePorts, pdfRenderer: ResumePdfRendererPort | null, apiPrefix: string): void {
   registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.resumeProfiles, route(async (req, res) => {
     const input = ListResumeProfilesInputSchema.parse({
       ...(first(req.query.libraryId) ? { libraryId: first(req.query.libraryId) } : {}),
@@ -118,6 +119,18 @@ export function registerResumeApi(app: Express, resume: ResumeRuntimePorts, arti
     const context = await resume.resolvePreview(input);
     const html = renderResumePreviewHtml(context.resolved, { variant: context.profile.id });
     res.json(ResumePreviewOutputSchema.parse({ resolved: context.resolved, html }));
+  }));
+
+  registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.resumePreviewPdf, route(async (req, res) => {
+    if (!pdfRenderer) throw new ResumeArtifactCapabilityError('PDF renderer is not configured');
+    const input = ResumePreviewInputSchema.parse(req.body);
+    const context = await resume.resolvePreview(input);
+    const html = renderResumePreviewHtml(context.resolved, { variant: context.profile.id });
+    const bytes = await pdfRenderer.renderPdf(html);
+    res.setHeader('content-type', 'application/pdf');
+    res.setHeader('content-length', String(bytes.byteLength));
+    res.setHeader('cache-control', 'private, no-store');
+    res.status(200).end(Buffer.from(bytes));
   }));
 
 

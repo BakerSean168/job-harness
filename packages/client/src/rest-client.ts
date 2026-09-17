@@ -255,6 +255,27 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
     return payload;
   }
 
+  async function requestBytes(path: string, init: RequestInit = {}): Promise<Uint8Array> {
+    const headers = new Headers(options.defaultInit?.headers);
+    new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+    if (options.authToken) headers.set('authorization', `Bearer ${options.authToken}`);
+    if (init.body != null && !headers.has('content-type')) headers.set('content-type', 'application/json');
+    const response = await fetchImpl(`${baseUrl}${path}`, {
+      ...options.defaultInit,
+      ...init,
+      headers,
+    });
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type') ?? '';
+      const payload = contentType.includes('application/json') ? await response.json() : null;
+      const error = payload && typeof payload === 'object' && 'error' in payload
+        ? (payload as { error: JobHarnessRestErrorPayload }).error
+        : { code: 'HTTP_ERROR', message: `Job Harness request failed with ${response.status}` };
+      throw new JobHarnessRestError(response.status, error);
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
   async function nullable<T>(work: () => Promise<T>): Promise<T | null> {
     try {
       return await work();
@@ -277,6 +298,10 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
       async preview(input: ResumePreviewInput): Promise<ResumePreviewOutput> {
         const parsed = ResumePreviewInputSchema.parse(input);
         return ResumePreviewOutputSchema.parse(await request('/resume/preview', { method: 'POST', body: JSON.stringify(parsed) }));
+      },
+      async previewPdf(input: ResumePreviewInput): Promise<Uint8Array> {
+        const parsed = ResumePreviewInputSchema.parse(input);
+        return requestBytes('/resume/preview/pdf', { method: 'POST', body: JSON.stringify(parsed) });
       },
       async saveProfile(input: SaveResumeProfileInput): Promise<ResumeProfileContext> {
         const parsed = SaveResumeProfileInputSchema.parse(input);

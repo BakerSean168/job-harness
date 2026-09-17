@@ -6,7 +6,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
 import { createCareerApplicationService } from '@job-harness/application';
 import { createResumeApplicationService, createResumeArtifactService } from '@job-harness/resume-application';
-import { CAREER_MCP_TOOLS, createCareerMcpRuntime } from '@job-harness/mcp';
+import { createJobHarnessMcpRuntime } from '@job-harness/mcp';
 import { SqliteCareerStore, SqliteResumeStore } from '@job-harness/persistence-sqlite';
 import { generateJobHarnessOpenApiDocument } from '@job-harness/contracts';
 import { API_PREFIX, registerJobHarnessApi } from './api';
@@ -38,9 +38,9 @@ function safeJson(value: unknown): string {
   return JSON.stringify(value, null, 2) ?? 'null';
 }
 
-export function createProtocolServer(runtime: ReturnType<typeof createCareerMcpRuntime>): McpServer {
+export function createProtocolServer(runtime: ReturnType<typeof createJobHarnessMcpRuntime>): McpServer {
   const server = new McpServer({ name: 'job-harness', version: '0.2.0' });
-  for (const tool of CAREER_MCP_TOOLS) {
+  for (const tool of runtime.listTools()) {
     server.registerTool(
       tool.name,
       {
@@ -49,7 +49,7 @@ export function createProtocolServer(runtime: ReturnType<typeof createCareerMcpR
         annotations: {
           readOnlyHint: tool.mutability === 'read',
           destructiveHint: false,
-          idempotentHint: true,
+          idempotentHint: tool.idempotent !== false,
           openWorldHint: false,
         },
       },
@@ -102,6 +102,9 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   });
   const resume = createResumeApplicationService(resumeStore);
   const artifactDirectory = options.artifactDirectory ?? join(dirname(options.databasePath), 'resume-artifacts');
+  const pdfRenderer = options.resumeRendererUrl
+    ? createHttpResumePdfRenderer({ baseUrl: options.resumeRendererUrl, token: options.resumeRendererToken })
+    : null;
   const resumeArtifacts = createResumeArtifactService(resumeStore, {
     htmlRenderer: {
       rendererId: 'nunjucks-classic',
@@ -109,11 +112,9 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
       renderHtml: (revision) => renderResumePreviewHtml(revision.resolvedDocumentSnapshot, { variant: revision.profileId }),
     },
     storage: createFileSystemResumeArtifactStorage(artifactDirectory),
-    pdfRenderer: options.resumeRendererUrl
-      ? createHttpResumePdfRenderer({ baseUrl: options.resumeRendererUrl, token: options.resumeRendererToken })
-      : null,
+    pdfRenderer,
   });
-  const runtime = createCareerMcpRuntime(application);
+  const runtime = createJobHarnessMcpRuntime(application, resume, resumeArtifacts);
   const host = options.host ?? '127.0.0.1';
   const app = createMcpExpressApp({ host });
   const authToken = options.authToken?.trim() || null;
@@ -138,7 +139,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
 
   registerJobHarnessDataAdminApi(app, options.databasePath, API_PREFIX);
   registerJobHarnessApi(app, application);
-  registerResumeApi(app, resume, resumeArtifacts, API_PREFIX);
+  registerResumeApi(app, resume, resumeArtifacts, pdfRenderer, API_PREFIX);
 
   app.post('/mcp', async (req, res) => {
     const protocolServer = createProtocolServer(runtime);

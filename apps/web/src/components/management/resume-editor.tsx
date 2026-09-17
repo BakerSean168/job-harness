@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import type { ResumeRevisionUsageSummary } from '@job-harness/contracts';
 import { dump, load } from 'js-yaml';
 import {
@@ -13,9 +13,14 @@ import {
   type ResumeRevisionDiffOutput,
 } from '@job-harness/resume-contracts';
 import { publishResumeRevisionAction, saveResumeLibraryAction, saveResumeProfileAction } from '../../app/resumes/actions';
+import { ResumeContentComposer, type ResumeComposerCopy } from './resume-content-composer';
 
 export interface ResumeEditorCopy {
   readonly preview: string;
+  readonly fastPreview: string;
+  readonly exactPreview: string;
+  readonly renderingPdf: string;
+  readonly pdfPreviewFailed: string;
   readonly details: string;
   readonly targetRole: string;
   readonly locale: string;
@@ -27,6 +32,7 @@ export interface ResumeEditorCopy {
   readonly editProfile: string;
   readonly editShared: string;
   readonly formMode: string;
+  readonly composeMode: string;
   readonly sourceMode: string;
   readonly save: string;
   readonly saving: string;
@@ -64,6 +70,7 @@ export interface ResumeEditorCopy {
   readonly downloadJson: string;
   readonly revisionUnused: string;
   readonly revisionLastUsed: string;
+  readonly composer: ResumeComposerCopy;
 }
 
 interface Props {
@@ -79,7 +86,8 @@ interface Props {
 }
 
 type Scope = 'profile' | 'library';
-type Mode = 'form' | 'source';
+type Mode = 'form' | 'compose' | 'source';
+type PreviewMode = 'fast' | 'pdf';
 
 function pickLocalized(value: Record<string, string | undefined>, locale: ResumeProfile['locale']): string {
   return value[locale] ?? value['zh-CN'] ?? value.en ?? '';
@@ -93,6 +101,11 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
   const [library, setLibrary] = useState<ResumeLibrary>(initialContext.library);
   const [profile, setProfile] = useState<ResumeProfile>(initialContext.profile);
   const [previewHtml, setPreviewHtml] = useState(initialHtml);
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('fast');
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [pdfPreviewLoading, setPdfPreviewLoading] = useState(false);
+  const [pdfPreviewError, setPdfPreviewError] = useState<string | null>(null);
+  const pdfPreviewUrlRef = useRef<string | null>(null);
   const [revisions, setRevisions] = useState<readonly ResumeRevision[]>(initialRevisions);
   const [revisionNote, setRevisionNote] = useState('');
   const [revisionMessage, setRevisionMessage] = useState<string | null>(null);
@@ -148,6 +161,10 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
     setLibrary(initialContext.library);
     setProfile(initialContext.profile);
     setPreviewHtml(initialHtml);
+    if (pdfPreviewUrlRef.current) URL.revokeObjectURL(pdfPreviewUrlRef.current);
+    pdfPreviewUrlRef.current = null;
+    setPdfPreviewUrl(null);
+    setPdfPreviewError(null);
     setRevisions(initialRevisions);
     setRevisionNote('');
     setRevisionMessage(null);
@@ -182,6 +199,42 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
     }, 320);
     return () => window.clearTimeout(timer);
   }, [library, profile, copy.previewFailed]);
+
+  useEffect(() => {
+    if (previewMode !== 'pdf') return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setPdfPreviewLoading(true);
+      try {
+        const response = await fetch('/resume/preview/pdf', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ library, profile }),
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null) as { error?: string } | null;
+          throw new Error(payload?.error ?? copy.pdfPreviewFailed);
+        }
+        const blob = await response.blob();
+        const nextUrl = URL.createObjectURL(blob);
+        if (pdfPreviewUrlRef.current) URL.revokeObjectURL(pdfPreviewUrlRef.current);
+        pdfPreviewUrlRef.current = nextUrl;
+        setPdfPreviewUrl(nextUrl);
+        setPdfPreviewError(null);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setPdfPreviewError(error instanceof Error ? error.message : copy.pdfPreviewFailed);
+      } finally {
+        if (!controller.signal.aborted) setPdfPreviewLoading(false);
+      }
+    }, 700);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [library, profile, previewMode, copy.pdfPreviewFailed]);
+
+  useEffect(() => () => {
+    if (pdfPreviewUrlRef.current) URL.revokeObjectURL(pdfPreviewUrlRef.current);
+  }, []);
 
   function updateProfile(next: ResumeProfile) { setProfile(next); setProfileDirty(true); setSaveMessage(null); }
   function updateLibrary(next: ResumeLibrary) { setLibrary(next); setLibraryDirty(true); setSaveMessage(null); }
@@ -263,9 +316,10 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
         <div className="management-panel-heading"><h2>{copy.details}</h2><span>{profile.locale}</span></div>
         <div className="resume-editor-tabs" role="tablist" aria-label={copy.details}>
           <button type="button" data-active={scope === 'profile'} onClick={() => setScope('profile')}>{copy.editProfile}</button>
-          <button type="button" data-active={scope === 'library'} onClick={() => setScope('library')}>{copy.editShared}</button>
+          <button type="button" data-active={scope === 'library'} onClick={() => { setScope('library'); if (mode === 'compose') setMode('form'); }}>{copy.editShared}</button>
           <span />
           <button type="button" data-active={mode === 'form'} onClick={() => setMode('form')}>{copy.formMode}</button>
+          <button type="button" data-active={mode === 'compose'} onClick={() => { setScope('profile'); setMode('compose'); }}>{copy.composeMode}</button>
           <button type="button" data-active={mode === 'source'} onClick={() => setMode('source')}>{copy.sourceMode}</button>
         </div>
 
@@ -275,6 +329,8 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
           <div className="resume-source-editor">
             <textarea spellCheck={false} value={source} onChange={(event) => onSourceChange(event.target.value)} aria-label={scope === 'profile' ? copy.editProfile : copy.editShared} />
           </div>
+        ) : mode === 'compose' ? (
+          <ResumeContentComposer library={library} profile={profile} onChange={updateProfile} copy={copy.composer} />
         ) : (
           <div className="resume-structured-editor">
             {scope === 'profile' ? (
@@ -366,8 +422,26 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
       </section>
 
       <section className="resume-preview-pane">
-        <div className="management-panel-heading"><h2>{copy.preview}</h2><span>A4</span></div>
-        <div className="resume-preview-stage"><iframe title={`${pickLocalized(profile.name, locale)} ${copy.preview}`} srcDoc={previewHtml} sandbox="" /></div>
+        <div className="management-panel-heading resume-preview-heading">
+          <h2>{copy.preview}</h2>
+          <div className="resume-preview-mode-switcher" role="tablist" aria-label={copy.preview}>
+            <button type="button" data-active={previewMode === 'fast'} onClick={() => setPreviewMode('fast')}>{copy.fastPreview}</button>
+            <button type="button" data-active={previewMode === 'pdf'} onClick={() => setPreviewMode('pdf')}>{copy.exactPreview}</button>
+          </div>
+          <span>A4</span>
+        </div>
+        <div className="resume-preview-stage" data-mode={previewMode}>
+          {previewMode === 'fast' ? (
+            <iframe title={`${pickLocalized(profile.name, locale)} ${copy.preview}`} srcDoc={previewHtml} sandbox="" />
+          ) : pdfPreviewLoading && !pdfPreviewUrl ? (
+            <div className="resume-pdf-preview-status">{copy.renderingPdf}</div>
+          ) : pdfPreviewUrl ? (
+            <iframe className="resume-pdf-preview-frame" title={`${pickLocalized(profile.name, locale)} ${copy.exactPreview}`} src={pdfPreviewUrl} />
+          ) : (
+            <div className="resume-pdf-preview-status" data-error="true">{pdfPreviewError ?? copy.pdfPreviewFailed}</div>
+          )}
+          {previewMode === 'pdf' && pdfPreviewLoading && pdfPreviewUrl ? <div className="resume-pdf-preview-refreshing">{copy.renderingPdf}</div> : null}
+        </div>
       </section>
     </>
   );

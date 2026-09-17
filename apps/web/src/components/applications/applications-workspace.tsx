@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
-import { ApplicationStageSchema, type ListApplicationBoardInput } from '@job-harness/contracts';
+import { ApplicationStageSchema, type ListApplicationBoardInput, type ListApplicationBoardOutput } from '@job-harness/contracts';
+import type { ApplicationStage } from '@job-harness/domain';
 import { getLocale, getMessages } from '@/i18n/server';
 import { getJobHarnessClient } from '@/lib/job-harness-client';
 import { WorkspaceHeader } from '@/components/shell/workspace-header';
@@ -21,7 +22,9 @@ import {
 } from './query';
 
 const TABLE_PAGE_SIZE = 50;
-const BOARD_LIMIT = 200;
+const BOARD_LANE_PAGE_SIZE = 40;
+const MAIN_STAGES: readonly ApplicationStage[] = ['applied', 'screening', 'assessment', 'interview', 'offer'];
+const OUTCOME_STAGES: readonly ApplicationStage[] = ['rejected', 'withdrawn'];
 
 type TerminalMode = 'exclude' | 'include' | 'only';
 
@@ -50,28 +53,57 @@ export async function ApplicationsWorkspace({ searchParams }: { searchParams: Ap
   const from = dateStart(optional(one(searchParams.from)));
   const to = dateEnd(optional(one(searchParams.to)));
 
-  const input: ListApplicationBoardInput = {
-    limit: view === 'board' ? BOARD_LIMIT : TABLE_PAGE_SIZE,
-    offset,
-    terminal,
+  const filterInput = {
     ...(optional(one(searchParams.company)) ? { company: optional(one(searchParams.company)) } : {}),
-    ...(stage?.success ? { stages: [stage.data] } : {}),
     ...(optional(one(searchParams.campaign)) ? { campaignId: optional(one(searchParams.campaign)) } : {}),
     ...(optional(one(searchParams.resume)) ? { resumeProfileId: optional(one(searchParams.resume)) } : {}),
     ...(from ? { appliedFrom: from } : {}),
     ...(to ? { appliedTo: to } : {}),
-  };
+  } satisfies Omit<ListApplicationBoardInput, 'limit' | 'offset' | 'stages' | 'terminal'>;
 
   const selectedApplicationId = optional(one(searchParams.application));
   const generatedAt = new Date().toISOString();
-  const [page, campaignPage, resumePage, selectedDetail] = await Promise.all([
-    client.workspace.listApplicationBoard(input),
+  const requestedStage = stage?.success ? stage.data : null;
+  const visibleStages: readonly ApplicationStage[] = requestedStage
+    ? [requestedStage]
+    : terminal === 'only'
+      ? OUTCOME_STAGES
+      : terminal === 'include'
+        ? [...MAIN_STAGES, ...OUTCOME_STAGES]
+        : MAIN_STAGES;
+
+  const tableInput: ListApplicationBoardInput = {
+    ...filterInput,
+    limit: TABLE_PAGE_SIZE,
+    offset,
+    terminal,
+    ...(requestedStage ? { stages: [requestedStage] } : {}),
+  };
+  const lanePromises = view === 'board'
+    ? visibleStages.map(async (laneStage) => [
+        laneStage,
+        await client.workspace.listApplicationBoard({
+          ...filterInput,
+          limit: BOARD_LANE_PAGE_SIZE,
+          offset: 0,
+          stages: [laneStage],
+          terminal: 'include',
+        }),
+      ] as const)
+    : [];
+  const [tablePage, laneEntries, campaignPage, resumePage, selectedDetail] = await Promise.all([
+    view === 'table' ? client.workspace.listApplicationBoard(tableInput) : Promise.resolve(null),
+    Promise.all(lanePromises),
     client.campaigns.list({ limit: 200, offset: 0 }),
     client.workspace.listResumeUsage({ limit: 200, offset: 0 }),
     selectedApplicationId
       ? client.workspace.getApplicationWorkspaceDetail(selectedApplicationId)
       : Promise.resolve(null),
   ]);
+  const initialLanes = Object.fromEntries(laneEntries) as Partial<Record<ApplicationStage, ListApplicationBoardOutput>>;
+  const resultTotal = view === 'board'
+    ? laneEntries.reduce((sum, [, page]) => sum + page.total, 0)
+    : tablePage?.total ?? 0;
   const closeHref = applicationsHref(searchParams, { application: null });
   const boardHref = applicationsHref(searchParams, { view: 'board', offset: null, application: null });
   const tableHref = applicationsHref(searchParams, { view: 'table', offset: 0, application: null });
@@ -88,7 +120,7 @@ export async function ApplicationsWorkspace({ searchParams }: { searchParams: Ap
               <Link href={boardHref} data-active={view === 'board' ? 'true' : undefined}>{copy.views.board}</Link>
               <Link href={tableHref} data-active={view === 'table' ? 'true' : undefined}>{copy.views.table}</Link>
             </nav>
-            <span className="workspace-result-count">{page.total} {copy.board.results}</span>
+            <span className="workspace-result-count">{resultTotal} {copy.board.results}</span>
           </div>
         )}
       />
@@ -97,10 +129,12 @@ export async function ApplicationsWorkspace({ searchParams }: { searchParams: Ap
         <ApplicationsFilters params={searchParams} campaigns={campaignPage.items} resumes={resumePage.items} messages={messages} />
         {view === 'board' ? (
           <ApplicationsBoard
-            items={page.items}
+            initialLanes={initialLanes}
+            visibleStages={visibleStages}
+            lanePageSize={BOARD_LANE_PAGE_SIZE}
+            filterInput={filterInput}
             params={searchParams}
             generatedAt={generatedAt}
-            terminalMode={terminal}
             locale={locale}
             messages={messages}
             {...(selectedApplicationId ? { selectedApplicationId } : {})}
@@ -108,7 +142,7 @@ export async function ApplicationsWorkspace({ searchParams }: { searchParams: Ap
         ) : (
           <>
             <ApplicationsTable
-              items={page.items}
+              items={tablePage?.items ?? []}
               params={searchParams}
               generatedAt={generatedAt}
               locale={locale}
@@ -119,7 +153,7 @@ export async function ApplicationsWorkspace({ searchParams }: { searchParams: Ap
               params={searchParams}
               offset={offset}
               limit={TABLE_PAGE_SIZE}
-              total={page.total}
+              total={tablePage?.total ?? 0}
               messages={messages}
             />
           </>

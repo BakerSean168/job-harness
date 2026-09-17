@@ -31,10 +31,16 @@ describe('standalone Streamable HTTP MCP server', () => {
     const tools = await client.listTools();
     expect(tools.tools.map((tool) => tool.name)).toContain('career_jobs_search');
     expect(tools.tools.map((tool) => tool.name)).toContain('career_application_record');
+    expect(tools.tools.map((tool) => tool.name)).toContain('resume_authoring_context_get');
+    expect(tools.tools.map((tool) => tool.name)).toContain('resume_profile_patch_selection');
 
     const result = await client.callTool({ name: 'career_pipeline_stats', arguments: {} });
     expect(result.isError).not.toBe(true);
     expect(result.structuredContent).toMatchObject({ knownJobs: 0, applications: 0 });
+
+    const resumeList = await client.callTool({ name: 'resume_profiles_list', arguments: {} });
+    expect(resumeList.isError).not.toBe(true);
+    expect(resumeList.structuredContent).toMatchObject({ items: [], total: 0 });
 
     await client.close();
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAREER_MCP_TOOLS } from '../src';
+import { CAREER_MCP_TOOLS, JOB_HARNESS_MCP_TOOLS, RESUME_MCP_TOOLS } from '../src';
 
 const expectedNames = [
   'career_context_get',
@@ -21,6 +21,16 @@ const expectedNames = [
   'career_campaign_upsert',
 ];
 
+const expectedResumeNames = [
+  'resume_profiles_list',
+  'resume_profile_get',
+  'resume_authoring_context_get',
+  'resume_profile_patch_selection',
+  'resume_profile_patch_overrides',
+  'resume_revision_publish',
+  'resume_revision_artifact_materialize',
+];
+
 describe('MCP contract surface', () => {
   it('freezes the Phase-0 minimal tool names', () => {
     expect(CAREER_MCP_TOOLS.map((tool) => tool.name)).toEqual(expectedNames);
@@ -34,6 +44,20 @@ describe('MCP contract surface', () => {
   it('does not expose a privileged external application submission tool', () => {
     expect(CAREER_MCP_TOOLS.some((tool) => tool.name.includes('submit_application'))).toBe(false);
     expect(CAREER_MCP_TOOLS.every((tool) => tool.externalSideEffect === false)).toBe(true);
+  });
+
+
+  it('exposes the narrow Resume authoring surface without database or external-submit tools', () => {
+    expect(RESUME_MCP_TOOLS.map((tool) => tool.name)).toEqual(expectedResumeNames);
+    const names = JOB_HARNESS_MCP_TOOLS.map((tool) => tool.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(JOB_HARNESS_MCP_TOOLS.every((tool) => tool.externalSideEffect === false)).toBe(true);
+    expect(names.some((name) => name.includes('database') || name.includes('raw_sql') || name.includes('submit_application'))).toBe(false);
+  });
+
+  it('marks optimistic Profile patches as non-idempotent protocol calls', () => {
+    expect(RESUME_MCP_TOOLS.find((tool) => tool.name === 'resume_profile_patch_selection')?.idempotent).toBe(false);
+    expect(RESUME_MCP_TOOLS.find((tool) => tool.name === 'resume_profile_patch_overrides')?.idempotent).toBe(false);
   });
 });
 

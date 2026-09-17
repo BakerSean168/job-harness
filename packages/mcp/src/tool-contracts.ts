@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import { z } from 'zod';
 import {
   BeginDiscoveryInputSchema,
   BeginDiscoveryOutputSchema,
@@ -35,6 +35,21 @@ import {
   UpsertJobsBatchInputSchema,
   UpsertJobsBatchOutputSchema,
 } from '@job-harness/contracts';
+import {
+  ListResumeProfilesInputSchema,
+  ListResumeProfilesOutputSchema,
+  ListResumeRevisionsOutputSchema,
+  MaterializeResumeArtifactInputSchema,
+  MaterializeResumeArtifactOutputSchema,
+  PublishResumeRevisionInputSchema,
+  PublishResumeRevisionOutputSchema,
+  ResumeEntityIdSchema,
+  ResumeProfileContextSchema,
+  ResumeProfileOverrideSchema,
+  ResumeProjectSelectionSchema,
+  ResumeSectionSchema,
+  ResumeWorkSelectionSchema,
+} from '@job-harness/resume-contracts';
 
 export interface CareerMcpToolContract {
   readonly name: string;
@@ -42,6 +57,8 @@ export interface CareerMcpToolContract {
   readonly mutability: 'read' | 'state-write';
   /** V1 tools only mutate Job Harness state; none performs a real external job application. */
   readonly externalSideEffect: false;
+  /** Whether replaying the exact same tool call is expected to be safe. */
+  readonly idempotent?: boolean;
   readonly inputSchema: z.ZodType;
   readonly outputSchema: z.ZodType;
 }
@@ -71,3 +88,50 @@ export const CAREER_MCP_TOOLS = [
 ] as const satisfies readonly CareerMcpToolContract[];
 
 export const CAREER_MCP_TOOL_BY_NAME = new Map(CAREER_MCP_TOOLS.map((entry) => [entry.name, entry]));
+
+
+export const ResumeProfileIdInputSchema = z.object({ profileId: ResumeEntityIdSchema }).strict();
+export const ResumeProfileContextOutputSchema = ResumeProfileContextSchema.nullable();
+
+export const ResumeAuthoringContextInputSchema = z.object({
+  profileId: ResumeEntityIdSchema,
+  jobId: z.string().trim().min(1).max(200).optional(),
+}).strict();
+export const ResumeAuthoringContextOutputSchema = z.object({
+  profileContext: ResumeProfileContextSchema,
+  job: GetJobOutputSchema,
+  revisions: ListResumeRevisionsOutputSchema,
+}).strict();
+
+export const ResumeProfileSelectionPatchInputSchema = z.object({
+  profileId: ResumeEntityIdSchema,
+  expectedProfileVersion: z.number().int().positive(),
+  expectedLibraryVersion: z.number().int().positive(),
+  sectionOrder: z.array(ResumeSectionSchema).min(1).optional(),
+  educationIds: z.array(ResumeEntityIdSchema).optional(),
+  skillIds: z.array(ResumeEntityIdSchema).optional(),
+  workSelections: z.array(ResumeWorkSelectionSchema).optional(),
+  projectSelections: z.array(ResumeProjectSelectionSchema).optional(),
+  certificateIds: z.array(ResumeEntityIdSchema).optional(),
+  summaryIds: z.array(ResumeEntityIdSchema).optional(),
+}).strict();
+
+export const ResumeProfileOverridesPatchInputSchema = z.object({
+  profileId: ResumeEntityIdSchema,
+  expectedProfileVersion: z.number().int().positive(),
+  expectedLibraryVersion: z.number().int().positive(),
+  overrides: z.array(ResumeProfileOverrideSchema),
+}).strict();
+
+export const RESUME_MCP_TOOLS = [
+  tool({ name: 'resume_profiles_list', description: 'List first-class Resume Profiles available for authoring and application evidence.', mutability: 'read', externalSideEffect: false, inputSchema: ListResumeProfilesInputSchema, outputSchema: ListResumeProfilesOutputSchema }),
+  tool({ name: 'resume_profile_get', description: 'Read one Resume Profile together with its canonical Library and resolved document.', mutability: 'read', externalSideEffect: false, inputSchema: ResumeProfileIdInputSchema, outputSchema: ResumeProfileContextOutputSchema }),
+  tool({ name: 'resume_authoring_context_get', description: 'Read the reusable Resume Library content, current Profile selections, revisions, and optional Job context before AI-assisted resume editing.', mutability: 'read', externalSideEffect: false, inputSchema: ResumeAuthoringContextInputSchema, outputSchema: ResumeAuthoringContextOutputSchema }),
+  tool({ name: 'resume_profile_patch_selection', idempotent: false, description: 'Patch only Resume Profile composition selections using stable Library IDs and optimistic Profile/Library versions; does not mutate shared Library facts.', mutability: 'state-write', externalSideEffect: false, inputSchema: ResumeProfileSelectionPatchInputSchema, outputSchema: ResumeProfileContextSchema }),
+  tool({ name: 'resume_profile_patch_overrides', idempotent: false, description: 'Replace Profile-local text overrides using optimistic Profile/Library versions; does not mutate shared Library facts.', mutability: 'state-write', externalSideEffect: false, inputSchema: ResumeProfileOverridesPatchInputSchema, outputSchema: ResumeProfileContextSchema }),
+  tool({ name: 'resume_revision_publish', description: 'Publish the current saved Resume Profile/Library state as an immutable Revision, reusing identical content when possible.', mutability: 'state-write', externalSideEffect: false, inputSchema: PublishResumeRevisionInputSchema, outputSchema: PublishResumeRevisionOutputSchema }),
+  tool({ name: 'resume_revision_artifact_materialize', description: 'Materialize an immutable HTML/PDF/JSON Artifact for a published Resume Revision.', mutability: 'state-write', externalSideEffect: false, inputSchema: MaterializeResumeArtifactInputSchema, outputSchema: MaterializeResumeArtifactOutputSchema }),
+] as const satisfies readonly CareerMcpToolContract[];
+
+export const JOB_HARNESS_MCP_TOOLS = [...CAREER_MCP_TOOLS, ...RESUME_MCP_TOOLS] as const;
+export const JOB_HARNESS_MCP_TOOL_BY_NAME = new Map(JOB_HARNESS_MCP_TOOLS.map((entry) => [entry.name, entry]));
