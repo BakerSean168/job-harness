@@ -86,6 +86,10 @@ Replace the Registry-only `/resumes` page with:
 
 Browser code never receives the Job Harness API bearer token.
 
+### R004 evidence — 2026-09-17
+
+The new `/resumes` workspace now reads Resume Domain v2 through typed REST rather than direct SQLite access. It supports structured Profile/shared-content editing, YAML source mode, debounced unsaved preview through the same resolver/renderer, optimistic version checks, cross-Profile validation for shared Library mutations, and browser/in-app navigation protection while either edit scope is dirty. The write path is covered by real SQLite + REST + Server Action tests; full repository verification passes 80 tests plus production Next build and deployment-topology checks.
+
 ## JH-R005 — Revision lifecycle
 
 Add Publish, History and Diff. Revisions are immutable and identified by resolved-document hash. Autosave/edit does not create revisions.

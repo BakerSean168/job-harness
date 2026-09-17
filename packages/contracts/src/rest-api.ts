@@ -53,6 +53,9 @@ import {
   ListResumeProfilesOutputSchema as ListResumeBuilderProfilesOutputSchema,
   ResumePreviewInputSchema,
   ResumePreviewOutputSchema,
+  SaveResumeLibraryInputSchema,
+  SaveResumeProfileInputSchema,
+  ResumeLibrarySchema,
   ResumeProfileContextSchema,
 } from '@job-harness/resume-contracts';
 
@@ -110,6 +113,8 @@ export const JOB_HARNESS_REST_V1_ROUTES = {
   upsertCampaign: route({ operationId: 'upsertCampaign', method: 'put', path: '/campaigns/:campaignId', tags: ['Campaigns'], summary: 'Create or update a job-search campaign', paramsSchema: IdParam('campaignId'), bodySchema: UpsertCampaignBodySchema, responseSchema: UpsertCampaignOutputSchema, successStatus: 200 }),
   resumeProfiles: route({ operationId: 'listResumeProfiles', method: 'get', path: '/resume/profiles', tags: ['Resume Builder'], summary: 'List first-class Resume Profiles', querySchema: ListResumeBuilderProfilesInputSchema, responseSchema: ListResumeBuilderProfilesOutputSchema, successStatus: 200 }),
   resumeProfileDetail: route({ operationId: 'getResumeProfileContext', method: 'get', path: '/resume/profiles/:profileId', tags: ['Resume Builder'], summary: 'Read a Resume Profile with canonical Library and resolved document', paramsSchema: IdParam('profileId'), responseSchema: ResumeProfileContextSchema, successStatus: 200 }),
+  saveResumeProfile: route({ operationId: 'saveResumeProfile', method: 'put', path: '/resume/profiles/:profileId', tags: ['Resume Builder'], summary: 'Optimistically save a mutable Resume Profile', paramsSchema: IdParam('profileId'), bodySchema: SaveResumeProfileInputSchema, responseSchema: ResumeProfileContextSchema, successStatus: 200 }),
+  saveResumeLibrary: route({ operationId: 'saveResumeLibrary', method: 'put', path: '/resume/libraries/:libraryId', tags: ['Resume Builder'], summary: 'Optimistically save shared Resume Library content', paramsSchema: IdParam('libraryId'), bodySchema: SaveResumeLibraryInputSchema, responseSchema: ResumeLibrarySchema, successStatus: 200 }),
   resumePreview: route({ operationId: 'previewResumeDraft', method: 'post', path: '/resume/preview', tags: ['Resume Builder'], summary: 'Resolve and render an unsaved Resume draft', bodySchema: ResumePreviewInputSchema, responseSchema: ResumePreviewOutputSchema, successStatus: 200 }),
   resumes: route({ operationId: 'listResumeUsage', method: 'get', path: '/resumes', tags: ['Resumes'], summary: 'List Resume Registry usage projections', querySchema: ListResumeUsageInputSchema, responseSchema: ListResumeUsageOutputSchema, successStatus: 200 }),
   savedViews: route({ operationId: 'listSavedViews', method: 'get', path: '/saved-views', tags: ['Saved Views'], summary: 'List durable Saved Views', querySchema: ListSavedViewsInputSchema, responseSchema: ListSavedViewsOutputSchema, successStatus: 200 }),

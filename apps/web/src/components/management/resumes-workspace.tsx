@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ResumeProfile } from '@job-harness/resume-contracts';
 import { WorkspaceHeader } from '@/components/shell/workspace-header';
+import { ResumeEditor } from './resume-editor';
 import { getMessages } from '@/i18n/server';
 import { getJobHarnessClient } from '@/lib/job-harness-client';
 import type { ManagementSearchParams } from './campaigns-workspace';
@@ -68,40 +69,26 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
             </nav>
           </aside>
 
-          <section className="resume-profile-detail-pane">
-            <div className="management-panel-heading"><h2>{copy.builder.details}</h2><span>{selected.locale}</span></div>
-            <div className="resume-profile-detail-body">
-              <div className="resume-profile-title">
-                <strong>{localized(selected.name, selected.locale)}</strong>
-                <span>{localized(selected.positioning, selected.locale)}</span>
-              </div>
-              <dl className="resume-profile-facts">
-                <div><dt>{copy.builder.targetRole}</dt><dd>{localized(selected.targetRole, selected.locale)}</dd></div>
-                <div><dt>{copy.builder.locale}</dt><dd>{selected.locale}</dd></div>
-                <div><dt>{copy.builder.template}</dt><dd>{selected.templateId}</dd></div>
-                <div><dt>{copy.builder.profileVersion}</dt><dd>v{selected.version}</dd></div>
-                <div><dt>{copy.builder.libraryVersion}</dt><dd>v{context.library.version}</dd></div>
-              </dl>
-              <div className="resume-profile-usage">
-                <h3>{copy.builder.usage}</h3>
-                <div className="resume-usage-grid">
-                  <div><strong>{selectedUsage?.applications ?? 0}</strong><span>{copy.table.applications}</span></div>
-                  <div><strong>{selectedUsage?.applicationsByStage.screening ?? 0}</strong><span>{copy.table.screening}</span></div>
-                  <div><strong>{selectedUsage?.applicationsByStage.assessment ?? 0}</strong><span>{copy.table.assessment}</span></div>
-                  <div><strong>{selectedUsage?.applicationsByStage.interview ?? 0}</strong><span>{copy.table.interview}</span></div>
-                </div>
-                <Link className="text-link" href={`/applications?resume=${encodeURIComponent(selected.id)}${campaignId ? `&campaign=${encodeURIComponent(campaignId)}` : ''}`}>{copy.table.viewApplications}</Link>
-              </div>
-              <p className="management-note resume-builder-phase-note">{copy.builder.readOnly}</p>
-            </div>
-          </section>
-
-          <section className="resume-preview-pane">
-            <div className="management-panel-heading"><h2>{copy.builder.preview}</h2><span>A4</span></div>
-            <div className="resume-preview-stage">
-              <iframe title={`${localized(selected.name, selected.locale)} ${copy.builder.preview}`} srcDoc={preview.html} sandbox="" />
-            </div>
-          </section>
+          <ResumeEditor
+            key={selected.id}
+            initialContext={context}
+            initialHtml={preview.html}
+            usage={{
+              applications: selectedUsage?.applications ?? 0,
+              screening: selectedUsage?.applicationsByStage.screening ?? 0,
+              assessment: selectedUsage?.applicationsByStage.assessment ?? 0,
+              interview: selectedUsage?.applicationsByStage.interview ?? 0,
+            }}
+            usageLabels={{
+              applications: copy.table.applications,
+              screening: copy.table.screening,
+              assessment: copy.table.assessment,
+              interview: copy.table.interview,
+            }}
+            applicationsHref={`/applications?resume=${encodeURIComponent(selected.id)}${campaignId ? `&campaign=${encodeURIComponent(campaignId)}` : ''}`}
+            viewApplicationsLabel={copy.table.viewApplications}
+            copy={copy.builder}
+          />
         </div>
       ) : (
         <div className="management-content">

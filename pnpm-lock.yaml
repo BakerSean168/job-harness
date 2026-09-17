@@ -81,6 +81,9 @@ importers:
       '@job-harness/resume-contracts':
         specifier: workspace:*
         version: link:../../packages/resume-contracts
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.3.2
       lucide-react:
         specifier: 1.46.0
         version: 1.46.0(react@19.3.0)
@@ -100,6 +103,9 @@ importers:
       '@testing-library/react':
         specifier: 16.3.0
         version: 16.3.0(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
       '@types/react':
         specifier: 19.3.0
         version: 19.3.0

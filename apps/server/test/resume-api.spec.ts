@@ -54,5 +54,32 @@ describe('Resume REST v1', () => {
     expect(previewBody.resolved.profileId).toBe('agent');
     expect(previewBody.html).toContain('测试用户');
     expect(previewBody.html).toContain('<strong>Agent：</strong>工程实践');
+
+    const changedProfile = { ...context.profile, positioning: { 'zh-CN': 'AI Agent / Harness 工程师' } };
+    const savedProfile = await fetch(`${running.apiUrl}/resume/profiles/agent`, {
+      method: 'PUT', headers, body: JSON.stringify({ expectedVersion: 1, profile: changedProfile }),
+    });
+    const savedProfileBody = await savedProfile.json();
+    expect(savedProfile.status).toBe(200);
+    expect(savedProfileBody.profile.version).toBe(2);
+    expect(savedProfileBody.resolved.positioning).toBe('AI Agent / Harness 工程师');
+
+    const staleProfile = await fetch(`${running.apiUrl}/resume/profiles/agent`, {
+      method: 'PUT', headers, body: JSON.stringify({ expectedVersion: 1, profile: changedProfile }),
+    });
+    expect(staleProfile.status).toBe(409);
+    expect(await staleProfile.json()).toMatchObject({ error: { code: 'VERSION_CONFLICT' } });
+
+    const invalidSharedEdit = await fetch(`${running.apiUrl}/resume/libraries/primary`, {
+      method: 'PUT', headers, body: JSON.stringify({ expectedVersion: 1, library: { ...context.library, skills: [] } }),
+    });
+    expect(invalidSharedEdit.status).toBe(422);
+    expect(await invalidSharedEdit.json()).toMatchObject({ error: { code: 'RESUME_REFERENCE_INVALID' } });
+
+    const validSharedEdit = await fetch(`${running.apiUrl}/resume/libraries/primary`, {
+      method: 'PUT', headers, body: JSON.stringify({ expectedVersion: 1, library: { ...context.library, basics: { ...context.library.basics, displayName: { 'zh-CN': '测试用户二号' } } } }),
+    });
+    expect(validSharedEdit.status).toBe(200);
+    expect((await validSharedEdit.json()).version).toBe(2);
   });
 });

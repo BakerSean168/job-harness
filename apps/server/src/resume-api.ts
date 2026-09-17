@@ -5,9 +5,13 @@ import {
   ListResumeProfilesInputSchema,
   ResumePreviewInputSchema,
   ResumePreviewOutputSchema,
+  SaveResumeLibraryInputSchema,
+  SaveResumeProfileInputSchema,
 } from '@job-harness/resume-contracts';
 import {
+  ResumeConcurrencyError,
   ResumeNotFoundError,
+  ResumeReferenceValidationError,
   ResumeResolutionError,
   type ResumeRuntimePorts,
 } from '@job-harness/resume-application';
@@ -30,6 +34,14 @@ function boolean(value: unknown): boolean | undefined | string {
 function sendError(res: Response, error: unknown): void {
   if (error instanceof ZodError) {
     res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Request validation failed', issues: error.issues } });
+    return;
+  }
+  if (error instanceof ResumeConcurrencyError) {
+    res.status(409).json({ error: { code: 'VERSION_CONFLICT', message: error.message } });
+    return;
+  }
+  if (error instanceof ResumeReferenceValidationError) {
+    res.status(422).json({ error: { code: 'RESUME_REFERENCE_INVALID', message: error.message, issues: error.issues } });
     return;
   }
   if (error instanceof ResumeNotFoundError) {
@@ -64,6 +76,27 @@ export function registerResumeApi(app: Express, resume: ResumeRuntimePorts, apiP
       return;
     }
     res.json(result);
+  }));
+
+
+  registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.saveResumeProfile, route(async (req, res) => {
+    const profileId = String(req.params.profileId ?? '').trim();
+    const input = SaveResumeProfileInputSchema.parse(req.body);
+    if (input.profile.id !== profileId) {
+      res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Profile route id must match payload id' } });
+      return;
+    }
+    res.json(await resume.saveProfile(input));
+  }));
+
+  registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.saveResumeLibrary, route(async (req, res) => {
+    const libraryId = String(req.params.libraryId ?? '').trim();
+    const input = SaveResumeLibraryInputSchema.parse(req.body);
+    if (input.library.id !== libraryId) {
+      res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Library route id must match payload id' } });
+      return;
+    }
+    res.json(await resume.saveLibrary(input));
   }));
 
   registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.resumePreview, route(async (req, res) => {

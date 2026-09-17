@@ -66,11 +66,16 @@ import {
   ResumePreviewInputSchema,
   ResumePreviewOutputSchema,
   ResumeProfileContextSchema,
+  ResumeLibrarySchema,
+  SaveResumeLibraryInputSchema,
+  SaveResumeProfileInputSchema,
   type ListResumeProfilesInput,
   type ListResumeProfilesOutput,
   type ResumePreviewInput,
   type ResumePreviewOutput,
   type ResumeProfileContext,
+  type SaveResumeLibraryInput,
+  type SaveResumeProfileInput,
 } from '@job-harness/resume-contracts';
 
 export interface JobHarnessRestClientOptions {
@@ -256,6 +261,14 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
       async preview(input: ResumePreviewInput): Promise<ResumePreviewOutput> {
         const parsed = ResumePreviewInputSchema.parse(input);
         return ResumePreviewOutputSchema.parse(await request('/resume/preview', { method: 'POST', body: JSON.stringify(parsed) }));
+      },
+      async saveProfile(input: SaveResumeProfileInput): Promise<ResumeProfileContext> {
+        const parsed = SaveResumeProfileInputSchema.parse(input);
+        return ResumeProfileContextSchema.parse(await request(`/resume/profiles/${encodeURIComponent(parsed.profile.id)}`, { method: 'PUT', body: JSON.stringify(parsed) }));
+      },
+      async saveLibrary(input: SaveResumeLibraryInput) {
+        const parsed = SaveResumeLibraryInputSchema.parse(input);
+        return ResumeLibrarySchema.parse(await request(`/resume/libraries/${encodeURIComponent(parsed.library.id)}`, { method: 'PUT', body: JSON.stringify(parsed) }));
       },
     },
     analytics: {

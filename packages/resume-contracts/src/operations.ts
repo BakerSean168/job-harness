@@ -21,6 +21,17 @@ export const ResumeProfileContextSchema = z.object({
   resolved: ResolvedResumeSchema,
 }).strict();
 
+
+export const SaveResumeProfileInputSchema = z.object({
+  expectedVersion: z.number().int().positive(),
+  profile: ResumeProfileSchema,
+}).strict();
+
+export const SaveResumeLibraryInputSchema = z.object({
+  expectedVersion: z.number().int().positive(),
+  library: ResumeLibrarySchema,
+}).strict();
+
 export const ResumePreviewInputSchema = z.object({
   library: ResumeLibrarySchema,
   profile: ResumeProfileSchema,
@@ -34,5 +45,7 @@ export const ResumePreviewOutputSchema = z.object({
 export type ListResumeProfilesInput = z.infer<typeof ListResumeProfilesInputSchema>;
 export type ListResumeProfilesOutput = z.infer<typeof ListResumeProfilesOutputSchema>;
 export type ResumeProfileContext = z.infer<typeof ResumeProfileContextSchema>;
+export type SaveResumeProfileInput = z.infer<typeof SaveResumeProfileInputSchema>;
+export type SaveResumeLibraryInput = z.infer<typeof SaveResumeLibraryInputSchema>;
 export type ResumePreviewInput = z.infer<typeof ResumePreviewInputSchema>;
 export type ResumePreviewOutput = z.infer<typeof ResumePreviewOutputSchema>;
