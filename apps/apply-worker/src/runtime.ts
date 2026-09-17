@@ -183,7 +183,8 @@ export class ApplyWorker {
   }
 
   async register(): Promise<void> {
-    await this.client.executors.register(this.descriptor);
+    const status = await this.backendStatus();
+    await this.client.executors.register({ ...this.descriptor, status });
   }
 
   async start(): Promise<void> {
@@ -193,7 +194,7 @@ export class ApplyWorker {
     await this.registerWithRetry();
     if (this.stopRequested) { this.running = false; return; }
     this.executorHeartbeatTimer = setInterval(() => {
-      void this.heartbeatExecutor('ready').catch((error) => this.logger.warn('Apply worker executor heartbeat failed', sanitizeError(error)));
+      void this.heartbeatBackendStatus().catch((error) => this.logger.warn('Apply worker executor heartbeat failed', sanitizeError(error)));
     }, this.executorHeartbeatIntervalMs);
     this.executorHeartbeatTimer.unref();
     let transientBackoffMs = 1_000;
@@ -234,14 +235,16 @@ export class ApplyWorker {
 
   async runOnce(): Promise<ApplyWorkerRunResult> {
     await this.backends.reapExpired().catch((error) => this.logger.warn('Apply worker browser handoff reap failed', sanitizeError(error)));
-    await this.heartbeatExecutor('ready');
+    const backendStatus = await this.backendStatus();
+    await this.heartbeatExecutor(backendStatus);
+    if (backendStatus !== 'ready') return { claimed: false, attemptId: null, outcome: 'idle' };
     const claim = await this.client.attempts.claim({ executorId: this.descriptor.executorId, leaseSeconds: this.leaseSeconds });
     if (!claim) return { claimed: false, attemptId: null, outcome: 'idle' };
     await this.heartbeatExecutor('busy');
     try {
       return await this.executeClaim(claim);
     } finally {
-      await this.heartbeatExecutor('ready').catch((error) => this.logger.warn('Apply worker ready heartbeat failed', sanitizeError(error)));
+      await this.heartbeatBackendStatus().catch((error) => this.logger.warn('Apply worker ready heartbeat failed', sanitizeError(error)));
     }
   }
 
@@ -607,6 +610,19 @@ export class ApplyWorker {
       externalEffectState: 'not_crossed',
       payload: { readinessOnly: true },
     });
+  }
+
+  private async backendStatus(): Promise<ExecutorDescriptor['status']> {
+    try {
+      const health = await this.backends.get(this.backendId).health();
+      return health.ok ? 'ready' : 'degraded';
+    } catch {
+      return 'degraded';
+    }
+  }
+
+  private async heartbeatBackendStatus(): Promise<void> {
+    await this.heartbeatExecutor(await this.backendStatus());
   }
 
   private heartbeatExecutor(status: ExecutorDescriptor['status']): Promise<unknown> {

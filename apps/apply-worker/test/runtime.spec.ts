@@ -157,6 +157,23 @@ describe('ApplyWorker R019-C readiness mode', () => {
     expect(log.some((entry) => entry.startsWith('navigate:'))).toBe(false);
   });
 
+
+
+  it('registers/heartbeats degraded and does not claim work while its browser backend is offline', async () => {
+    const log: string[] = [];
+    const worker = new ApplyWorker({
+      client: fakeClient(attempt({ readinessOnly: true }), log),
+      backends: new BrowserBackendRegistry([fakeBackend(log, { healthy: false })]),
+      descriptor,
+      backendId: 'fake',
+      logger: { log() {}, warn() {}, error() {} },
+    });
+    await worker.register();
+    expect(await worker.runOnce()).toEqual({ claimed: false, attemptId: null, outcome: 'idle' });
+    expect(log).toContain('executor:degraded');
+    expect(log).not.toContain('claim');
+  });
+
   it('reports backend/navigation failures as pre-submit only', async () => {
     const log: string[] = [];
     const worker = new ApplyWorker({

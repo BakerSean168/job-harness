@@ -88,10 +88,17 @@ describe('Web prepared-intent safe-fill dispatch action', () => {
     const intent = await client.submissionIntents.prepare({
       jobId, listingId, resumeRevisionId: revisionId, resumeArtifactId: artifactId, executor: 'other', externalTargetUrl: 'https://www.nowcoder.com/jobs/detail/457892', idempotencyKey: 'dispatch-intent-1',
     });
+    await client.apply.executors.register({
+      executorId: 'steel-fill-worker', name: 'Steel Fill Worker', version: '0.2.0', hostLabel: 'test', status: 'ready',
+      browserBackends: ['steel'], adapterIds: ['generic-ats'], executionModes: ['fill_only'],
+      capabilities: { resumeUpload: true, humanControl: true, persistentSession: true, screenshots: true, semanticMapping: false },
+      maxConcurrency: 1, metadata: {},
+    });
 
     const form = new FormData();
     form.set('intentId', intent.id);
     form.set('decisionNonce', 'render-decision-1');
+    form.set('browserBackend', 'steel');
     const { dispatchPreparedIntentAction } = await import('../src/app/executors/actions');
     await dispatchPreparedIntentAction(form);
     await dispatchPreparedIntentAction(form);

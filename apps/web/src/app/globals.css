@@ -434,3 +434,7 @@ button { color: inherit; }
 .settings-extension-agent > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .settings-extension-agent p { margin: 0; color: var(--text-muted); font-size: 12px; }
 .settings-extension-agent code { font-size: 11px; color: var(--text-muted); }
+
+.executor-dispatch-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.executor-backend-select { display: grid; gap: 3px; min-width: 170px; color: var(--text-muted); font-size: 11px; }
+.executor-backend-select select { min-height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); padding: 0 8px; }

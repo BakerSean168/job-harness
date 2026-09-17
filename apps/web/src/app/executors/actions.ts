@@ -14,6 +14,8 @@ function required(formData: FormData, key: string): string {
 export async function dispatchPreparedIntentAction(formData: FormData): Promise<void> {
   const intentId = required(formData, 'intentId');
   const decisionNonce = required(formData, 'decisionNonce');
+  const browserBackend = required(formData, 'browserBackend');
+  if (!/^[a-z0-9][a-z0-9._:-]{0,99}$/i.test(browserBackend)) throw new Error(`Invalid browser backend '${browserBackend}'`);
   const client = getJobHarnessClient();
   const intent = await client.submissionIntents.get(intentId);
   if (!intent) throw new Error(`SubmissionIntent '${intentId}' was not found`);
@@ -31,10 +33,20 @@ export async function dispatchPreparedIntentAction(formData: FormData): Promise<
   if (!(intent.externalTargetUrl ?? listing?.url)) throw new Error(`SubmissionIntent '${intentId}' has no executable recruiting-site URL`);
 
   const requiredCapabilities: Array<'humanControl' | 'persistentSession' | 'resumeUpload'> = ['humanControl', 'persistentSession', 'resumeUpload'];
+  const executors = await client.apply.executors.list({ limit: 100, offset: 0 });
+  const compatibleExecutor = executors.items.some((executor) =>
+    executor.status === 'ready'
+    && executor.browserBackends.includes(browserBackend)
+    && executor.executionModes.includes('fill_only')
+    && executor.capabilities.humanControl
+    && executor.capabilities.persistentSession
+    && executor.capabilities.resumeUpload,
+  );
+  if (!compatibleExecutor) throw new Error(`No compatible ready Apply Executor is available for browser backend '${browserBackend}'`);
   await client.apply.attempts.dispatch({
     intentId,
     executionMode: 'fill_only',
-    preferredBrowserBackend: 'steel',
+    preferredBrowserBackend: browserBackend,
     requiredCapabilities,
     policySnapshot: {
       allowFormFill: true,

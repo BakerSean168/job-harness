@@ -53,19 +53,19 @@ export async function ExecutorsWorkspace() {
                 const listing = intent.listingId ? detail?.job.listings.find((candidate) => candidate.id === intent.listingId) ?? null : null;
                 const targetUrl = intent.externalTargetUrl ?? listing?.url ?? null;
                 const activeAttempt = activeAttemptsByIntent.get(intent.id) ?? null;
-                const compatibleExecutor = executors.items.some((executor) =>
-                  executor.status === 'ready'
-                  && executor.browserBackends.includes('steel')
-                  && executor.executionModes.includes('fill_only')
-                  && executor.capabilities.humanControl
-                  && executor.capabilities.persistentSession
-                  && executor.capabilities.resumeUpload,
-                );
+                const compatibleBackends = [...new Set(executors.items
+                  .filter((executor) =>
+                    executor.status === 'ready'
+                    && executor.executionModes.includes('fill_only')
+                    && executor.capabilities.humanControl
+                    && executor.capabilities.persistentSession
+                    && executor.capabilities.resumeUpload)
+                  .flatMap((executor) => executor.browserBackends))].sort();
                 const hasFrozenResume = Boolean(intent.resumeRevisionId && intent.resumeArtifactId);
-                const canDispatch = !activeAttempt && compatibleExecutor && Boolean(targetUrl) && hasFrozenResume;
+                const canDispatch = !activeAttempt && compatibleBackends.length > 0 && Boolean(targetUrl) && hasFrozenResume;
                 const blockedReason = activeAttempt
                   ? copy.dispatch.alreadyDispatched
-                  : !compatibleExecutor
+                  : compatibleBackends.length === 0
                     ? copy.dispatch.missingExecutor
                     : !targetUrl
                       ? copy.dispatch.missingTarget
@@ -94,9 +94,19 @@ export async function ExecutorsWorkspace() {
                       ) : (
                         <Link className="filter-reset" href={`/jobs/${intent.jobId}`}>{copy.dispatch.openJob}</Link>
                       )}
-                      <form action={dispatchPreparedIntentAction}>
+                      <form action={dispatchPreparedIntentAction} className="executor-dispatch-form">
                         <input type="hidden" name="intentId" value={intent.id} />
                         <input type="hidden" name="decisionNonce" value={randomUUID()} />
+                        {compatibleBackends.length === 1 ? (
+                          <input type="hidden" name="browserBackend" value={compatibleBackends[0]} />
+                        ) : (
+                          <label className="executor-backend-select">
+                            <span>{copy.dispatch.backend}</span>
+                            <select name="browserBackend" defaultValue={compatibleBackends.includes('extension') ? 'extension' : compatibleBackends[0]} disabled={!canDispatch}>
+                              {compatibleBackends.map((backend) => <option key={backend} value={backend}>{backend === 'steel' ? copy.dispatch.backendSteel : backend === 'extension' ? copy.dispatch.backendExtension : backend}</option>)}
+                            </select>
+                          </label>
+                        )}
                         <button className="filter-submit" type="submit" disabled={!canDispatch} title={blockedReason ?? undefined}>{copy.dispatch.safeFill}</button>
                       </form>
                     </div>
