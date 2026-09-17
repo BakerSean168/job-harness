@@ -70,7 +70,7 @@ const descriptor: ExecutorDescriptor = {
     semanticMapping: false,
   },
   maxConcurrency: 1,
-  metadata: { phase: phase === 'form-fill' ? 'R019-shadow-form-fill' : 'R019-readiness', sideEffects: false, applicantData: phase === 'form-fill' ? 'lease-scoped-resume-revision' : 'none', siteAdapters: advertisedAdapterIds },
+  metadata: { phase: phase === 'form-fill' ? 'R019-form-fill' : 'R019-readiness', externalSubmit: false, formFill: phase === 'form-fill', applicantData: phase === 'form-fill' ? 'lease-scoped-resume-revision' : 'none', siteAdapters: advertisedAdapterIds },
 };
 
 const client = createJobHarnessRestClient({ baseUrl: apiUrl, authToken: token });

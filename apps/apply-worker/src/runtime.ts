@@ -613,7 +613,7 @@ export class ApplyWorker {
     return this.client.executors.heartbeat({
       executorId: this.descriptor.executorId,
       status,
-      metadata: { browserBackend: this.backendId, adapter: this.adapterId },
+      metadata: { ...this.descriptor.metadata, browserBackend: this.backendId, adapter: this.adapterId, adapterIds: [...this.descriptor.adapterIds], executionModes: [...this.descriptor.executionModes] },
     });
   }
 }
