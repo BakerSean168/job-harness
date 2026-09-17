@@ -10,6 +10,8 @@ import {
   JOB_LISTING_STATUSES,
   JOB_SOURCE_KINDS,
   JOB_STATES,
+  SUBMISSION_INTENT_EXECUTORS,
+  SUBMISSION_INTENT_STATUSES,
 } from '@job-harness/domain';
 
 export const EntityIdSchema = z.string().trim().min(1).max(200);
@@ -28,6 +30,8 @@ export const CampaignStatusSchema = z.enum(CAMPAIGN_STATUSES);
 export const DiscoveryExecutorSchema = z.enum(DISCOVERY_EXECUTORS);
 export const JobSourceKindSchema = z.enum(JOB_SOURCE_KINDS);
 export const EventActorSchema = z.enum(EVENT_ACTORS);
+export const SubmissionIntentStatusSchema = z.enum(SUBMISSION_INTENT_STATUSES);
+export const SubmissionIntentExecutorSchema = z.enum(SUBMISSION_INTENT_EXECUTORS);
 
 export const CompanySchema = z
   .object({
@@ -212,6 +216,44 @@ export const DiscoveryRunSchema = z
   })
   .strict();
 
+
+export const SubmissionIntentSchema = z.object({
+  id: EntityIdSchema,
+  jobId: EntityIdSchema,
+  listingId: EntityIdSchema.nullable().default(null),
+  channel: ApplicationSubmissionChannelSchema.nullable().default(null),
+  resumeProfileId: EntityIdSchema.nullable().default(null),
+  resumeRevisionId: EntityIdSchema.nullable().default(null),
+  resumeArtifactId: EntityIdSchema.nullable().default(null),
+  executor: SubmissionIntentExecutorSchema,
+  executorSessionId: z.string().trim().min(1).max(500).nullable().default(null),
+  externalTargetUrl: z.url().nullable().default(null),
+  status: SubmissionIntentStatusSchema,
+  externalStartedAt: NullableIsoDateTimeSchema.default(null),
+  externalConfirmedAt: NullableIsoDateTimeSchema.default(null),
+  appliedAt: NullableIsoDateTimeSchema.default(null),
+  externalReference: z.string().trim().max(2000).nullable().default(null),
+  externalEvidence: z.record(z.string(), z.unknown()).default({}),
+  applicationId: EntityIdSchema.nullable().default(null),
+  submissionId: EntityIdSchema.nullable().default(null),
+  prepareIdempotencyKey: IdempotencyKeySchema,
+  lastError: z.string().trim().max(4000).nullable().default(null),
+  retryCount: z.number().int().nonnegative().default(0),
+  note: z.string().trim().max(4000).nullable().default(null),
+  createdAt: IsoDateTimeSchema,
+  updatedAt: IsoDateTimeSchema,
+}).strict().superRefine((value, ctx) => {
+  if (value.resumeArtifactId && !value.resumeRevisionId) {
+    ctx.addIssue({ code: 'custom', path: ['resumeArtifactId'], message: 'resumeArtifactId requires resumeRevisionId' });
+  }
+  if (value.status === 'committed' && (!value.applicationId || !value.submissionId)) {
+    ctx.addIssue({ code: 'custom', path: ['status'], message: 'committed intent requires applicationId and submissionId' });
+  }
+  if (['external_confirmed', 'persistence_pending', 'committed'].includes(value.status) && (!value.externalConfirmedAt || !value.appliedAt)) {
+    ctx.addIssue({ code: 'custom', path: ['externalConfirmedAt'], message: 'confirmed/pending/committed intent requires externalConfirmedAt and appliedAt' });
+  }
+});
+
 export type Company = z.infer<typeof CompanySchema>;
 export type JobListing = z.infer<typeof JobListingSchema>;
 export type Job = z.infer<typeof JobSchema>;
@@ -224,3 +266,4 @@ export type ApplicationDetail = z.infer<typeof ApplicationDetailSchema>;
 export type ResumeProfileRef = z.infer<typeof ResumeProfileRefSchema>;
 export type JobSearchCampaign = z.infer<typeof JobSearchCampaignSchema>;
 export type DiscoveryRun = z.infer<typeof DiscoveryRunSchema>;
+export type SubmissionIntent = z.infer<typeof SubmissionIntentSchema>;

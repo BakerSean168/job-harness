@@ -73,3 +73,24 @@ export type JobSourceKind = (typeof JOB_SOURCE_KINDS)[number];
 
 export const EVENT_ACTORS = ['user', 'chatgpt-web', 'import', 'system', 'other'] as const;
 export type EventActor = (typeof EVENT_ACTORS)[number];
+
+
+export const SUBMISSION_INTENT_STATUSES = [
+  'planned',
+  'external_in_progress',
+  'external_confirmed',
+  'persistence_pending',
+  'committed',
+  'external_failed',
+  'needs_manual_review',
+] as const;
+export type SubmissionIntentStatus = (typeof SUBMISSION_INTENT_STATUSES)[number];
+
+export const SUBMISSION_INTENT_EXECUTORS = [
+  'chatgpt-web',
+  'job-honey',
+  'browser-extension',
+  'manual',
+  'other',
+] as const;
+export type SubmissionIntentExecutor = (typeof SUBMISSION_INTENT_EXECUTORS)[number];

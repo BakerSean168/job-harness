@@ -38,6 +38,8 @@ The artifact is generated directly from the canonical Zod request/response schem
 | GET | `/jobs/:jobId` | `workspace.getJobDetail` |
 | GET | `/applications` | `workspace.listApplicationBoard` |
 | GET | `/applications/:applicationId` | `workspace.getApplicationWorkspaceDetail` |
+| GET | `/submission-intents` | `submissionIntents.list` |
+| GET | `/submission-intents/:intentId` | `submissionIntents.get` |
 | GET | `/campaigns` | `campaigns.listCampaigns` |
 | GET | `/campaigns/:campaignId` | `campaigns.getCampaign` |
 | GET | `/resumes` | `workspace.listResumeUsage` |
@@ -52,6 +54,8 @@ Jobs query parameters currently map to durable filters: `limit`, `offset`, `comp
 Saved Views support pagination plus optional `workspace=jobs|applications`. Definitions are strict typed contracts; transient page offsets and selected side-panel IDs are not valid fields.
 
 Applications support `limit`, `offset`, repeated/comma-separated `stages`, `company`, `campaignId`, `resumeProfileId`, `appliedFrom`, `appliedTo`, and `terminal=exclude|include|only`. Companies support pagination plus `query` and optional `campaignId`. Analytics and Pipeline stats support optional `campaignId`. Discovery history supports pagination plus optional `campaignId` and `executor`. Dashboard accepts `campaignId`, `recentDiscoveryLimit`, and `attentionLimit`.
+SubmissionIntent list filters support `statuses`, `jobId`, `updatedBefore`, `order=newest|oldest`, `limit`, and `offset`. The durable lifecycle is `planned -> external_in_progress -> external_confirmed -> committed`, with `persistence_pending`, `external_failed`, and `needs_manual_review` recovery branches.
+
 
 ## Write routes
 
@@ -61,11 +65,17 @@ Applications support `limit`, `offset`, repeated/comma-separated `stages`, `comp
 | PATCH | `/jobs/:jobId/state` | `jobs.setJobState` |
 | POST | `/applications` | `applications.recordApplication` |
 | POST | `/applications/:applicationId/transition` | `applications.transitionApplication` |
+| POST | `/submission-intents` | `submissionIntents.prepare` |
+| POST | `/submission-intents/:intentId/begin` | `submissionIntents.begin` |
+| POST | `/submission-intents/:intentId/confirm` | `submissionIntents.confirm` |
+| POST | `/submission-intents/:intentId/fail` | `submissionIntents.fail` |
+| POST | `/submission-intents/:intentId/reconcile` | `submissionIntents.reconcile` |
+| POST | `/submission-intents/reconcile-pending` | `submissionIntents.reconcilePending` |
 | PUT | `/campaigns/:campaignId` | `campaigns.upsertCampaign` |
 | POST | `/discovery` | `discovery.beginDiscoveryRun` |
 | POST | `/discovery/:runId/complete` | `discovery.completeDiscoveryRun` |
 
-Every Agent/user retry-sensitive write keeps the canonical idempotency requirements from the application contract. REST never performs an external job application.
+Every Agent/user retry-sensitive write keeps the canonical idempotency requirements from the application contract. REST never performs an external job application. `SubmissionIntent` routes only persist intent/evidence and reconcile confirmed external success into local `ApplicationSubmission` state. The batch reconciliation route never clicks a recruiting site; it retries local persistence and moves stale/over-retried work to manual review.
 
 ## Errors
 

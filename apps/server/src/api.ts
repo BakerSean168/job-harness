@@ -25,6 +25,13 @@ import {
   UpsertCampaignInputSchema,
   UpsertSavedViewInputSchema,
   UpsertJobsBatchInputSchema,
+  PrepareSubmissionIntentInputSchema,
+  BeginSubmissionIntentInputSchema,
+  ConfirmSubmissionIntentInputSchema,
+  FailSubmissionIntentInputSchema,
+  ReconcileSubmissionIntentInputSchema,
+  ListSubmissionIntentsInputSchema,
+  ReconcileSubmissionIntentsInputSchema,
 } from '@job-harness/contracts';
 import { registerRestV1Route } from './rest-route';
 
@@ -228,6 +235,57 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
       applicationId: entityId(req.params.applicationId),
     });
     res.json(await career.applications.transitionApplication(input));
+  }));
+
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.submissionIntents, route(async (req, res) => {
+    const input = ListSubmissionIntentsInputSchema.parse({
+      ...pageQuery(req.query),
+      ...(list(req.query.statuses) ? { statuses: list(req.query.statuses) } : {}),
+      ...(first(req.query.jobId) ? { jobId: first(req.query.jobId) } : {}),
+      ...(first(req.query.updatedBefore) ? { updatedBefore: first(req.query.updatedBefore) } : {}),
+      ...(first(req.query.order) ? { order: first(req.query.order) } : {}),
+    });
+    res.json(await career.submissionIntents.list(input));
+  }));
+
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.submissionIntentDetail, route(async (req, res) => {
+    const intentId = entityId(req.params.intentId);
+    const result = await career.submissionIntents.get(intentId);
+    if (!result) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: `SubmissionIntent '${intentId}' was not found` } });
+      return;
+    }
+    res.json(result);
+  }));
+
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.prepareSubmissionIntent, route(async (req, res) => {
+    const input = PrepareSubmissionIntentInputSchema.parse(req.body);
+    res.status(201).json(await career.submissionIntents.prepare(input));
+  }));
+
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.beginSubmissionIntent, route(async (req, res) => {
+    const input = BeginSubmissionIntentInputSchema.parse({ ...req.body, intentId: entityId(req.params.intentId) });
+    res.json(await career.submissionIntents.begin(input));
+  }));
+
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.confirmSubmissionIntent, route(async (req, res) => {
+    const input = ConfirmSubmissionIntentInputSchema.parse({ ...req.body, intentId: entityId(req.params.intentId) });
+    res.json(await career.submissionIntents.confirm(input));
+  }));
+
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.failSubmissionIntent, route(async (req, res) => {
+    const input = FailSubmissionIntentInputSchema.parse({ ...req.body, intentId: entityId(req.params.intentId) });
+    res.json(await career.submissionIntents.fail(input));
+  }));
+
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.reconcileSubmissionIntent, route(async (req, res) => {
+    const input = ReconcileSubmissionIntentInputSchema.parse({ intentId: entityId(req.params.intentId) });
+    res.json(await career.submissionIntents.reconcile(input));
+  }));
+
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.reconcileSubmissionIntents, route(async (req, res) => {
+    const input = ReconcileSubmissionIntentsInputSchema.parse(req.body ?? {});
+    res.json(await career.submissionIntents.reconcilePending(input));
   }));
 
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.campaigns, route(async (req, res) => {

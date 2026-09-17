@@ -56,8 +56,25 @@ import {
   type UpsertJobsBatchOutput,
   RecordApplicationOutputSchema,
   TransitionApplicationOutputSchema,
+  PrepareSubmissionIntentOutputSchema,
+  BeginSubmissionIntentOutputSchema,
+  SubmissionIntentCommitOutputSchema,
+  FailSubmissionIntentOutputSchema,
+  ListSubmissionIntentsOutputSchema,
+  ReconcileSubmissionIntentsOutputSchema,
   DiscoveryRunDetailSchema,
   type ApplicationWorkspaceDetail,
+  type PrepareSubmissionIntentInput,
+  type BeginSubmissionIntentInput,
+  type ConfirmSubmissionIntentInput,
+  type FailSubmissionIntentInput,
+  type ReconcileSubmissionIntentInput,
+  type ReconcileSubmissionIntentsInput,
+  type ReconcileSubmissionIntentsOutput,
+  type ListSubmissionIntentsInput,
+  type ListSubmissionIntentsOutput,
+  type SubmissionIntent,
+  type SubmissionIntentCommitOutput,
   type DiscoveryRunDetail,
 } from '@job-harness/contracts';
 import {
@@ -176,6 +193,18 @@ function applicationsQuery(input: ListApplicationBoardInput): string {
   append(query, 'appliedFrom', input.appliedFrom);
   append(query, 'appliedTo', input.appliedTo);
   append(query, 'terminal', input.terminal);
+  return query.toString();
+}
+
+
+function submissionIntentsQuery(input: ListSubmissionIntentsInput): string {
+  const query = new URLSearchParams();
+  append(query, 'limit', input.limit);
+  append(query, 'offset', input.offset);
+  appendMany(query, 'statuses', input.statuses);
+  append(query, 'jobId', input.jobId);
+  append(query, 'updatedBefore', input.updatedBefore);
+  append(query, 'order', input.order);
   return query.toString();
 }
 
@@ -421,6 +450,43 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
             actor: input.actor,
             note: input.note,
           }),
+        }));
+      },
+    },
+    submissionIntents: {
+      async list(input: ListSubmissionIntentsInput = {}): Promise<ListSubmissionIntentsOutput> {
+        const query = submissionIntentsQuery(input);
+        return ListSubmissionIntentsOutputSchema.parse(await request(`/submission-intents${query ? `?${query}` : ''}`));
+      },
+      async get(intentId: string): Promise<SubmissionIntent | null> {
+        return nullable(async () => PrepareSubmissionIntentOutputSchema.parse(await request(`/submission-intents/${encodeURIComponent(intentId)}`)));
+      },
+      async prepare(input: PrepareSubmissionIntentInput): Promise<SubmissionIntent> {
+        return PrepareSubmissionIntentOutputSchema.parse(await request('/submission-intents', { method: 'POST', body: JSON.stringify(input) }));
+      },
+      async begin(input: BeginSubmissionIntentInput): Promise<SubmissionIntent> {
+        return BeginSubmissionIntentOutputSchema.parse(await request(`/submission-intents/${encodeURIComponent(input.intentId)}/begin`, {
+          method: 'POST', body: JSON.stringify({ occurredAt: input.occurredAt }),
+        }));
+      },
+      async confirm(input: ConfirmSubmissionIntentInput): Promise<SubmissionIntentCommitOutput> {
+        return SubmissionIntentCommitOutputSchema.parse(await request(`/submission-intents/${encodeURIComponent(input.intentId)}/confirm`, {
+          method: 'POST',
+          body: JSON.stringify({ confirmedAt: input.confirmedAt, appliedAt: input.appliedAt, externalReference: input.externalReference, externalEvidence: input.externalEvidence }),
+        }));
+      },
+      async fail(input: FailSubmissionIntentInput): Promise<SubmissionIntent> {
+        return FailSubmissionIntentOutputSchema.parse(await request(`/submission-intents/${encodeURIComponent(input.intentId)}/fail`, {
+          method: 'POST', body: JSON.stringify({ occurredAt: input.occurredAt, status: input.status, error: input.error, externalEvidence: input.externalEvidence }),
+        }));
+      },
+      async reconcile(input: ReconcileSubmissionIntentInput): Promise<SubmissionIntentCommitOutput> {
+        return SubmissionIntentCommitOutputSchema.parse(await request(`/submission-intents/${encodeURIComponent(input.intentId)}/reconcile`, { method: 'POST' }));
+      },
+      async reconcilePending(input: ReconcileSubmissionIntentsInput = {}): Promise<ReconcileSubmissionIntentsOutput> {
+        return ReconcileSubmissionIntentsOutputSchema.parse(await request('/submission-intents/reconcile-pending', {
+          method: 'POST',
+          body: JSON.stringify(input),
         }));
       },
     },

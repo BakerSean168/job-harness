@@ -45,6 +45,9 @@ import type {
   SearchJobsInput,
   SearchJobsOutput,
   UpsertJobCandidate,
+  ListSubmissionIntentsInput,
+  ListSubmissionIntentsOutput,
+  SubmissionIntent,
 } from '@job-harness/contracts';
 import type { ApplicationStage, JobState } from '@job-harness/domain';
 
@@ -62,6 +65,8 @@ export interface CareerStoreReadPort {
   findDuplicate(input: DuplicateCheckInput): Promise<DuplicateCheckOutput>;
   listApplications(input: ListApplicationsInput): Promise<ListApplicationsOutput>;
   getApplication(applicationId: string): Promise<ApplicationDetail | null>;
+  getSubmissionIntent(intentId: string): Promise<SubmissionIntent | null>;
+  listSubmissionIntents(input: ListSubmissionIntentsInput): Promise<ListSubmissionIntentsOutput>;
   findApplicationByJobId(jobId: string): Promise<Application | null>;
   listApplicationSubmissions(applicationId: string): Promise<readonly ApplicationSubmission[]>;
   listCampaigns(input: ListCampaignsInput): Promise<ListCampaignsOutput>;
@@ -98,6 +103,8 @@ export interface CareerStoreTransactionPort extends CareerStoreReadPort {
   updateApplicationStage(applicationId: string, stage: ApplicationStage, now: string): Promise<Application>;
   insertApplicationEvent(event: ApplicationEvent): Promise<void>;
   insertApplicationSubmission(submission: ApplicationSubmission): Promise<void>;
+  insertSubmissionIntent(intent: SubmissionIntent): Promise<void>;
+  updateSubmissionIntent(intent: SubmissionIntent): Promise<SubmissionIntent>;
   upsertCampaign(campaign: JobSearchCampaign): Promise<JobSearchCampaign>;
   insertDiscoveryRun(run: DiscoveryRun): Promise<void>;
   updateDiscoveryRun(run: DiscoveryRun): Promise<DiscoveryRun>;

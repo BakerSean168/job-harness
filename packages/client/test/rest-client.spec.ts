@@ -208,6 +208,51 @@ describe('Job Harness REST client', () => {
     expect(new URL(calls[2]!.url).pathname).toBe('/api/v1/discovery/run-1/complete');
   });
 
+  it('encodes SubmissionIntent recovery filters and bounded reconciliation requests', async () => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const client = createJobHarnessRestClient({
+      baseUrl: 'http://job-harness/api/v1',
+      fetch: async (input, init) => {
+        const call = {
+          url: String(input),
+          method: init?.method ?? 'GET',
+          body: init?.body ? JSON.parse(String(init.body)) : null,
+        };
+        calls.push(call);
+        if (call.method === 'GET') return response({ items: [], total: 0 });
+        return response({ scanned: 0, committed: 0, pending: 0, manualReview: 0, skipped: 0, items: [] });
+      },
+    });
+
+    await client.submissionIntents.list({
+      statuses: ['external_confirmed', 'persistence_pending'],
+      jobId: 'job-1',
+      updatedBefore: '2026-09-17T05:00:00.000Z',
+      order: 'oldest',
+      limit: 25,
+      offset: 5,
+    });
+    await client.submissionIntents.reconcilePending({
+      limit: 50,
+      staleBefore: '2026-09-17T04:00:00.000Z',
+      maxAutomaticRetries: 5,
+    });
+
+    const listUrl = new URL(calls[0]!.url);
+    expect(listUrl.pathname).toBe('/api/v1/submission-intents');
+    expect(listUrl.searchParams.getAll('statuses')).toEqual(['external_confirmed', 'persistence_pending']);
+    expect(listUrl.searchParams.get('jobId')).toBe('job-1');
+    expect(listUrl.searchParams.get('updatedBefore')).toBe('2026-09-17T05:00:00.000Z');
+    expect(listUrl.searchParams.get('order')).toBe('oldest');
+    expect(listUrl.searchParams.get('limit')).toBe('25');
+    expect(listUrl.searchParams.get('offset')).toBe('5');
+    expect(calls[1]).toMatchObject({
+      method: 'POST',
+      body: { limit: 50, staleBefore: '2026-09-17T04:00:00.000Z', maxAutomaticRetries: 5 },
+    });
+    expect(new URL(calls[1]!.url).pathname).toBe('/api/v1/submission-intents/reconcile-pending');
+  });
+
   it('surfaces stable server error envelopes', async () => {
     const client = createJobHarnessRestClient({
       baseUrl: 'http://job-harness/api/v1',

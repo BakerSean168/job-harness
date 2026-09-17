@@ -14,6 +14,9 @@ import {
   JobStateSchema,
   JobSearchCampaignSchema,
   ResumeProfileRefSchema,
+  SubmissionIntentExecutorSchema,
+  SubmissionIntentSchema,
+  SubmissionIntentStatusSchema,
 } from './schemas';
 
 export const PageSchema = z
@@ -161,6 +164,93 @@ export const TransitionApplicationInputSchema = z
   .strict();
 export const TransitionApplicationOutputSchema = GetApplicationOutputSchema.unwrap();
 
+
+
+export const PrepareSubmissionIntentInputSchema = z.object({
+  jobId: EntityIdSchema,
+  listingId: EntityIdSchema.nullable().optional(),
+  channel: ApplicationSubmissionChannelSchema.nullable().optional(),
+  resumeProfileId: EntityIdSchema.nullable().optional(),
+  resumeRevisionId: EntityIdSchema.nullable().optional(),
+  resumeArtifactId: EntityIdSchema.nullable().optional(),
+  executor: SubmissionIntentExecutorSchema,
+  executorSessionId: z.string().trim().min(1).max(500).nullable().optional(),
+  externalTargetUrl: z.url().nullable().optional(),
+  idempotencyKey: IdempotencyKeySchema,
+  note: z.string().trim().max(4000).nullable().optional(),
+}).strict().superRefine((value, ctx) => {
+  if (value.resumeArtifactId && !value.resumeRevisionId) {
+    ctx.addIssue({ code: 'custom', path: ['resumeArtifactId'], message: 'resumeArtifactId requires resumeRevisionId' });
+  }
+});
+export const PrepareSubmissionIntentOutputSchema = SubmissionIntentSchema;
+export const GetSubmissionIntentInputSchema = z.object({ intentId: EntityIdSchema }).strict();
+export const GetSubmissionIntentOutputSchema = SubmissionIntentSchema.nullable();
+
+export const BeginSubmissionIntentInputSchema = z.object({
+  intentId: EntityIdSchema,
+  occurredAt: IsoDateTimeSchema,
+}).strict();
+export const BeginSubmissionIntentOutputSchema = SubmissionIntentSchema;
+
+export const ConfirmSubmissionIntentInputSchema = z.object({
+  intentId: EntityIdSchema,
+  confirmedAt: IsoDateTimeSchema,
+  appliedAt: IsoDateTimeSchema,
+  externalReference: z.string().trim().max(2000).nullable().optional(),
+  externalEvidence: z.record(z.string(), z.unknown()).default({}),
+}).strict();
+export const SubmissionIntentCommitOutputSchema = z.object({
+  intent: SubmissionIntentSchema,
+  application: ApplicationDetailSchema.nullable(),
+  persistenceCommitted: z.boolean(),
+}).strict();
+
+export const FailSubmissionIntentInputSchema = z.object({
+  intentId: EntityIdSchema,
+  occurredAt: IsoDateTimeSchema,
+  status: z.enum(['external_failed', 'needs_manual_review']),
+  error: z.string().trim().min(1).max(4000),
+  externalEvidence: z.record(z.string(), z.unknown()).default({}),
+}).strict();
+export const FailSubmissionIntentOutputSchema = SubmissionIntentSchema;
+
+export const ReconcileSubmissionIntentInputSchema = z.object({ intentId: EntityIdSchema }).strict();
+export const ReconcileSubmissionIntentOutputSchema = SubmissionIntentCommitOutputSchema;
+
+export const ListSubmissionIntentsInputSchema = PageSchema.extend({
+  statuses: z.array(SubmissionIntentStatusSchema).optional(),
+  jobId: EntityIdSchema.optional(),
+  updatedBefore: IsoDateTimeSchema.optional(),
+  order: z.enum(['newest', 'oldest']).default('newest'),
+});
+export const ListSubmissionIntentsOutputSchema = z.object({
+  items: z.array(SubmissionIntentSchema),
+  total: z.number().int().nonnegative(),
+}).strict();
+
+export const ReconcileSubmissionIntentsInputSchema = z.object({
+  limit: z.number().int().min(1).max(200).default(100),
+  staleBefore: IsoDateTimeSchema.optional(),
+  maxAutomaticRetries: z.number().int().min(0).max(100).default(8),
+}).strict();
+export const ReconcileSubmissionIntentResultSchema = z.object({
+  intentId: EntityIdSchema,
+  beforeStatus: SubmissionIntentStatusSchema,
+  afterStatus: SubmissionIntentStatusSchema,
+  persistenceCommitted: z.boolean(),
+  action: z.enum(['committed', 'pending', 'manual_review', 'skipped']),
+  message: z.string().nullable(),
+}).strict();
+export const ReconcileSubmissionIntentsOutputSchema = z.object({
+  scanned: z.number().int().nonnegative(),
+  committed: z.number().int().nonnegative(),
+  pending: z.number().int().nonnegative(),
+  manualReview: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  items: z.array(ReconcileSubmissionIntentResultSchema),
+}).strict();
+
 export const ListCampaignsInputSchema = PageSchema.extend({});
 export const ListCampaignsOutputSchema = z
   .object({ items: z.array(JobSearchCampaignSchema), total: z.number().int().nonnegative() })
@@ -215,6 +305,18 @@ export const CareerContextOutputSchema = z
     pipeline: PipelineStatsOutputSchema,
   })
   .strict();
+
+
+export type PrepareSubmissionIntentInput = z.input<typeof PrepareSubmissionIntentInputSchema>;
+export type BeginSubmissionIntentInput = z.input<typeof BeginSubmissionIntentInputSchema>;
+export type ConfirmSubmissionIntentInput = z.input<typeof ConfirmSubmissionIntentInputSchema>;
+export type FailSubmissionIntentInput = z.input<typeof FailSubmissionIntentInputSchema>;
+export type ReconcileSubmissionIntentInput = z.input<typeof ReconcileSubmissionIntentInputSchema>;
+export type ReconcileSubmissionIntentsInput = z.input<typeof ReconcileSubmissionIntentsInputSchema>;
+export type ReconcileSubmissionIntentsOutput = z.output<typeof ReconcileSubmissionIntentsOutputSchema>;
+export type ListSubmissionIntentsInput = z.input<typeof ListSubmissionIntentsInputSchema>;
+export type ListSubmissionIntentsOutput = z.output<typeof ListSubmissionIntentsOutputSchema>;
+export type SubmissionIntentCommitOutput = z.output<typeof SubmissionIntentCommitOutputSchema>;
 
 export type SearchJobsInput = z.input<typeof SearchJobsInputSchema>;
 export type SearchJobsOutput = z.output<typeof SearchJobsOutputSchema>;

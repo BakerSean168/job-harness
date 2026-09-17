@@ -34,6 +34,17 @@ import {
   UpsertJobsBatchInputSchema,
   UpsertJobsBatchOutputSchema,
   ApplicationSubmissionSchema,
+  BeginSubmissionIntentInputSchema,
+  ConfirmSubmissionIntentInputSchema,
+  FailSubmissionIntentInputSchema,
+  ListSubmissionIntentsInputSchema,
+  ListSubmissionIntentsOutputSchema,
+  PrepareSubmissionIntentInputSchema,
+  ReconcileSubmissionIntentInputSchema,
+  ReconcileSubmissionIntentsInputSchema,
+  ReconcileSubmissionIntentsOutputSchema,
+  SubmissionIntentCommitOutputSchema,
+  SubmissionIntentSchema,
   type ApplicationDetail,
   type ApplicationSubmission,
   type DiscoveryRun,
@@ -41,6 +52,7 @@ import {
   type Job,
   type JobObservation,
   type ResumeProfileRef,
+  type SubmissionIntent,
   type UpsertJobCandidate,
 } from '@job-harness/contracts';
 import { canTransitionApplicationStage, canTransitionJobState } from '@job-harness/domain';
@@ -55,6 +67,7 @@ import type { CareerStorePort, CareerStoreTransactionPort, IdempotencyReceipt } 
 
 
 export interface CareerResumeSubmissionEvidencePort {
+  getProfile?(profileId: string): Promise<{ readonly id: string } | null>;
   getRevision(revisionId: string): Promise<{ readonly id: string; readonly profileId: string } | null>;
   getArtifact(artifactId: string): Promise<{ readonly id: string; readonly revisionId: string } | null>;
 }
@@ -287,10 +300,17 @@ export function createCareerApplicationService(
         const listing = parsed.listingId == null ? null : job.listings.find((candidate) => candidate.id === parsed.listingId) ?? null;
         if (parsed.listingId && !listing) throw new CareerNotFoundError('JobListing', parsed.listingId);
         const explicitLegacyProfile = parsed.resumeProfileId ? await tx.getResumeProfile(parsed.resumeProfileId) : null;
-        if (parsed.resumeProfileId && !explicitLegacyProfile) throw new CareerNotFoundError('ResumeProfileRef', parsed.resumeProfileId);
+        const explicitFirstClassProfile = parsed.resumeProfileId && !explicitLegacyProfile && options.resumeEvidence?.getProfile
+          ? await options.resumeEvidence.getProfile(parsed.resumeProfileId)
+          : null;
+        if (parsed.resumeProfileId && !explicitLegacyProfile && !explicitFirstClassProfile) {
+          throw new CareerNotFoundError('ResumeProfile', parsed.resumeProfileId);
+        }
         const derivedLegacyProfile = !parsed.resumeProfileId && resumeEvidence.profileId
           ? await tx.getResumeProfile(resumeEvidence.profileId)
           : null;
+        // Application.resumeProfileId remains a legacy compatibility projection. Exact first-class
+        // Resume evidence is always preserved on ApplicationSubmission instead of being guessed here.
         const compatibilityProfileId = explicitLegacyProfile?.id ?? derivedLegacyProfile?.id ?? null;
         const channel = parsed.channel ?? listing?.sourceKind ?? null;
         const timestamp = now();
@@ -401,6 +421,330 @@ export function createCareerApplicationService(
         if (!result) throw new CareerNotFoundError('Application', parsed.applicationId);
         await saveReceipt(tx, scope, parsed.idempotencyKey, parsed, result, now());
         return result;
+      });
+    },
+  };
+
+
+
+  function submissionIntentActor(intent: SubmissionIntent): 'user' | 'chatgpt-web' | 'other' {
+    if (intent.executor === 'chatgpt-web') return 'chatgpt-web';
+    if (intent.executor === 'manual') return 'user';
+    return 'other';
+  }
+
+  function confirmationMatches(
+    current: SubmissionIntent,
+    input: { confirmedAt: string; appliedAt: string; externalReference?: string | null | undefined; externalEvidence: Record<string, unknown> },
+  ): boolean {
+    return current.externalConfirmedAt === input.confirmedAt
+      && current.appliedAt === input.appliedAt
+      && current.externalReference === (input.externalReference ?? null)
+      && stableJson(current.externalEvidence) === stableJson(input.externalEvidence);
+  }
+
+  async function commitSubmissionIntent(intentId: string) {
+    const current = await store.getSubmissionIntent(intentId);
+    if (!current) throw new CareerNotFoundError('SubmissionIntent', intentId);
+    if (current.status === 'committed') {
+      const application = current.applicationId ? await store.getApplication(current.applicationId) : null;
+      return SubmissionIntentCommitOutputSchema.parse({ intent: current, application, persistenceCommitted: true });
+    }
+    if (!['external_confirmed', 'persistence_pending', 'needs_manual_review'].includes(current.status)) {
+      throw new CareerConflictError(`SubmissionIntent '${intentId}' cannot reconcile from '${current.status}'`);
+    }
+    if (!current.appliedAt || !current.externalConfirmedAt) {
+      throw new CareerConflictError(`SubmissionIntent '${intentId}' has no durable external-success confirmation to reconcile`);
+    }
+
+    const recordKey = `submission-intent:${current.id}`;
+    try {
+      const application = await applications.recordApplication({
+        jobId: current.jobId,
+        appliedAt: current.appliedAt,
+        ...(current.listingId ? { listingId: current.listingId } : {}),
+        ...(current.channel ? { channel: current.channel } : {}),
+        ...(!current.resumeRevisionId && current.resumeProfileId ? { resumeProfileId: current.resumeProfileId } : {}),
+        ...(current.resumeRevisionId ? { resumeRevisionId: current.resumeRevisionId } : {}),
+        ...(current.resumeArtifactId ? { resumeArtifactId: current.resumeArtifactId } : {}),
+        idempotencyKey: recordKey,
+        actor: submissionIntentActor(current),
+        note: current.note,
+      });
+      const submission = application.submissions.find((item) => item.idempotencyKey === recordKey);
+      if (!submission) throw new CareerConflictError(`SubmissionIntent '${intentId}' application record has no matching submission evidence`);
+      const committed = await store.transaction(async (tx) => {
+        const latest = await tx.getSubmissionIntent(intentId);
+        if (!latest) throw new CareerNotFoundError('SubmissionIntent', intentId);
+        if (latest.status === 'committed') return latest;
+        return tx.updateSubmissionIntent(SubmissionIntentSchema.parse({
+          ...latest,
+          status: 'committed',
+          applicationId: application.application.id,
+          submissionId: submission.id,
+          lastError: null,
+          updatedAt: now(),
+        }));
+      });
+      return SubmissionIntentCommitOutputSchema.parse({ intent: committed, application, persistenceCommitted: true });
+    } catch (error) {
+      const pending = await store.transaction(async (tx) => {
+        const latest = await tx.getSubmissionIntent(intentId);
+        if (!latest) throw new CareerNotFoundError('SubmissionIntent', intentId);
+        if (latest.status === 'committed') return latest;
+        return tx.updateSubmissionIntent(SubmissionIntentSchema.parse({
+          ...latest,
+          status: 'persistence_pending',
+          lastError: error instanceof Error ? error.message : String(error),
+          retryCount: latest.retryCount + 1,
+          updatedAt: now(),
+        }));
+      });
+      const application = pending.applicationId ? await store.getApplication(pending.applicationId) : null;
+      return SubmissionIntentCommitOutputSchema.parse({ intent: pending, application, persistenceCommitted: false });
+    }
+  }
+
+  const submissionIntents: CareerApplicationPorts['submissionIntents'] = {
+    list: (input = {}) => store.listSubmissionIntents(ListSubmissionIntentsInputSchema.parse(input)),
+    get: (intentId) => store.getSubmissionIntent(intentId),
+
+    async prepare(input) {
+      const parsed = PrepareSubmissionIntentInputSchema.parse(input);
+      const evidence = await resolveResumeEvidence({
+        resumeProfileId: parsed.resumeProfileId ?? null,
+        resumeRevisionId: parsed.resumeRevisionId ?? null,
+        resumeArtifactId: parsed.resumeArtifactId ?? null,
+      });
+      return store.transaction(async (tx) => {
+        const scope = 'career_submission_intent_prepare';
+        const cached = await loadReceipt(tx, scope, parsed.idempotencyKey, parsed, (value) => SubmissionIntentSchema.parse(value));
+        if (cached) return (await tx.getSubmissionIntent(cached.id)) ?? cached;
+        const job = await tx.getJob(parsed.jobId);
+        if (!job) throw new CareerNotFoundError('Job', parsed.jobId);
+        const listing = parsed.listingId ? job.listings.find((candidate) => candidate.id === parsed.listingId) ?? null : null;
+        if (parsed.listingId && !listing) throw new CareerNotFoundError('JobListing', parsed.listingId);
+        if (evidence.profileId && !evidence.revisionId) {
+          const [legacyProfile, firstClassProfile] = await Promise.all([
+            tx.getResumeProfile(evidence.profileId),
+            options.resumeEvidence?.getProfile ? options.resumeEvidence.getProfile(evidence.profileId) : Promise.resolve(null),
+          ]);
+          if (!legacyProfile && !firstClassProfile) throw new CareerNotFoundError('ResumeProfile', evidence.profileId);
+        }
+        const timestamp = now();
+        const intent = SubmissionIntentSchema.parse({
+          id: `submission-intent-${idFactory()}`,
+          jobId: parsed.jobId,
+          listingId: listing?.id ?? null,
+          channel: parsed.channel ?? listing?.sourceKind ?? null,
+          resumeProfileId: evidence.profileId,
+          resumeRevisionId: evidence.revisionId,
+          resumeArtifactId: evidence.artifactId,
+          executor: parsed.executor,
+          executorSessionId: parsed.executorSessionId ?? null,
+          externalTargetUrl: parsed.externalTargetUrl ?? listing?.url ?? null,
+          status: 'planned',
+          externalStartedAt: null,
+          externalConfirmedAt: null,
+          appliedAt: null,
+          externalReference: null,
+          externalEvidence: {},
+          applicationId: null,
+          submissionId: null,
+          prepareIdempotencyKey: parsed.idempotencyKey,
+          lastError: null,
+          retryCount: 0,
+          note: parsed.note ?? null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+        await tx.insertSubmissionIntent(intent);
+        await saveReceipt(tx, scope, parsed.idempotencyKey, parsed, intent, timestamp);
+        return intent;
+      });
+    },
+
+    async begin(input) {
+      const parsed = BeginSubmissionIntentInputSchema.parse(input);
+      return store.transaction(async (tx) => {
+        const current = await tx.getSubmissionIntent(parsed.intentId);
+        if (!current) throw new CareerNotFoundError('SubmissionIntent', parsed.intentId);
+        if (current.status === 'external_in_progress') return current;
+        if (current.status !== 'planned') throw new CareerConflictError(`SubmissionIntent '${parsed.intentId}' cannot begin from '${current.status}'`);
+        return tx.updateSubmissionIntent(SubmissionIntentSchema.parse({
+          ...current,
+          status: 'external_in_progress',
+          externalStartedAt: parsed.occurredAt,
+          updatedAt: now(),
+        }));
+      });
+    },
+
+    async confirm(input) {
+      const parsed = ConfirmSubmissionIntentInputSchema.parse(input);
+      const confirmed = await store.transaction(async (tx) => {
+        const current = await tx.getSubmissionIntent(parsed.intentId);
+        if (!current) throw new CareerNotFoundError('SubmissionIntent', parsed.intentId);
+        if (['committed', 'external_confirmed', 'persistence_pending'].includes(current.status)
+          || (current.status === 'needs_manual_review' && current.externalConfirmedAt)) {
+          if (!confirmationMatches(current, parsed)) {
+            throw new CareerConflictError(`SubmissionIntent '${parsed.intentId}' already has different external-success evidence`);
+          }
+          return current;
+        }
+        if (!['planned', 'external_in_progress', 'needs_manual_review'].includes(current.status)) {
+          throw new CareerConflictError(`SubmissionIntent '${parsed.intentId}' cannot confirm from '${current.status}'`);
+        }
+        return tx.updateSubmissionIntent(SubmissionIntentSchema.parse({
+          ...current,
+          status: 'external_confirmed',
+          externalStartedAt: current.externalStartedAt ?? parsed.confirmedAt,
+          externalConfirmedAt: parsed.confirmedAt,
+          appliedAt: parsed.appliedAt,
+          externalReference: parsed.externalReference ?? null,
+          externalEvidence: parsed.externalEvidence,
+          lastError: null,
+          updatedAt: now(),
+        }));
+      });
+      if (confirmed.status === 'committed') {
+        const application = confirmed.applicationId ? await store.getApplication(confirmed.applicationId) : null;
+        return SubmissionIntentCommitOutputSchema.parse({ intent: confirmed, application, persistenceCommitted: true });
+      }
+      return commitSubmissionIntent(parsed.intentId);
+    },
+
+    async fail(input) {
+      const parsed = FailSubmissionIntentInputSchema.parse(input);
+      return store.transaction(async (tx) => {
+        const current = await tx.getSubmissionIntent(parsed.intentId);
+        if (!current) throw new CareerNotFoundError('SubmissionIntent', parsed.intentId);
+        if (current.status === 'external_failed') {
+          const same = current.status === parsed.status
+            && current.lastError === parsed.error
+            && stableJson(current.externalEvidence) === stableJson(parsed.externalEvidence);
+          if (same) return current;
+          throw new CareerConflictError(`SubmissionIntent '${parsed.intentId}' is already terminal with different failure evidence`);
+        }
+        if (current.status === 'needs_manual_review' && current.externalConfirmedAt) {
+          throw new CareerConflictError(`SubmissionIntent '${parsed.intentId}' already has durable external-success evidence and cannot be marked failed`);
+        }
+        if (!['planned', 'external_in_progress', 'needs_manual_review'].includes(current.status)) {
+          throw new CareerConflictError(`SubmissionIntent '${parsed.intentId}' cannot fail from '${current.status}'`);
+        }
+        return tx.updateSubmissionIntent(SubmissionIntentSchema.parse({
+          ...current,
+          status: parsed.status,
+          externalStartedAt: current.externalStartedAt ?? parsed.occurredAt,
+          externalEvidence: parsed.externalEvidence,
+          lastError: parsed.error,
+          updatedAt: now(),
+        }));
+      });
+    },
+
+    reconcile(input) {
+      const parsed = ReconcileSubmissionIntentInputSchema.parse(input);
+      return commitSubmissionIntent(parsed.intentId);
+    },
+
+    async reconcilePending(input = {}) {
+      const parsed = ReconcileSubmissionIntentsInputSchema.parse(input);
+      const results: Array<{
+        intentId: string;
+        beforeStatus: SubmissionIntent['status'];
+        afterStatus: SubmissionIntent['status'];
+        persistenceCommitted: boolean;
+        action: 'committed' | 'pending' | 'manual_review' | 'skipped';
+        message: string | null;
+      }> = [];
+
+      const recoverable = await store.listSubmissionIntents({
+        statuses: ['external_confirmed', 'persistence_pending'],
+        limit: parsed.limit,
+        offset: 0,
+        order: 'oldest',
+      });
+      for (const candidate of recoverable.items) {
+        if (candidate.retryCount >= parsed.maxAutomaticRetries) {
+          const reviewed = await store.transaction(async (tx) => {
+            const latest = await tx.getSubmissionIntent(candidate.id);
+            if (!latest || latest.status === 'committed') return latest;
+            if (!['external_confirmed', 'persistence_pending'].includes(latest.status)) return latest;
+            return tx.updateSubmissionIntent(SubmissionIntentSchema.parse({
+              ...latest,
+              status: 'needs_manual_review',
+              lastError: `Automatic persistence reconciliation paused after ${latest.retryCount} retries${latest.lastError ? `: ${latest.lastError}` : ''}`,
+              updatedAt: now(),
+            }));
+          });
+          if (reviewed) {
+            results.push({ intentId: candidate.id, beforeStatus: candidate.status, afterStatus: reviewed.status, persistenceCommitted: false, action: reviewed.status === 'needs_manual_review' ? 'manual_review' : 'skipped', message: reviewed.lastError });
+          }
+          continue;
+        }
+        try {
+          const outcome = await commitSubmissionIntent(candidate.id);
+          results.push({
+            intentId: candidate.id,
+            beforeStatus: candidate.status,
+            afterStatus: outcome.intent.status,
+            persistenceCommitted: outcome.persistenceCommitted,
+            action: outcome.persistenceCommitted ? 'committed' : 'pending',
+            message: outcome.intent.lastError,
+          });
+        } catch (error) {
+          const latest = await store.getSubmissionIntent(candidate.id);
+          results.push({
+            intentId: candidate.id,
+            beforeStatus: candidate.status,
+            afterStatus: latest?.status ?? candidate.status,
+            persistenceCommitted: false,
+            action: 'skipped',
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      const remaining = Math.max(0, parsed.limit - results.length);
+      if (remaining > 0 && parsed.staleBefore) {
+        const stale = await store.listSubmissionIntents({
+          statuses: ['external_in_progress'],
+          updatedBefore: parsed.staleBefore,
+          limit: remaining,
+          offset: 0,
+          order: 'oldest',
+        });
+        for (const candidate of stale.items) {
+          const reviewed = await store.transaction(async (tx) => {
+            const latest = await tx.getSubmissionIntent(candidate.id);
+            if (!latest || latest.status !== 'external_in_progress' || latest.updatedAt > parsed.staleBefore!) return latest;
+            return tx.updateSubmissionIntent(SubmissionIntentSchema.parse({
+              ...latest,
+              status: 'needs_manual_review',
+              lastError: `External submission remained in progress past ${parsed.staleBefore}; verify the recruiting site before retrying`,
+              updatedAt: now(),
+            }));
+          });
+          if (!reviewed) continue;
+          results.push({
+            intentId: candidate.id,
+            beforeStatus: candidate.status,
+            afterStatus: reviewed.status,
+            persistenceCommitted: false,
+            action: reviewed.status === 'needs_manual_review' ? 'manual_review' : 'skipped',
+            message: reviewed.lastError,
+          });
+        }
+      }
+
+      return ReconcileSubmissionIntentsOutputSchema.parse({
+        scanned: results.length,
+        committed: results.filter((item) => item.action === 'committed').length,
+        pending: results.filter((item) => item.action === 'pending').length,
+        manualReview: results.filter((item) => item.action === 'manual_review').length,
+        skipped: results.filter((item) => item.action === 'skipped').length,
+        items: results,
       });
     },
   };
@@ -541,5 +885,5 @@ export function createCareerApplicationService(
     },
   };
 
-  return { jobs, applications, campaigns, discovery, resumes, analytics, workspace, savedViews, resumeRegistry };
+  return { jobs, applications, submissionIntents, campaigns, discovery, resumes, analytics, workspace, savedViews, resumeRegistry };
 }

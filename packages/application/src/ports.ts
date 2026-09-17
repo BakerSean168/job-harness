@@ -48,6 +48,17 @@ import type {
   UpsertJobsBatchOutput,
   UpsertCampaignInput,
   UpsertSavedViewInput,
+  BeginSubmissionIntentInput,
+  ConfirmSubmissionIntentInput,
+  FailSubmissionIntentInput,
+  ListSubmissionIntentsInput,
+  ListSubmissionIntentsOutput,
+  PrepareSubmissionIntentInput,
+  ReconcileSubmissionIntentInput,
+  ReconcileSubmissionIntentsInput,
+  ReconcileSubmissionIntentsOutput,
+  SubmissionIntent,
+  SubmissionIntentCommitOutput,
 } from '@job-harness/contracts';
 
 export interface CareerJobReadPort {
@@ -69,6 +80,19 @@ export interface CareerApplicationReadPort {
 export interface CareerApplicationCommandPort {
   recordApplication(input: RecordApplicationInput): Promise<ApplicationDetail>;
   transitionApplication(input: TransitionApplicationInput): Promise<ApplicationDetail>;
+}
+
+
+
+export interface CareerSubmissionIntentPort {
+  prepare(input: PrepareSubmissionIntentInput): Promise<SubmissionIntent>;
+  begin(input: BeginSubmissionIntentInput): Promise<SubmissionIntent>;
+  confirm(input: ConfirmSubmissionIntentInput): Promise<SubmissionIntentCommitOutput>;
+  fail(input: FailSubmissionIntentInput): Promise<SubmissionIntent>;
+  reconcile(input: ReconcileSubmissionIntentInput): Promise<SubmissionIntentCommitOutput>;
+  reconcilePending(input?: ReconcileSubmissionIntentsInput): Promise<ReconcileSubmissionIntentsOutput>;
+  list(input?: ListSubmissionIntentsInput): Promise<ListSubmissionIntentsOutput>;
+  get(intentId: string): Promise<SubmissionIntent | null>;
 }
 
 export interface CareerCampaignPort {
@@ -115,6 +139,7 @@ export interface CareerWorkspaceReadPort {
 export interface CareerApplicationPorts {
   jobs: CareerJobReadPort & CareerJobCommandPort;
   applications: CareerApplicationReadPort & CareerApplicationCommandPort;
+  submissionIntents: CareerSubmissionIntentPort;
   campaigns: CareerCampaignPort;
   discovery: CareerDiscoveryPort;
   resumes: CareerResumeReadPort;

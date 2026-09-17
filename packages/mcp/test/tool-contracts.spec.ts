@@ -16,6 +16,14 @@ const expectedNames = [
   'career_job_state_set',
   'career_application_record',
   'career_application_transition',
+  'career_submission_intents_list',
+  'career_submission_intent_get',
+  'career_submission_intent_prepare',
+  'career_submission_intent_begin',
+  'career_submission_intent_confirm',
+  'career_submission_intent_fail',
+  'career_submission_intent_reconcile',
+  'career_submission_intents_reconcile_pending',
   'career_discovery_begin',
   'career_discovery_complete',
   'career_campaign_upsert',
@@ -32,7 +40,7 @@ const expectedResumeNames = [
 ];
 
 describe('MCP contract surface', () => {
-  it('freezes the Phase-0 minimal tool names', () => {
+  it('freezes the supported Career tool names', () => {
     expect(CAREER_MCP_TOOLS.map((tool) => tool.name)).toEqual(expectedNames);
   });
 
@@ -58,6 +66,7 @@ describe('MCP contract surface', () => {
   it('marks optimistic Profile patches as non-idempotent protocol calls', () => {
     expect(RESUME_MCP_TOOLS.find((tool) => tool.name === 'resume_profile_patch_selection')?.idempotent).toBe(false);
     expect(RESUME_MCP_TOOLS.find((tool) => tool.name === 'resume_profile_patch_overrides')?.idempotent).toBe(false);
+    expect(CAREER_MCP_TOOLS.find((tool) => tool.name === 'career_submission_intents_reconcile_pending')?.idempotent).toBe(false);
   });
 });
 

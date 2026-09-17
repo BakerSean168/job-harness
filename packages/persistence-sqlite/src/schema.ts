@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 6;
+export const SQLITE_SCHEMA_VERSION = 7;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -388,6 +388,7 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
   migratePerformanceIndexesV4(db);
   migrateResumeDomainV5(db);
   migrateApplicationSubmissionsV6(db);
+  migrateSubmissionIntentsV7(db);
 }
 
 const PERFORMANCE_INDEXES_SCHEMA_V4 = `
@@ -554,6 +555,53 @@ function migrateApplicationSubmissionsV6(db: DatabaseSync): void {
       }
     }
     db.exec('PRAGMA user_version = 6');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+
+const SUBMISSION_INTENTS_SCHEMA_V7 = `
+CREATE TABLE IF NOT EXISTS submission_intents (
+  id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  listing_id TEXT REFERENCES job_listings(id) ON DELETE SET NULL,
+  channel TEXT CHECK(channel IS NULL OR channel IN ('official','boss','zhilian','liepin','moka','greenhouse','lever','ashby','email','referral','manual','other')),
+  resume_profile_id TEXT,
+  resume_revision_id TEXT REFERENCES resume_revisions(id) ON DELETE RESTRICT,
+  resume_artifact_id TEXT REFERENCES resume_artifacts(id) ON DELETE RESTRICT,
+  executor TEXT NOT NULL CHECK(executor IN ('chatgpt-web','job-honey','browser-extension','manual','other')),
+  executor_session_id TEXT,
+  external_target_url TEXT,
+  status TEXT NOT NULL CHECK(status IN ('planned','external_in_progress','external_confirmed','persistence_pending','committed','external_failed','needs_manual_review')),
+  external_started_at TEXT,
+  external_confirmed_at TEXT,
+  applied_at TEXT,
+  external_reference TEXT,
+  external_evidence_json TEXT NOT NULL DEFAULT '{}',
+  application_id TEXT REFERENCES applications(id) ON DELETE SET NULL,
+  submission_id TEXT REFERENCES application_submissions(id) ON DELETE SET NULL,
+  prepare_idempotency_key TEXT NOT NULL UNIQUE,
+  last_error TEXT,
+  retry_count INTEGER NOT NULL DEFAULT 0 CHECK(retry_count >= 0),
+  note TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS submission_intents_status_updated_idx ON submission_intents(status, updated_at, id);
+CREATE INDEX IF NOT EXISTS submission_intents_job_created_idx ON submission_intents(job_id, created_at DESC, id);
+`;
+
+function migrateSubmissionIntentsV7(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 7) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(SUBMISSION_INTENTS_SCHEMA_V7);
+    db.exec('PRAGMA user_version = 7');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

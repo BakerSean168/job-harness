@@ -59,6 +59,20 @@ docker compose --env-file deploy/self-host.env logs -f renderer server web
 
 Renderer and Server health checks call `/healthz`; the Web health check follows the root route. Renderer is a private rendering capability, Server waits for it, and Web waits for Server.
 
+## SubmissionIntent reconciliation
+
+Server runs a bounded local reconciliation sweep for durable external-submission intents. It never performs recruiting-site/browser actions. The sweep only retries persistence for intents that already contain durable external-success evidence and flags stale `external_in_progress` work for manual review. Defaults are:
+
+```text
+JOB_HARNESS_SUBMISSION_RECONCILE_INTERVAL_MS=300000
+JOB_HARNESS_SUBMISSION_STALE_AFTER_MS=7200000
+JOB_HARNESS_SUBMISSION_MAX_AUTOMATIC_RETRIES=8
+JOB_HARNESS_SUBMISSION_RECONCILE_BATCH_SIZE=100
+```
+
+Set the interval to `0` to disable the background sweep. A startup sweep runs when reconciliation is enabled, so `persistence_pending` items survive process/container restarts and are retried without repeating the external application side effect.
+
+
 ## Network/security defaults
 
 - `renderer:3002` and `server:3000` are only exposed to the Compose network; do not add host `ports:` mappings for normal operation.

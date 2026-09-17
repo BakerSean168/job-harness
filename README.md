@@ -14,16 +14,16 @@ Job Harness owns:
 - listing observations and discovery runs;
 - job-search campaigns;
 - applications and application timelines;
-- resume registry metadata;
+- first-class Resume Library/Profile/Revision/Artifact state and legacy registry compatibility;
+- durable SubmissionIntent/outbox state for external-application recovery;
 - deduplication, idempotency, and search history.
 
 It does **not** own:
 
 - MemoFlow Goals, Tasks, Schedules, or AI runtime;
-- Resume source content;
 - Thought Forest knowledge content;
 - a built-in general web-search agent;
-- external job-application submission automation.
+- the external recruiting-site/browser executor itself; Job Harness owns only the durable intent/evidence/reconciliation boundary.
 
 ## Current status
 
@@ -40,7 +40,7 @@ Campaign
   -> MCP query/write tools
 ```
 
-The server uses SQLite schema v4 for durable state and exposes the same application/workspace semantics through MCP Streamable HTTP and a versioned `/api/v1` REST facade. The Next.js Web workspace, self-host session boundary, backup/export, Saved Views, accessibility baseline, and Docker/Compose deployment packaging are implemented. MemoFlow integration remains intentionally unimplemented.
+The server uses SQLite schema v7 for durable state and exposes the same application/workspace semantics through MCP Streamable HTTP and a versioned `/api/v1` REST facade. The Next.js Web workspace, self-host session boundary, backup/export, Saved Views, accessibility baseline, and Docker/Compose deployment packaging are implemented. MemoFlow integration remains intentionally unimplemented.
 
 ## Repository shape
 
@@ -102,6 +102,10 @@ JOB_HARNESS_WEB_PASSWORD
 JOB_HARNESS_WEB_SESSION_SECRET
 JOB_HARNESS_WEB_SESSION_TTL_HOURS
 JOB_HARNESS_WEB_COOKIE_SECURE
+JOB_HARNESS_SUBMISSION_RECONCILE_INTERVAL_MS
+JOB_HARNESS_SUBMISSION_STALE_AFTER_MS
+JOB_HARNESS_SUBMISSION_MAX_AUTOMATIC_RETRIES
+JOB_HARNESS_SUBMISSION_RECONCILE_BATCH_SIZE
 ```
 
 The CLI refuses to bind to `0.0.0.0` or `::` unless `JOB_HARNESS_AUTH_TOKEN` is configured. The Web login is optional and independent from the REST/MCP bearer boundary; see [self-hosted Web authentication](docs/security/self-hosted-web-auth.md).
@@ -158,7 +162,7 @@ ChatGPT / Agent
       -> SQLite repositories
 ```
 
-All V1 tools mutate Job Harness state only. There is no `submit_application` tool and no built-in web-search provider.
+All MCP tools mutate Job Harness state only. There is no tool that clicks a recruiting site or performs an external submission. Automated executors use the SubmissionIntent prepare/begin/confirm/fail/reconcile protocol so confirmed external success remains recoverable across crashes.
 
 ## Future MemoFlow compatibility
 

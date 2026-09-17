@@ -35,6 +35,22 @@ import {
   UpsertCampaignOutputSchema,
   UpsertJobsBatchInputSchema,
   UpsertJobsBatchOutputSchema,
+  PrepareSubmissionIntentInputSchema,
+  PrepareSubmissionIntentOutputSchema,
+  BeginSubmissionIntentInputSchema,
+  BeginSubmissionIntentOutputSchema,
+  ConfirmSubmissionIntentInputSchema,
+  SubmissionIntentCommitOutputSchema,
+  FailSubmissionIntentInputSchema,
+  FailSubmissionIntentOutputSchema,
+  ReconcileSubmissionIntentInputSchema,
+  ReconcileSubmissionIntentOutputSchema,
+  ReconcileSubmissionIntentsInputSchema,
+  ReconcileSubmissionIntentsOutputSchema,
+  ListSubmissionIntentsInputSchema,
+  ListSubmissionIntentsOutputSchema,
+  GetSubmissionIntentInputSchema,
+  GetSubmissionIntentOutputSchema,
 } from '@job-harness/contracts';
 import {
   CAREER_MCP_TOOL_BY_NAME,
@@ -156,6 +172,38 @@ export class CareerMcpRuntime {
           await this.ports.applications.transitionApplication(
             TransitionApplicationInputSchema.parse(rawInput),
           ),
+        );
+      case 'career_submission_intents_list':
+        return ListSubmissionIntentsOutputSchema.parse(
+          await this.ports.submissionIntents.list(ListSubmissionIntentsInputSchema.parse(rawInput)),
+        );
+      case 'career_submission_intent_get': {
+        const input = GetSubmissionIntentInputSchema.parse(rawInput);
+        return GetSubmissionIntentOutputSchema.parse(await this.ports.submissionIntents.get(input.intentId));
+      }
+      case 'career_submission_intent_prepare':
+        return PrepareSubmissionIntentOutputSchema.parse(
+          await this.ports.submissionIntents.prepare(PrepareSubmissionIntentInputSchema.parse(rawInput)),
+        );
+      case 'career_submission_intent_begin':
+        return BeginSubmissionIntentOutputSchema.parse(
+          await this.ports.submissionIntents.begin(BeginSubmissionIntentInputSchema.parse(rawInput)),
+        );
+      case 'career_submission_intent_confirm':
+        return SubmissionIntentCommitOutputSchema.parse(
+          await this.ports.submissionIntents.confirm(ConfirmSubmissionIntentInputSchema.parse(rawInput)),
+        );
+      case 'career_submission_intent_fail':
+        return FailSubmissionIntentOutputSchema.parse(
+          await this.ports.submissionIntents.fail(FailSubmissionIntentInputSchema.parse(rawInput)),
+        );
+      case 'career_submission_intent_reconcile':
+        return ReconcileSubmissionIntentOutputSchema.parse(
+          await this.ports.submissionIntents.reconcile(ReconcileSubmissionIntentInputSchema.parse(rawInput)),
+        );
+      case 'career_submission_intents_reconcile_pending':
+        return ReconcileSubmissionIntentsOutputSchema.parse(
+          await this.ports.submissionIntents.reconcilePending(ReconcileSubmissionIntentsInputSchema.parse(rawInput)),
         );
       case 'career_discovery_begin':
         return BeginDiscoveryOutputSchema.parse(

@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "status": "standalone-alpha",
   "kind": "domain-extension",
-  "description": "Plugin-ready job search state, application pipeline, resume registry, and AI tool surface.",
+  "description": "Plugin-ready career search, application pipeline, first-class Resume authoring, durable submission intents, and AI tool surface.",
   "provides": [
     "jobs.read",
     "jobs.write",
@@ -14,7 +14,10 @@
     "campaigns.read",
     "campaigns.write",
     "resumes.read",
-    "discovery.record"
+    "discovery.record",
+    "resumes.write",
+    "submission-intents.read",
+    "submission-intents.write"
   ],
   "integrationTargets": [
     "mcp",

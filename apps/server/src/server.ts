@@ -23,6 +23,10 @@ export interface JobHarnessServerOptions {
   readonly artifactDirectory?: string;
   readonly resumeRendererUrl?: string | null;
   readonly resumeRendererToken?: string | null;
+  readonly submissionReconcileIntervalMs?: number | null;
+  readonly submissionStaleAfterMs?: number;
+  readonly submissionMaxAutomaticRetries?: number;
+  readonly submissionReconcileBatchSize?: number;
 }
 
 export interface RunningJobHarnessServer {
@@ -90,6 +94,10 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   const resumeStore = new SqliteResumeStore(options.databasePath);
   const application = createCareerApplicationService(store, {
     resumeEvidence: {
+      async getProfile(profileId) {
+        const profile = await resumeStore.getProfile(profileId);
+        return profile ? { id: profile.id } : null;
+      },
       async getRevision(revisionId) {
         const revision = await resumeStore.getRevision(revisionId);
         return revision ? { id: revision.id, profileId: revision.profileId } : null;
@@ -178,6 +186,33 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   const displayHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host;
   const url = `http://${displayHost}:${port}`;
 
+  const reconcileIntervalMs = options.submissionReconcileIntervalMs === undefined ? 300_000 : options.submissionReconcileIntervalMs;
+  const staleAfterMs = options.submissionStaleAfterMs ?? 2 * 60 * 60 * 1000;
+  const maxAutomaticRetries = options.submissionMaxAutomaticRetries ?? 8;
+  const reconcileBatchSize = options.submissionReconcileBatchSize ?? 100;
+  let reconcileRunning = false;
+  async function reconcileSubmissionIntents(): Promise<void> {
+    if (reconcileRunning) return;
+    reconcileRunning = true;
+    try {
+      const staleBefore = new Date(Date.now() - staleAfterMs).toISOString();
+      await application.submissionIntents.reconcilePending({
+        limit: reconcileBatchSize,
+        staleBefore,
+        maxAutomaticRetries,
+      });
+    } catch (error) {
+      console.error('Job Harness submission-intent reconciliation failed', error);
+    } finally {
+      reconcileRunning = false;
+    }
+  }
+  const reconciliationTimer = reconcileIntervalMs && reconcileIntervalMs > 0
+    ? setInterval(() => { void reconcileSubmissionIntents(); }, reconcileIntervalMs)
+    : null;
+  reconciliationTimer?.unref();
+  if (reconciliationTimer) queueMicrotask(() => { void reconcileSubmissionIntents(); });
+
   return {
     url,
     mcpUrl: `${url}/mcp`,
@@ -185,6 +220,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     openApiUrl: `${url}/openapi.json`,
     server,
     async close() {
+      if (reconciliationTimer) clearInterval(reconciliationTimer);
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
       resumeStore.close();
       store.close();

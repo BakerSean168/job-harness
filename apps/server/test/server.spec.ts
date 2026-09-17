@@ -33,6 +33,8 @@ describe('standalone Streamable HTTP MCP server', () => {
     expect(tools.tools.map((tool) => tool.name)).toContain('career_application_record');
     expect(tools.tools.map((tool) => tool.name)).toContain('resume_authoring_context_get');
     expect(tools.tools.map((tool) => tool.name)).toContain('resume_profile_patch_selection');
+    expect(tools.tools.map((tool) => tool.name)).toContain('career_submission_intent_prepare');
+    expect(tools.tools.map((tool) => tool.name)).toContain('career_submission_intents_reconcile_pending');
 
     const result = await client.callTool({ name: 'career_pipeline_stats', arguments: {} });
     expect(result.isError).not.toBe(true);
@@ -41,6 +43,10 @@ describe('standalone Streamable HTTP MCP server', () => {
     const resumeList = await client.callTool({ name: 'resume_profiles_list', arguments: {} });
     expect(resumeList.isError).not.toBe(true);
     expect(resumeList.structuredContent).toMatchObject({ items: [], total: 0 });
+
+    const intentList = await client.callTool({ name: 'career_submission_intents_list', arguments: {} });
+    expect(intentList.isError).not.toBe(true);
+    expect(intentList.structuredContent).toMatchObject({ items: [], total: 0 });
 
     await client.close();
   });

@@ -1,6 +1,15 @@
 import { resolve } from 'node:path';
 import { startJobHarnessServer } from './server';
 
+
+function optionalNonNegativeInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw == null || raw === '') return fallback;
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isInteger(value) || value < 0) throw new Error(`Invalid ${name}: ${raw}`);
+  return value;
+}
+
 const databasePath = resolve(process.env.JOB_HARNESS_DB ?? './data/job-harness.db');
 const host = process.env.JOB_HARNESS_HOST ?? '127.0.0.1';
 const port = Number.parseInt(process.env.JOB_HARNESS_PORT ?? '3000', 10);
@@ -20,6 +29,10 @@ const running = await startJobHarnessServer({
   artifactDirectory: process.env.JOB_HARNESS_RESUME_ARTIFACT_DIR,
   resumeRendererUrl: process.env.JOB_HARNESS_RESUME_RENDERER_URL ?? null,
   resumeRendererToken: process.env.JOB_HARNESS_RENDERER_TOKEN ?? null,
+  submissionReconcileIntervalMs: optionalNonNegativeInt('JOB_HARNESS_SUBMISSION_RECONCILE_INTERVAL_MS', 300_000),
+  submissionStaleAfterMs: optionalNonNegativeInt('JOB_HARNESS_SUBMISSION_STALE_AFTER_MS', 7_200_000),
+  submissionMaxAutomaticRetries: optionalNonNegativeInt('JOB_HARNESS_SUBMISSION_MAX_AUTOMATIC_RETRIES', 8),
+  submissionReconcileBatchSize: optionalNonNegativeInt('JOB_HARNESS_SUBMISSION_RECONCILE_BATCH_SIZE', 100),
 });
 console.log(`Job Harness listening at ${running.url}`);
 console.log(`MCP endpoint: ${running.mcpUrl}`);

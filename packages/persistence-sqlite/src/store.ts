@@ -51,6 +51,9 @@ import type {
   SearchJobListItemsInput,
   SearchJobListItemsOutput,
   UpsertJobCandidate,
+  ListSubmissionIntentsInput,
+  ListSubmissionIntentsOutput,
+  SubmissionIntent,
 } from '@job-harness/contracts';
 import {
   AnalyticsSnapshotSchema,
@@ -81,6 +84,7 @@ import {
   ResumeUsageProfileSchema,
   ResumeRevisionUsageSummarySchema,
   SavedViewSchema,
+  SubmissionIntentSchema,
   ResumeUsageSummarySchema,
 } from '@job-harness/contracts';
 import type {
@@ -465,6 +469,66 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       items.push({ application: this.applicationFromRow(row), job });
     }
     return { items, total };
+  }
+
+  private submissionIntentFromRow(row: Row): SubmissionIntent {
+    return SubmissionIntentSchema.parse({
+      id: row.id,
+      jobId: row.job_id,
+      listingId: row.listing_id,
+      channel: row.channel,
+      resumeProfileId: row.resume_profile_id,
+      resumeRevisionId: row.resume_revision_id,
+      resumeArtifactId: row.resume_artifact_id,
+      executor: row.executor,
+      executorSessionId: row.executor_session_id,
+      externalTargetUrl: row.external_target_url,
+      status: row.status,
+      externalStartedAt: row.external_started_at,
+      externalConfirmedAt: row.external_confirmed_at,
+      appliedAt: row.applied_at,
+      externalReference: row.external_reference,
+      externalEvidence: json(row.external_evidence_json),
+      applicationId: row.application_id,
+      submissionId: row.submission_id,
+      prepareIdempotencyKey: row.prepare_idempotency_key,
+      lastError: row.last_error,
+      retryCount: row.retry_count,
+      note: row.note,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    });
+  }
+
+  async getSubmissionIntent(intentId: string): Promise<SubmissionIntent | null> {
+    const row = this.db.prepare('SELECT * FROM submission_intents WHERE id = ?').get(intentId) as Row | undefined;
+    return row ? this.submissionIntentFromRow(row) : null;
+  }
+
+  async listSubmissionIntents(input: ListSubmissionIntentsInput): Promise<ListSubmissionIntentsOutput> {
+    const where: string[] = [];
+    const params: Array<string | number> = [];
+    if (input.statuses?.length) {
+      where.push(`status IN (${input.statuses.map(() => '?').join(',')})`);
+      params.push(...input.statuses);
+    }
+    if (input.jobId) {
+      where.push('job_id = ?');
+      params.push(input.jobId);
+    }
+    if (input.updatedBefore) {
+      where.push('updated_at <= ?');
+      params.push(input.updatedBefore);
+    }
+    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM submission_intents ${clause}`).get(...params) as Row).n);
+    const direction = input.order === 'oldest' ? 'ASC' : 'DESC';
+    const rows = this.db.prepare(`SELECT * FROM submission_intents ${clause} ORDER BY updated_at ${direction}, id ${direction} LIMIT ? OFFSET ?`).all(
+      ...params,
+      input.limit ?? 50,
+      input.offset ?? 0,
+    ) as Row[];
+    return { items: rows.map((row) => this.submissionIntentFromRow(row)), total };
   }
 
   private applicationSubmissionFromRow(row: Row): ApplicationSubmission {
@@ -1544,6 +1608,35 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     );
   }
 
+  async insertSubmissionIntent(intent: SubmissionIntent): Promise<void> {
+    this.db.prepare(`INSERT INTO submission_intents(
+      id,job_id,listing_id,channel,resume_profile_id,resume_revision_id,resume_artifact_id,executor,executor_session_id,external_target_url,status,
+      external_started_at,external_confirmed_at,applied_at,external_reference,external_evidence_json,application_id,submission_id,
+      prepare_idempotency_key,last_error,retry_count,note,created_at,updated_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      intent.id, intent.jobId, intent.listingId, intent.channel, intent.resumeProfileId, intent.resumeRevisionId,
+      intent.resumeArtifactId, intent.executor, intent.executorSessionId, intent.externalTargetUrl, intent.status, intent.externalStartedAt,
+      intent.externalConfirmedAt, intent.appliedAt, intent.externalReference, JSON.stringify(intent.externalEvidence),
+      intent.applicationId, intent.submissionId, intent.prepareIdempotencyKey, intent.lastError, intent.retryCount,
+      intent.note, intent.createdAt, intent.updatedAt,
+    );
+  }
+
+  async updateSubmissionIntent(intent: SubmissionIntent): Promise<SubmissionIntent> {
+    this.db.prepare(`UPDATE submission_intents SET
+      listing_id=?,channel=?,resume_profile_id=?,resume_revision_id=?,resume_artifact_id=?,executor=?,executor_session_id=?,external_target_url=?,status=?,
+      external_started_at=?,external_confirmed_at=?,applied_at=?,external_reference=?,external_evidence_json=?,application_id=?,submission_id=?,
+      last_error=?,retry_count=?,note=?,updated_at=? WHERE id=?`).run(
+      intent.listingId, intent.channel, intent.resumeProfileId, intent.resumeRevisionId, intent.resumeArtifactId, intent.executor,
+      intent.executorSessionId, intent.externalTargetUrl, intent.status, intent.externalStartedAt, intent.externalConfirmedAt, intent.appliedAt,
+      intent.externalReference, JSON.stringify(intent.externalEvidence), intent.applicationId, intent.submissionId,
+      intent.lastError, intent.retryCount, intent.note, intent.updatedAt, intent.id,
+    );
+    const updated = await this.getSubmissionIntent(intent.id);
+    if (!updated) throw new Error(`SubmissionIntent '${intent.id}' not found after update`);
+    return updated;
+  }
+
   async upsertCampaign(campaign: JobSearchCampaign): Promise<JobSearchCampaign> {
     this.db.prepare(`INSERT INTO campaigns(id,name,target_roles_json,cities_json,graduation_years_json,experience_json,keywords_json,exclusions_json,sources_json,resume_profile_ids_json,status,created_at,updated_at)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,target_roles_json=excluded.target_roles_json,cities_json=excluded.cities_json,graduation_years_json=excluded.graduation_years_json,experience_json=excluded.experience_json,keywords_json=excluded.keywords_json,exclusions_json=excluded.exclusions_json,sources_json=excluded.sources_json,resume_profile_ids_json=excluded.resume_profile_ids_json,status=excluded.status,updated_at=excluded.updated_at`).run(
@@ -1589,6 +1682,8 @@ export class SqliteCareerStore implements CareerStorePort {
   findDuplicate(input: DuplicateCheckInput) { return this.readSession().findDuplicate(input); }
   listApplications(input: ListApplicationsInput) { return this.readSession().listApplications(input); }
   getApplication(applicationId: string) { return this.readSession().getApplication(applicationId); }
+  getSubmissionIntent(intentId: string) { return this.readSession().getSubmissionIntent(intentId); }
+  listSubmissionIntents(input: ListSubmissionIntentsInput) { return this.readSession().listSubmissionIntents(input); }
   findApplicationByJobId(jobId: string) { return this.readSession().findApplicationByJobId(jobId); }
   listApplicationSubmissions(applicationId: string) { return this.readSession().listApplicationSubmissions(applicationId); }
   listCampaigns(input: ListCampaignsInput) { return this.readSession().listCampaigns(input); }

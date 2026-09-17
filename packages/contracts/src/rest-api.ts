@@ -18,6 +18,19 @@ import {
   UpsertJobsBatchOutputSchema,
   ListCampaignsInputSchema,
   ListCampaignsOutputSchema,
+  PrepareSubmissionIntentInputSchema,
+  PrepareSubmissionIntentOutputSchema,
+  BeginSubmissionIntentInputSchema,
+  BeginSubmissionIntentOutputSchema,
+  ConfirmSubmissionIntentInputSchema,
+  SubmissionIntentCommitOutputSchema,
+  FailSubmissionIntentInputSchema,
+  FailSubmissionIntentOutputSchema,
+  ReconcileSubmissionIntentOutputSchema,
+  ReconcileSubmissionIntentsInputSchema,
+  ReconcileSubmissionIntentsOutputSchema,
+  ListSubmissionIntentsInputSchema,
+  ListSubmissionIntentsOutputSchema,
 } from './operations';
 import {
   AnalyticsSnapshotInputSchema,
@@ -93,6 +106,9 @@ export const UpsertCampaignBodySchema = UpsertCampaignInputSchema.omit({ id: tru
 export const CompleteDiscoveryBodySchema = CompleteDiscoveryInputSchema.omit({ runId: true });
 export const PublishResumeRevisionBodySchema = PublishResumeRevisionInputSchema.omit({ profileId: true });
 export const MaterializeResumeArtifactBodySchema = MaterializeResumeArtifactInputSchema.omit({ revisionId: true });
+export const BeginSubmissionIntentBodySchema = BeginSubmissionIntentInputSchema.omit({ intentId: true });
+export const ConfirmSubmissionIntentBodySchema = ConfirmSubmissionIntentInputSchema.omit({ intentId: true });
+export const FailSubmissionIntentBodySchema = FailSubmissionIntentInputSchema.omit({ intentId: true });
 
 export const RestErrorEnvelopeSchema = z.object({
   error: z.object({
@@ -118,6 +134,14 @@ export const JOB_HARNESS_REST_V1_ROUTES = {
   applicationDetail: route({ operationId: 'getApplicationDetail', method: 'get', path: '/applications/:applicationId', tags: ['Applications'], summary: 'Read one application workspace projection', paramsSchema: IdParam('applicationId'), responseSchema: ApplicationWorkspaceDetailSchema, successStatus: 200 }),
   recordApplication: route({ operationId: 'recordApplication', method: 'post', path: '/applications', tags: ['Applications'], summary: 'Record an application against a known job', bodySchema: RecordApplicationInputSchema, responseSchema: RecordApplicationOutputSchema, successStatus: 201 }),
   transitionApplication: route({ operationId: 'transitionApplication', method: 'post', path: '/applications/:applicationId/transition', tags: ['Applications'], summary: 'Transition an application lifecycle stage', paramsSchema: IdParam('applicationId'), bodySchema: TransitionApplicationBodySchema, responseSchema: TransitionApplicationOutputSchema, successStatus: 200 }),
+  submissionIntents: route({ operationId: 'listSubmissionIntents', method: 'get', path: '/submission-intents', tags: ['Submission Intents'], summary: 'List durable external-submission intents for recovery/reconciliation', querySchema: ListSubmissionIntentsInputSchema, responseSchema: ListSubmissionIntentsOutputSchema, successStatus: 200 }),
+  submissionIntentDetail: route({ operationId: 'getSubmissionIntent', method: 'get', path: '/submission-intents/:intentId', tags: ['Submission Intents'], summary: 'Read one durable external-submission intent', paramsSchema: IdParam('intentId'), responseSchema: PrepareSubmissionIntentOutputSchema, successStatus: 200 }),
+  prepareSubmissionIntent: route({ operationId: 'prepareSubmissionIntent', method: 'post', path: '/submission-intents', tags: ['Submission Intents'], summary: 'Persist intent before an external recruiting-site submission begins', bodySchema: PrepareSubmissionIntentInputSchema, responseSchema: PrepareSubmissionIntentOutputSchema, successStatus: 201 }),
+  beginSubmissionIntent: route({ operationId: 'beginSubmissionIntent', method: 'post', path: '/submission-intents/:intentId/begin', tags: ['Submission Intents'], summary: 'Mark that the external submission side effect is in progress', paramsSchema: IdParam('intentId'), bodySchema: BeginSubmissionIntentBodySchema, responseSchema: BeginSubmissionIntentOutputSchema, successStatus: 200 }),
+  confirmSubmissionIntent: route({ operationId: 'confirmSubmissionIntent', method: 'post', path: '/submission-intents/:intentId/confirm', tags: ['Submission Intents'], summary: 'Persist external success evidence and immediately reconcile it into ApplicationSubmission state', paramsSchema: IdParam('intentId'), bodySchema: ConfirmSubmissionIntentBodySchema, responseSchema: SubmissionIntentCommitOutputSchema, successStatus: 200 }),
+  failSubmissionIntent: route({ operationId: 'failSubmissionIntent', method: 'post', path: '/submission-intents/:intentId/fail', tags: ['Submission Intents'], summary: 'Record external failure or manual-review state', paramsSchema: IdParam('intentId'), bodySchema: FailSubmissionIntentBodySchema, responseSchema: FailSubmissionIntentOutputSchema, successStatus: 200 }),
+  reconcileSubmissionIntent: route({ operationId: 'reconcileSubmissionIntent', method: 'post', path: '/submission-intents/:intentId/reconcile', tags: ['Submission Intents'], summary: 'Retry persistence for an externally confirmed submission intent', paramsSchema: IdParam('intentId'), responseSchema: ReconcileSubmissionIntentOutputSchema, successStatus: 200 }),
+  reconcileSubmissionIntents: route({ operationId: 'reconcileSubmissionIntents', method: 'post', path: '/submission-intents/reconcile-pending', tags: ['Submission Intents'], summary: 'Reconcile durable pending submissions and flag stale in-progress intents without performing external recruiting-site actions', bodySchema: ReconcileSubmissionIntentsInputSchema, responseSchema: ReconcileSubmissionIntentsOutputSchema, successStatus: 200 }),
   campaigns: route({ operationId: 'listCampaigns', method: 'get', path: '/campaigns', tags: ['Campaigns'], summary: 'List job-search campaigns', querySchema: ListCampaignsInputSchema, responseSchema: ListCampaignsOutputSchema, successStatus: 200 }),
   campaignDetail: route({ operationId: 'getCampaign', method: 'get', path: '/campaigns/:campaignId', tags: ['Campaigns'], summary: 'Read one job-search campaign', paramsSchema: IdParam('campaignId'), responseSchema: UpsertCampaignOutputSchema, successStatus: 200 }),
   upsertCampaign: route({ operationId: 'upsertCampaign', method: 'put', path: '/campaigns/:campaignId', tags: ['Campaigns'], summary: 'Create or update a job-search campaign', paramsSchema: IdParam('campaignId'), bodySchema: UpsertCampaignBodySchema, responseSchema: UpsertCampaignOutputSchema, successStatus: 200 }),

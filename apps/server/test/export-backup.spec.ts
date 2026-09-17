@@ -40,6 +40,9 @@ describe('data export and backup', () => {
       }] });
       const jobId = jobs.items[0]!.jobId!;
       await career.jobs.setJobState({ jobId, state: 'shortlisted', idempotencyKey: 'export-shortlist' });
+      await career.submissionIntents.prepare({
+        jobId, executor: 'manual', executorSessionId: 'export-session', idempotencyKey: 'export-intent', note: 'Prepared but intentionally not submitted',
+      });
       const application = await career.applications.recordApplication({ jobId, appliedAt: '2026-09-16T09:00:00.000Z', resumeProfileId: 'resume-export', idempotencyKey: 'export-application', actor: 'user', note: 'Submitted' });
       await career.applications.transitionApplication({ applicationId: application.application.id, toStage: 'screening', occurredAt: '2026-09-16T10:00:00.000Z', idempotencyKey: 'export-screening', actor: 'user' });
       await career.discovery.completeDiscoveryRun({ runId: run.id, completedAt: '2026-09-16T08:10:00.000Z', candidateCount: 1, insertedCount: 1, duplicateCount: 0, rejectedCount: 0 });
@@ -53,7 +56,7 @@ describe('data export and backup', () => {
     expect(exportResponse.status).toBe(200);
     expect(exportResponse.headers.get('content-disposition')).toMatch(/attachment; filename="job-harness-export-.*\.json"/);
     const exported = CareerExportSnapshotSchema.parse(await exportResponse.json());
-    expect(exported).toMatchObject({ format: 'job-harness-career-export', schemaVersion: 2 });
+    expect(exported).toMatchObject({ format: 'job-harness-career-export', schemaVersion: 3 });
     expect(exported.companies).toHaveLength(1);
     expect(exported.jobs).toHaveLength(1);
     expect(exported.jobs[0]?.listings).toHaveLength(1);
@@ -63,6 +66,7 @@ describe('data export and backup', () => {
     expect(exported.campaigns).toHaveLength(1);
     expect(exported.resumes).toHaveLength(1);
     expect(exported.discoveryRuns).toHaveLength(1);
+    expect(exported.submissionIntents).toEqual([expect.objectContaining({ executorSessionId: 'export-session', status: 'planned' })]);
 
     const backupResponse = await fetch(`${running.apiUrl}/backup`);
     expect(backupResponse.status).toBe(200);

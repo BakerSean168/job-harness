@@ -104,6 +104,21 @@ describe('ApplicationSubmission -> Resume Revision/Artifact', () => {
       revisionId, applications: 1, submissions: 2, lastUsedAt: '2026-09-17T04:15:00.000Z', artifactKinds: ['html'],
     })]);
 
+    const profileOnlyJob = await request('/jobs/batch', { method: 'POST', body: JSON.stringify({ jobs: [{
+      companyName: 'Profile Only Co', title: 'Frontend Agent Engineer', city: 'Shenzhen',
+      listings: [{ sourceKind: 'official', url: 'https://example.invalid/profile-only', identityKind: 'url', status: 'active' }], observedAt: now,
+    }] }) });
+    const profileOnlyJobId = String((profileOnlyJob.body as any).items[0].jobId);
+    const profileOnlySubmission = await request('/applications', { method: 'POST', body: JSON.stringify({
+      jobId: profileOnlyJobId, appliedAt: '2026-09-17T04:18:00.000Z', resumeProfileId: 'agent-profile',
+      idempotencyKey: 'submission-profile-only', actor: 'user', note: 'First-class Profile without immutable Revision',
+    }) });
+    expect(profileOnlySubmission.response.status).toBe(201);
+    expect((profileOnlySubmission.body as any).application.resumeProfileId).toBeNull();
+    expect((profileOnlySubmission.body as any).submissions).toEqual([expect.objectContaining({
+      resumeProfileId: 'agent-profile', resumeRevisionId: null, resumeArtifactId: null,
+    })]);
+
     const invalid = await request('/applications', { method: 'POST', body: JSON.stringify({
       jobId, appliedAt: '2026-09-17T04:20:00.000Z', resumeRevisionId: 'missing-revision', idempotencyKey: 'missing-revision', actor: 'user',
     }) });
