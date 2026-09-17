@@ -137,6 +137,14 @@ Acceptance:
 - Resume editor/preview/publish/export work on the durable deployment;
 - backup schema upgraded and restore drill verifies every referenced Artifact.
 
+### R009 evidence — 2026-09-17
+
+Oracle2 production was cut over from the schema-v4 compatibility runtime to Job Harness `53ff389` with the private Chromium renderer sidecar enabled. The in-place migration preserved the Career baseline at **104 Jobs / 41 Applications / 84 Companies / 42 Application Events / 5 legacy Resume refs**, backfilled **41 ApplicationSubmissions**, and imported **1 Resume Library / 5 first-class Profiles / 5 immutable Revisions / 5 legacy PDF Artifacts**. The canonical Profile IDs are `ai-agent-app`, `ai-agent-dongxu`, `ai-agent-forgeflow`, `ai-frontend`, and `ai-fullstack`; all five imported HTML snapshots matched the frozen SHA-256 fixtures and all five legacy PDFs matched the frozen byte hashes. A second import reused all five Artifacts, proving retry idempotency.
+
+The durable production workspace passed an authenticated runtime smoke: `/resumes` returned 200, the `ai-agent-app` editor context produced a 19,494-byte unsaved preview, publishing the unchanged saved state reused its imported Revision, and HTML/PDF/JSON materialization plus download passed exact size and SHA-256 verification. The PDF path exercised the private renderer (`chromium-playwright`, Chromium `152.0.7977.82`, Playwright `1.55.0`, `pdf-v1`). A supplementary host operator group was added to Server after production proof exposed the otherwise easy-to-miss setgid/GID boundary; a subsequent newly materialized Artifact inherited the host backup group correctly.
+
+Oracle2 backup schema is now **`oracle2-runtime-backup-v6`**. Archive `oracle2-agent-20260917T050428Z.tar.gz` preserves the schema-v6 SQLite database, exact deployment contract/repository revision, five compatibility PDFs and all **9** first-class Artifact files present after the production smoke. The independent restore drill validated the archive checksum, every internal file checksum, SQLite integrity/foreign keys, all five legacy PDF hashes, and size + SHA-256 for all nine `resume_artifacts` rows. The three production services (`renderer`, `server`, `web`) were healthy after cutover.
+
 ## JH-R010 — Retire standalone Resume runtime
 
 Only after cutover evidence:

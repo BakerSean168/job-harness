@@ -37,6 +37,8 @@ services:
       dockerfile: Dockerfile
     init: true
     restart: unless-stopped
+    group_add:
+      - "${JOB_HARNESS_DATA_GID:-1000}"
     depends_on:
       renderer:
         condition: service_healthy

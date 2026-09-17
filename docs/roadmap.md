@@ -86,7 +86,7 @@ The standalone Web V1 hardening plan is complete and production evidence now sat
 - [x] **JH-R006:** immutable HTML/PDF/JSON artifact pipeline with private Chromium sidecar, SHA-verified durable storage/download, production-shaped restart smoke, and Oracle2 ARM64 renderer proof.
 - [x] **JH-R007:** first-class ApplicationSubmission -> ResumeRevision/Artifact linkage with conservative historical backfill, idempotent command semantics, export v2, and auditable Application UI.
 - [x] **JH-R008:** Submission-first Profile/Revision usage analytics with distinct Application counts, exact Submission counts, legacy evidence fallback, and non-causal Web projections.
-- [ ] **JH-R009:** Oracle2 cutover + backup/restore upgrade.
+- [x] **JH-R009:** Oracle2 cutover completed with 104 Jobs / 41 Applications / 84 Companies preserved, five Profile/PDF parity proven, durable editor/preview/publish/export smoke passed, and `oracle2-runtime-backup-v6` restore-drilled against every first-class Resume Artifact.
 - [ ] **JH-R010:** retire the standalone Resume runtime only after parity/cutover evidence.
 
 See `docs/resume/` for the benchmark, domain model, baseline and migration plan.

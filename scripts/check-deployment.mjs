@@ -4,6 +4,7 @@ const env = {
   ...process.env,
   JOB_HARNESS_AUTH_TOKEN: 'deployment-check-token',
   JOB_HARNESS_DATA_DIR: '/tmp/job-harness-deployment-check-data',
+  JOB_HARNESS_DATA_GID: '1234',
   JOB_HARNESS_WEB_BIND: '127.0.0.1',
   JOB_HARNESS_WEB_PORT: '3199',
   JOB_HARNESS_IMAGE: 'job-harness:deployment-check',
@@ -39,6 +40,7 @@ invariant(web.environment?.JOB_HARNESS_AUTH_TOKEN === 'deployment-check-token', 
 invariant(server.depends_on?.renderer?.condition === 'service_healthy', 'server must wait for renderer health');
 invariant(server.environment?.JOB_HARNESS_RESUME_RENDERER_URL === 'http://renderer:3002', 'server must reach renderer through the private compose network');
 invariant(server.environment?.JOB_HARNESS_RESUME_ARTIFACT_DIR === '/data/resume-artifacts', 'server must persist Resume artifacts in the durable data mount');
+invariant((server.group_add ?? []).map(String).includes('1234'), 'server must join the configured durable-data operator group');
 invariant(web.depends_on?.server?.condition === 'service_healthy', 'web must wait for server health');
 invariant((renderer.security_opt ?? []).includes('no-new-privileges:true'), 'renderer must enable no-new-privileges');
 invariant(renderer.read_only === true, 'renderer filesystem must be read-only except tmpfs');

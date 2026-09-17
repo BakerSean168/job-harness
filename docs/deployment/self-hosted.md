@@ -36,7 +36,7 @@ openssl rand -base64 48
 mkdir -p data
 ```
 
-Put the generated API token into `JOB_HARNESS_AUTH_TOKEN`. If the data directory is not writable from the container, make it writable by uid 1000 (the non-root `node` runtime user). For host-operated backup, use a shared operator group and setgid on the durable data directory; Resume artifact directories use setgid/group-readable permissions so backup tooling can traverse them without making files world-readable.
+Put the generated API token into `JOB_HARNESS_AUTH_TOKEN`. If the data directory is not writable from the container, make it writable by uid 1000 (the non-root `node` runtime user). For host-operated backup, use a shared operator group and setgid on the durable data directory, and set `JOB_HARNESS_DATA_GID` to that host group ID. Compose adds that GID as a supplementary group to Server, allowing newly created Resume artifact directories to preserve the operator group and setgid bit without making files world-readable. The default GID is `1000`.
 
 ## Start
 
