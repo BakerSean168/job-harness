@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import {
+  AuthorizeResumeArtifactInputSchema,
   CancelExecutionAttemptInputSchema,
   ClaimExecutionAttemptInputSchema,
   CompleteExecutionAttemptInputSchema,
@@ -12,11 +13,13 @@ import {
   ListExecutorsInputSchema,
   MarkExecutionAttemptWaitingInputSchema,
   RegisterExecutorInputSchema,
+  ResumeArtifactGrantOutputSchema,
   ResumeExecutionAttemptInputSchema,
   StartExecutionAttemptInputSchema,
 } from '@job-harness/apply-contracts';
 import { ApplyRuntimeError, type ApplyControlPlanePort } from '@job-harness/apply-runtime';
 import { JOB_HARNESS_REST_V1_ROUTES } from '@job-harness/contracts';
+import type { ResumeArtifactRuntimePorts } from '@job-harness/resume-application';
 import { registerRestV1Route } from './rest-route';
 
 const API_PREFIX = '/api/v1';
@@ -72,7 +75,7 @@ function pathId(value: unknown): string {
   return id;
 }
 
-export function registerApplyApi(app: Express, apply: ApplyControlPlanePort): void {
+export function registerApplyApi(app: Express, apply: ApplyControlPlanePort, artifacts: ResumeArtifactRuntimePorts): void {
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.executors, route(async (req, res) => {
     const input = ListExecutorsInputSchema.parse({
       ...pageQuery(req.query),
@@ -136,5 +139,33 @@ export function registerApplyApi(app: Express, apply: ApplyControlPlanePort): vo
   }));
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.cancelExecutionAttempt, route(async (req, res) => {
     res.json(await apply.attempts.cancel(CancelExecutionAttemptInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) })));
+  }));
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.executionAttemptResumeArtifact, route(async (req, res) => {
+    const authorization = await apply.attempts.authorizeResumeArtifact(AuthorizeResumeArtifactInputSchema.parse({
+      ...req.body,
+      attemptId: pathId(req.params.attemptId),
+    }));
+    const content = await artifacts.getContent(authorization.artifactId);
+    if (!content) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: `ResumeArtifact '${authorization.artifactId}' was not found` } });
+      return;
+    }
+    if (
+      content.artifact.revisionId !== authorization.revisionId
+      || content.artifact.sha256.toLowerCase() !== authorization.sha256
+      || content.artifact.byteSize !== authorization.byteSize
+      || content.artifact.mimeType !== authorization.mimeType
+    ) {
+      throw new ApplyRuntimeError('CONFLICT', `Frozen Resume Artifact evidence for attempt '${pathId(req.params.attemptId)}' no longer matches durable artifact metadata`);
+    }
+    res.json(ResumeArtifactGrantOutputSchema.parse({
+      artifactId: content.artifact.id,
+      revisionId: content.artifact.revisionId,
+      fileName: `${content.artifact.id}.pdf`,
+      mimeType: content.artifact.mimeType,
+      sha256: content.artifact.sha256.toLowerCase(),
+      byteSize: content.artifact.byteSize,
+      bytesBase64: Buffer.from(content.bytes).toString('base64'),
+    }));
   }));
 }

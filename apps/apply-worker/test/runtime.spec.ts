@@ -78,10 +78,12 @@ function fakeBackend(log: string[], options: { healthy?: boolean; failNavigate?:
     async text() { return null; },
     async fill() { throw new Error('readiness worker must not fill'); },
     async select() { throw new Error('readiness worker must not select'); },
+    async setChecked() { throw new Error('readiness worker must not check'); },
     async click() { throw new Error('readiness worker must not click'); },
     async upload() { throw new Error('readiness worker must not upload'); },
     async wait() {},
     async screenshot() { return new Uint8Array(); },
+    async scanControls() { return []; },
   };
   const session: BrowserSessionPort = {
     backendId: 'fake',

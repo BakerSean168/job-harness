@@ -156,6 +156,18 @@ importers:
         specifier: workspace:*
         version: link:../domain
 
+  packages/apply-adapters:
+    dependencies:
+      '@job-harness/apply-browser':
+        specifier: workspace:*
+        version: link:../apply-browser
+      '@job-harness/apply-contracts':
+        specifier: workspace:*
+        version: link:../apply-contracts
+      '@job-harness/apply-core':
+        specifier: workspace:*
+        version: link:../apply-core
+
   packages/apply-browser:
     dependencies:
       playwright:

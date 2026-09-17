@@ -66,6 +66,15 @@ await assertNoTokens(applyBrowser, [
   'execution_attempts',
 ], 'apply-browser');
 
+
+const applyAdapters = new URL('../packages/apply-adapters/', import.meta.url);
+await assertNoTokens(applyAdapters, [
+  '@job-harness/persistence-sqlite',
+  '@job-harness/application',
+  'job-application-copilot/',
+  'node:sqlite',
+], 'apply-adapters');
+
 const applyWorker = new URL('../apps/apply-worker/', import.meta.url);
 await assertNoTokens(applyWorker, [
   '@job-harness/persistence-sqlite',

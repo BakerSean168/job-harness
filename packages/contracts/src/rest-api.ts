@@ -61,6 +61,7 @@ import {
 } from './saved-views';
 import { CareerExportSnapshotSchema } from './export';
 import {
+  AuthorizeResumeArtifactInputSchema,
   CancelExecutionAttemptInputSchema,
   ClaimExecutionAttemptInputSchema,
   ClaimExecutionAttemptOutputSchema,
@@ -78,6 +79,7 @@ import {
   ListExecutorsOutputSchema,
   MarkExecutionAttemptWaitingInputSchema,
   RegisterExecutorInputSchema,
+  ResumeArtifactGrantOutputSchema,
   ResumeExecutionAttemptInputSchema,
   StartExecutionAttemptInputSchema,
 } from '@job-harness/apply-contracts';
@@ -138,6 +140,7 @@ export const ResumeExecutionAttemptBodySchema = ResumeExecutionAttemptInputSchem
 export const CompleteExecutionAttemptBodySchema = CompleteExecutionAttemptInputSchema.omit({ attemptId: true });
 export const FailExecutionAttemptBodySchema = FailExecutionAttemptInputSchema.omit({ attemptId: true });
 export const CancelExecutionAttemptBodySchema = CancelExecutionAttemptInputSchema.omit({ attemptId: true });
+export const AuthorizeResumeArtifactBodySchema = AuthorizeResumeArtifactInputSchema.omit({ attemptId: true });
 
 export const RestErrorEnvelopeSchema = z.object({
   error: z.object({
@@ -186,6 +189,7 @@ export const JOB_HARNESS_REST_V1_ROUTES = {
   completeExecutionAttempt: route({ operationId: 'completeExecutionAttempt', method: 'post', path: '/execution-attempts/:attemptId/complete', tags: ['Apply Executors'], summary: 'Complete a leased technical attempt', paramsSchema: IdParam('attemptId'), bodySchema: CompleteExecutionAttemptBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
   failExecutionAttempt: route({ operationId: 'failExecutionAttempt', method: 'post', path: '/execution-attempts/:attemptId/fail', tags: ['Apply Executors'], summary: 'Fail a leased attempt with explicit external-effect certainty', paramsSchema: IdParam('attemptId'), bodySchema: FailExecutionAttemptBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
   cancelExecutionAttempt: route({ operationId: 'cancelExecutionAttempt', method: 'post', path: '/execution-attempts/:attemptId/cancel', tags: ['Apply Executors'], summary: 'Cancel only before the irreversible external-effect boundary', paramsSchema: IdParam('attemptId'), bodySchema: CancelExecutionAttemptBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
+  executionAttemptResumeArtifact: route({ operationId: 'getExecutionAttemptResumeArtifact', method: 'post', path: '/execution-attempts/:attemptId/resume-artifact', tags: ['Apply Executors'], summary: 'Fetch the frozen PDF Resume Artifact bound to a valid worker lease', paramsSchema: IdParam('attemptId'), bodySchema: AuthorizeResumeArtifactBodySchema, responseSchema: ResumeArtifactGrantOutputSchema, successStatus: 200 }),
   campaigns: route({ operationId: 'listCampaigns', method: 'get', path: '/campaigns', tags: ['Campaigns'], summary: 'List job-search campaigns', querySchema: ListCampaignsInputSchema, responseSchema: ListCampaignsOutputSchema, successStatus: 200 }),
   campaignDetail: route({ operationId: 'getCampaign', method: 'get', path: '/campaigns/:campaignId', tags: ['Campaigns'], summary: 'Read one job-search campaign', paramsSchema: IdParam('campaignId'), responseSchema: UpsertCampaignOutputSchema, successStatus: 200 }),
   upsertCampaign: route({ operationId: 'upsertCampaign', method: 'put', path: '/campaigns/:campaignId', tags: ['Campaigns'], summary: 'Create or update a job-search campaign', paramsSchema: IdParam('campaignId'), bodySchema: UpsertCampaignBodySchema, responseSchema: UpsertCampaignOutputSchema, successStatus: 200 }),

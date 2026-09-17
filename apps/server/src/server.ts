@@ -162,7 +162,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     return path === `${API_PREFIX}/executors/register`
       || /^\/api\/v1\/executors\/[^/]+\/heartbeat$/.test(path)
       || path === `${API_PREFIX}/execution-attempts/claim`
-      || /^\/api\/v1\/execution-attempts\/[^/]+\/(heartbeat|start|waiting|complete|fail)$/.test(path);
+      || /^\/api\/v1\/execution-attempts\/[^/]+\/(heartbeat|start|waiting|complete|fail|resume-artifact)$/.test(path);
   }
   app.use((req, res, next) => {
     const protectedPath = req.path === '/mcp' || req.path.startsWith(`${API_PREFIX}/`);
@@ -179,7 +179,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   registerJobHarnessDataAdminApi(app, options.databasePath, API_PREFIX);
   registerJobHarnessApi(app, application);
   registerResumeApi(app, resume, resumeArtifacts, pdfRenderer, API_PREFIX);
-  registerApplyApi(app, apply);
+  registerApplyApi(app, apply, resumeArtifacts);
 
   app.post('/mcp', async (req, res) => {
     const protocolServer = createProtocolServer(runtime);

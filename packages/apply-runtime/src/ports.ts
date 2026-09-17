@@ -66,6 +66,7 @@ export interface ApplyStorePort {
   insertAttempt(attempt: ExecutionAttempt, initialEvent: AppendExecutionEventInput): Promise<ExecutionAttempt>;
 
   countLeasedAttempts(executorId: string, at: string): Promise<number>;
+  hasValidLease(input: { readonly attemptId: string; readonly executorId: string; readonly leaseTokenHash: string; readonly now: string; readonly allowedStates: readonly ExecutionAttempt['state'][] }): Promise<boolean>;
   abandonExpiredAttempts(input: { readonly now: string; readonly limit: number; readonly eventIdFactory: () => string }): Promise<readonly ExecutionAttempt[]>;
   tryClaimAttempt(input: {
     readonly attemptId: string;
@@ -123,5 +124,6 @@ export interface ApplyControlPlanePort {
     complete(input: unknown): Promise<ExecutionAttempt>;
     fail(input: unknown): Promise<ExecutionAttempt>;
     cancel(input: unknown): Promise<ExecutionAttempt>;
+    authorizeResumeArtifact(input: unknown): Promise<{ artifactId: string; revisionId: string; sha256: string; byteSize: number; mimeType: string }>;
   };
 }

@@ -281,6 +281,16 @@ export class SqliteApplyStore implements ApplyStorePort {
       WHERE executor_id = ? AND state IN ('claimed','running') AND lease_expires_at IS NOT NULL AND lease_expires_at > ?`).get(executorId, at) as Row).n);
   }
 
+  async hasValidLease(input: Parameters<ApplyStorePort['hasValidLease']>[0]) {
+    if (!input.allowedStates.length) return false;
+    const placeholders = input.allowedStates.map(() => '?').join(',');
+    const row = this.readDb.prepare(`SELECT 1 AS ok FROM execution_attempts WHERE id=? AND executor_id=? AND lease_owner=? AND lease_token_hash=?
+      AND lease_expires_at IS NOT NULL AND lease_expires_at > ? AND state IN (${placeholders}) LIMIT 1`).get(
+      input.attemptId, input.executorId, input.executorId, input.leaseTokenHash, input.now, ...input.allowedStates,
+    ) as Row | undefined;
+    return Boolean(row);
+  }
+
   async abandonExpiredAttempts(input: Parameters<ApplyStorePort['abandonExpiredAttempts']>[0]) {
     return this.withTransaction((session) => {
       const rows = session.db.prepare(`SELECT * FROM execution_attempts

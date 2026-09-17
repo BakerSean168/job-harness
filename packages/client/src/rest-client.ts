@@ -78,12 +78,15 @@ import {
   type DiscoveryRunDetail,
 } from '@job-harness/contracts';
 import {
+  AuthorizeResumeArtifactInputSchema,
   ClaimExecutionAttemptOutputSchema,
   ExecutionAttemptDetailSchema,
   ExecutionAttemptSchema,
   ExecutorRegistrationSchema,
   ListExecutionAttemptsOutputSchema,
   ListExecutorsOutputSchema,
+  ResumeArtifactGrantOutputSchema,
+  type AuthorizeResumeArtifactInput,
   type CancelExecutionAttemptInput,
   type ClaimExecutionAttemptInput,
   type CompleteExecutionAttemptInput,
@@ -594,6 +597,12 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
         async cancel(input: CancelExecutionAttemptInput) {
           return ExecutionAttemptSchema.parse(await request(`/execution-attempts/${encodeURIComponent(input.attemptId)}/cancel`, {
             method: 'POST', body: JSON.stringify({ reason: input.reason }),
+          }));
+        },
+        async resumeArtifact(input: AuthorizeResumeArtifactInput) {
+          const parsed = AuthorizeResumeArtifactInputSchema.parse(input);
+          return ResumeArtifactGrantOutputSchema.parse(await request(`/execution-attempts/${encodeURIComponent(parsed.attemptId)}/resume-artifact`, {
+            method: 'POST', body: JSON.stringify({ executorId: parsed.executorId, leaseToken: parsed.leaseToken }),
           }));
         },
       },

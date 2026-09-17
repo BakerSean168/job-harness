@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
+  AuthorizeResumeArtifactInputSchema,
   CancelExecutionAttemptInputSchema,
   ClaimExecutionAttemptInputSchema,
   CompleteExecutionAttemptInputSchema,
@@ -455,6 +456,29 @@ export function createApplyControlPlane(
         });
         if (!updated) throw new ApplyConflictError(`ExecutionAttempt '${current.id}' changed while cancelling`);
         return updated;
+      },
+      async authorizeResumeArtifact(raw) {
+        const parsed = AuthorizeResumeArtifactInputSchema.parse(raw);
+        const timestamp = now();
+        const attempt = await store.getAttempt(parsed.attemptId);
+        if (!attempt) throw new ApplyNotFoundError('ExecutionAttempt', parsed.attemptId);
+        const valid = await store.hasValidLease({
+          attemptId: parsed.attemptId,
+          executorId: parsed.executorId,
+          leaseTokenHash: sha256(parsed.leaseToken),
+          now: timestamp,
+          allowedStates: ['claimed', 'running'],
+        });
+        if (!valid) throw new ApplyLeaseLostError(parsed.attemptId);
+        const artifact = attempt.bundle.resumeArtifact;
+        if (!artifact) throw new ApplyNotReadyError(`ExecutionAttempt '${attempt.id}' has no frozen Resume PDF Artifact`);
+        return {
+          artifactId: artifact.id,
+          revisionId: artifact.revisionId,
+          sha256: artifact.sha256,
+          byteSize: artifact.byteSize,
+          mimeType: artifact.mimeType,
+        };
       },
     },
   };
