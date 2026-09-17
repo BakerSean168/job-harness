@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWebAuthRuntimeConfig, verifyWebSessionToken, WEB_SESSION_COOKIE } from './auth/session';
 
-const PUBLIC_PATHS = new Set(['/login', '/auth/login']);
+const PUBLIC_PATHS = new Set(['/login', '/auth/login', '/labs/apply-canary']);
 
 export async function proxy(request: NextRequest) {
   const config = getWebAuthRuntimeConfig();
