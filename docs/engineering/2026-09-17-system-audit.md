@@ -264,3 +264,13 @@ For a single-user self-hosted system this is an acceptable current tradeoff. Bef
 - both Steel and Windows Chrome workers return `ready` after restart.
 - ChatGPT MCP remains 32 tools with zero external-side-effect tools.
 - this document is updated with implementation evidence and intentionally deferred findings.
+
+## 13. Follow-up finding discovered while implementing Wave 1
+
+### Finding A18 — MV3 page-driver errors can accidentally retry the browser action (P1)
+
+While tracing the Browser Bridge delivery protocol for timeout hardening, the extension-side `executePageDriver()` revealed a subtle retry-boundary bug. The first `chrome.tabs.sendMessage()` and `unwrapPageDriverResponse()` are inside the same `try`. Therefore a **remote page-driver error returned after executing the command** is caught by the same branch intended only for a missing/replaced content-script receiver; the extension reinjects the driver and sends the page action a second time.
+
+The server bridge itself does not redeliver an in-flight command, so this is an extension-local retry bug rather than a queue bug. It is especially important for click-like commands: retries may only cover failure to deliver to a receiver, never an application-level/page-driver failure after the command was accepted.
+
+**Required change before real submit work:** separate transport delivery from response unwrapping. Retry one injection/send only when `sendMessage` itself rejects because the receiver is absent/replaced; unwrap the returned application result outside that retry catch so a page-driver failure is surfaced exactly once. Add a regression check and keep final submit outside the generic extension click command regardless.
