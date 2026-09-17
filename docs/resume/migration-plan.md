@@ -106,6 +106,8 @@ Add immutable HTML/PDF/JSON artifact generation. Preserve existing Nunjucks/prin
 ### R006 local evidence — 2026-09-17
 
 GCP validation now covers a three-service production topology: private Chromium renderer (`:3002`) → private REST/MCP Server (`:3000`) → loopback Web. A fresh Debian Chromium image with Noto CJK fonts generated a real PDF; the full Compose smoke then published a temporary Revision, materialized a PDF through the Server/sidecar boundary, stored it under the durable Resume artifact directory, verified `%PDF-` on authenticated download, restarted Server, and verified the same artifact again. HTML/JSON artifacts are also materialized and hash-checked without Chromium. Artifact directories use setgid/group-readable permissions so host backup can traverse them. R006 remains open until the same renderer image contract is proven on Oracle2 ARM64.
+Oracle2 ARM64 proof also passed against exact commit `a5fe164`: Debian Chromium `152.0.7977.82` ran as the non-root `node` user with a read-only root filesystem, returned 401 without the private bearer and 200 with it, and generated a 30.8 KB `%PDF-` document containing Chinese text. The existing production Web/Server containers remained healthy and untouched throughout the isolated proof.
+
 
 ## JH-R007 — ApplicationSubmission
 

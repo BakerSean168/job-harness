@@ -83,7 +83,7 @@ The standalone Web V1 hardening plan is complete and production evidence now sat
 - [x] **JH-R003:** add SQLite v5 Resume persistence plus atomic legacy catalog import; GCP historical-copy verification preserves 100 Jobs / 41 Applications / 5 legacy refs / 82 Companies, imports 1 Library + 5 Profiles, remains idempotent and keeps 5/5 exact HTML SHA parity.
 - [x] **JH-R004:** replace the Registry-only Resumes page with structured/source editing, scope-separated Profile/Library saves, optimistic concurrency, unsaved-draft live preview, and navigation-loss protection.
 - [x] **JH-R005:** publish immutable Revision history with canonical content hashes, retry-safe reuse, optimistic Profile/Library version guards, and previous/current structured diff.
-- [ ] **JH-R006:** artifact pipeline and Oracle2 ARM64 PDF renderer spike.
+- [x] **JH-R006:** immutable HTML/PDF/JSON artifact pipeline with private Chromium sidecar, SHA-verified durable storage/download, production-shaped restart smoke, and Oracle2 ARM64 renderer proof.
 - [ ] **JH-R007:** first-class ApplicationSubmission -> ResumeRevision/Artifact linkage.
 - [ ] **JH-R008:** Profile/Revision usage analytics.
 - [ ] **JH-R009:** Oracle2 cutover + backup/restore upgrade.
