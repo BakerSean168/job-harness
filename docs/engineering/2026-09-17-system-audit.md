@@ -404,3 +404,11 @@ This cannot cause an external site submit, but it violates the core authority in
 Two recovery paths deliberately ignore errors from `intentSafety.markManualReview()`: abandoned post-boundary attempts discovered during claim, and a `beginSubmit` coordination failure after the SubmissionIntent has entered `external_in_progress`. Suppressing the secondary error is correct for duplicate-submit safety — the system must not turn a failed recovery write into permission to retry an external effect — but a bare `.catch(() => {})` makes the safety incident invisible to operators until a later stale-intent reconciliation happens to surface it.
 
 **Required change:** preserve the fail-closed outcome while adding an explicit safety-persistence incident hook/structured log. The recovery call remains best-effort and must never authorize/retry a site action, but its failure must be observable with attempt/intent/reason metadata. Add tests proving the hook is invoked and that normal claim/submit behavior remains conservative.
+
+### Finding A25 — generic failure reporting can self-declare the external-effect boundary (P1)
+
+The same `attempts.fail()` review exposed a second state-machine gap: `FailExecutionAttemptInput` accepts an arbitrary `externalEffectState`, and the generic fail path writes that value directly. A valid pre-submit worker lease can therefore move an Attempt from `not_crossed` to `crossed` or `uncertain` without going through `ReviewSnapshot -> SubmitAuthorization -> begin-submit`.
+
+This does not itself click a recruiting site, but it breaks the model's strongest invariant: **the irreversible boundary has one semantic owner**. It can create false post-submit/manual-review state and makes audit evidence ambiguous.
+
+**Required change:** generic `fail` may preserve the Attempt's already-durable external-effect state, but it must never advance it. A caller-provided effect state must exactly match the current Attempt state; crossing remains owned exclusively by the authorized `begin-submit` transaction, and post-boundary outcome changes remain owned by the dedicated submit-success/submit-failure protocol. Add a regression test proving a valid pre-submit lease cannot report `crossed`/`uncertain` through generic failure.
