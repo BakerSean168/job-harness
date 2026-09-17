@@ -93,11 +93,11 @@ The standalone Web V1 hardening plan is complete and production evidence now sat
 
 Detailed design: `docs/resume/agent-workflow-and-workspace-plan.md`.
 
-- [ ] **JH-R011:** scalable Applications Board with viewport layout, lane-local scrolling and lane-aware pagination/cursors; Table remains server-paginated.
-- [ ] **JH-R012:** Resume Content Composer exposing migrated skill/work-bullet/project-presentation/project-highlight/summary/certificate selections without requiring source mode.
-- [ ] **JH-R013:** exact unsaved Draft PDF preview through the production Chromium renderer with real A4 page boundaries.
-- [ ] **JH-R014:** explicit Web entry points for Add Job and Record Application, reusing canonical application services and idempotency/identity rules.
-- [ ] **JH-R015:** Resume MCP semantic authoring tools, including authoring context and narrow Profile mutation operations.
+- [x] **JH-R011:** scalable Applications Board with viewport layout, lane-local scrolling, per-stage totals and independent server pagination; Table remains 50-row server-paginated.
+- [x] **JH-R012:** Resume Content Composer exposes migrated skill/work-bullet/project-presentation/project-highlight/education/summary/certificate selections plus section ordering without requiring Source mode.
+- [x] **JH-R013:** exact unsaved Draft PDF preview goes through the production Chromium renderer, shows real PDF pagination, and does not persist Revision/Artifact state.
+- [x] **JH-R014:** explicit Web Add Job and Record Application entry points reuse canonical application services, Listing identity rules, idempotent submission recording and optional immutable Resume evidence.
+- [x] **JH-R015:** production MCP exposes seven semantic Resume tools for Profile/context reads, narrow selection/override mutation, Revision publish and Artifact materialization without database access.
 - [ ] **JH-R016:** ChatGPT integration packaging: Skill/workflow policy plus authenticated MCP/App connectivity without direct database exposure.
 - [ ] **JH-R017:** SubmissionIntent + durable outbox + reconciliation for external automated applications.
 

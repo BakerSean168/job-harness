@@ -391,3 +391,29 @@ The phase is complete when:
 - AI clients can read authoring context and perform controlled Resume mutations through MCP;
 - discovery/application workflows are documented as tool-driven, incremental, and idempotent;
 - automated external submission has a durable intent/outbox/reconciliation mechanism so a model forgetting a follow-up tool call cannot lose confirmed submission state.
+
+## 13. Implementation evidence — 2026-09-17
+
+The first landing tranche, **JH-R011..JH-R015**, is implemented on production Job Harness. `pnpm check` passes with **42 test files / 90 tests**, canonical OpenAPI is regenerated, TypeScript/build checks pass, and the Oracle2 `renderer` / `server` / `web` services are healthy after rebuild.
+
+### R011 evidence
+
+Applications Board no longer performs one global max-200 fetch. The server-rendered workspace requests each visible stage independently (40 cards per lane initially), carries the real per-stage total into the client, and each lane can fetch its next page independently. On desktop the Applications workspace occupies the available viewport, the board scrolls horizontally, and every lane card body has its own vertical scroll container with stable scrollbar/overscroll containment. The 50-row Table view remains unchanged as the dense server-paginated view. Keyset cursors remain an optional future hardening step; the silent 200-record truncation and document-length lane problem are removed now.
+
+### R012 evidence
+
+`/resumes` now has **Basics / Compose / Source YAML** modes. Compose operates directly on existing `ResumeProfile` selection fields and exposes the migrated Library pool: skills, work experiences + bullets, projects + presentation variants + highlights, education, certificates, summaries and section order. It changes Profile composition only; shared `ResumeLibrary` fact editing remains a separate scope. No Resume schema migration was required.
+
+### R013 evidence
+
+A new authenticated `POST /api/v1/resume/preview/pdf` resolves an unsaved Library/Profile draft and sends the rendered HTML through the same private Chromium renderer used by immutable PDF Artifacts. The Web proxies this as `/resume/preview/pdf` and offers **Fast** HTML versus **Exact PDF** preview. Production smoke for `ai-agent-app` returned a valid **596,679-byte `%PDF-`** document while `resume_revisions` remained **5 -> 5** and `resume_artifacts` remained **9 -> 9**, proving draft preview has no persistence side effect.
+
+### R014 evidence
+
+Jobs now has a `+ Add job` panel using `jobs.upsertJobsBatch`, including company/title/city/source/URL/external-ID/JD and canonical Listing identity handling. Job detail now has a Record Application form using the existing `applications.record` use case with an explicit idempotency key, actor `user`, listing/channel/time/note and Resume Profile. When requested, it attaches the latest published Revision and an already-materialized PDF Artifact if available. Neither UI path writes SQLite directly.
+
+### R015 evidence
+
+Production Streamable HTTP MCP now lists **24 tools**, including seven Resume tools: `resume_profiles_list`, `resume_profile_get`, `resume_authoring_context_get`, `resume_profile_patch_selection`, `resume_profile_patch_overrides`, `resume_revision_publish`, and `resume_revision_artifact_materialize`. The authoring-context smoke for `ai-agent-app` returned the canonical Profile, all **7 Library projects**, and its Revision history. Profile patch tools are explicitly advertised as non-idempotent because they use optimistic versions; reads/publish/materialization retain retry-safe protocol hints where applicable. Direct database/file mutation and external recruiting-site submission remain outside MCP.
+
+The production data baseline after this landing remains **schema 6 / 104 Jobs / 41 Applications / 84 Companies / 41 Submissions / 5 Profiles / 5 Revisions / 9 Artifacts**.
