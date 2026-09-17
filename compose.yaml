@@ -1,6 +1,35 @@
 name: job-harness
 
 services:
+  renderer:
+    image: ${JOB_HARNESS_RENDERER_IMAGE:-job-harness-renderer:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: renderer-runtime
+    init: true
+    restart: unless-stopped
+    read_only: true
+    environment:
+      NODE_ENV: production
+      HOME: /tmp
+      JOB_HARNESS_RENDERER_HOST: 0.0.0.0
+      JOB_HARNESS_RENDERER_PORT: 3002
+      JOB_HARNESS_RENDERER_TOKEN: ${JOB_HARNESS_AUTH_TOKEN:?set JOB_HARNESS_AUTH_TOKEN}
+      CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium
+    expose:
+      - "3002"
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+
   server:
     image: ${JOB_HARNESS_IMAGE:-job-harness:local}
     build:
@@ -8,12 +37,18 @@ services:
       dockerfile: Dockerfile
     init: true
     restart: unless-stopped
+    depends_on:
+      renderer:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       JOB_HARNESS_DB: /data/job-harness.db
       JOB_HARNESS_HOST: 0.0.0.0
       JOB_HARNESS_PORT: 3000
       JOB_HARNESS_AUTH_TOKEN: ${JOB_HARNESS_AUTH_TOKEN:?set JOB_HARNESS_AUTH_TOKEN}
+      JOB_HARNESS_RESUME_ARTIFACT_DIR: /data/resume-artifacts
+      JOB_HARNESS_RESUME_RENDERER_URL: http://renderer:3002
+      JOB_HARNESS_RENDERER_TOKEN: ${JOB_HARNESS_AUTH_TOKEN:?set JOB_HARNESS_AUTH_TOKEN}
     volumes:
       - type: bind
         source: ${JOB_HARNESS_DATA_DIR:-./data}

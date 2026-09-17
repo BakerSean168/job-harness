@@ -1,0 +1,13 @@
+{
+  "name": "@job-harness/resume-renderer-service",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "playwright-core": "1.55.0",
+    "tsx": "^4.20.5"
+  }
+}

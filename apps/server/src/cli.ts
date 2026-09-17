@@ -12,7 +12,15 @@ if ((host === '0.0.0.0' || host === '::') && !authToken) {
   throw new Error('JOB_HARNESS_AUTH_TOKEN is required when binding to a non-loopback interface');
 }
 
-const running = await startJobHarnessServer({ databasePath, host, port, authToken });
+const running = await startJobHarnessServer({
+  databasePath,
+  host,
+  port,
+  authToken,
+  artifactDirectory: process.env.JOB_HARNESS_RESUME_ARTIFACT_DIR,
+  resumeRendererUrl: process.env.JOB_HARNESS_RESUME_RENDERER_URL ?? null,
+  resumeRendererToken: process.env.JOB_HARNESS_RENDERER_TOKEN ?? null,
+});
 console.log(`Job Harness listening at ${running.url}`);
 console.log(`MCP endpoint: ${running.mcpUrl}`);
 

@@ -9,12 +9,16 @@ import {
   SaveResumeProfileInputSchema,
   PublishResumeRevisionInputSchema,
   ResumeRevisionDiffQuerySchema,
+  MaterializeResumeArtifactInputSchema,
 } from '@job-harness/resume-contracts';
 import {
   ResumeConcurrencyError,
   ResumeNotFoundError,
   ResumeReferenceValidationError,
   ResumeResolutionError,
+  ResumeArtifactCapabilityError,
+  ResumeArtifactIntegrityError,
+  type ResumeArtifactRuntimePorts,
   type ResumeRuntimePorts,
 } from '@job-harness/resume-application';
 import { renderResumePreviewHtml } from '@job-harness/resume-renderer';
@@ -50,6 +54,14 @@ function sendError(res: Response, error: unknown): void {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: error.message } });
     return;
   }
+  if (error instanceof ResumeArtifactCapabilityError) {
+    res.status(503).json({ error: { code: 'RESUME_ARTIFACT_UNAVAILABLE', message: error.message } });
+    return;
+  }
+  if (error instanceof ResumeArtifactIntegrityError) {
+    res.status(500).json({ error: { code: 'RESUME_ARTIFACT_INTEGRITY_FAILED', message: error.message } });
+    return;
+  }
   if (error instanceof ResumeResolutionError) {
     res.status(422).json({ error: { code: 'RESUME_RESOLUTION_FAILED', message: error.message, issues: error.issues } });
     return;
@@ -61,7 +73,7 @@ function route(handler: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response) => { void handler(req, res).catch((error) => sendError(res, error)); };
 }
 
-export function registerResumeApi(app: Express, resume: ResumeRuntimePorts, apiPrefix: string): void {
+export function registerResumeApi(app: Express, resume: ResumeRuntimePorts, artifacts: ResumeArtifactRuntimePorts, apiPrefix: string): void {
   registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.resumeProfiles, route(async (req, res) => {
     const input = ListResumeProfilesInputSchema.parse({
       ...(first(req.query.libraryId) ? { libraryId: first(req.query.libraryId) } : {}),
@@ -139,5 +151,27 @@ export function registerResumeApi(app: Express, resume: ResumeRuntimePorts, apiP
       return;
     }
     res.json(result);
+  }));
+
+
+  registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.materializeResumeArtifact, route(async (req, res) => {
+    const revisionId = String(req.params.revisionId ?? '').trim();
+    const input = MaterializeResumeArtifactInputSchema.parse({ ...req.body, revisionId });
+    res.json(await artifacts.materialize(input));
+  }));
+
+  registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.downloadResumeArtifact, route(async (req, res) => {
+    const artifactId = String(req.params.artifactId ?? '').trim();
+    const result = artifactId ? await artifacts.getContent(artifactId) : null;
+    if (!result) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: `ResumeArtifact '${artifactId}' was not found` } });
+      return;
+    }
+    const extension = result.artifact.kind === 'html' ? 'html' : result.artifact.kind === 'pdf' ? 'pdf' : result.artifact.kind === 'json' ? 'json' : 'txt';
+    res.setHeader('content-type', result.artifact.mimeType);
+    res.setHeader('content-disposition', `attachment; filename="${result.artifact.id}.${extension}"`);
+    res.setHeader('content-length', String(result.bytes.byteLength));
+    res.setHeader('cache-control', 'private, no-store');
+    res.status(200).end(Buffer.from(result.bytes));
   }));
 }

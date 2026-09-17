@@ -39,6 +39,9 @@
     },
     {
       "path": "./packages/resume-importers"
+    },
+    {
+      "path": "./apps/resume-renderer-service"
     }
   ]
 }

@@ -29,7 +29,8 @@ jobs:
           node-version: 24
       - run: node scripts/check-deployment.mjs
       - run: docker build -t job-harness:ci .
-      - run: JOB_HARNESS_SMOKE_IMAGE=job-harness:ci bash scripts/smoke-deployment.sh
+      - run: docker build --target renderer-runtime -t job-harness-renderer:ci .
+      - run: JOB_HARNESS_SMOKE_IMAGE=job-harness:ci JOB_HARNESS_SMOKE_RENDERER_IMAGE=job-harness-renderer:ci bash scripts/smoke-deployment.sh
 
   e2e:
     runs-on: ubuntu-latest

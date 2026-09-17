@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -121,5 +122,39 @@ describe('Resume REST v1', () => {
 
     const currentDiff = await fetch(`${running.apiUrl}/resume/revisions/${encodeURIComponent(secondRevision.revision.id)}/diff?against=current`, { headers });
     expect(await currentDiff.json()).toMatchObject({ toRevisionId: null, changes: [] });
+
+
+    const htmlArtifactResponse = await fetch(`${running.apiUrl}/resume/revisions/${encodeURIComponent(secondRevision.revision.id)}/artifacts`, {
+      method: 'POST', headers, body: JSON.stringify({ kind: 'html' }),
+    });
+    const htmlArtifact = await htmlArtifactResponse.json();
+    expect(htmlArtifactResponse.status).toBe(200);
+    expect(htmlArtifact).toMatchObject({ reused: false, artifact: { revisionId: secondRevision.revision.id, kind: 'html', rendererId: 'nunjucks-classic' } });
+
+    const repeatedHtml = await fetch(`${running.apiUrl}/resume/revisions/${encodeURIComponent(secondRevision.revision.id)}/artifacts`, {
+      method: 'POST', headers, body: JSON.stringify({ kind: 'html' }),
+    });
+    expect(await repeatedHtml.json()).toMatchObject({ reused: true, artifact: { id: htmlArtifact.artifact.id } });
+
+    const htmlDownload = await fetch(`${running.apiUrl}/resume/artifacts/${encodeURIComponent(htmlArtifact.artifact.id)}/content`, { headers });
+    const htmlBytes = Buffer.from(await htmlDownload.arrayBuffer());
+    expect(htmlDownload.status).toBe(200);
+    expect(htmlDownload.headers.get('content-type')).toContain('text/html');
+    expect(htmlBytes.toString('utf8')).toContain('测试用户二号');
+    expect(createHash('sha256').update(htmlBytes).digest('hex')).toBe(htmlArtifact.artifact.sha256);
+
+    const jsonArtifactResponse = await fetch(`${running.apiUrl}/resume/revisions/${encodeURIComponent(secondRevision.revision.id)}/artifacts`, {
+      method: 'POST', headers, body: JSON.stringify({ kind: 'json' }),
+    });
+    const jsonArtifact = await jsonArtifactResponse.json();
+    expect(jsonArtifact).toMatchObject({ reused: false, artifact: { kind: 'json', rendererId: 'resolved-resume-json', rendererVersion: '1' } });
+    const jsonDownload = await fetch(`${running.apiUrl}/resume/artifacts/${encodeURIComponent(jsonArtifact.artifact.id)}/content`, { headers });
+    expect(JSON.parse(await jsonDownload.text())).toMatchObject({ profileId: 'agent', profileVersion: 3, libraryVersion: 2 });
+
+    const unavailablePdf = await fetch(`${running.apiUrl}/resume/revisions/${encodeURIComponent(secondRevision.revision.id)}/artifacts`, {
+      method: 'POST', headers, body: JSON.stringify({ kind: 'pdf' }),
+    });
+    expect(unavailablePdf.status).toBe(503);
+    expect(await unavailablePdf.json()).toMatchObject({ error: { code: 'RESUME_ARTIFACT_UNAVAILABLE' } });
   });
 });

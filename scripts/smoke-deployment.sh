@@ -6,6 +6,7 @@ cd "$ROOT_DIR"
 
 export COMPOSE_PROJECT_NAME=${JOB_HARNESS_SMOKE_PROJECT:-job-harness-deployment-smoke}
 export JOB_HARNESS_IMAGE=${JOB_HARNESS_SMOKE_IMAGE:-job-harness:local}
+export JOB_HARNESS_RENDERER_IMAGE=${JOB_HARNESS_SMOKE_RENDERER_IMAGE:-job-harness-renderer:local}
 export JOB_HARNESS_AUTH_TOKEN=${JOB_HARNESS_SMOKE_TOKEN:-deployment-smoke-token}
 export JOB_HARNESS_DATA_DIR=${JOB_HARNESS_SMOKE_DATA_DIR:-$(mktemp -d /tmp/job-harness-deployment-smoke.XXXXXX)}
 export JOB_HARNESS_WEB_BIND=127.0.0.1
@@ -41,11 +42,14 @@ wait_healthy() {
   return 1
 }
 
+wait_healthy renderer
 wait_healthy server
 wait_healthy web
 
+renderer_id=$(docker compose ps -q renderer)
 server_id=$(docker compose ps -q server)
 web_id=$(docker compose ps -q web)
+[[ $(docker inspect "$renderer_id" --format '{{len .HostConfig.PortBindings}}') == 0 ]]
 [[ $(docker inspect "$server_id" --format '{{len .HostConfig.PortBindings}}') == 0 ]]
 [[ $(docker inspect "$web_id" --format '{{range $p, $bindings := .HostConfig.PortBindings}}{{range $bindings}}{{.HostIp}}:{{.HostPort}}{{end}}{{end}}') == "127.0.0.1:${JOB_HARNESS_WEB_PORT}" ]]
 
@@ -78,6 +82,34 @@ NODE
 
 [[ -s "$JOB_HARNESS_DATA_DIR/job-harness.db" ]]
 
+revision_id=$(docker compose exec -T server pnpm exec tsx scripts/seed-deployment-resume.ts /data/job-harness.db | tail -n 1 | tr -d '\r')
+[[ "$revision_id" == resume-rev-* ]]
+export JOB_HARNESS_SMOKE_REVISION_ID="$revision_id"
+
+docker compose exec -T -e JOB_HARNESS_SMOKE_REVISION_ID="$revision_id" server node - <<'NODE'
+const base = 'http://127.0.0.1:3000/api/v1';
+const headers = {
+  authorization: `Bearer ${process.env.JOB_HARNESS_AUTH_TOKEN}`,
+  'content-type': 'application/json',
+};
+const materialized = await fetch(`${base}/resume/revisions/${encodeURIComponent(process.env.JOB_HARNESS_SMOKE_REVISION_ID)}/artifacts`, {
+  method: 'POST',
+  headers,
+  body: JSON.stringify({ kind: 'pdf' }),
+});
+const body = await materialized.json();
+if (!materialized.ok || body.artifact?.kind !== 'pdf' || body.artifact?.byteSize < 5000) process.exit(1);
+const downloaded = await fetch(`${base}/resume/artifacts/${encodeURIComponent(body.artifact.id)}/content`, {
+  headers: { authorization: `Bearer ${process.env.JOB_HARNESS_AUTH_TOKEN}` },
+});
+const bytes = new Uint8Array(await downloaded.arrayBuffer());
+if (!downloaded.ok || new TextDecoder().decode(bytes.slice(0, 5)) !== '%PDF-') process.exit(1);
+console.log(JSON.stringify({ revisionId: process.env.JOB_HARNESS_SMOKE_REVISION_ID, artifactId: body.artifact.id, byteSize: bytes.byteLength }));
+NODE
+
+[[ -d "$JOB_HARNESS_DATA_DIR/resume-artifacts" ]]
+[[ $(find "$JOB_HARNESS_DATA_DIR/resume-artifacts" -type f -name '*.pdf' | wc -l) -eq 1 ]]
+
 docker compose restart server >/dev/null
 wait_healthy server
 
@@ -93,8 +125,15 @@ const { DatabaseSync } = await import('node:sqlite');
 const db = new DatabaseSync('/data/job-harness.db');
 const integrity = db.prepare('PRAGMA integrity_check').get();
 const version = db.prepare('PRAGMA user_version').get();
+const artifact = db.prepare("SELECT id FROM resume_artifacts WHERE kind='pdf' ORDER BY created_at DESC LIMIT 1").get();
 db.close();
 if (integrity.integrity_check !== 'ok' || Number(version.user_version) !== 5) process.exit(1);
+if (!artifact?.id) process.exit(1);
+const downloaded = await fetch(`${base}/api/v1/resume/artifacts/${encodeURIComponent(artifact.id)}/content`, {
+  headers: { authorization: `Bearer ${process.env.JOB_HARNESS_AUTH_TOKEN}` },
+});
+const bytes = new Uint8Array(await downloaded.arrayBuffer());
+if (!downloaded.ok || new TextDecoder().decode(bytes.slice(0, 5)) !== '%PDF-') process.exit(1);
 NODE
 
-echo 'deployment runtime smoke ok: compose network, auth, persistence, restart'
+echo 'deployment runtime smoke ok: private renderer/API, auth, persistence, restart'

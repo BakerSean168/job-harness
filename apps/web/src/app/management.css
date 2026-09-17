@@ -251,3 +251,5 @@
 .resume-diff-panel li > span { text-transform: uppercase; color: var(--accent); font-size: 8px; font-weight: 700; }
 .resume-diff-panel li > small { overflow-wrap: anywhere; color: var(--text-faint); }
 @media (max-width: 700px) { .resume-publish-row { grid-template-columns: 1fr; } .resume-revision-row { align-items: flex-start; flex-direction: column; } }
+.resume-artifact-actions { display: inline-flex; gap: 4px; }
+.resume-artifact-actions input[type='hidden'] { display: none; }

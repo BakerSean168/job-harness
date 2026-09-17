@@ -1,23 +1,28 @@
 import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { Server as HttpServer } from 'node:http';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
 import { createCareerApplicationService } from '@job-harness/application';
-import { createResumeApplicationService } from '@job-harness/resume-application';
+import { createResumeApplicationService, createResumeArtifactService } from '@job-harness/resume-application';
 import { CAREER_MCP_TOOLS, createCareerMcpRuntime } from '@job-harness/mcp';
 import { SqliteCareerStore, SqliteResumeStore } from '@job-harness/persistence-sqlite';
 import { generateJobHarnessOpenApiDocument } from '@job-harness/contracts';
 import { API_PREFIX, registerJobHarnessApi } from './api';
 import { registerJobHarnessDataAdminApi } from './data-admin';
 import { registerResumeApi } from './resume-api';
+import { createFileSystemResumeArtifactStorage, createHttpResumePdfRenderer } from './resume-artifacts';
+import { getResumeRendererFingerprint, renderResumePreviewHtml } from '@job-harness/resume-renderer';
 
 export interface JobHarnessServerOptions {
   readonly databasePath: string;
   readonly host?: string;
   readonly port?: number;
   readonly authToken?: string | null;
+  readonly artifactDirectory?: string;
+  readonly resumeRendererUrl?: string | null;
+  readonly resumeRendererToken?: string | null;
 }
 
 export interface RunningJobHarnessServer {
@@ -85,6 +90,18 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   const application = createCareerApplicationService(store);
   const resumeStore = new SqliteResumeStore(options.databasePath);
   const resume = createResumeApplicationService(resumeStore);
+  const artifactDirectory = options.artifactDirectory ?? join(dirname(options.databasePath), 'resume-artifacts');
+  const resumeArtifacts = createResumeArtifactService(resumeStore, {
+    htmlRenderer: {
+      rendererId: 'nunjucks-classic',
+      rendererVersion: getResumeRendererFingerprint(),
+      renderHtml: (revision) => renderResumePreviewHtml(revision.resolvedDocumentSnapshot, { variant: revision.profileId }),
+    },
+    storage: createFileSystemResumeArtifactStorage(artifactDirectory),
+    pdfRenderer: options.resumeRendererUrl
+      ? createHttpResumePdfRenderer({ baseUrl: options.resumeRendererUrl, token: options.resumeRendererToken })
+      : null,
+  });
   const runtime = createCareerMcpRuntime(application);
   const host = options.host ?? '127.0.0.1';
   const app = createMcpExpressApp({ host });
@@ -110,7 +127,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
 
   registerJobHarnessDataAdminApi(app, options.databasePath, API_PREFIX);
   registerJobHarnessApi(app, application);
-  registerResumeApi(app, resume, API_PREFIX);
+  registerResumeApi(app, resume, resumeArtifacts, API_PREFIX);
 
   app.post('/mcp', async (req, res) => {
     const protocolServer = createProtocolServer(runtime);

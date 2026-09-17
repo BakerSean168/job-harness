@@ -45,6 +45,17 @@ export const ResumePreviewOutputSchema = z.object({
 }).strict();
 
 
+
+export const MaterializeResumeArtifactInputSchema = z.object({
+  revisionId: z.string().trim().min(1).max(200),
+  kind: z.enum(['html', 'pdf', 'json']),
+}).strict();
+
+export const MaterializeResumeArtifactOutputSchema = z.object({
+  artifact: ResumeArtifactSchema,
+  reused: z.boolean(),
+}).strict();
+
 export const PublishResumeRevisionInputSchema = z.object({
   profileId: z.string().trim().min(1).max(200),
   expectedProfileVersion: z.number().int().positive(),
@@ -102,3 +113,5 @@ export type ResumeRevisionDetail = z.infer<typeof ResumeRevisionDetailSchema>;
 export type ResumeRevisionDiffQuery = z.infer<typeof ResumeRevisionDiffQuerySchema>;
 export type ResumeRevisionDiffOutput = z.infer<typeof ResumeRevisionDiffOutputSchema>;
 export type ResumeSnapshotChange = z.infer<typeof ResumeSnapshotChangeSchema>;
+export type MaterializeResumeArtifactInput = z.infer<typeof MaterializeResumeArtifactInputSchema>;
+export type MaterializeResumeArtifactOutput = z.infer<typeof MaterializeResumeArtifactOutputSchema>;

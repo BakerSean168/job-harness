@@ -26,3 +26,14 @@ export async function fetchJobHarnessDataDownload(kind: 'export' | 'backup'): Pr
     cache: 'no-store',
   });
 }
+
+export async function fetchJobHarnessResumeArtifact(artifactId: string): Promise<Response> {
+  const headers = new Headers();
+  const token = apiAuthToken();
+  if (token) headers.set('authorization', `Bearer ${token}`);
+  return fetch(`${apiBaseUrl()}/resume/artifacts/${encodeURIComponent(artifactId)}/content`, {
+    method: 'GET',
+    headers,
+    cache: 'no-store',
+  });
+}

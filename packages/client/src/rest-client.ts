@@ -75,6 +75,8 @@ import {
   ResumeRevisionDetailSchema,
   ResumeRevisionDiffOutputSchema,
   ResumeRevisionDiffQuerySchema,
+  MaterializeResumeArtifactInputSchema,
+  MaterializeResumeArtifactOutputSchema,
   type ListResumeProfilesInput,
   type ListResumeProfilesOutput,
   type ResumePreviewInput,
@@ -88,6 +90,8 @@ import {
   type ResumeRevisionDetail,
   type ResumeRevisionDiffOutput,
   type ResumeRevisionDiffQuery,
+  type MaterializeResumeArtifactInput,
+  type MaterializeResumeArtifactOutput,
 } from '@job-harness/resume-contracts';
 
 export interface JobHarnessRestClientOptions {
@@ -301,6 +305,13 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
         append(query, 'against', parsed.against);
         const suffix = query.toString();
         return nullable(async () => ResumeRevisionDiffOutputSchema.parse(await request(`/resume/revisions/${encodeURIComponent(revisionId)}/diff${suffix ? `?${suffix}` : ''}`)));
+      },
+      async materializeArtifact(input: MaterializeResumeArtifactInput): Promise<MaterializeResumeArtifactOutput> {
+        const parsed = MaterializeResumeArtifactInputSchema.parse(input);
+        return MaterializeResumeArtifactOutputSchema.parse(await request(`/resume/revisions/${encodeURIComponent(parsed.revisionId)}/artifacts`, {
+          method: 'POST',
+          body: JSON.stringify({ kind: parsed.kind }),
+        }));
       },
     },
     analytics: {

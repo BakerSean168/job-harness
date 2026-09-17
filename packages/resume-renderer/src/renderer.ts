@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import nunjucks from 'nunjucks';
@@ -8,6 +9,29 @@ import { toResumeTemplateContext, type ResumeTemplateContextOptions } from './co
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const templatesDir = path.join(packageRoot, 'templates');
 const cssPath = path.join(templatesDir, 'styles', 'resume.css');
+
+
+let rendererFingerprint: string | null = null;
+
+function templateFiles(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    return entry.isDirectory() ? templateFiles(full) : [full];
+  }).sort();
+}
+
+export function getResumeRendererFingerprint(): string {
+  if (rendererFingerprint) return rendererFingerprint;
+  const hash = createHash('sha256');
+  for (const file of templateFiles(templatesDir)) {
+    hash.update(path.relative(templatesDir, file));
+    hash.update('\0');
+    hash.update(fs.readFileSync(file));
+    hash.update('\0');
+  }
+  rendererFingerprint = hash.digest('hex');
+  return rendererFingerprint;
+}
 
 function createEnvironment(): nunjucks.Environment {
   return new nunjucks.Environment(

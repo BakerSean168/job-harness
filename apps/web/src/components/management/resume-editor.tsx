@@ -58,6 +58,9 @@ export interface ResumeEditorCopy {
   readonly changes: string;
   readonly noChanges: string;
   readonly diffFailed: string;
+  readonly downloadPdf: string;
+  readonly downloadHtml: string;
+  readonly downloadJson: string;
 }
 
 interface Props {
@@ -313,6 +316,12 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, us
                   <div>
                     <button type="button" disabled={diffLoading} onClick={() => void loadRevisionDiff(revision.id, 'previous')}>{copy.comparePrevious}</button>
                     <button type="button" disabled={diffLoading} onClick={() => void loadRevisionDiff(revision.id, 'current')}>{copy.compareCurrent}</button>
+                    <form method="post" action="/downloads/resume-artifact" className="resume-artifact-actions">
+                      <input type="hidden" name="revisionId" value={revision.id} />
+                      <button type="submit" name="kind" value="pdf">{copy.downloadPdf}</button>
+                      <button type="submit" name="kind" value="html">{copy.downloadHtml}</button>
+                      <button type="submit" name="kind" value="json">{copy.downloadJson}</button>
+                    </form>
                   </div>
                 </div>
               ))}

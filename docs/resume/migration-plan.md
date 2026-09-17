@@ -100,7 +100,12 @@ Publishing is now distinct from draft Save. The application service hashes canon
 
 ## JH-R006 — Artifact pipeline
 
-Add HTML/PDF/JSON/Markdown artifact generation. Preserve existing Nunjucks/print-CSS behavior first. Perform an Oracle2 ARM64 Chromium spike before choosing in-process vs sidecar PDF rendering.
+Add immutable HTML/PDF/JSON artifact generation. Preserve existing Nunjucks/print-CSS behavior first. PDF rendering is isolated behind a private Chromium sidecar so Career/API runtime does not own browser dependencies. Artifact files live under the durable data root, are keyed by immutable Revision metadata, and are verified by SHA-256 on download. GCP production-shaped Docker smoke must prove render → persist → restart → re-download before the Oracle2 ARM64 spike. Markdown remains a later interoperability format rather than an R006 gate.
+
+
+### R006 local evidence — 2026-09-17
+
+GCP validation now covers a three-service production topology: private Chromium renderer (`:3002`) → private REST/MCP Server (`:3000`) → loopback Web. A fresh Debian Chromium image with Noto CJK fonts generated a real PDF; the full Compose smoke then published a temporary Revision, materialized a PDF through the Server/sidecar boundary, stored it under the durable Resume artifact directory, verified `%PDF-` on authenticated download, restarted Server, and verified the same artifact again. HTML/JSON artifacts are also materialized and hash-checked without Chromium. Artifact directories use setgid/group-readable permissions so host backup can traverse them. R006 remains open until the same renderer image contract is proven on Oracle2 ARM64.
 
 ## JH-R007 — ApplicationSubmission
 

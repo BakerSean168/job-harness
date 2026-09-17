@@ -63,6 +63,8 @@ import {
   ResumeRevisionDetailSchema,
   ResumeRevisionDiffQuerySchema,
   ResumeRevisionDiffOutputSchema,
+  MaterializeResumeArtifactInputSchema,
+  MaterializeResumeArtifactOutputSchema,
 } from '@job-harness/resume-contracts';
 
 export type JobHarnessRestMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
@@ -90,6 +92,7 @@ export const TransitionApplicationBodySchema = TransitionApplicationInputSchema.
 export const UpsertCampaignBodySchema = UpsertCampaignInputSchema.omit({ id: true });
 export const CompleteDiscoveryBodySchema = CompleteDiscoveryInputSchema.omit({ runId: true });
 export const PublishResumeRevisionBodySchema = PublishResumeRevisionInputSchema.omit({ profileId: true });
+export const MaterializeResumeArtifactBodySchema = MaterializeResumeArtifactInputSchema.omit({ revisionId: true });
 
 export const RestErrorEnvelopeSchema = z.object({
   error: z.object({
@@ -127,6 +130,8 @@ export const JOB_HARNESS_REST_V1_ROUTES = {
   publishResumeRevision: route({ operationId: 'publishResumeRevision', method: 'post', path: '/resume/profiles/:profileId/revisions', tags: ['Resume Builder'], summary: 'Publish the current saved Resume state as an immutable Revision', paramsSchema: IdParam('profileId'), bodySchema: PublishResumeRevisionBodySchema, responseSchema: PublishResumeRevisionOutputSchema, successStatus: 200 }),
   resumeRevisionDetail: route({ operationId: 'getResumeRevision', method: 'get', path: '/resume/revisions/:revisionId', tags: ['Resume Builder'], summary: 'Read one immutable Resume Revision and its artifacts', paramsSchema: IdParam('revisionId'), responseSchema: ResumeRevisionDetailSchema, successStatus: 200 }),
   resumeRevisionDiff: route({ operationId: 'diffResumeRevision', method: 'get', path: '/resume/revisions/:revisionId/diff', tags: ['Resume Builder'], summary: 'Diff a Resume Revision against the previous Revision or current saved state', paramsSchema: IdParam('revisionId'), querySchema: ResumeRevisionDiffQuerySchema, responseSchema: ResumeRevisionDiffOutputSchema, successStatus: 200 }),
+  materializeResumeArtifact: route({ operationId: 'materializeResumeArtifact', method: 'post', path: '/resume/revisions/:revisionId/artifacts', tags: ['Resume Builder'], summary: 'Materialize an immutable Resume artifact for one Revision', paramsSchema: IdParam('revisionId'), bodySchema: MaterializeResumeArtifactBodySchema, responseSchema: MaterializeResumeArtifactOutputSchema, successStatus: 200 }),
+  downloadResumeArtifact: route({ operationId: 'downloadResumeArtifact', method: 'get', path: '/resume/artifacts/:artifactId/content', tags: ['Resume Builder'], summary: 'Download one verified Resume artifact', paramsSchema: IdParam('artifactId'), successStatus: 200, responseContentType: 'application/octet-stream', binaryResponse: true }),
   resumes: route({ operationId: 'listResumeUsage', method: 'get', path: '/resumes', tags: ['Resumes'], summary: 'List Resume Registry usage projections', querySchema: ListResumeUsageInputSchema, responseSchema: ListResumeUsageOutputSchema, successStatus: 200 }),
   savedViews: route({ operationId: 'listSavedViews', method: 'get', path: '/saved-views', tags: ['Saved Views'], summary: 'List durable Saved Views', querySchema: ListSavedViewsInputSchema, responseSchema: ListSavedViewsOutputSchema, successStatus: 200 }),
   upsertSavedView: route({ operationId: 'upsertSavedView', method: 'post', path: '/saved-views', tags: ['Saved Views'], summary: 'Create or update a durable Saved View', bodySchema: UpsertSavedViewInputSchema, responseSchema: SavedViewSchema, successStatus: 200 }),
