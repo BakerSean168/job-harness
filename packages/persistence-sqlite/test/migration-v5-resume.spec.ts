@@ -46,7 +46,7 @@ describe('SQLite v5 Resume domain migration', () => {
 
     const db = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 });
+      expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 });
       for (const table of ['resume_libraries','resume_profiles','resume_revisions','resume_artifacts']) {
         expect(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(table)).toEqual({ name: table });
         expect(db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()).toEqual({ n: 0 });

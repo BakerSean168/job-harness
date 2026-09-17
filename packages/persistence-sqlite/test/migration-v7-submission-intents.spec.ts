@@ -27,7 +27,7 @@ describe('SQLite v7 SubmissionIntent migration', () => {
 
     const verify = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      expect(verify.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 });
+      expect(verify.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 });
       expect(verify.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='submission_intents'").get()).toEqual({ name: 'submission_intents' });
       expect(verify.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='submission_intents_status_updated_idx'").get()).toEqual({ name: 'submission_intents_status_updated_idx' });
       expect((verify.prepare('PRAGMA table_info(submission_intents)').all() as Array<Record<string, unknown>>).map((row) => row.name)).toContain('executor_session_id');

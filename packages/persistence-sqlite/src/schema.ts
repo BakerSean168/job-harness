@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 7;
+export const SQLITE_SCHEMA_VERSION = 8;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -389,6 +389,7 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
   migrateResumeDomainV5(db);
   migrateApplicationSubmissionsV6(db);
   migrateSubmissionIntentsV7(db);
+  migrateApplyExecutionV8(db);
 }
 
 const PERFORMANCE_INDEXES_SCHEMA_V4 = `
@@ -602,6 +603,99 @@ function migrateSubmissionIntentsV7(db: DatabaseSync): void {
   try {
     db.exec(SUBMISSION_INTENTS_SCHEMA_V7);
     db.exec('PRAGMA user_version = 7');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+
+const APPLY_EXECUTION_SCHEMA_V8 = `
+CREATE TABLE IF NOT EXISTS executor_registrations (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  version TEXT NOT NULL,
+  host_label TEXT,
+  status TEXT NOT NULL CHECK(status IN ('ready','busy','degraded','login_required','human_action_required','offline')),
+  browser_backends_json TEXT NOT NULL DEFAULT '[]',
+  adapter_ids_json TEXT NOT NULL DEFAULT '[]',
+  execution_modes_json TEXT NOT NULL DEFAULT '[]',
+  capabilities_json TEXT NOT NULL DEFAULT '{}',
+  max_concurrency INTEGER NOT NULL DEFAULT 1 CHECK(max_concurrency > 0),
+  last_heartbeat_at TEXT NOT NULL,
+  metadata_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS executor_registrations_status_heartbeat_idx ON executor_registrations(status, last_heartbeat_at DESC, id);
+
+CREATE TABLE IF NOT EXISTS execution_attempts (
+  id TEXT PRIMARY KEY,
+  intent_id TEXT NOT NULL REFERENCES submission_intents(id) ON DELETE CASCADE,
+  executor_id TEXT REFERENCES executor_registrations(id) ON DELETE SET NULL,
+  required_adapter_id TEXT,
+  adapter_id TEXT,
+  adapter_version TEXT,
+  preferred_browser_backend TEXT,
+  browser_backend TEXT,
+  execution_mode TEXT NOT NULL CHECK(execution_mode IN ('fill_only','review_then_submit','auto_submit')),
+  state TEXT NOT NULL CHECK(state IN ('queued','claimed','running','waiting_for_user','completed','failed','cancelled','abandoned')),
+  lease_owner TEXT,
+  lease_token_hash TEXT,
+  lease_expires_at TEXT,
+  last_heartbeat_at TEXT,
+  checkpoint TEXT,
+  external_effect_state TEXT NOT NULL CHECK(external_effect_state IN ('not_crossed','crossed','uncertain')),
+  required_capabilities_json TEXT NOT NULL DEFAULT '[]',
+  policy_snapshot_json TEXT NOT NULL DEFAULT '{}',
+  bundle_json TEXT NOT NULL,
+  bundle_hash TEXT NOT NULL,
+  dispatch_request_hash TEXT NOT NULL,
+  review_hash TEXT,
+  submit_authorization_id TEXT,
+  error_code TEXT,
+  error_summary TEXT,
+  started_at TEXT,
+  completed_at TEXT,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS execution_attempts_one_active_per_intent_idx
+  ON execution_attempts(intent_id)
+  WHERE state IN ('queued','claimed','running','waiting_for_user');
+CREATE INDEX IF NOT EXISTS execution_attempts_state_created_idx ON execution_attempts(state, created_at, id);
+CREATE INDEX IF NOT EXISTS execution_attempts_executor_state_idx ON execution_attempts(executor_id, state, updated_at DESC, id);
+CREATE INDEX IF NOT EXISTS execution_attempts_intent_created_idx ON execution_attempts(intent_id, created_at DESC, id);
+CREATE INDEX IF NOT EXISTS execution_attempts_lease_idx ON execution_attempts(lease_expires_at, state, id);
+
+CREATE TABLE IF NOT EXISTS execution_events (
+  id TEXT PRIMARY KEY,
+  attempt_id TEXT NOT NULL REFERENCES execution_attempts(id) ON DELETE CASCADE,
+  sequence INTEGER NOT NULL CHECK(sequence > 0),
+  type TEXT NOT NULL CHECK(type IN (
+    'attempt_queued','attempt_claimed','attempt_started','browser_session_ready','listing_opened','form_inspected',
+    'fields_filled','resume_attached','validation_failed','review_ready','human_action_required','attempt_resumed',
+    'attempt_heartbeat','submit_authorized','submit_triggered','external_success_observed','external_failure_observed',
+    'external_result_uncertain','attempt_completed','attempt_failed','attempt_cancelled','attempt_abandoned'
+  )),
+  occurred_at TEXT NOT NULL,
+  checkpoint TEXT,
+  payload_json TEXT NOT NULL DEFAULT '{}',
+  UNIQUE(attempt_id, sequence)
+);
+CREATE INDEX IF NOT EXISTS execution_events_attempt_sequence_idx ON execution_events(attempt_id, sequence);
+`;
+
+function migrateApplyExecutionV8(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 8) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(APPLY_EXECUTION_SCHEMA_V8);
+    db.exec('PRAGMA user_version = 8');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

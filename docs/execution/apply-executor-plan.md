@@ -3,6 +3,7 @@
 Status: **R019 design frozen for implementation**, revised 2026-09-17 after open-source benchmark.
 
 Benchmark: `docs/execution/apply-executor-benchmark.md`.
+Legacy compatibility baseline: `docs/execution/legacy-copilot-baseline.md`.
 
 R018 legacy discovery convergence is complete. R019 must now turn the useful browser-automation pieces of `job-application-copilot` into a replaceable execution capability without importing its old ledger, resume ownership or monolithic browser logic into Job Harness.
 

@@ -60,6 +60,27 @@ import {
   UpsertSavedViewInputSchema,
 } from './saved-views';
 import { CareerExportSnapshotSchema } from './export';
+import {
+  CancelExecutionAttemptInputSchema,
+  ClaimExecutionAttemptInputSchema,
+  ClaimExecutionAttemptOutputSchema,
+  CompleteExecutionAttemptInputSchema,
+  DispatchExecutionAttemptInputSchema,
+  ExecutionAttemptDetailSchema,
+  ExecutionAttemptSchema,
+  ExecutorHeartbeatInputSchema,
+  ExecutorRegistrationSchema,
+  FailExecutionAttemptInputSchema,
+  HeartbeatExecutionAttemptInputSchema,
+  ListExecutionAttemptsInputSchema,
+  ListExecutionAttemptsOutputSchema,
+  ListExecutorsInputSchema,
+  ListExecutorsOutputSchema,
+  MarkExecutionAttemptWaitingInputSchema,
+  RegisterExecutorInputSchema,
+  ResumeExecutionAttemptInputSchema,
+  StartExecutionAttemptInputSchema,
+} from '@job-harness/apply-contracts';
 import { EntityIdSchema } from './schemas';
 import {
   ListResumeProfilesInputSchema as ListResumeBuilderProfilesInputSchema,
@@ -109,6 +130,14 @@ export const MaterializeResumeArtifactBodySchema = MaterializeResumeArtifactInpu
 export const BeginSubmissionIntentBodySchema = BeginSubmissionIntentInputSchema.omit({ intentId: true });
 export const ConfirmSubmissionIntentBodySchema = ConfirmSubmissionIntentInputSchema.omit({ intentId: true });
 export const FailSubmissionIntentBodySchema = FailSubmissionIntentInputSchema.omit({ intentId: true });
+export const ExecutorHeartbeatBodySchema = ExecutorHeartbeatInputSchema.omit({ executorId: true });
+export const StartExecutionAttemptBodySchema = StartExecutionAttemptInputSchema.omit({ attemptId: true });
+export const HeartbeatExecutionAttemptBodySchema = HeartbeatExecutionAttemptInputSchema.omit({ attemptId: true });
+export const MarkExecutionAttemptWaitingBodySchema = MarkExecutionAttemptWaitingInputSchema.omit({ attemptId: true });
+export const ResumeExecutionAttemptBodySchema = ResumeExecutionAttemptInputSchema.omit({ attemptId: true });
+export const CompleteExecutionAttemptBodySchema = CompleteExecutionAttemptInputSchema.omit({ attemptId: true });
+export const FailExecutionAttemptBodySchema = FailExecutionAttemptInputSchema.omit({ attemptId: true });
+export const CancelExecutionAttemptBodySchema = CancelExecutionAttemptInputSchema.omit({ attemptId: true });
 
 export const RestErrorEnvelopeSchema = z.object({
   error: z.object({
@@ -142,6 +171,21 @@ export const JOB_HARNESS_REST_V1_ROUTES = {
   failSubmissionIntent: route({ operationId: 'failSubmissionIntent', method: 'post', path: '/submission-intents/:intentId/fail', tags: ['Submission Intents'], summary: 'Record external failure or manual-review state', paramsSchema: IdParam('intentId'), bodySchema: FailSubmissionIntentBodySchema, responseSchema: FailSubmissionIntentOutputSchema, successStatus: 200 }),
   reconcileSubmissionIntent: route({ operationId: 'reconcileSubmissionIntent', method: 'post', path: '/submission-intents/:intentId/reconcile', tags: ['Submission Intents'], summary: 'Retry persistence for an externally confirmed submission intent', paramsSchema: IdParam('intentId'), responseSchema: ReconcileSubmissionIntentOutputSchema, successStatus: 200 }),
   reconcileSubmissionIntents: route({ operationId: 'reconcileSubmissionIntents', method: 'post', path: '/submission-intents/reconcile-pending', tags: ['Submission Intents'], summary: 'Reconcile durable pending submissions and flag stale in-progress intents without performing external recruiting-site actions', bodySchema: ReconcileSubmissionIntentsInputSchema, responseSchema: ReconcileSubmissionIntentsOutputSchema, successStatus: 200 }),
+  executors: route({ operationId: 'listExecutors', method: 'get', path: '/executors', tags: ['Apply Executors'], summary: 'List registered Apply Executor workers', querySchema: ListExecutorsInputSchema, responseSchema: ListExecutorsOutputSchema, successStatus: 200 }),
+  executorDetail: route({ operationId: 'getExecutor', method: 'get', path: '/executors/:executorId', tags: ['Apply Executors'], summary: 'Read one Apply Executor registration', paramsSchema: IdParam('executorId'), responseSchema: ExecutorRegistrationSchema, successStatus: 200 }),
+  registerExecutor: route({ operationId: 'registerExecutor', method: 'post', path: '/executors/register', tags: ['Apply Executors'], summary: 'Register or refresh an Apply Executor descriptor', bodySchema: RegisterExecutorInputSchema, responseSchema: ExecutorRegistrationSchema, successStatus: 200 }),
+  heartbeatExecutor: route({ operationId: 'heartbeatExecutor', method: 'post', path: '/executors/:executorId/heartbeat', tags: ['Apply Executors'], summary: 'Heartbeat an Apply Executor registration', paramsSchema: IdParam('executorId'), bodySchema: ExecutorHeartbeatBodySchema, responseSchema: ExecutorRegistrationSchema, successStatus: 200 }),
+  executionAttempts: route({ operationId: 'listExecutionAttempts', method: 'get', path: '/execution-attempts', tags: ['Apply Executors'], summary: 'List durable browser execution attempts', querySchema: ListExecutionAttemptsInputSchema, responseSchema: ListExecutionAttemptsOutputSchema, successStatus: 200 }),
+  executionAttemptDetail: route({ operationId: 'getExecutionAttempt', method: 'get', path: '/execution-attempts/:attemptId', tags: ['Apply Executors'], summary: 'Read one execution attempt and its sanitized event timeline', paramsSchema: IdParam('attemptId'), responseSchema: ExecutionAttemptDetailSchema, successStatus: 200 }),
+  dispatchExecutionAttempt: route({ operationId: 'dispatchExecutionAttempt', method: 'post', path: '/execution-attempts', tags: ['Apply Executors'], summary: 'Queue a technical attempt for an already-prepared SubmissionIntent', bodySchema: DispatchExecutionAttemptInputSchema, responseSchema: ExecutionAttemptSchema, successStatus: 201 }),
+  claimExecutionAttempt: route({ operationId: 'claimExecutionAttempt', method: 'post', path: '/execution-attempts/claim', tags: ['Apply Executors'], summary: 'Claim one compatible queued attempt with an expiring lease', bodySchema: ClaimExecutionAttemptInputSchema, responseSchema: ClaimExecutionAttemptOutputSchema, successStatus: 200 }),
+  heartbeatExecutionAttempt: route({ operationId: 'heartbeatExecutionAttempt', method: 'post', path: '/execution-attempts/:attemptId/heartbeat', tags: ['Apply Executors'], summary: 'Renew the lease and optionally checkpoint a claimed/running attempt', paramsSchema: IdParam('attemptId'), bodySchema: HeartbeatExecutionAttemptBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
+  startExecutionAttempt: route({ operationId: 'startExecutionAttempt', method: 'post', path: '/execution-attempts/:attemptId/start', tags: ['Apply Executors'], summary: 'Bind concrete adapter/backend versions and start a claimed attempt', paramsSchema: IdParam('attemptId'), bodySchema: StartExecutionAttemptBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
+  waitExecutionAttempt: route({ operationId: 'waitExecutionAttempt', method: 'post', path: '/execution-attempts/:attemptId/waiting', tags: ['Apply Executors'], summary: 'Release a lease and wait for explicit human action', paramsSchema: IdParam('attemptId'), bodySchema: MarkExecutionAttemptWaitingBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
+  resumeExecutionAttempt: route({ operationId: 'resumeExecutionAttempt', method: 'post', path: '/execution-attempts/:attemptId/resume', tags: ['Apply Executors'], summary: 'Requeue a pre-submit attempt after human action', paramsSchema: IdParam('attemptId'), bodySchema: ResumeExecutionAttemptBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
+  completeExecutionAttempt: route({ operationId: 'completeExecutionAttempt', method: 'post', path: '/execution-attempts/:attemptId/complete', tags: ['Apply Executors'], summary: 'Complete a leased technical attempt', paramsSchema: IdParam('attemptId'), bodySchema: CompleteExecutionAttemptBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
+  failExecutionAttempt: route({ operationId: 'failExecutionAttempt', method: 'post', path: '/execution-attempts/:attemptId/fail', tags: ['Apply Executors'], summary: 'Fail a leased attempt with explicit external-effect certainty', paramsSchema: IdParam('attemptId'), bodySchema: FailExecutionAttemptBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
+  cancelExecutionAttempt: route({ operationId: 'cancelExecutionAttempt', method: 'post', path: '/execution-attempts/:attemptId/cancel', tags: ['Apply Executors'], summary: 'Cancel only before the irreversible external-effect boundary', paramsSchema: IdParam('attemptId'), bodySchema: CancelExecutionAttemptBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
   campaigns: route({ operationId: 'listCampaigns', method: 'get', path: '/campaigns', tags: ['Campaigns'], summary: 'List job-search campaigns', querySchema: ListCampaignsInputSchema, responseSchema: ListCampaignsOutputSchema, successStatus: 200 }),
   campaignDetail: route({ operationId: 'getCampaign', method: 'get', path: '/campaigns/:campaignId', tags: ['Campaigns'], summary: 'Read one job-search campaign', paramsSchema: IdParam('campaignId'), responseSchema: UpsertCampaignOutputSchema, successStatus: 200 }),
   upsertCampaign: route({ operationId: 'upsertCampaign', method: 'put', path: '/campaigns/:campaignId', tags: ['Campaigns'], summary: 'Create or update a job-search campaign', paramsSchema: IdParam('campaignId'), bodySchema: UpsertCampaignBodySchema, responseSchema: UpsertCampaignOutputSchema, successStatus: 200 }),

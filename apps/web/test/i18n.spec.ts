@@ -10,6 +10,7 @@ const pageKeys = [
   'campaigns',
   'resumes',
   'discovery',
+  'executors',
   'analytics',
   'settings',
 ].sort();

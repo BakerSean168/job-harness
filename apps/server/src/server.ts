@@ -7,11 +7,14 @@ import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js
 import { createCareerApplicationService } from '@job-harness/application';
 import { createResumeApplicationService, createResumeArtifactService } from '@job-harness/resume-application';
 import { createJobHarnessMcpRuntime } from '@job-harness/mcp';
-import { SqliteCareerStore, SqliteResumeStore } from '@job-harness/persistence-sqlite';
+import { SqliteApplyStore, SqliteCareerStore, SqliteResumeStore } from '@job-harness/persistence-sqlite';
 import { generateJobHarnessOpenApiDocument } from '@job-harness/contracts';
+import { createApplyControlPlane } from '@job-harness/apply-runtime';
 import { API_PREFIX, registerJobHarnessApi } from './api';
 import { registerJobHarnessDataAdminApi } from './data-admin';
 import { registerResumeApi } from './resume-api';
+import { registerApplyApi } from './apply-api';
+import { createApplyBundleFactory } from './apply-bundle';
 import { createFileSystemResumeArtifactStorage, createHttpResumePdfRenderer } from './resume-artifacts';
 import { getResumeRendererFingerprint, renderResumePreviewHtml } from '@job-harness/resume-renderer';
 
@@ -92,6 +95,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   mkdirSync(dirname(options.databasePath), { recursive: true });
   const store = new SqliteCareerStore(options.databasePath);
   const resumeStore = new SqliteResumeStore(options.databasePath);
+  const applyStore = new SqliteApplyStore(options.databasePath);
   const application = createCareerApplicationService(store, {
     resumeEvidence: {
       async getProfile(profileId) {
@@ -109,6 +113,21 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     },
   });
   const resume = createResumeApplicationService(resumeStore);
+  const apply = createApplyControlPlane(
+    applyStore,
+    createApplyBundleFactory(application, resumeStore),
+    {
+      async markManualReview(input) {
+        await application.submissionIntents.fail({
+          intentId: input.intentId,
+          occurredAt: input.occurredAt,
+          status: 'needs_manual_review',
+          error: input.error,
+          externalEvidence: input.evidence,
+        });
+      },
+    },
+  );
   const artifactDirectory = options.artifactDirectory ?? join(dirname(options.databasePath), 'resume-artifacts');
   const pdfRenderer = options.resumeRendererUrl
     ? createHttpResumePdfRenderer({ baseUrl: options.resumeRendererUrl, token: options.resumeRendererToken })
@@ -148,6 +167,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   registerJobHarnessDataAdminApi(app, options.databasePath, API_PREFIX);
   registerJobHarnessApi(app, application);
   registerResumeApi(app, resume, resumeArtifacts, pdfRenderer, API_PREFIX);
+  registerApplyApi(app, apply);
 
   app.post('/mcp', async (req, res) => {
     const protocolServer = createProtocolServer(runtime);
@@ -222,6 +242,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     async close() {
       if (reconciliationTimer) clearInterval(reconciliationTimer);
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      applyStore.close();
       resumeStore.close();
       store.close();
     },

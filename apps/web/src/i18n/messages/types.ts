@@ -1,4 +1,4 @@
-export type PageKey = 'overview' | 'inbox' | 'jobs' | 'applications' | 'companies' | 'campaigns' | 'resumes' | 'discovery' | 'analytics' | 'settings';
+export type PageKey = 'overview' | 'inbox' | 'jobs' | 'applications' | 'companies' | 'campaigns' | 'resumes' | 'discovery' | 'executors' | 'analytics' | 'settings';
 
 export interface MessageCatalog {
   brand: {
@@ -15,6 +15,7 @@ export interface MessageCatalog {
     campaigns: string;
     resumes: string;
     discovery: string;
+    executors: string;
     analytics: string;
     settings: string;
   };
@@ -82,6 +83,16 @@ export interface MessageCatalog {
     list: { runs: string; empty: string; running: string; completed: string; started: string; campaign: string; executor: string; candidates: string; inserted: string; duplicates: string; rejected: string; };
     detail: { title: string; observations: string; affectedJobs: string; context: string; completedAt: string; noCampaign: string; noAffectedJobs: string; openJob: string; close: string; full: string; };
     executors: Record<'chatgpt-web' | 'memoflow-ai' | 'import' | 'manual' | 'other', string>;
+  };
+  executorsWorkspace: {
+    summary: { registered: string; ready: string; active: string; waiting: string; uncertain: string; };
+    executors: { title: string; empty: string; status: string; backends: string; adapters: string; modes: string; heartbeat: string; concurrency: string; };
+    attempts: { title: string; empty: string; target: string; state: string; mode: string; executor: string; adapter: string; backend: string; checkpoint: string; effect: string; created: string; };
+    states: Record<'queued' | 'claimed' | 'running' | 'waiting_for_user' | 'completed' | 'failed' | 'cancelled' | 'abandoned', string>;
+    executorStatuses: Record<'ready' | 'busy' | 'degraded' | 'login_required' | 'human_action_required' | 'offline', string>;
+    modes: Record<'fill_only' | 'review_then_submit' | 'auto_submit', string>;
+    effects: Record<'not_crossed' | 'crossed' | 'uncertain', string>;
+    note: string;
   };
   dashboardWorkspace: {
     campaign: { label: string; all: string; active: string; noActive: string; roles: string; cities: string; graduation: string; experience: string; };

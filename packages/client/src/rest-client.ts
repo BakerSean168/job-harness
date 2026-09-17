@@ -78,6 +78,27 @@ import {
   type DiscoveryRunDetail,
 } from '@job-harness/contracts';
 import {
+  ClaimExecutionAttemptOutputSchema,
+  ExecutionAttemptDetailSchema,
+  ExecutionAttemptSchema,
+  ExecutorRegistrationSchema,
+  ListExecutionAttemptsOutputSchema,
+  ListExecutorsOutputSchema,
+  type CancelExecutionAttemptInput,
+  type ClaimExecutionAttemptInput,
+  type CompleteExecutionAttemptInput,
+  type DispatchExecutionAttemptInput,
+  type ExecutorHeartbeatInput,
+  type FailExecutionAttemptInput,
+  type HeartbeatExecutionAttemptInput,
+  type ListExecutionAttemptsInput,
+  type ListExecutorsInput,
+  type MarkExecutionAttemptWaitingInput,
+  type RegisterExecutorInput,
+  type ResumeExecutionAttemptInput,
+  type StartExecutionAttemptInput,
+} from '@job-harness/apply-contracts';
+import {
   ListResumeProfilesInputSchema,
   ListResumeProfilesOutputSchema,
   ResumePreviewInputSchema,
@@ -205,6 +226,25 @@ function submissionIntentsQuery(input: ListSubmissionIntentsInput): string {
   append(query, 'jobId', input.jobId);
   append(query, 'updatedBefore', input.updatedBefore);
   append(query, 'order', input.order);
+  return query.toString();
+}
+
+function executorsQuery(input: ListExecutorsInput): string {
+  const query = new URLSearchParams();
+  append(query, 'limit', input.limit);
+  append(query, 'offset', input.offset);
+  appendMany(query, 'statuses', input.statuses);
+  return query.toString();
+}
+
+function executionAttemptsQuery(input: ListExecutionAttemptsInput): string {
+  const query = new URLSearchParams();
+  append(query, 'limit', input.limit);
+  append(query, 'offset', input.offset);
+  appendMany(query, 'states', input.states);
+  append(query, 'intentId', input.intentId);
+  append(query, 'executorId', input.executorId);
+  appendMany(query, 'externalEffectStates', input.externalEffectStates);
   return query.toString();
 }
 
@@ -488,6 +528,74 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
           method: 'POST',
           body: JSON.stringify(input),
         }));
+      },
+    },
+    apply: {
+      executors: {
+        async list(input: ListExecutorsInput = {}) {
+          const query = executorsQuery(input);
+          return ListExecutorsOutputSchema.parse(await request(`/executors${query ? `?${query}` : ''}`));
+        },
+        async get(executorId: string) {
+          return nullable(async () => ExecutorRegistrationSchema.parse(await request(`/executors/${encodeURIComponent(executorId)}`)));
+        },
+        async register(input: RegisterExecutorInput) {
+          return ExecutorRegistrationSchema.parse(await request('/executors/register', { method: 'POST', body: JSON.stringify(input) }));
+        },
+        async heartbeat(input: ExecutorHeartbeatInput) {
+          return ExecutorRegistrationSchema.parse(await request(`/executors/${encodeURIComponent(input.executorId)}/heartbeat`, {
+            method: 'POST',
+            body: JSON.stringify({ status: input.status, metadata: input.metadata }),
+          }));
+        },
+      },
+      attempts: {
+        async list(input: ListExecutionAttemptsInput = {}) {
+          const query = executionAttemptsQuery(input);
+          return ListExecutionAttemptsOutputSchema.parse(await request(`/execution-attempts${query ? `?${query}` : ''}`));
+        },
+        async get(attemptId: string) {
+          return nullable(async () => ExecutionAttemptDetailSchema.parse(await request(`/execution-attempts/${encodeURIComponent(attemptId)}`)));
+        },
+        async dispatch(input: DispatchExecutionAttemptInput) {
+          return ExecutionAttemptSchema.parse(await request('/execution-attempts', { method: 'POST', body: JSON.stringify(input) }));
+        },
+        async claim(input: ClaimExecutionAttemptInput) {
+          return ClaimExecutionAttemptOutputSchema.parse(await request('/execution-attempts/claim', { method: 'POST', body: JSON.stringify(input) }));
+        },
+        async heartbeat(input: HeartbeatExecutionAttemptInput) {
+          return ExecutionAttemptSchema.parse(await request(`/execution-attempts/${encodeURIComponent(input.attemptId)}/heartbeat`, {
+            method: 'POST', body: JSON.stringify({ executorId: input.executorId, leaseToken: input.leaseToken, checkpoint: input.checkpoint, leaseSeconds: input.leaseSeconds }),
+          }));
+        },
+        async start(input: StartExecutionAttemptInput) {
+          return ExecutionAttemptSchema.parse(await request(`/execution-attempts/${encodeURIComponent(input.attemptId)}/start`, {
+            method: 'POST', body: JSON.stringify({ executorId: input.executorId, leaseToken: input.leaseToken, adapterId: input.adapterId, adapterVersion: input.adapterVersion, browserBackend: input.browserBackend, checkpoint: input.checkpoint }),
+          }));
+        },
+        async waiting(input: MarkExecutionAttemptWaitingInput) {
+          return ExecutionAttemptSchema.parse(await request(`/execution-attempts/${encodeURIComponent(input.attemptId)}/waiting`, {
+            method: 'POST', body: JSON.stringify({ executorId: input.executorId, leaseToken: input.leaseToken, checkpoint: input.checkpoint, reasonCode: input.reasonCode, summary: input.summary, payload: input.payload }),
+          }));
+        },
+        async resume(input: ResumeExecutionAttemptInput) {
+          return ExecutionAttemptSchema.parse(await request(`/execution-attempts/${encodeURIComponent(input.attemptId)}/resume`, { method: 'POST', body: '{}' }));
+        },
+        async complete(input: CompleteExecutionAttemptInput) {
+          return ExecutionAttemptSchema.parse(await request(`/execution-attempts/${encodeURIComponent(input.attemptId)}/complete`, {
+            method: 'POST', body: JSON.stringify({ executorId: input.executorId, leaseToken: input.leaseToken, checkpoint: input.checkpoint, payload: input.payload }),
+          }));
+        },
+        async fail(input: FailExecutionAttemptInput) {
+          return ExecutionAttemptSchema.parse(await request(`/execution-attempts/${encodeURIComponent(input.attemptId)}/fail`, {
+            method: 'POST', body: JSON.stringify({ executorId: input.executorId, leaseToken: input.leaseToken, checkpoint: input.checkpoint, errorCode: input.errorCode, errorSummary: input.errorSummary, externalEffectState: input.externalEffectState, payload: input.payload }),
+          }));
+        },
+        async cancel(input: CancelExecutionAttemptInput) {
+          return ExecutionAttemptSchema.parse(await request(`/execution-attempts/${encodeURIComponent(input.attemptId)}/cancel`, {
+            method: 'POST', body: JSON.stringify({ reason: input.reason }),
+          }));
+        },
       },
     },
     campaigns: {

@@ -45,7 +45,7 @@ describe('SQLite v6 ApplicationSubmission migration', () => {
 
     const verify = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      expect(verify.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 });
+      expect(verify.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 });
       const rows = verify.prepare('SELECT * FROM application_submissions ORDER BY submitted_at, id').all() as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(2);
       expect(rows[0]).toMatchObject({ idempotency_key: 'legacy-first', resume_profile_id: 'resume-agent', resume_revision_id: null, resume_artifact_id: null, listing_id: null, channel: null });

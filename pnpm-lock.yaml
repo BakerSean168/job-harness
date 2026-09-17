@@ -38,6 +38,12 @@ importers:
       '@job-harness/application':
         specifier: workspace:*
         version: link:../../packages/application
+      '@job-harness/apply-contracts':
+        specifier: workspace:*
+        version: link:../../packages/apply-contracts
+      '@job-harness/apply-runtime':
+        specifier: workspace:*
+        version: link:../../packages/apply-runtime
       '@job-harness/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -134,8 +140,32 @@ importers:
         specifier: workspace:*
         version: link:../domain
 
+  packages/apply-contracts:
+    dependencies:
+      zod:
+        specifier: ^4.1.8
+        version: 4.6.5
+
+  packages/apply-core:
+    dependencies:
+      '@job-harness/apply-contracts':
+        specifier: workspace:*
+        version: link:../apply-contracts
+
+  packages/apply-runtime:
+    dependencies:
+      '@job-harness/apply-contracts':
+        specifier: workspace:*
+        version: link:../apply-contracts
+      '@job-harness/apply-core':
+        specifier: workspace:*
+        version: link:../apply-core
+
   packages/client:
     dependencies:
+      '@job-harness/apply-contracts':
+        specifier: workspace:*
+        version: link:../apply-contracts
       '@job-harness/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -145,6 +175,9 @@ importers:
 
   packages/contracts:
     dependencies:
+      '@job-harness/apply-contracts':
+        specifier: workspace:*
+        version: link:../apply-contracts
       '@job-harness/domain':
         specifier: workspace:*
         version: link:../domain
@@ -199,6 +232,12 @@ importers:
       '@job-harness/application':
         specifier: workspace:*
         version: link:../application
+      '@job-harness/apply-contracts':
+        specifier: workspace:*
+        version: link:../apply-contracts
+      '@job-harness/apply-runtime':
+        specifier: workspace:*
+        version: link:../apply-runtime
       '@job-harness/contracts':
         specifier: workspace:*
         version: link:../contracts

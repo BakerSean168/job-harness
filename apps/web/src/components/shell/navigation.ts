@@ -7,6 +7,7 @@ import {
   Inbox,
   LayoutDashboard,
   Radar,
+  Bot,
   Send,
   Settings,
   Target,
@@ -28,6 +29,7 @@ export const primaryNavigation: readonly NavigationItem[] = [
   { href: '/campaigns', labelKey: 'campaigns', icon: Target },
   { href: '/resumes', labelKey: 'resumes', icon: FileText },
   { href: '/discovery', labelKey: 'discovery', icon: Radar },
+  { href: '/executors', labelKey: 'executors', icon: Bot },
   { href: '/analytics', labelKey: 'analytics', icon: BarChart3 },
 ] as const;
 

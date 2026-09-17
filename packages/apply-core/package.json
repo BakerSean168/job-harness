@@ -1,12 +1,10 @@
 {
-  "name": "@job-harness/client",
+  "name": "@job-harness/apply-core",
   "version": "0.2.0",
   "private": true,
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
-    "@job-harness/contracts": "workspace:*",
-    "@job-harness/resume-contracts": "workspace:*",
     "@job-harness/apply-contracts": "workspace:*"
   }
 }

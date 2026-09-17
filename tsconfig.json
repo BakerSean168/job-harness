@@ -42,6 +42,15 @@
     },
     {
       "path": "./apps/resume-renderer-service"
+    },
+    {
+      "path": "./packages/apply-contracts"
+    },
+    {
+      "path": "./packages/apply-core"
+    },
+    {
+      "path": "./packages/apply-runtime"
     }
   ]
 }

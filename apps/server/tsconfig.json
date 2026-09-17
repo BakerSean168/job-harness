@@ -24,6 +24,12 @@
     },
     {
       "path": "../../packages/importers"
+    },
+    {
+      "path": "../../packages/apply-contracts"
+    },
+    {
+      "path": "../../packages/apply-runtime"
     }
   ]
 }

@@ -9,6 +9,8 @@
     "@job-harness/contracts": "workspace:*",
     "@job-harness/domain": "workspace:*",
     "@job-harness/resume-application": "workspace:*",
-    "@job-harness/resume-contracts": "workspace:*"
+    "@job-harness/resume-contracts": "workspace:*",
+    "@job-harness/apply-contracts": "workspace:*",
+    "@job-harness/apply-runtime": "workspace:*"
   }
 }

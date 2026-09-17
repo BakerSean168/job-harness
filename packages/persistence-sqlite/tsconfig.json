@@ -5,10 +5,24 @@
     "rootDir": "src",
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
   "references": [
-    { "path": "../domain" },
-    { "path": "../contracts" },
-    { "path": "../application" }
+    {
+      "path": "../domain"
+    },
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "../application"
+    },
+    {
+      "path": "../apply-contracts"
+    },
+    {
+      "path": "../apply-runtime"
+    }
   ]
 }
