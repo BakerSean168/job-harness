@@ -98,7 +98,7 @@ Detailed design: `docs/resume/agent-workflow-and-workspace-plan.md`.
 - [x] **JH-R013:** exact unsaved Draft PDF preview goes through the production Chromium renderer, shows real PDF pagination, and does not persist Revision/Artifact state.
 - [x] **JH-R014:** explicit Web Add Job and Record Application entry points reuse canonical application services, Listing identity rules, idempotent submission recording and optional immutable Resume evidence.
 - [x] **JH-R015:** production MCP exposes seven semantic Resume tools for Profile/context reads, narrow selection/override mutation, Revision publish and Artifact materialization without database access.
-- [ ] **JH-R016:** ChatGPT integration packaging: Skill/workflow policy plus authenticated MCP/App connectivity without direct database exposure.
+- [ ] **JH-R016:** ChatGPT integration packaging: repository package, workflow/agent policy, Secure MCP Tunnel profile and authenticated MCP smoke are implemented; final completion awaits a dedicated OpenAI tunnel ID plus ChatGPT custom-app tool scan/approval (external control-plane action).
 - [x] **JH-R017:** durable SubmissionIntent/outbox boundary with prepare-before-side-effect, immutable external confirmation evidence, idempotent ApplicationSubmission reconciliation, restart recovery, bounded retry/manual-review handling, REST/MCP contracts, export v3 and production SQLite v7 proof.
 
 See `docs/resume/` for the benchmark, domain model, baseline, migration plan and implementation plan.

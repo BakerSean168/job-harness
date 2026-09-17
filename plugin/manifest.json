@@ -21,6 +21,7 @@
   ],
   "integrationTargets": [
     "mcp",
+    "chatgpt-custom-mcp-app",
     "http",
     "sdk",
     "memoflow-future-extension"

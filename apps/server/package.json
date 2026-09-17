@@ -6,7 +6,8 @@
   "exports": "./src/index.ts",
   "scripts": {
     "start": "tsx src/cli.ts",
-    "import:legacy": "tsx src/import-legacy.ts"
+    "import:legacy": "tsx src/import-legacy.ts",
+    "smoke:chatgpt-mcp": "tsx scripts/chatgpt-mcp-smoke.ts"
   },
   "dependencies": {
     "@job-harness/application": "workspace:*",

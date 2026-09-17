@@ -1,0 +1,27 @@
+# Copy into a private tunnel-client profile directory. Do not commit the real tunnel ID or secrets.
+config_version: 1
+control_plane:
+  base_url: https://api.openai.com
+  tunnel_id: tunnel_REPLACE_WITH_DEDICATED_JOB_HARNESS_ID
+  api_key: env:CONTROL_PLANE_API_KEY
+health:
+  listen_addr: 127.0.0.1:8093
+admin_ui:
+  open_browser: false
+log:
+  level: info
+  format: json
+mcp:
+  server_urls:
+    - channel: main
+      url: http://127.0.0.1:20901/mcp
+  # Value must be the complete header value, for example "Bearer ...".
+  # Keep it in the daemon environment or a permission-restricted file, never in this YAML.
+  extra_headers:
+    Authorization: env:JOB_HARNESS_TUNNEL_AUTH_HEADER
+  # Use the same header for startup/discovery probes so authenticated MCP discovery succeeds.
+  discovery_extra_headers:
+    Authorization: env:JOB_HARNESS_TUNNEL_AUTH_HEADER
+  startup_wait_timeout: 60s
+  connection_max_ttl: 10m
+  max_concurrent_requests: 10

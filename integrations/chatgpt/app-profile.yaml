@@ -1,0 +1,41 @@
+schema_version: 1
+app:
+  name: Job Harness
+  description: Durable job search, Resume authoring, application pipeline, and external-submission recovery.
+  transport: mcp-streamable-http
+  production_connectivity: secure-mcp-tunnel
+  private_downstream_url: http://127.0.0.1:20901/mcp
+  public_inbound_required: false
+security:
+  direct_database_access: false
+  direct_filesystem_access: false
+  external_recruiting_site_side_effect: false
+  downstream_auth: bearer
+  credentials_in_repository: false
+workflow:
+  policy: ./workflow-policy.md
+  recovery_first: true
+  require_submission_intent_before_external_action: true
+tool_groups:
+  context:
+    - career_context_get
+    - career_pipeline_stats
+  discovery:
+    - career_discovery_begin
+    - career_jobs_upsert_batch
+    - career_discovery_complete
+  resume_authoring:
+    - resume_profiles_list
+    - resume_authoring_context_get
+    - resume_profile_patch_selection
+    - resume_profile_patch_overrides
+    - resume_revision_publish
+    - resume_revision_artifact_materialize
+  external_submission_recovery:
+    - career_submission_intents_list
+    - career_submission_intent_prepare
+    - career_submission_intent_begin
+    - career_submission_intent_confirm
+    - career_submission_intent_fail
+    - career_submission_intent_reconcile
+    - career_submission_intents_reconcile_pending

@@ -52,6 +52,8 @@ job-harness/
 ├── docs/
 │   ├── architecture/
 │   └── integration/
+├── integrations/
+│   └── chatgpt/            # custom MCP app policy + Secure MCP Tunnel package
 ├── packages/
 │   ├── contracts/          # canonical Zod DTO/operation schemas
 │   ├── domain/             # career vocabulary, identity, lifecycle rules
@@ -163,6 +165,18 @@ ChatGPT / Agent
 ```
 
 All MCP tools mutate Job Harness state only. There is no tool that clicks a recruiting site or performs an external submission. Automated executors use the SubmissionIntent prepare/begin/confirm/fail/reconcile protocol so confirmed external success remains recoverable across crashes.
+
+## ChatGPT custom MCP app
+
+`integrations/chatgpt/` packages the ChatGPT-facing workflow policy, agent instructions, starter prompts, app metadata, a Secure MCP Tunnel profile template, a CI safety/catalog guard, and an authenticated MCP smoke test. Production Oracle2 should stay private; use a dedicated Secure MCP Tunnel rather than exposing the REST/MCP port publicly or reusing an unrelated administration tunnel.
+
+```bash
+pnpm check:chatgpt-integration
+# with JOB_HARNESS_CHATGPT_MCP_URL/TOKEN configured:
+pnpm smoke:chatgpt-mcp
+```
+
+See [ChatGPT integration](integrations/chatgpt/README.md). The repository never stores the OpenAI tunnel ID/runtime key or the Job Harness bearer token.
 
 ## Future MemoFlow compatibility
 
