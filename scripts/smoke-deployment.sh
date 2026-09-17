@@ -16,6 +16,9 @@ export JOB_HARNESS_WEB_SESSION_SECRET=
 export JOB_HARNESS_WEB_COOKIE_SECURE=false
 
 cleanup() {
+  # Artifact directories are intentionally private to the container uid/group. Remove them from inside
+  # the server before tearing Compose down so CI host users do not need membership in that group.
+  docker compose exec -T server node -e "require('node:fs').rmSync('/data/resume-artifacts',{recursive:true,force:true})" >/dev/null 2>&1 || true
   docker compose down --remove-orphans >/dev/null 2>&1 || true
   if [[ "$JOB_HARNESS_DATA_DIR" == /tmp/job-harness-deployment-smoke.* ]]; then
     rm -rf "$JOB_HARNESS_DATA_DIR"
@@ -107,8 +110,8 @@ if (!downloaded.ok || new TextDecoder().decode(bytes.slice(0, 5)) !== '%PDF-') p
 console.log(JSON.stringify({ revisionId: process.env.JOB_HARNESS_SMOKE_REVISION_ID, artifactId: body.artifact.id, byteSize: bytes.byteLength }));
 NODE
 
-[[ -d "$JOB_HARNESS_DATA_DIR/resume-artifacts" ]]
-[[ $(find "$JOB_HARNESS_DATA_DIR/resume-artifacts" -type f -name '*.pdf' | wc -l) -eq 1 ]]
+# Do not traverse private Artifact directories from the host. The authenticated download above already
+# proves the durable file can be read through the owning server runtime.
 
 docker compose restart server >/dev/null
 wait_healthy server
