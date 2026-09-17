@@ -9,6 +9,7 @@ import {
   type ResumeProfile,
   type ResumeRevision,
 } from '@job-harness/resume-contracts';
+import { hashResolvedResume } from '@job-harness/resume-application';
 import type {
   ResumeProfileListInput,
   ResumeStorePort,
@@ -69,7 +70,7 @@ class SqliteResumeSession implements ResumeStoreTransactionPort {
   }
 
   private revisionFromRow(row: Row): ResumeRevision {
-    return ResumeRevisionSchema.parse({
+    const revision = ResumeRevisionSchema.parse({
       id: row.id,
       profileId: row.profile_id,
       revisionNumber: Number(row.revision_number),
@@ -82,6 +83,10 @@ class SqliteResumeSession implements ResumeStoreTransactionPort {
       createdBy: row.created_by,
       note: row.note,
     });
+    if (hashResolvedResume(revision.resolvedDocumentSnapshot) !== revision.contentHash.toLowerCase()) {
+      throw new Error(`ResumeRevision '${revision.id}' failed content-hash verification`);
+    }
+    return revision;
   }
 
   async listArtifacts(revisionId: string): Promise<readonly ResumeArtifact[]> {

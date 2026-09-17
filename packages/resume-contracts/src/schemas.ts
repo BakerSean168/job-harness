@@ -355,7 +355,14 @@ export const ResumeRevisionSchema = z
     createdBy: z.enum(RESUME_REVISION_ACTORS),
     note: z.string().trim().max(2000).nullable().default(null),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    const snapshot = value.resolvedDocumentSnapshot;
+    if (snapshot.profileId !== value.profileId) ctx.addIssue({ code: 'custom', path: ['resolvedDocumentSnapshot', 'profileId'], message: 'snapshot profileId must match revision profileId' });
+    if (snapshot.profileVersion !== value.profileVersion) ctx.addIssue({ code: 'custom', path: ['resolvedDocumentSnapshot', 'profileVersion'], message: 'snapshot profileVersion must match revision profileVersion' });
+    if (snapshot.libraryId !== value.libraryId) ctx.addIssue({ code: 'custom', path: ['resolvedDocumentSnapshot', 'libraryId'], message: 'snapshot libraryId must match revision libraryId' });
+    if (snapshot.libraryVersion !== value.libraryVersion) ctx.addIssue({ code: 'custom', path: ['resolvedDocumentSnapshot', 'libraryVersion'], message: 'snapshot libraryVersion must match revision libraryVersion' });
+  });
 
 export const ResumeArtifactSchema = z
   .object({

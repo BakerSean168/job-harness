@@ -86,7 +86,10 @@ export const ApplicantProfileRevisionSchema = z.object({
   contentHash: z.string().regex(/^[a-f0-9]{64}$/),
   createdAt: IsoDateTimeSchema,
   createdBy: z.enum(['user', 'import', 'system']),
-}).strict();
+}).strict().superRefine((value, ctx) => {
+  if (value.snapshot.id !== value.profileId) ctx.addIssue({ code: 'custom', path: ['snapshot', 'id'], message: 'snapshot id must match profileId' });
+  if (value.snapshot.version !== value.profileVersion) ctx.addIssue({ code: 'custom', path: ['snapshot', 'version'], message: 'snapshot version must match profileVersion' });
+});
 
 export const SaveApplicantProfileInputSchema = z.object({
   expectedVersion: z.number().int().positive(),
@@ -149,7 +152,10 @@ export const ApplicationAnswerSetRevisionSchema = z.object({
   contentHash: z.string().regex(/^[a-f0-9]{64}$/),
   createdAt: IsoDateTimeSchema,
   createdBy: z.enum(['user', 'import', 'system']),
-}).strict();
+}).strict().superRefine((value, ctx) => {
+  if (value.snapshot.id !== value.answerSetId) ctx.addIssue({ code: 'custom', path: ['snapshot', 'id'], message: 'snapshot id must match answerSetId' });
+  if (value.snapshot.version !== value.answerSetVersion) ctx.addIssue({ code: 'custom', path: ['snapshot', 'version'], message: 'snapshot version must match answerSetVersion' });
+});
 
 export const SaveApplicationAnswerSetInputSchema = z.object({
   expectedVersion: z.number().int().positive(),
