@@ -26,8 +26,10 @@ describe('in-memory browser-extension bridge', () => {
     const invocation = bridge.invoke({ agentId: 'windows-chrome', sessionRef: 'tab:7', command: { type: 'current_url', payload: {} }, timeoutMs: 5_000 });
     const command = await bridge.poll('windows-chrome', 0);
     expect(command).toMatchObject({ agentId: 'windows-chrome', sessionRef: 'tab:7', command: { type: 'current_url' } });
-    bridge.complete('windows-chrome', { commandId: command!.commandId, ok: true, result: 'https://jobs.example.test/apply' });
+    const result = { commandId: command!.commandId, ok: true as const, result: 'https://jobs.example.test/apply' };
+    bridge.complete('windows-chrome', result);
     await expect(invocation).resolves.toMatchObject({ result: 'https://jobs.example.test/apply' });
+    expect(() => bridge.complete('windows-chrome', result)).not.toThrow();
     expect(bridge.status('windows-chrome')).toMatchObject({ online: true, queuedCommands: 0, inFlightCommands: 0 });
     bridge.close();
   });

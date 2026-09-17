@@ -99,13 +99,17 @@ async function register(config) {
 async function executeEnvelope(config, envelope) {
   const commandId = String(envelope?.commandId || "");
   if (!commandId) return;
+  let report;
   try {
     validateEnvelope(config, envelope);
     const result = await executeCommand(envelope);
-    await postResult(config, { commandId, ok: true, result });
+    report = { commandId, ok: true, result };
   } catch (error) {
-    await postResult(config, { commandId, ok: false, error: sanitizeError(error) });
+    report = { commandId, ok: false, error: sanitizeError(error) };
   }
+  // Execute a browser command exactly once. If the HTTP acknowledgement is
+  // uncertain, retry only this immutable result record with the same commandId.
+  await postResultWithRetry(config, report);
 }
 
 function validateEnvelope(config, envelope) {
@@ -122,12 +126,32 @@ function validateEnvelope(config, envelope) {
   if (!allowed.has(type)) throw new Error(`Unsupported or disabled browser command '${type}'`);
 }
 
+async function postResultWithRetry(config, result) {
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await postResult(config, result);
+      return;
+    } catch (error) {
+      lastError = error;
+      const status = Number(error?.status || 0);
+      if (status && status !== 429 && status < 500) throw error;
+      if (attempt < 2) await sleep(250 * (attempt + 1));
+    }
+  }
+  throw lastError || new Error("Browser result acknowledgement failed");
+}
+
 async function postResult(config, result) {
   const response = await bridgeFetch(config, `/agents/${encodeURIComponent(config.agentId)}/results`, {
     method: "POST",
     body: JSON.stringify(result),
   });
-  if (response.status !== 204) throw new Error(`result HTTP ${response.status}`);
+  if (response.status !== 204) {
+    const error = new Error(`result HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
 }
 
 async function executeCommand(envelope) {

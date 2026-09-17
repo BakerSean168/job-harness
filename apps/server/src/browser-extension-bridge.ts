@@ -34,6 +34,11 @@ interface PendingInvocation {
   readonly timer: NodeJS.Timeout;
 }
 
+interface CompletedResultReceipt {
+  readonly agentId: string;
+  readonly expiresAt: string;
+}
+
 interface AgentState {
   registration: BrowserExtensionAgentRegistration;
   readonly queue: BrowserExtensionCommandEnvelope[];
@@ -46,6 +51,7 @@ export interface BrowserExtensionBridgeOptions {
   readonly idFactory?: () => string;
   readonly agentStaleAfterMs?: number;
   readonly maxQueuedCommandsPerAgent?: number;
+  readonly resultReceiptTtlMs?: number;
 }
 
 export class BrowserExtensionBridge {
@@ -53,8 +59,10 @@ export class BrowserExtensionBridge {
   private readonly idFactory: () => string;
   private readonly agentStaleAfterMs: number;
   private readonly maxQueuedCommandsPerAgent: number;
+  private readonly resultReceiptTtlMs: number;
   private readonly agents = new Map<string, AgentState>();
   private readonly pending = new Map<string, PendingInvocation>();
+  private readonly completedResults = new Map<string, CompletedResultReceipt>();
   private closed = false;
 
   constructor(options: BrowserExtensionBridgeOptions = {}) {
@@ -62,6 +70,7 @@ export class BrowserExtensionBridge {
     this.idFactory = options.idFactory ?? randomUUID;
     this.agentStaleAfterMs = options.agentStaleAfterMs ?? 45_000;
     this.maxQueuedCommandsPerAgent = options.maxQueuedCommandsPerAgent ?? 8;
+    this.resultReceiptTtlMs = options.resultReceiptTtlMs ?? 5 * 60_000;
   }
 
   register(raw: RegisterBrowserExtensionAgentInput): BrowserExtensionAgentStatus {
@@ -159,6 +168,14 @@ export class BrowserExtensionBridge {
     const result = BrowserExtensionCommandResultInputSchema.parse(raw);
     const state = this.requireAgent(agentId);
     this.touch(state);
+    this.reapCompletedResults();
+    const completed = this.completedResults.get(result.commandId);
+    if (completed) {
+      if (completed.agentId !== agentId) {
+        throw new BrowserExtensionBridgeError('COMMAND_NOT_FOUND', `Browser extension command '${result.commandId}' does not belong to '${agentId}'`, 404);
+      }
+      return; // idempotent acknowledgement for a result whose HTTP response may have been lost
+    }
     const command = state.inFlight.get(result.commandId);
     if (!command) {
       throw new BrowserExtensionBridgeError('COMMAND_NOT_FOUND', `Browser extension command '${result.commandId}' is not in flight for '${agentId}'`, 404);
@@ -170,6 +187,10 @@ export class BrowserExtensionBridge {
     }
     clearTimeout(pending.timer);
     this.pending.delete(result.commandId);
+    this.completedResults.set(result.commandId, {
+      agentId,
+      expiresAt: new Date(new Date(this.now()).getTime() + this.resultReceiptTtlMs).toISOString(),
+    });
     if (result.ok) pending.resolve(InvokeBrowserExtensionCommandOutputSchema.parse({ commandId: result.commandId, result: result.result ?? null }));
     else pending.reject(new BrowserExtensionBridgeError('REMOTE_COMMAND_FAILED', result.error ?? 'Browser extension command failed', 502));
   }
@@ -182,11 +203,19 @@ export class BrowserExtensionBridge {
       pending.reject(new BrowserExtensionBridgeError('BRIDGE_CLOSED', 'Browser extension bridge closed', 503));
     }
     this.pending.clear();
+    this.completedResults.clear();
     for (const state of this.agents.values()) {
       for (const wake of [...state.waiters]) wake();
       state.waiters.clear();
       state.queue.length = 0;
       state.inFlight.clear();
+    }
+  }
+
+  private reapCompletedResults(): void {
+    const now = this.now();
+    for (const [commandId, receipt] of this.completedResults) {
+      if (receipt.expiresAt <= now) this.completedResults.delete(commandId);
     }
   }
 

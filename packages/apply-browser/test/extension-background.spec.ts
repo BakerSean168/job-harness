@@ -4,9 +4,13 @@ import { describe, expect, it } from 'vitest';
 
 type BackgroundHarness = {
   executePageDriver(tabId: number, command: unknown): Promise<unknown>;
+  executeEnvelope(config: Record<string, unknown>, envelope: Record<string, unknown>): Promise<void>;
 };
 
-async function loadBackground(sendMessage: (...args: unknown[]) => Promise<unknown>) {
+async function loadBackground(
+  sendMessage: (...args: unknown[]) => Promise<unknown>,
+  fetchImpl: typeof globalThis.fetch = async () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+) {
   const source = await readFile(new URL('../../../integrations/browser-extension/background.js', import.meta.url), 'utf8');
   let sendCount = 0;
   let injectionCount = 0;
@@ -48,7 +52,7 @@ async function loadBackground(sendMessage: (...args: unknown[]) => Promise<unkno
     Promise,
     setTimeout,
     clearTimeout,
-    fetch: async () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+    fetch: fetchImpl,
   }) as vm.Context & BackgroundHarness;
   vm.runInContext(source, context, { filename: 'background.js' });
   await Promise.resolve();
@@ -72,4 +76,27 @@ describe('MV3 browser command delivery boundary', () => {
     await expect(context.executePageDriver(7, { type: 'scan_controls', payload: {} })).resolves.toBeNull();
     expect(counts()).toEqual({ sendCount: 2, injectionCount: 2 });
   });
+
+  it('retries only idempotent result acknowledgement when the first result response is lost', async () => {
+    let resultPosts = 0;
+    const { context, counts } = await loadBackground(
+      async () => [],
+      async () => {
+        resultPosts += 1;
+        if (resultPosts === 1) throw new Error('response lost after server accepted result');
+        return new Response(null, { status: 204 });
+      },
+    );
+    await expect(context.executeEnvelope(
+      { bridgeUrl: 'https://bridge.example.test', agentId: 'windows-chrome-primary', agentToken: 'agent-token', resumeUpload: false, screenshots: false },
+      {
+        commandId: 'command-1', agentId: 'windows-chrome-primary', sessionRef: 'chrome-tab:7',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        command: { type: 'scan_controls', payload: {} },
+      },
+    )).resolves.toBeUndefined();
+    expect(counts().sendCount).toBe(1);
+    expect(resultPosts).toBe(2);
+  });
+
 });
