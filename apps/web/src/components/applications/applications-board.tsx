@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ExternalLink, GripVertical } from 'lucide-react';
-import type { ApplicationBoardItem, ListApplicationBoardInput, ListApplicationBoardOutput } from '@job-harness/contracts';
+import { ApplicationStageSchema, type ApplicationBoardItem, type ListApplicationBoardInput, type ListApplicationBoardOutput } from '@job-harness/contracts';
 import {
   APPLICATION_STAGES,
   canTransitionApplicationStage,
@@ -262,7 +262,7 @@ export function ApplicationsBoard({
                   <select
                     value={item.application.currentStage}
                     disabled={Boolean(pendingId) || validTargets.length <= 1}
-                    onChange={(event) => void move(item, event.target.value as ApplicationStage)}
+                    onChange={(event) => { const parsed = ApplicationStageSchema.safeParse(event.target.value); if (parsed.success) void move(item, parsed.data); }}
                   >
                     {validTargets.map((candidate) => (
                       <option key={candidate} value={candidate}>{messages.jobsWorkspace.applicationStages[candidate]}</option>

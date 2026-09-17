@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { APPLICATION_STAGES, canTransitionApplicationStage, type ApplicationStage } from '@job-harness/domain';
+import { ApplicationStageSchema } from '@job-harness/contracts';
 import type { MessageCatalog } from '@/i18n';
 import { transitionApplicationAction } from '@/app/applications/actions';
 
@@ -52,7 +53,7 @@ export function ApplicationTransitionControls({
     <section className="application-transition-box">
       <h3>{copy.detail.transition}</h3>
       <div className="application-transition-row">
-        <select value={target} onChange={(event) => setTarget(event.target.value as ApplicationStage)} disabled={pending}>
+        <select value={target} onChange={(event) => { const parsed = ApplicationStageSchema.safeParse(event.target.value); if (parsed.success) setTarget(parsed.data); }} disabled={pending}>
           {targets.map((stage) => <option key={stage} value={stage}>{messages.jobsWorkspace.applicationStages[stage]}</option>)}
         </select>
         <button type="button" className="filter-submit" disabled={pending || !target} onClick={() => target && void submit(target)}>

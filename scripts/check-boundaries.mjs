@@ -28,6 +28,25 @@ async function assertNoTokens(dirUrl, forbidden, label) {
 
 await assertNoTokens(packagesRoot, ['@memoflow/'], 'core packages');
 
+const applicantContracts = new URL('../packages/applicant-contracts/', import.meta.url);
+await assertNoTokens(applicantContracts, [
+  'node:sqlite',
+  '@job-harness/persistence-sqlite',
+  '@job-harness/applicant-application',
+  'express',
+  'next/',
+  'playwright',
+], 'applicant-contracts');
+
+const applicantApplication = new URL('../packages/applicant-application/', import.meta.url);
+await assertNoTokens(applicantApplication, [
+  'node:sqlite',
+  '@job-harness/persistence-sqlite',
+  'express',
+  'next/',
+  'playwright',
+], 'applicant-application');
+
 const applyCore = new URL('../packages/apply-core/', import.meta.url);
 await assertNoTokens(applyCore, [
   'playwright',
@@ -91,4 +110,4 @@ await assertNoTokens(browserExtension, [
   'application_submissions',
 ], 'browser-extension');
 
-console.log('boundaries ok: Career core is host-neutral and Apply core/contracts/runtime stay independent from DOM/browser/persistence implementations and the worker/browser layer cannot bypass Job Harness persistence or use the global bearer');
+console.log('boundaries ok: Career/Applicant cores are host-neutral, Apply core/contracts/runtime stay independent from DOM/browser/persistence implementations, and the worker/browser layer cannot bypass Job Harness persistence or use the global bearer');

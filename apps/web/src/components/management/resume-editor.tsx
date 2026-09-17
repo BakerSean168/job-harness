@@ -15,6 +15,8 @@ import {
 import { publishResumeRevisionAction, saveResumeLibraryAction, saveResumeProfileAction } from '../../app/resumes/actions';
 import { ResumeContentComposer, type ResumeComposerCopy } from './resume-content-composer';
 
+const ResumeHeaderSchema = ResumeProfileSchema.shape.layout.shape.header;
+
 export interface ResumeEditorCopy {
   readonly preview: string;
   readonly fastPreview: string;
@@ -341,7 +343,7 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
                 <label><span>{copy.documentTitle}</span><input value={pickLocalized(profile.output.documentTitle, locale)} onChange={(event) => updateProfile({ ...profile, output: { ...profile.output, documentTitle: setLocalized(profile.output.documentTitle, locale, event.target.value) } })} /></label>
                 <label><span>{copy.pdfName}</span><input value={profile.output.pdfName ? pickLocalized(profile.output.pdfName, locale) : ''} onChange={(event) => updateProfile({ ...profile, output: { ...profile.output, pdfName: event.target.value ? setLocalized(profile.output.pdfName ?? {}, locale, event.target.value) : null } })} /></label>
                 <label><span>{copy.template}</span><input value={profile.templateId} onChange={(event) => updateProfile({ ...profile, templateId: event.target.value })} /></label>
-                <label><span>{copy.header}</span><select value={profile.layout.header} onChange={(event) => updateProfile({ ...profile, layout: { ...profile.layout, header: event.target.value as ResumeProfile['layout']['header'] } })}><option value="without-photo">without-photo</option><option value="with-photo">with-photo</option></select></label>
+                <label><span>{copy.header}</span><select value={profile.layout.header} onChange={(event) => { const parsed = ResumeHeaderSchema.safeParse(event.target.value); if (parsed.success) updateProfile({ ...profile, layout: { ...profile.layout, header: parsed.data } }); }}><option value="without-photo">without-photo</option><option value="with-photo">with-photo</option></select></label>
               </>
             ) : (
               <>
