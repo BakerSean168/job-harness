@@ -33,11 +33,11 @@ Completed:
 - [x] **CH-0004:** narrow `CareerGateway` + host-owned Goal -> Campaign `CareerIntegrationBinding` frozen; REST host parity added for Pipeline and Discovery lifecycle
 - [x] Cross-repository REST contract artifact: canonical route registry + generated OpenAPI 3.1 + `/openapi.json` + drift gate
 
-**Next:** CH-0005 — consume the generated contract from an isolated MemoFlow worktree and implement the smallest Goal metric / Scheduler handler / TaskSuggestion / Mastra tool contribution seams. No dynamic plugin loader.
+**Next:** Resume merge track (`JH-R000+`). MemoFlow CH-0005 owner integration is paused until the current Goal/Task/Schedule/AI convergence lands on a stable integration baseline.
 
 Deferred intentionally:
 
-- [ ] MemoFlow runtime integration (CH-0005+; CH-0004 contract baseline is complete)
+- [ ] MemoFlow runtime integration (CH-0005+; paused while MemoFlow owner models converge)
 - [ ] dynamic plugin loader / marketplace
 - [ ] built-in AI provider
 - [ ] built-in general web search
@@ -74,3 +74,19 @@ Completed before Web UI implementation:
 16. [x] **JH-W407:** responsive phone layout plus production-mode Playwright Chromium coverage for auth, Jobs, Application transition, Settings export and mobile containment.
 
 The standalone Web V1 hardening plan is complete and production evidence now satisfies the proof gate. CH-0004 freezes the host-neutral gateway/binding contract; CH-0005 is the next implementation slice before any MemoFlow runtime adapter is wired.
+
+## Resume merge track — 2026-09-17
+
+- [x] **JH-R000:** freeze the dirty standalone Resume baseline without modifying it; validation 45/45; five Profile IDs and five PDF hashes recorded; private recovery snapshot verified; credentials excluded.
+- [x] **JH-R001:** freeze Resume Domain v2 contracts for localized canonical content, Profile recipes, explicit project presentations, resolved snapshots, immutable Revisions, immutable Artifacts and stable-ID reference validation.
+- [ ] **JH-R002:** port the existing Nunjucks/HTML/CSS renderer and build five-profile parity fixtures.
+- [ ] **JH-R003:** add SQLite Resume persistence and import the merged zh/en Library + five Profiles.
+- [ ] **JH-R004:** replace the Registry-only Resumes page with structured/source editing and live unsaved preview.
+- [ ] **JH-R005:** publish immutable Revision history and diff.
+- [ ] **JH-R006:** artifact pipeline and Oracle2 ARM64 PDF renderer spike.
+- [ ] **JH-R007:** first-class ApplicationSubmission -> ResumeRevision/Artifact linkage.
+- [ ] **JH-R008:** Profile/Revision usage analytics.
+- [ ] **JH-R009:** Oracle2 cutover + backup/restore upgrade.
+- [ ] **JH-R010:** retire the standalone Resume runtime only after parity/cutover evidence.
+
+See `docs/resume/` for the benchmark, domain model, baseline and migration plan.

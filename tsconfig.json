@@ -24,6 +24,12 @@
     },
     {
       "path": "./packages/importers"
+    },
+    {
+      "path": "./packages/resume-domain"
+    },
+    {
+      "path": "./packages/resume-contracts"
     }
   ]
 }
