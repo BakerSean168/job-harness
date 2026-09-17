@@ -420,3 +420,11 @@ The submit-safety pass found that both browser backends currently hash only visi
 A different page with an equivalent form shape/values could therefore reproduce the reviewed hash. No production adapter currently has `submit=true`, so this is dormant today, but it must be closed before a live submit adapter is promoted.
 
 **Required change:** make form-state hashing include exact current page identity (at minimum `location.href`) so post-review navigation invalidates authorization. Refresh the extension driver's cached URL when computing that hash. Immediately before adapter submit, probe the **live** current URL with the already-selected/frozen adapter and reject any mismatch. Add regression tests for URL drift with unchanged form values and for a submit engine refusing a live page outside the adapter family.
+
+### Finding A27 — reviewed adapter identity/version is not immutable across handoff/resume (P1)
+
+The submit-path audit found that `ReviewSnapshot.siteAdapterId/siteAdapterVersion` are worker-provided but are not asserted against the adapter already bound to the `ExecutionAttempt`. On resume, `attempts.start()` can also overwrite `adapterId`, `adapterVersion`, and `browserBackend` even when the same retained browser session has already been inspected/reviewed. Finally, `SubmitExecutionEngine` resolves by adapter id but does not require the runtime adapter implementation version to equal the version that was bound/reviewed.
+
+This permits a deploy or worker mismatch during a human-review window to submit with adapter code different from the implementation that produced the reviewed snapshot, weakening provenance and deterministic replay.
+
+**Required change:** once an Attempt has a concrete adapter/backend binding, later starts must preserve the exact id/version/backend. ReviewSnapshot creation must match that binding. Immediately before submit, the resolved runtime adapter version must equal the frozen Attempt adapter version. Add regression tests for adapter-version drift at resume, mismatched review snapshots, and submit-engine runtime version drift.
