@@ -82,7 +82,7 @@ The standalone Web V1 hardening plan is complete and production evidence now sat
 - [x] **JH-R002:** port the existing Nunjucks/HTML/CSS renderer behind `ResolvedResume`; add strict resolver + legacy importer; real dirty Resume source reaches 5/5 exact HTML SHA parity with 0 migration findings.
 - [x] **JH-R003:** add SQLite v5 Resume persistence plus atomic legacy catalog import; GCP historical-copy verification preserves 100 Jobs / 41 Applications / 5 legacy refs / 82 Companies, imports 1 Library + 5 Profiles, remains idempotent and keeps 5/5 exact HTML SHA parity.
 - [x] **JH-R004:** replace the Registry-only Resumes page with structured/source editing, scope-separated Profile/Library saves, optimistic concurrency, unsaved-draft live preview, and navigation-loss protection.
-- [ ] **JH-R005:** publish immutable Revision history and diff.
+- [x] **JH-R005:** publish immutable Revision history with canonical content hashes, retry-safe reuse, optimistic Profile/Library version guards, and previous/current structured diff.
 - [ ] **JH-R006:** artifact pipeline and Oracle2 ARM64 PDF renderer spike.
 - [ ] **JH-R007:** first-class ApplicationSubmission -> ResumeRevision/Artifact linkage.
 - [ ] **JH-R008:** Profile/Revision usage analytics.

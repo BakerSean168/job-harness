@@ -69,6 +69,12 @@ import {
   ResumeLibrarySchema,
   SaveResumeLibraryInputSchema,
   SaveResumeProfileInputSchema,
+  ListResumeRevisionsOutputSchema,
+  PublishResumeRevisionInputSchema,
+  PublishResumeRevisionOutputSchema,
+  ResumeRevisionDetailSchema,
+  ResumeRevisionDiffOutputSchema,
+  ResumeRevisionDiffQuerySchema,
   type ListResumeProfilesInput,
   type ListResumeProfilesOutput,
   type ResumePreviewInput,
@@ -76,6 +82,12 @@ import {
   type ResumeProfileContext,
   type SaveResumeLibraryInput,
   type SaveResumeProfileInput,
+  type ListResumeRevisionsOutput,
+  type PublishResumeRevisionInput,
+  type PublishResumeRevisionOutput,
+  type ResumeRevisionDetail,
+  type ResumeRevisionDiffOutput,
+  type ResumeRevisionDiffQuery,
 } from '@job-harness/resume-contracts';
 
 export interface JobHarnessRestClientOptions {
@@ -269,6 +281,26 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
       async saveLibrary(input: SaveResumeLibraryInput) {
         const parsed = SaveResumeLibraryInputSchema.parse(input);
         return ResumeLibrarySchema.parse(await request(`/resume/libraries/${encodeURIComponent(parsed.library.id)}`, { method: 'PUT', body: JSON.stringify(parsed) }));
+      },
+      async listRevisions(profileId: string): Promise<ListResumeRevisionsOutput> {
+        return ListResumeRevisionsOutputSchema.parse(await request(`/resume/profiles/${encodeURIComponent(profileId)}/revisions`));
+      },
+      async publishRevision(input: PublishResumeRevisionInput): Promise<PublishResumeRevisionOutput> {
+        const parsed = PublishResumeRevisionInputSchema.parse(input);
+        return PublishResumeRevisionOutputSchema.parse(await request(`/resume/profiles/${encodeURIComponent(parsed.profileId)}/revisions`, {
+          method: 'POST',
+          body: JSON.stringify({ expectedProfileVersion: parsed.expectedProfileVersion, expectedLibraryVersion: parsed.expectedLibraryVersion, note: parsed.note ?? null }),
+        }));
+      },
+      async getRevision(revisionId: string): Promise<ResumeRevisionDetail | null> {
+        return nullable(async () => ResumeRevisionDetailSchema.parse(await request(`/resume/revisions/${encodeURIComponent(revisionId)}`)));
+      },
+      async diffRevision(revisionId: string, input: ResumeRevisionDiffQuery = {}): Promise<ResumeRevisionDiffOutput | null> {
+        const parsed = ResumeRevisionDiffQuerySchema.parse(input);
+        const query = new URLSearchParams();
+        append(query, 'against', parsed.against);
+        const suffix = query.toString();
+        return nullable(async () => ResumeRevisionDiffOutputSchema.parse(await request(`/resume/revisions/${encodeURIComponent(revisionId)}/diff${suffix ? `?${suffix}` : ''}`)));
       },
     },
     analytics: {

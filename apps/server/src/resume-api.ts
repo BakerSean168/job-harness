@@ -7,6 +7,8 @@ import {
   ResumePreviewOutputSchema,
   SaveResumeLibraryInputSchema,
   SaveResumeProfileInputSchema,
+  PublishResumeRevisionInputSchema,
+  ResumeRevisionDiffQuerySchema,
 } from '@job-harness/resume-contracts';
 import {
   ResumeConcurrencyError,
@@ -104,5 +106,38 @@ export function registerResumeApi(app: Express, resume: ResumeRuntimePorts, apiP
     const context = await resume.resolvePreview(input);
     const html = renderResumePreviewHtml(context.resolved, { variant: context.profile.id });
     res.json(ResumePreviewOutputSchema.parse({ resolved: context.resolved, html }));
+  }));
+
+
+  registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.resumeRevisions, route(async (req, res) => {
+    const profileId = String(req.params.profileId ?? '').trim();
+    res.json(await resume.listRevisions(profileId));
+  }));
+
+  registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.publishResumeRevision, route(async (req, res) => {
+    const profileId = String(req.params.profileId ?? '').trim();
+    const input = PublishResumeRevisionInputSchema.parse({ ...req.body, profileId });
+    res.json(await resume.publishRevision(input));
+  }));
+
+  registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.resumeRevisionDetail, route(async (req, res) => {
+    const revisionId = String(req.params.revisionId ?? '').trim();
+    const result = revisionId ? await resume.getRevisionDetail(revisionId) : null;
+    if (!result) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: `ResumeRevision '${revisionId}' was not found` } });
+      return;
+    }
+    res.json(result);
+  }));
+
+  registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.resumeRevisionDiff, route(async (req, res) => {
+    const revisionId = String(req.params.revisionId ?? '').trim();
+    const query = ResumeRevisionDiffQuerySchema.parse({ ...(first(req.query.against) ? { against: first(req.query.against) } : {}) });
+    const result = revisionId ? await resume.diffRevision(revisionId, query) : null;
+    if (!result) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: `ResumeRevision '${revisionId}' was not found` } });
+      return;
+    }
+    res.json(result);
   }));
 }

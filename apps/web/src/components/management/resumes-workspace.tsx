@@ -26,7 +26,12 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
   ]);
   const selected = profiles.items.find((profile) => profile.id === requestedProfile) ?? profiles.items[0] ?? null;
   const context = selected ? await client.resume.getProfileContext(selected.id) : null;
-  const preview = context ? await client.resume.preview({ library: context.library, profile: context.profile }) : null;
+  const [preview, revisions] = context
+    ? await Promise.all([
+        client.resume.preview({ library: context.library, profile: context.profile }),
+        client.resume.listRevisions(selected!.id),
+      ])
+    : [null, { items: [], total: 0 }];
   const usageByProfile = new Map(usage.items.map((item) => [item.resume.id, item]));
   const selectedUsage = selected ? usageByProfile.get(selected.id) ?? null : null;
   const copy = messages.resumesWorkspace;
@@ -73,6 +78,7 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
             key={selected.id}
             initialContext={context}
             initialHtml={preview.html}
+            initialRevisions={revisions.items}
             usage={{
               applications: selectedUsage?.applications ?? 0,
               screening: selectedUsage?.applicationsByStage.screening ?? 0,

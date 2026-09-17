@@ -94,6 +94,10 @@ The new `/resumes` workspace now reads Resume Domain v2 through typed REST rathe
 
 Add Publish, History and Diff. Revisions are immutable and identified by resolved-document hash. Autosave/edit does not create revisions.
 
+### R005 evidence — 2026-09-17
+
+Publishing is now distinct from draft Save. The application service hashes canonical resolved snapshots with stable object-key ordering, reuses an existing Revision when content is unchanged, and assigns monotonic per-Profile revision numbers only for new content. Publish validates the exact Profile and Library versions the user saw. REST/OpenAPI/client expose immutable history, detail and structured JSON-pointer diff against the previous Revision or current saved state. The Resume Workspace can publish, browse history and inspect diffs. Full repository verification passes 83 tests plus production Next build and deployment-topology checks.
+
 ## JH-R006 — Artifact pipeline
 
 Add HTML/PDF/JSON/Markdown artifact generation. Preserve existing Nunjucks/print-CSS behavior first. Perform an Oracle2 ARM64 Chromium spike before choosing in-process vs sidecar PDF rendering.

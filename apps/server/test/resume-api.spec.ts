@@ -81,5 +81,45 @@ describe('Resume REST v1', () => {
     });
     expect(validSharedEdit.status).toBe(200);
     expect((await validSharedEdit.json()).version).toBe(2);
+
+
+    const published = await fetch(`${running.apiUrl}/resume/profiles/agent/revisions`, {
+      method: 'POST', headers, body: JSON.stringify({ expectedProfileVersion: 2, expectedLibraryVersion: 2, note: 'first publish' }),
+    });
+    const firstRevision = await published.json();
+    expect(published.status).toBe(200);
+    expect(firstRevision).toMatchObject({ reused: false, revision: { revisionNumber: 1, profileVersion: 2, libraryVersion: 2, note: 'first publish' } });
+
+    const retriedPublish = await fetch(`${running.apiUrl}/resume/profiles/agent/revisions`, {
+      method: 'POST', headers, body: JSON.stringify({ expectedProfileVersion: 2, expectedLibraryVersion: 2 }),
+    });
+    expect(await retriedPublish.json()).toMatchObject({ reused: true, revision: { id: firstRevision.revision.id, revisionNumber: 1 } });
+
+    const currentDetail = await fetch(`${running.apiUrl}/resume/profiles/agent`, { headers });
+    const currentContext = await currentDetail.json();
+    const thirdProfile = await fetch(`${running.apiUrl}/resume/profiles/agent`, {
+      method: 'PUT', headers, body: JSON.stringify({ expectedVersion: 2, profile: { ...currentContext.profile, positioning: { 'zh-CN': 'Agent Platform 工程师' } } }),
+    });
+    expect((await thirdProfile.json()).profile.version).toBe(3);
+
+    const secondPublish = await fetch(`${running.apiUrl}/resume/profiles/agent/revisions`, {
+      method: 'POST', headers, body: JSON.stringify({ expectedProfileVersion: 3, expectedLibraryVersion: 2, note: 'second publish' }),
+    });
+    const secondRevision = await secondPublish.json();
+    expect(secondRevision).toMatchObject({ reused: false, revision: { revisionNumber: 2, profileVersion: 3, libraryVersion: 2 } });
+
+    const history = await fetch(`${running.apiUrl}/resume/profiles/agent/revisions`, { headers });
+    expect(await history.json()).toMatchObject({ total: 2, items: [{ id: secondRevision.revision.id, revisionNumber: 2 }, { id: firstRevision.revision.id, revisionNumber: 1 }] });
+
+    const revisionDetail = await fetch(`${running.apiUrl}/resume/revisions/${encodeURIComponent(secondRevision.revision.id)}`, { headers });
+    expect(await revisionDetail.json()).toMatchObject({ revision: { id: secondRevision.revision.id }, artifacts: [] });
+
+    const previousDiff = await fetch(`${running.apiUrl}/resume/revisions/${encodeURIComponent(secondRevision.revision.id)}/diff?against=previous`, { headers });
+    const previousDiffBody = await previousDiff.json();
+    expect(previousDiffBody.fromRevisionId).toBe(firstRevision.revision.id);
+    expect(previousDiffBody.changes).toContainEqual({ path: '/positioning', kind: 'changed', before: 'AI Agent / Harness 工程师', after: 'Agent Platform 工程师' });
+
+    const currentDiff = await fetch(`${running.apiUrl}/resume/revisions/${encodeURIComponent(secondRevision.revision.id)}/diff?against=current`, { headers });
+    expect(await currentDiff.json()).toMatchObject({ toRevisionId: null, changes: [] });
   });
 });

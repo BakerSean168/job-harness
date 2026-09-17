@@ -57,6 +57,12 @@ import {
   SaveResumeProfileInputSchema,
   ResumeLibrarySchema,
   ResumeProfileContextSchema,
+  ListResumeRevisionsOutputSchema,
+  PublishResumeRevisionInputSchema,
+  PublishResumeRevisionOutputSchema,
+  ResumeRevisionDetailSchema,
+  ResumeRevisionDiffQuerySchema,
+  ResumeRevisionDiffOutputSchema,
 } from '@job-harness/resume-contracts';
 
 export type JobHarnessRestMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
@@ -83,6 +89,7 @@ export const SetJobStateBodySchema = SetJobStateInputSchema.omit({ jobId: true }
 export const TransitionApplicationBodySchema = TransitionApplicationInputSchema.omit({ applicationId: true });
 export const UpsertCampaignBodySchema = UpsertCampaignInputSchema.omit({ id: true });
 export const CompleteDiscoveryBodySchema = CompleteDiscoveryInputSchema.omit({ runId: true });
+export const PublishResumeRevisionBodySchema = PublishResumeRevisionInputSchema.omit({ profileId: true });
 
 export const RestErrorEnvelopeSchema = z.object({
   error: z.object({
@@ -116,6 +123,10 @@ export const JOB_HARNESS_REST_V1_ROUTES = {
   saveResumeProfile: route({ operationId: 'saveResumeProfile', method: 'put', path: '/resume/profiles/:profileId', tags: ['Resume Builder'], summary: 'Optimistically save a mutable Resume Profile', paramsSchema: IdParam('profileId'), bodySchema: SaveResumeProfileInputSchema, responseSchema: ResumeProfileContextSchema, successStatus: 200 }),
   saveResumeLibrary: route({ operationId: 'saveResumeLibrary', method: 'put', path: '/resume/libraries/:libraryId', tags: ['Resume Builder'], summary: 'Optimistically save shared Resume Library content', paramsSchema: IdParam('libraryId'), bodySchema: SaveResumeLibraryInputSchema, responseSchema: ResumeLibrarySchema, successStatus: 200 }),
   resumePreview: route({ operationId: 'previewResumeDraft', method: 'post', path: '/resume/preview', tags: ['Resume Builder'], summary: 'Resolve and render an unsaved Resume draft', bodySchema: ResumePreviewInputSchema, responseSchema: ResumePreviewOutputSchema, successStatus: 200 }),
+  resumeRevisions: route({ operationId: 'listResumeRevisions', method: 'get', path: '/resume/profiles/:profileId/revisions', tags: ['Resume Builder'], summary: 'List immutable Resume Revision history', paramsSchema: IdParam('profileId'), responseSchema: ListResumeRevisionsOutputSchema, successStatus: 200 }),
+  publishResumeRevision: route({ operationId: 'publishResumeRevision', method: 'post', path: '/resume/profiles/:profileId/revisions', tags: ['Resume Builder'], summary: 'Publish the current saved Resume state as an immutable Revision', paramsSchema: IdParam('profileId'), bodySchema: PublishResumeRevisionBodySchema, responseSchema: PublishResumeRevisionOutputSchema, successStatus: 200 }),
+  resumeRevisionDetail: route({ operationId: 'getResumeRevision', method: 'get', path: '/resume/revisions/:revisionId', tags: ['Resume Builder'], summary: 'Read one immutable Resume Revision and its artifacts', paramsSchema: IdParam('revisionId'), responseSchema: ResumeRevisionDetailSchema, successStatus: 200 }),
+  resumeRevisionDiff: route({ operationId: 'diffResumeRevision', method: 'get', path: '/resume/revisions/:revisionId/diff', tags: ['Resume Builder'], summary: 'Diff a Resume Revision against the previous Revision or current saved state', paramsSchema: IdParam('revisionId'), querySchema: ResumeRevisionDiffQuerySchema, responseSchema: ResumeRevisionDiffOutputSchema, successStatus: 200 }),
   resumes: route({ operationId: 'listResumeUsage', method: 'get', path: '/resumes', tags: ['Resumes'], summary: 'List Resume Registry usage projections', querySchema: ListResumeUsageInputSchema, responseSchema: ListResumeUsageOutputSchema, successStatus: 200 }),
   savedViews: route({ operationId: 'listSavedViews', method: 'get', path: '/saved-views', tags: ['Saved Views'], summary: 'List durable Saved Views', querySchema: ListSavedViewsInputSchema, responseSchema: ListSavedViewsOutputSchema, successStatus: 200 }),
   upsertSavedView: route({ operationId: 'upsertSavedView', method: 'post', path: '/saved-views', tags: ['Saved Views'], summary: 'Create or update a durable Saved View', bodySchema: UpsertSavedViewInputSchema, responseSchema: SavedViewSchema, successStatus: 200 }),

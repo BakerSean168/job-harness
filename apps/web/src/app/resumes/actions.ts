@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import type { ResumeLibrary, ResumeProfile, ResumeProfileContext } from '@job-harness/resume-contracts';
+import type { PublishResumeRevisionOutput, ResumeLibrary, ResumeProfile, ResumeProfileContext } from '@job-harness/resume-contracts';
 import { JobHarnessRestError } from '@job-harness/client';
 import { getJobHarnessClient } from '../../lib/job-harness-client';
 
@@ -25,6 +25,14 @@ export async function saveResumeProfileAction(expectedVersion: number, profile: 
 export async function saveResumeLibraryAction(expectedVersion: number, library: ResumeLibrary): Promise<ResumeSaveResult<ResumeLibrary>> {
   try {
     const value = await getJobHarnessClient().resume.saveLibrary({ expectedVersion, library });
+    revalidatePath('/resumes');
+    return { ok: true, value };
+  } catch (error) { return failure(error); }
+}
+
+export async function publishResumeRevisionAction(profileId: string, expectedProfileVersion: number, expectedLibraryVersion: number, note: string | null): Promise<ResumeSaveResult<PublishResumeRevisionOutput>> {
+  try {
+    const value = await getJobHarnessClient().resume.publishRevision({ profileId, expectedProfileVersion, expectedLibraryVersion, note });
     revalidatePath('/resumes');
     return { ok: true, value };
   } catch (error) { return failure(error); }

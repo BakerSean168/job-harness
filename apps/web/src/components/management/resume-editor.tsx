@@ -8,8 +8,10 @@ import {
   type ResumeLibrary,
   type ResumeProfile,
   type ResumeProfileContext,
+  type ResumeRevision,
+  type ResumeRevisionDiffOutput,
 } from '@job-harness/resume-contracts';
-import { saveResumeLibraryAction, saveResumeProfileAction } from '../../app/resumes/actions';
+import { publishResumeRevisionAction, saveResumeLibraryAction, saveResumeProfileAction } from '../../app/resumes/actions';
 
 export interface ResumeEditorCopy {
   readonly preview: string;
@@ -43,11 +45,25 @@ export interface ResumeEditorCopy {
   readonly website: string;
   readonly github: string;
   readonly unsavedChanges: string;
+  readonly history: string;
+  readonly noRevisions: string;
+  readonly publish: string;
+  readonly publishing: string;
+  readonly publishNote: string;
+  readonly published: string;
+  readonly reusedRevision: string;
+  readonly saveBeforePublish: string;
+  readonly comparePrevious: string;
+  readonly compareCurrent: string;
+  readonly changes: string;
+  readonly noChanges: string;
+  readonly diffFailed: string;
 }
 
 interface Props {
   initialContext: ResumeProfileContext;
   initialHtml: string;
+  initialRevisions: readonly ResumeRevision[];
   usage: { applications: number; screening: number; assessment: number; interview: number };
   usageLabels: { applications: string; screening: string; assessment: string; interview: string };
   applicationsHref: string;
@@ -66,10 +82,15 @@ function setLocalized<T extends Record<string, string | undefined>>(value: T, lo
   return { ...value, [locale]: next };
 }
 
-export function ResumeEditor({ initialContext, initialHtml, usage, usageLabels, applicationsHref, viewApplicationsLabel, copy }: Props) {
+export function ResumeEditor({ initialContext, initialHtml, initialRevisions, usage, usageLabels, applicationsHref, viewApplicationsLabel, copy }: Props) {
   const [library, setLibrary] = useState<ResumeLibrary>(initialContext.library);
   const [profile, setProfile] = useState<ResumeProfile>(initialContext.profile);
   const [previewHtml, setPreviewHtml] = useState(initialHtml);
+  const [revisions, setRevisions] = useState<readonly ResumeRevision[]>(initialRevisions);
+  const [revisionNote, setRevisionNote] = useState('');
+  const [revisionMessage, setRevisionMessage] = useState<string | null>(null);
+  const [revisionDiff, setRevisionDiff] = useState<ResumeRevisionDiffOutput | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
   const [scope, setScope] = useState<Scope>('profile');
   const [mode, setMode] = useState<Mode>('form');
   const [source, setSource] = useState(() => dump(initialContext.profile, { noRefs: true, lineWidth: 120 }));
@@ -119,13 +140,17 @@ export function ResumeEditor({ initialContext, initialHtml, usage, usageLabels, 
     setLibrary(initialContext.library);
     setProfile(initialContext.profile);
     setPreviewHtml(initialHtml);
+    setRevisions(initialRevisions);
+    setRevisionNote('');
+    setRevisionMessage(null);
+    setRevisionDiff(null);
     setProfileDirty(false);
     setLibraryDirty(false);
     setSaveMessage(null);
     setSourceError(null);
     setPreviewError(null);
     setSource(dump(scope === 'profile' ? initialContext.profile : initialContext.library, { noRefs: true, lineWidth: 120 }));
-  }, [initialContext.library, initialContext.profile, initialHtml]);
+  }, [initialContext.library, initialContext.profile, initialHtml, initialRevisions]);
 
   useEffect(() => {
     if (mode === 'source') setSource(dump(scope === 'profile' ? profile : library, { noRefs: true, lineWidth: 120 }));
@@ -163,6 +188,38 @@ export function ResumeEditor({ initialContext, initialHtml, usage, usageLabels, 
     } catch (error) {
       setSourceError(error instanceof Error ? error.message : copy.sourceInvalid);
     }
+  }
+
+  async function loadRevisionDiff(revisionId: string, against: 'previous' | 'current') {
+    setDiffLoading(true);
+    try {
+      const query = new URLSearchParams({ revisionId, against });
+      const response = await fetch(`/resume/revision-diff?${query.toString()}`, { cache: 'no-store' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? copy.diffFailed);
+      setRevisionDiff(payload as ResumeRevisionDiffOutput);
+      setRevisionMessage(null);
+    } catch (error) {
+      setRevisionMessage(error instanceof Error ? error.message : copy.diffFailed);
+    } finally {
+      setDiffLoading(false);
+    }
+  }
+
+  function publishRevision() {
+    if (hasUnsavedChanges || sourceError) {
+      setRevisionMessage(copy.saveBeforePublish);
+      return;
+    }
+    setRevisionMessage(null);
+    startTransition(async () => {
+      const result = await publishResumeRevisionAction(profile.id, profile.version, library.version, revisionNote.trim() || null);
+      if (!result.ok) { setRevisionMessage(`${copy.saveFailed}: ${result.message}`); return; }
+      const published = result.value.revision;
+      setRevisions((current) => [published, ...current.filter((item) => item.id !== published.id)].sort((a, b) => b.revisionNumber - a.revisionNumber));
+      setRevisionNote('');
+      setRevisionMessage(result.value.reused ? `${copy.reusedRevision} v${published.revisionNumber}` : `${copy.published} v${published.revisionNumber}`);
+    });
   }
 
   function saveCurrentScope() {
@@ -241,6 +298,34 @@ export function ResumeEditor({ initialContext, initialHtml, usage, usageLabels, 
             <button type="button" className="filter-submit" disabled={pending || !!sourceError || !dirty} onClick={saveCurrentScope}>{pending ? copy.saving : copy.save}</button>
           </div>
         </div>
+        <div className="resume-history-panel">
+          <div className="resume-history-heading"><h3>{copy.history}</h3><span>{revisions.length}</span></div>
+          <div className="resume-publish-row">
+            <input value={revisionNote} onChange={(event) => setRevisionNote(event.target.value)} placeholder={copy.publishNote} maxLength={2000} />
+            <button type="button" className="filter-submit" disabled={pending || hasUnsavedChanges || !!sourceError} title={hasUnsavedChanges ? copy.saveBeforePublish : undefined} onClick={publishRevision}>{pending ? copy.publishing : copy.publish}</button>
+          </div>
+          {revisionMessage ? <p className="resume-revision-message">{revisionMessage}</p> : null}
+          {revisions.length ? (
+            <div className="resume-revision-list">
+              {revisions.map((revision) => (
+                <div key={revision.id} className="resume-revision-row">
+                  <div><strong>v{revision.revisionNumber}</strong><span>{new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(revision.createdAt))}</span><small>{revision.note ?? revision.contentHash.slice(0, 12)}</small></div>
+                  <div>
+                    <button type="button" disabled={diffLoading} onClick={() => void loadRevisionDiff(revision.id, 'previous')}>{copy.comparePrevious}</button>
+                    <button type="button" disabled={diffLoading} onClick={() => void loadRevisionDiff(revision.id, 'current')}>{copy.compareCurrent}</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <p className="management-muted">{copy.noRevisions}</p>}
+          {revisionDiff ? (
+            <div className="resume-diff-panel">
+              <strong>{revisionDiff.changes.length ? `${revisionDiff.changes.length} ${copy.changes}` : copy.noChanges}</strong>
+              {revisionDiff.changes.length ? <ul>{revisionDiff.changes.slice(0, 40).map((change, index) => <li key={`${change.path}-${index}`}><code>{change.path}</code><span data-kind={change.kind}>{change.kind}</span><small>{JSON.stringify(change.before)} → {JSON.stringify(change.after)}</small></li>)}</ul> : null}
+            </div>
+          ) : null}
+        </div>
+
         <div className="resume-profile-usage">
           <h3>{copy.usage}</h3>
           <div className="resume-usage-grid">
