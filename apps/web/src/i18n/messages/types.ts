@@ -114,7 +114,9 @@ export interface MessageCatalog {
     detail: {
       summary: string; timeline: string; appliedAt: string; stageEntered: string; resume: string; submissions: string; source: string; campaigns: string; latestEvent: string;
       optionalNote: string; notePlaceholder: string; transition: string; reject: string; withdraw: string; closePanel: string; openFullPage: string; openJob: string;
+      submissionHistory: string; submittedAt: string; channel: string; listing: string; profile: string; revision: string; artifact: string; unknown: string;
     };
+    submissionChannels: Record<'official' | 'boss' | 'zhilian' | 'liepin' | 'moka' | 'greenhouse' | 'lever' | 'ashby' | 'email' | 'referral' | 'manual' | 'other', string>;
   };
   jobsWorkspace: {
     filters: {

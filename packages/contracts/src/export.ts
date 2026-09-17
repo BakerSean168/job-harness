@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   ApplicationEventSchema,
+  ApplicationSubmissionSchema,
   ApplicationSchema,
   CompanySchema,
   DiscoveryRunSchema,
@@ -14,11 +15,12 @@ import {
 export const CareerExportApplicationSchema = z.object({
   application: ApplicationSchema,
   timeline: z.array(ApplicationEventSchema),
+  submissions: z.array(ApplicationSubmissionSchema),
 }).strict();
 
 export const CareerExportSnapshotSchema = z.object({
   format: z.literal('job-harness-career-export'),
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   exportedAt: IsoDateTimeSchema,
   companies: z.array(CompanySchema),
   jobs: z.array(JobSchema),

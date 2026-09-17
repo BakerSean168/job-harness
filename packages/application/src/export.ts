@@ -59,7 +59,7 @@ export async function buildCareerExportSnapshot(
   for (const item of applicationItems) {
     const detail = await career.workspace.getApplicationWorkspaceDetail(item.application.id);
     if (!detail) throw new Error(`Application '${item.application.id}' disappeared while exporting a stable snapshot`);
-    applications.push({ application: detail.application, timeline: detail.timeline });
+    applications.push({ application: detail.application, timeline: detail.timeline, submissions: detail.submissions });
   }
 
   const campaignRows: JobSearchCampaign[] = [...campaigns].sort(byId);
@@ -68,7 +68,7 @@ export async function buildCareerExportSnapshot(
 
   return CareerExportSnapshotSchema.parse({
     format: 'job-harness-career-export',
-    schemaVersion: 1,
+    schemaVersion: 2,
     exportedAt,
     companies,
     jobs: jobs.sort(byId),

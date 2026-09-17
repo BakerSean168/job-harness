@@ -8,6 +8,7 @@ import type {
   ApplicationDetail,
   ApplicationWorkspaceDetail,
   ApplicationEvent,
+  ApplicationSubmission,
   Company,
   DashboardSnapshot,
   DashboardSnapshotInput,
@@ -55,6 +56,7 @@ import {
   ApplicationDetailSchema,
   ApplicationWorkspaceDetailSchema,
   ApplicationEventSchema,
+  ApplicationSubmissionSchema,
   ApplicationSchema,
   CampaignRefSchema,
   CompanyDetailSchema,
@@ -450,6 +452,28 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     return { items, total };
   }
 
+  private applicationSubmissionFromRow(row: Row): ApplicationSubmission {
+    return ApplicationSubmissionSchema.parse({
+      id: row.id,
+      applicationId: row.application_id,
+      listingId: row.listing_id,
+      submittedAt: row.submitted_at,
+      channel: row.channel,
+      resumeProfileId: row.resume_profile_id,
+      resumeRevisionId: row.resume_revision_id,
+      resumeArtifactId: row.resume_artifact_id,
+      actor: row.actor,
+      idempotencyKey: row.idempotency_key,
+      note: row.note,
+      createdAt: row.created_at,
+    });
+  }
+
+  async listApplicationSubmissions(applicationId: string): Promise<readonly ApplicationSubmission[]> {
+    return (this.db.prepare('SELECT * FROM application_submissions WHERE application_id = ? ORDER BY submitted_at, id').all(applicationId) as Row[])
+      .map((row) => this.applicationSubmissionFromRow(row));
+  }
+
   async getApplication(applicationId: string): Promise<ApplicationDetail | null> {
     const row = this.db.prepare('SELECT * FROM applications WHERE id = ?').get(applicationId) as Row | undefined;
     if (!row) return null;
@@ -465,7 +489,8 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       idempotencyKey: event.idempotency_key,
       note: event.note,
     }));
-    return ApplicationDetailSchema.parse({ application: this.applicationFromRow(row), job, timeline });
+    const submissions = await this.listApplicationSubmissions(applicationId);
+    return ApplicationDetailSchema.parse({ application: this.applicationFromRow(row), job, timeline, submissions });
   }
 
   async findApplicationByJobId(jobId: string): Promise<Application | null> {
@@ -559,9 +584,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
         resume,
         latestEvent,
         stageEnteredAt: this.stageEnteredAt(application, detail.timeline),
-        submissionCount: detail.timeline.filter((event) =>
-          event.type === 'application_recorded' || event.type === 'submission_recorded'
-        ).length,
+        submissionCount: detail.submissions.length,
       });
     }));
     return ListApplicationBoardOutputSchema.parse({ items, total: page.total });
@@ -581,11 +604,10 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       campaigns: this.campaignRefsForJob(detail.job.id),
       resume,
       timeline: detail.timeline,
+      submissions: detail.submissions,
       latestEvent,
       stageEnteredAt: this.stageEnteredAt(detail.application, detail.timeline),
-      submissionCount: detail.timeline.filter((event) =>
-        event.type === 'application_recorded' || event.type === 'submission_recorded'
-      ).length,
+      submissionCount: detail.submissions.length,
     });
   }
 
@@ -632,11 +654,10 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       application: applicationDetail ? {
         application: applicationDetail.application,
         timeline,
+        submissions: applicationDetail.submissions,
         resume,
         latestEvent,
-        submissionCount: timeline.filter((event) =>
-          event.type === 'application_recorded' || event.type === 'submission_recorded'
-        ).length,
+        submissionCount: applicationDetail.submissions.length,
       } : null,
       observations,
     });
@@ -1355,6 +1376,27 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     this.db.prepare('INSERT INTO application_events(id,application_id,type,stage,occurred_at,actor,idempotency_key,note) VALUES(?,?,?,?,?,?,?,?)').run(event.id, event.applicationId, event.type, event.stage, event.occurredAt, event.actor, event.idempotencyKey, event.note);
   }
 
+
+  async insertApplicationSubmission(submission: ApplicationSubmission): Promise<void> {
+    this.db.prepare(`INSERT INTO application_submissions(
+      id,application_id,listing_id,submitted_at,channel,resume_profile_id,resume_revision_id,resume_artifact_id,
+      actor,idempotency_key,note,created_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      submission.id,
+      submission.applicationId,
+      submission.listingId,
+      submission.submittedAt,
+      submission.channel,
+      submission.resumeProfileId,
+      submission.resumeRevisionId,
+      submission.resumeArtifactId,
+      submission.actor,
+      submission.idempotencyKey,
+      submission.note,
+      submission.createdAt,
+    );
+  }
+
   async upsertCampaign(campaign: JobSearchCampaign): Promise<JobSearchCampaign> {
     this.db.prepare(`INSERT INTO campaigns(id,name,target_roles_json,cities_json,graduation_years_json,experience_json,keywords_json,exclusions_json,sources_json,resume_profile_ids_json,status,created_at,updated_at)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,target_roles_json=excluded.target_roles_json,cities_json=excluded.cities_json,graduation_years_json=excluded.graduation_years_json,experience_json=excluded.experience_json,keywords_json=excluded.keywords_json,exclusions_json=excluded.exclusions_json,sources_json=excluded.sources_json,resume_profile_ids_json=excluded.resume_profile_ids_json,status=excluded.status,updated_at=excluded.updated_at`).run(
@@ -1401,6 +1443,7 @@ export class SqliteCareerStore implements CareerStorePort {
   listApplications(input: ListApplicationsInput) { return this.readSession().listApplications(input); }
   getApplication(applicationId: string) { return this.readSession().getApplication(applicationId); }
   findApplicationByJobId(jobId: string) { return this.readSession().findApplicationByJobId(jobId); }
+  listApplicationSubmissions(applicationId: string) { return this.readSession().listApplicationSubmissions(applicationId); }
   listCampaigns(input: ListCampaignsInput) { return this.readSession().listCampaigns(input); }
   getCampaign(campaignId: string) { return this.readSession().getCampaign(campaignId); }
   listResumeProfiles(input: ListResumesInput) { return this.readSession().listResumeProfiles(input); }

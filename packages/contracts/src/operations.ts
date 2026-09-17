@@ -3,6 +3,7 @@ import {
   ApplicationDetailSchema,
   ApplicationListItemSchema,
   ApplicationStageSchema,
+  ApplicationSubmissionChannelSchema,
   DiscoveryExecutorSchema,
   DiscoveryRunSchema,
   EntityIdSchema,
@@ -132,11 +133,20 @@ export const RecordApplicationInputSchema = z
     jobId: EntityIdSchema,
     appliedAt: IsoDateTimeSchema,
     resumeProfileId: EntityIdSchema.nullable().optional(),
+    resumeRevisionId: EntityIdSchema.nullable().optional(),
+    resumeArtifactId: EntityIdSchema.nullable().optional(),
+    listingId: EntityIdSchema.nullable().optional(),
+    channel: ApplicationSubmissionChannelSchema.nullable().optional(),
     idempotencyKey: IdempotencyKeySchema,
     actor: z.enum(['user', 'chatgpt-web', 'import', 'system', 'other']),
     note: z.string().trim().max(4000).nullable().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.resumeArtifactId && !value.resumeRevisionId) {
+      ctx.addIssue({ code: 'custom', path: ['resumeArtifactId'], message: 'resumeArtifactId requires resumeRevisionId' });
+    }
+  });
 export const RecordApplicationOutputSchema = GetApplicationOutputSchema.unwrap();
 
 export const TransitionApplicationInputSchema = z

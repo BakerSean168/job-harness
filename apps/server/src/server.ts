@@ -87,8 +87,19 @@ export function createProtocolServer(runtime: ReturnType<typeof createCareerMcpR
 export async function startJobHarnessServer(options: JobHarnessServerOptions): Promise<RunningJobHarnessServer> {
   mkdirSync(dirname(options.databasePath), { recursive: true });
   const store = new SqliteCareerStore(options.databasePath);
-  const application = createCareerApplicationService(store);
   const resumeStore = new SqliteResumeStore(options.databasePath);
+  const application = createCareerApplicationService(store, {
+    resumeEvidence: {
+      async getRevision(revisionId) {
+        const revision = await resumeStore.getRevision(revisionId);
+        return revision ? { id: revision.id, profileId: revision.profileId } : null;
+      },
+      async getArtifact(artifactId) {
+        const artifact = await resumeStore.getArtifact(artifactId);
+        return artifact ? { id: artifact.id, revisionId: artifact.revisionId } : null;
+      },
+    },
+  });
   const resume = createResumeApplicationService(resumeStore);
   const artifactDirectory = options.artifactDirectory ?? join(dirname(options.databasePath), 'resume-artifacts');
   const resumeArtifacts = createResumeArtifactService(resumeStore, {

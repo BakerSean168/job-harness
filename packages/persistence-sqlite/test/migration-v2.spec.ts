@@ -90,7 +90,7 @@ describe('SQLite schema v1 -> v2 JobListing migration', () => {
 
     migrateSqliteDatabase(db);
 
-    expect(db.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 5 });
+    expect(db.prepare('PRAGMA user_version').get()).toMatchObject({ user_version: 6 });
     const listings = db.prepare('SELECT * FROM job_listings WHERE job_id = ?').all('job-deepseek') as Array<Record<string, unknown>>;
     expect(listings).toHaveLength(1);
     expect(listings[0]).toMatchObject({

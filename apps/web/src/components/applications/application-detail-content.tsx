@@ -73,6 +73,34 @@ export function ApplicationDetailContent({
       />
 
       <section className="detail-section">
+        <div className="section-title-row"><h3>{copy.detail.submissionHistory}</h3><span>{detail.submissions.length}</span></div>
+        {detail.submissions.length ? (
+          <div className="application-submission-list">
+            {detail.submissions.map((submission, index) => {
+              const listing = submission.listingId ? job.listings.find((candidate) => candidate.id === submission.listingId) ?? null : null;
+              const channel = submission.channel ? copy.submissionChannels[submission.channel] : copy.detail.unknown;
+              return (
+                <article key={submission.id} className="application-submission-item">
+                  <div className="application-submission-heading">
+                    <div><strong>#{index + 1}</strong><span>{channel}</span></div>
+                    <time>{formatDateTime(locale, submission.submittedAt)}</time>
+                  </div>
+                  <dl className="application-submission-facts">
+                    <div><dt>{copy.detail.listing}</dt><dd>{listing?.url ? <a href={listing.url} target="_blank" rel="noreferrer">{listing.label ?? messages.jobsWorkspace.sourceKinds[listing.sourceKind]}</a> : listing?.label ?? (listing ? messages.jobsWorkspace.sourceKinds[listing.sourceKind] : copy.detail.unknown)}</dd></div>
+                    <div><dt>{copy.detail.profile}</dt><dd>{submission.resumeProfileId ? <Link href={`/resumes?profile=${encodeURIComponent(submission.resumeProfileId)}`}>{submission.resumeProfileId}</Link> : copy.detail.unknown}</dd></div>
+                    <div><dt>{copy.detail.revision}</dt><dd><code>{submission.resumeRevisionId ?? copy.detail.unknown}</code></dd></div>
+                    <div><dt>{copy.detail.artifact}</dt><dd><code>{submission.resumeArtifactId ?? copy.detail.unknown}</code></dd></div>
+                  </dl>
+                  {submission.note ? <p>{submission.note}</p> : null}
+                  <div className="timeline-provenance">{submission.actor}</div>
+                </article>
+              );
+            })}
+          </div>
+        ) : <p className="muted-copy">{copy.detail.unknown}</p>}
+      </section>
+
+      <section className="detail-section">
         <div className="section-title-row"><h3>{copy.detail.timeline}</h3><span>{detail.timeline.length}</span></div>
         <ol className="timeline-list">
           {detail.timeline.map((event) => (

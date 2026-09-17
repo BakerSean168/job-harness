@@ -116,8 +116,9 @@ export const en: MessageCatalog = {
     },
     detail: {
       summary: 'Application summary', timeline: 'Timeline', appliedAt: 'First applied', stageEntered: 'Entered current stage', resume: 'Resume used', submissions: 'Submissions', source: 'Primary source', campaigns: 'Campaigns', latestEvent: 'Latest event',
-      optionalNote: 'Note (optional)', notePlaceholder: 'Example: recruiter email confirmation, reason for withdrawal…', transition: 'Update stage', reject: 'Mark rejected', withdraw: 'Mark withdrawn', closePanel: 'Close detail', openFullPage: 'Open full detail', openJob: 'View job',
+      optionalNote: 'Note (optional)', notePlaceholder: 'Example: recruiter email confirmation, reason for withdrawal…', transition: 'Update stage', reject: 'Mark rejected', withdraw: 'Mark withdrawn', closePanel: 'Close detail', openFullPage: 'Open full detail', openJob: 'View job', submissionHistory: 'Submission history', submittedAt: 'Submitted at', channel: 'Channel', listing: 'Listing', profile: 'Resume Profile', revision: 'Revision', artifact: 'Artifact', unknown: 'Historically unknown',
     },
+    submissionChannels: { official: 'Official', boss: 'BOSS', zhilian: 'Zhilian', liepin: 'Liepin', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: 'Email', referral: 'Referral', manual: 'Manual', other: 'Other' },
   },
   jobsWorkspace: {
     filters: {
@@ -149,7 +150,7 @@ export const en: MessageCatalog = {
     applications: { title: 'Applications', description: 'Operate the hiring pipeline from Applied through Offer.' },
     companies: { title: 'Companies', description: 'Browse canonical companies and their related opportunities.' },
     campaigns: { title: 'Campaigns', description: 'Define target roles, locations, resume lanes, and search constraints.' },
-    resumes: { title: 'Resumes', description: 'Inspect Resume Harness references and application usage.' },
+    resumes: { title: 'Resumes', description: 'Edit, live-preview, publish revisions, and trace the real application usage of each resume.' },
     discovery: { title: 'Discovery', description: 'Audit job discovery runs from ChatGPT, importers, and other executors.' },
     analytics: { title: 'Analytics', description: 'Explore explainable funnel, resume, and discovery projections.' },
     settings: { title: 'Settings', description: 'Manage language, appearance, and Job Harness connection settings.' },

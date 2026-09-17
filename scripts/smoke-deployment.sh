@@ -127,7 +127,7 @@ const integrity = db.prepare('PRAGMA integrity_check').get();
 const version = db.prepare('PRAGMA user_version').get();
 const artifact = db.prepare("SELECT id FROM resume_artifacts WHERE kind='pdf' ORDER BY created_at DESC LIMIT 1").get();
 db.close();
-if (integrity.integrity_check !== 'ok' || Number(version.user_version) !== 5) process.exit(1);
+if (integrity.integrity_check !== 'ok' || Number(version.user_version) !== 6) process.exit(1);
 if (!artifact?.id) process.exit(1);
 const downloaded = await fetch(`${base}/api/v1/resume/artifacts/${encodeURIComponent(artifact.id)}/content`, {
   headers: { authorization: `Bearer ${process.env.JOB_HARNESS_AUTH_TOKEN}` },

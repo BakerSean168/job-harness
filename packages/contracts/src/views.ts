@@ -4,6 +4,7 @@ import {
 } from '@job-harness/domain';
 import {
   ApplicationEventSchema,
+  ApplicationSubmissionSchema,
   ApplicationSchema,
   ApplicationStageSchema,
   CompanySchema,
@@ -95,6 +96,7 @@ export const JobObservationViewSchema = z.object({
 export const JobApplicationViewSchema = z.object({
   application: ApplicationSchema,
   timeline: z.array(ApplicationEventSchema),
+  submissions: z.array(ApplicationSubmissionSchema),
   resume: ResumeProfileRefSchema.nullable(),
   latestEvent: ApplicationEventSchema.nullable(),
   submissionCount: z.number().int().nonnegative(),
@@ -147,6 +149,7 @@ export const ApplicationWorkspaceDetailSchema = z.object({
   campaigns: z.array(CampaignRefSchema),
   resume: ResumeProfileRefSchema.nullable(),
   timeline: z.array(ApplicationEventSchema),
+  submissions: z.array(ApplicationSubmissionSchema),
   latestEvent: ApplicationEventSchema.nullable(),
   stageEnteredAt: IsoDateTimeSchema,
   submissionCount: z.number().int().nonnegative(),

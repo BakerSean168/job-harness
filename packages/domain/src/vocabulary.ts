@@ -27,6 +27,23 @@ export const APPLICATION_EVENT_TYPES = [
 ] as const;
 export type ApplicationEventType = (typeof APPLICATION_EVENT_TYPES)[number];
 
+
+export const APPLICATION_SUBMISSION_CHANNELS = [
+  'official',
+  'boss',
+  'zhilian',
+  'liepin',
+  'moka',
+  'greenhouse',
+  'lever',
+  'ashby',
+  'email',
+  'referral',
+  'manual',
+  'other',
+] as const;
+export type ApplicationSubmissionChannel = (typeof APPLICATION_SUBMISSION_CHANNELS)[number];
+
 export const CAMPAIGN_STATUSES = ['active', 'paused', 'completed', 'archived'] as const;
 export type CampaignStatus = (typeof CAMPAIGN_STATUSES)[number];
 

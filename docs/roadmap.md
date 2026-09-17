@@ -84,7 +84,7 @@ The standalone Web V1 hardening plan is complete and production evidence now sat
 - [x] **JH-R004:** replace the Registry-only Resumes page with structured/source editing, scope-separated Profile/Library saves, optimistic concurrency, unsaved-draft live preview, and navigation-loss protection.
 - [x] **JH-R005:** publish immutable Revision history with canonical content hashes, retry-safe reuse, optimistic Profile/Library version guards, and previous/current structured diff.
 - [x] **JH-R006:** immutable HTML/PDF/JSON artifact pipeline with private Chromium sidecar, SHA-verified durable storage/download, production-shaped restart smoke, and Oracle2 ARM64 renderer proof.
-- [ ] **JH-R007:** first-class ApplicationSubmission -> ResumeRevision/Artifact linkage.
+- [x] **JH-R007:** first-class ApplicationSubmission -> ResumeRevision/Artifact linkage with conservative historical backfill, idempotent command semantics, export v2, and auditable Application UI.
 - [ ] **JH-R008:** Profile/Revision usage analytics.
 - [ ] **JH-R009:** Oracle2 cutover + backup/restore upgrade.
 - [ ] **JH-R010:** retire the standalone Resume runtime only after parity/cutover evidence.

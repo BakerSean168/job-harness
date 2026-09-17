@@ -6,6 +6,7 @@ import type {
   CompanyDetail,
   ApplicationWorkspaceDetail,
   ApplicationEvent,
+  ApplicationSubmission,
   Company,
   DiscoveryRun,
   DuplicateCheckInput,
@@ -62,6 +63,7 @@ export interface CareerStoreReadPort {
   listApplications(input: ListApplicationsInput): Promise<ListApplicationsOutput>;
   getApplication(applicationId: string): Promise<ApplicationDetail | null>;
   findApplicationByJobId(jobId: string): Promise<Application | null>;
+  listApplicationSubmissions(applicationId: string): Promise<readonly ApplicationSubmission[]>;
   listCampaigns(input: ListCampaignsInput): Promise<ListCampaignsOutput>;
   getCampaign(campaignId: string): Promise<JobSearchCampaign | null>;
   listResumeProfiles(input: ListResumesInput): Promise<ListResumesOutput>;
@@ -95,6 +97,7 @@ export interface CareerStoreTransactionPort extends CareerStoreReadPort {
   reconcileApplicationRecord(applicationId: string, appliedAt: string, resumeProfileId: string | null, now: string): Promise<Application>;
   updateApplicationStage(applicationId: string, stage: ApplicationStage, now: string): Promise<Application>;
   insertApplicationEvent(event: ApplicationEvent): Promise<void>;
+  insertApplicationSubmission(submission: ApplicationSubmission): Promise<void>;
   upsertCampaign(campaign: JobSearchCampaign): Promise<JobSearchCampaign>;
   insertDiscoveryRun(run: DiscoveryRun): Promise<void>;
   updateDiscoveryRun(run: DiscoveryRun): Promise<DiscoveryRun>;

@@ -116,8 +116,9 @@ export const zhCN: MessageCatalog = {
     },
     detail: {
       summary: '投递概览', timeline: '时间线', appliedAt: '首次投递', stageEntered: '进入当前阶段', resume: '使用简历', submissions: '提交次数', source: '主要来源', campaigns: '求职目标', latestEvent: '最近事件',
-      optionalNote: '备注（可选）', notePlaceholder: '例如：HR 邮件确认、主动撤回原因…', transition: '更新阶段', reject: '标记拒绝', withdraw: '标记撤回', closePanel: '关闭详情', openFullPage: '打开完整详情', openJob: '查看岗位',
+      optionalNote: '备注（可选）', notePlaceholder: '例如：HR 邮件确认、主动撤回原因…', transition: '更新阶段', reject: '标记拒绝', withdraw: '标记撤回', closePanel: '关闭详情', openFullPage: '打开完整详情', openJob: '查看岗位', submissionHistory: '提交记录', submittedAt: '提交时间', channel: '渠道', listing: '岗位来源', profile: 'Resume Profile', revision: 'Revision', artifact: 'Artifact', unknown: '历史未知',
     },
+    submissionChannels: { official: '官网', boss: 'BOSS', zhilian: '智联', liepin: '猎聘', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: '邮件', referral: '内推', manual: '手动', other: '其他' },
   },
   jobsWorkspace: {
     filters: {
@@ -149,7 +150,7 @@ export const zhCN: MessageCatalog = {
     applications: { title: '投递', description: '跟踪从已投递到 Offer 的完整招聘 Pipeline。' },
     companies: { title: '公司', description: '管理规范化公司主体与相关岗位。' },
     campaigns: { title: '求职目标', description: '定义角色、城市和简历方向等搜索约束。' },
-    resumes: { title: '简历', description: '查看 Resume Harness 注册的简历及其投递使用情况。' },
+    resumes: { title: '简历', description: '编辑、实时预览、发布版本并追踪每份简历的真实投递使用情况。' },
     discovery: { title: '发现记录', description: '审计 ChatGPT、导入器和其他外部执行器的岗位发现过程。' },
     analytics: { title: '分析', description: '查看漏斗、简历和搜索活动的可解释统计。' },
     settings: { title: '设置', description: '管理界面语言、外观和 Job Harness 连接信息。' },

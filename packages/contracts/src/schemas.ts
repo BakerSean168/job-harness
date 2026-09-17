@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   APPLICATION_EVENT_TYPES,
+  APPLICATION_SUBMISSION_CHANNELS,
   APPLICATION_STAGES,
   CAMPAIGN_STATUSES,
   DISCOVERY_EXECUTORS,
@@ -22,6 +23,7 @@ export const JobListingStatusSchema = z.enum(JOB_LISTING_STATUSES);
 export const JobListingIdentityKindSchema = z.enum(JOB_LISTING_IDENTITY_KINDS);
 export const ApplicationStageSchema = z.enum(APPLICATION_STAGES);
 export const ApplicationEventTypeSchema = z.enum(APPLICATION_EVENT_TYPES);
+export const ApplicationSubmissionChannelSchema = z.enum(APPLICATION_SUBMISSION_CHANNELS);
 export const CampaignStatusSchema = z.enum(CAMPAIGN_STATUSES);
 export const DiscoveryExecutorSchema = z.enum(DISCOVERY_EXECUTORS);
 export const JobSourceKindSchema = z.enum(JOB_SOURCE_KINDS);
@@ -120,6 +122,29 @@ export const ApplicationEventSchema = z
   })
   .strict();
 
+
+export const ApplicationSubmissionSchema = z
+  .object({
+    id: EntityIdSchema,
+    applicationId: EntityIdSchema,
+    listingId: EntityIdSchema.nullable().default(null),
+    submittedAt: IsoDateTimeSchema,
+    channel: ApplicationSubmissionChannelSchema.nullable().default(null),
+    resumeProfileId: EntityIdSchema.nullable().default(null),
+    resumeRevisionId: EntityIdSchema.nullable().default(null),
+    resumeArtifactId: EntityIdSchema.nullable().default(null),
+    actor: EventActorSchema,
+    idempotencyKey: IdempotencyKeySchema,
+    note: z.string().trim().max(4000).nullable().default(null),
+    createdAt: IsoDateTimeSchema,
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.resumeArtifactId && !value.resumeRevisionId) {
+      ctx.addIssue({ code: 'custom', path: ['resumeArtifactId'], message: 'resumeArtifactId requires resumeRevisionId' });
+    }
+  });
+
 export const ApplicationSchema = z
   .object({
     id: EntityIdSchema,
@@ -137,7 +162,7 @@ export const ApplicationListItemSchema = z
   .strict();
 
 export const ApplicationDetailSchema = z
-  .object({ application: ApplicationSchema, job: JobSchema, timeline: z.array(ApplicationEventSchema) })
+  .object({ application: ApplicationSchema, job: JobSchema, timeline: z.array(ApplicationEventSchema), submissions: z.array(ApplicationSubmissionSchema).default([]) })
   .strict();
 
 export const ResumeProfileRefSchema = z
@@ -192,6 +217,7 @@ export type JobListing = z.infer<typeof JobListingSchema>;
 export type Job = z.infer<typeof JobSchema>;
 export type JobObservation = z.infer<typeof JobObservationSchema>;
 export type Application = z.infer<typeof ApplicationSchema>;
+export type ApplicationSubmission = z.infer<typeof ApplicationSubmissionSchema>;
 export type ApplicationEvent = z.infer<typeof ApplicationEventSchema>;
 export type ApplicationListItem = z.infer<typeof ApplicationListItemSchema>;
 export type ApplicationDetail = z.infer<typeof ApplicationDetailSchema>;

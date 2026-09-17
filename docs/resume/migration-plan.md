@@ -115,6 +115,10 @@ Introduce first-class actual submission records and migrate existing `applicatio
 
 Keep Application count stable.
 
+### R007 evidence — 2026-09-17
+
+SQLite schema v6 now owns first-class `ApplicationSubmission` rows instead of deriving submission count from timeline events. New submissions can bind a specific JobListing, channel, Resume Profile ID, immutable Revision and Artifact; a consumer-owned evidence port validates Resume relationships without introducing a Career → Resume package dependency. Historical events are backfilled conservatively: only the first legacy submission inherits the old Application Resume Profile when known, while later Resume/Revision/Artifact evidence remains null rather than guessed. Career export schema v2 preserves Submissions, Application/Job projections count real Submission rows, and Application detail renders a separate auditable Submission history. Full repository verification passes 88 tests plus production Next build, generated OpenAPI drift checks and deployment-topology checks.
+
 ## JH-R008 — Analytics
 
 Add Profile/Revision usage projections while keeping causal language prohibited. Metrics are correlations by application/submission stage.

@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 5;
+export const SQLITE_SCHEMA_VERSION = 6;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS applications (
   job_id TEXT NOT NULL UNIQUE REFERENCES jobs(id) ON DELETE CASCADE,
   current_stage TEXT NOT NULL,
   applied_at TEXT NOT NULL,
-  resume_profile_id TEXT REFERENCES resume_profile_refs(id) ON DELETE SET NULL,
+  resume_profile_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -175,6 +175,10 @@ function deterministicId(...parts: string[]): string {
 
 function hasColumn(db: DatabaseSync, table: string, column: string): boolean {
   return (db.prepare(`PRAGMA table_info(${table})`).all() as Row[]).some((row) => String(row.name) === column);
+}
+
+function hasTable(db: DatabaseSync, table: string): boolean {
+  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?").get(table));
 }
 
 function migrateV1ToV2(db: DatabaseSync): void {
@@ -383,6 +387,7 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
   migrateSavedViewsV3(db);
   migratePerformanceIndexesV4(db);
   migrateResumeDomainV5(db);
+  migrateApplicationSubmissionsV6(db);
 }
 
 const PERFORMANCE_INDEXES_SCHEMA_V4 = `
@@ -473,6 +478,82 @@ function migrateResumeDomainV5(db: DatabaseSync): void {
   try {
     db.exec(RESUME_DOMAIN_SCHEMA_V5);
     db.exec('PRAGMA user_version = 5');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+
+const APPLICATION_SUBMISSIONS_SCHEMA_V6 = `
+CREATE TABLE IF NOT EXISTS application_submissions (
+  id TEXT PRIMARY KEY,
+  application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  listing_id TEXT REFERENCES job_listings(id) ON DELETE SET NULL,
+  submitted_at TEXT NOT NULL,
+  channel TEXT CHECK(channel IS NULL OR channel IN ('official','boss','zhilian','liepin','moka','greenhouse','lever','ashby','email','referral','manual','other')),
+  resume_profile_id TEXT,
+  resume_revision_id TEXT REFERENCES resume_revisions(id) ON DELETE RESTRICT,
+  resume_artifact_id TEXT REFERENCES resume_artifacts(id) ON DELETE RESTRICT,
+  actor TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  note TEXT,
+  created_at TEXT NOT NULL,
+  UNIQUE(application_id, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS application_submissions_application_idx ON application_submissions(application_id, submitted_at, id);
+CREATE INDEX IF NOT EXISTS application_submissions_resume_profile_idx ON application_submissions(resume_profile_id, submitted_at DESC, id);
+CREATE INDEX IF NOT EXISTS application_submissions_resume_revision_idx ON application_submissions(resume_revision_id, submitted_at DESC, id);
+CREATE INDEX IF NOT EXISTS application_submissions_resume_artifact_idx ON application_submissions(resume_artifact_id, submitted_at DESC, id);
+`;
+
+function migrateApplicationSubmissionsV6(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 6) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(APPLICATION_SUBMISSIONS_SCHEMA_V6);
+    if (hasTable(db, 'application_events') && hasTable(db, 'applications')) {
+      const events = db.prepare(`
+        SELECT e.id AS event_id, e.application_id, e.type, e.occurred_at, e.actor, e.idempotency_key, e.note,
+               a.resume_profile_id, a.created_at AS application_created_at
+        FROM application_events e
+        JOIN applications a ON a.id = e.application_id
+        WHERE e.type IN ('application_recorded','submission_recorded')
+        ORDER BY e.application_id, e.occurred_at, e.id
+      `).all() as Row[];
+      const insert = db.prepare(`
+        INSERT OR IGNORE INTO application_submissions(
+          id,application_id,listing_id,submitted_at,channel,resume_profile_id,resume_revision_id,resume_artifact_id,
+          actor,idempotency_key,note,created_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+      `);
+      for (const event of events) {
+        const id = `submission-${createHash('sha256').update(String(event.event_id)).digest('hex').slice(0, 32)}`;
+        // Legacy events did not preserve per-submission resume evidence. The first application event may use
+        // the Application compatibility projection; later submission events stay unknown rather than guessed.
+        const resumeProfileId = event.type === 'application_recorded' && event.resume_profile_id != null
+          ? String(event.resume_profile_id)
+          : null;
+        insert.run(
+          id,
+          String(event.application_id),
+          null,
+          String(event.occurred_at),
+          null,
+          resumeProfileId,
+          null,
+          null,
+          String(event.actor),
+          String(event.idempotency_key),
+          event.note == null ? null : String(event.note),
+          String(event.application_created_at),
+        );
+      }
+    }
+    db.exec('PRAGMA user_version = 6');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

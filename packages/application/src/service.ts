@@ -33,7 +33,9 @@ import {
   UpsertSavedViewInputSchema,
   UpsertJobsBatchInputSchema,
   UpsertJobsBatchOutputSchema,
+  ApplicationSubmissionSchema,
   type ApplicationDetail,
+  type ApplicationSubmission,
   type DiscoveryRun,
   type DuplicateCheckInput,
   type Job,
@@ -51,9 +53,16 @@ import {
 } from './errors';
 import type { CareerStorePort, CareerStoreTransactionPort, IdempotencyReceipt } from './store';
 
+
+export interface CareerResumeSubmissionEvidencePort {
+  getRevision(revisionId: string): Promise<{ readonly id: string; readonly profileId: string } | null>;
+  getArtifact(artifactId: string): Promise<{ readonly id: string; readonly revisionId: string } | null>;
+}
+
 export interface CareerServiceOptions {
   readonly now?: () => string;
   readonly idFactory?: () => string;
+  readonly resumeEvidence?: CareerResumeSubmissionEvidencePort | null;
 }
 
 function stableJson(value: unknown): string {
@@ -125,6 +134,32 @@ export function createCareerApplicationService(
 ): CareerRuntimePorts {
   const now = options.now ?? (() => new Date().toISOString());
   const idFactory = options.idFactory ?? randomUUID;
+
+  async function resolveResumeEvidence(input: {
+    resumeProfileId?: string | null;
+    resumeRevisionId?: string | null;
+    resumeArtifactId?: string | null;
+  }): Promise<{ profileId: string | null; revisionId: string | null; artifactId: string | null }> {
+    let profileId = input.resumeProfileId ?? null;
+    const revisionId = input.resumeRevisionId ?? null;
+    const artifactId = input.resumeArtifactId ?? null;
+    if (!revisionId) return { profileId, revisionId: null, artifactId: null };
+    if (!options.resumeEvidence) throw new CareerConflictError('Resume Revision evidence is unavailable in this runtime');
+    const revision = await options.resumeEvidence.getRevision(revisionId);
+    if (!revision) throw new CareerNotFoundError('ResumeRevision', revisionId);
+    if (profileId && profileId !== revision.profileId) {
+      throw new CareerConflictError(`ResumeRevision '${revisionId}' belongs to Profile '${revision.profileId}', not '${profileId}'`);
+    }
+    profileId = revision.profileId;
+    if (artifactId) {
+      const artifact = await options.resumeEvidence.getArtifact(artifactId);
+      if (!artifact) throw new CareerNotFoundError('ResumeArtifact', artifactId);
+      if (artifact.revisionId !== revisionId) {
+        throw new CareerConflictError(`ResumeArtifact '${artifactId}' does not belong to ResumeRevision '${revisionId}'`);
+      }
+    }
+    return { profileId, revisionId, artifactId };
+  }
 
   const jobs: CareerApplicationPorts['jobs'] = {
     searchJobs: (input) => store.searchJobs(SearchJobsInputSchema.parse(input)),
@@ -237,6 +272,11 @@ export function createCareerApplicationService(
 
     async recordApplication(input) {
       const parsed = RecordApplicationInputSchema.parse(input);
+      const resumeEvidence = await resolveResumeEvidence({
+        resumeProfileId: parsed.resumeProfileId ?? null,
+        resumeRevisionId: parsed.resumeRevisionId ?? null,
+        resumeArtifactId: parsed.resumeArtifactId ?? null,
+      });
       return store.transaction(async (tx) => {
         const scope = 'career_application_record';
         const cached = await loadReceipt(tx, scope, parsed.idempotencyKey, parsed, (value) => GetApplicationOutputSchema.unwrap().parse(value));
@@ -244,17 +284,38 @@ export function createCareerApplicationService(
         const job = await tx.getJob(parsed.jobId);
         if (!job) throw new CareerNotFoundError('Job', parsed.jobId);
         const existing = await tx.findApplicationByJobId(parsed.jobId);
-        if (parsed.resumeProfileId && !(await tx.getResumeProfile(parsed.resumeProfileId))) {
-          throw new CareerNotFoundError('ResumeProfileRef', parsed.resumeProfileId);
-        }
+        const listing = parsed.listingId == null ? null : job.listings.find((candidate) => candidate.id === parsed.listingId) ?? null;
+        if (parsed.listingId && !listing) throw new CareerNotFoundError('JobListing', parsed.listingId);
+        const explicitLegacyProfile = parsed.resumeProfileId ? await tx.getResumeProfile(parsed.resumeProfileId) : null;
+        if (parsed.resumeProfileId && !explicitLegacyProfile) throw new CareerNotFoundError('ResumeProfileRef', parsed.resumeProfileId);
+        const derivedLegacyProfile = !parsed.resumeProfileId && resumeEvidence.profileId
+          ? await tx.getResumeProfile(resumeEvidence.profileId)
+          : null;
+        const compatibilityProfileId = explicitLegacyProfile?.id ?? derivedLegacyProfile?.id ?? null;
+        const channel = parsed.channel ?? listing?.sourceKind ?? null;
         const timestamp = now();
         if (existing) {
           const reconciled = await tx.reconcileApplicationRecord(
             existing.id,
             parsed.appliedAt,
-            parsed.resumeProfileId ?? null,
+            compatibilityProfileId,
             timestamp,
           );
+          const submission = ApplicationSubmissionSchema.parse({
+            id: idFactory(),
+            applicationId: existing.id,
+            listingId: listing?.id ?? null,
+            submittedAt: parsed.appliedAt,
+            channel,
+            resumeProfileId: resumeEvidence.profileId,
+            resumeRevisionId: resumeEvidence.revisionId,
+            resumeArtifactId: resumeEvidence.artifactId,
+            actor: parsed.actor,
+            idempotencyKey: parsed.idempotencyKey,
+            note: parsed.note ?? null,
+            createdAt: timestamp,
+          });
+          await tx.insertApplicationSubmission(submission);
           await tx.insertApplicationEvent({
             id: idFactory(),
             applicationId: existing.id,
@@ -275,11 +336,26 @@ export function createCareerApplicationService(
           jobId: parsed.jobId,
           currentStage: 'applied' as const,
           appliedAt: parsed.appliedAt,
-          resumeProfileId: parsed.resumeProfileId ?? null,
+          resumeProfileId: compatibilityProfileId,
           createdAt: timestamp,
           updatedAt: timestamp,
         };
         await tx.insertApplication(application);
+        const submission = ApplicationSubmissionSchema.parse({
+          id: idFactory(),
+          applicationId: application.id,
+          listingId: listing?.id ?? null,
+          submittedAt: parsed.appliedAt,
+          channel,
+          resumeProfileId: resumeEvidence.profileId,
+          resumeRevisionId: resumeEvidence.revisionId,
+          resumeArtifactId: resumeEvidence.artifactId,
+          actor: parsed.actor,
+          idempotencyKey: parsed.idempotencyKey,
+          note: parsed.note ?? null,
+          createdAt: timestamp,
+        });
+        await tx.insertApplicationSubmission(submission);
         await tx.insertApplicationEvent({
           id: idFactory(),
           applicationId: application.id,

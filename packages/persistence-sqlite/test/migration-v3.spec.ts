@@ -57,7 +57,7 @@ describe('SQLite v3 Saved Views migration', () => {
 
     const verify = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      expect(verify.prepare('PRAGMA user_version').get()).toEqual({ user_version: 5 });
+      expect(verify.prepare('PRAGMA user_version').get()).toEqual({ user_version: 6 });
       expect(verify.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='saved_views'").get()).toEqual({ name: 'saved_views' });
       expect(verify.prepare('SELECT COUNT(*) AS n FROM saved_views').get()).toEqual({ n: 0 });
       expect(verify.prepare('SELECT COUNT(*) AS n FROM jobs').get()).toEqual({ n: 1 });
