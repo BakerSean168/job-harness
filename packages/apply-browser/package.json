@@ -5,6 +5,7 @@
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
-    "playwright": "1.55.0"
+    "playwright": "1.55.0",
+    "@job-harness/apply-contracts": "workspace:*"
   }
 }

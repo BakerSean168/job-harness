@@ -2,6 +2,8 @@ import type {
   ApplyBundle,
   DispatchExecutionAttemptInput,
   ExecutionAttempt,
+  ReviewSnapshot,
+  SubmitAuthorization,
   ExecutionEvent,
   ExecutionEventType,
   ExecutorRegistration,
@@ -29,6 +31,7 @@ export interface AttemptMutation {
   readonly adapterId?: string | null;
   readonly adapterVersion?: string | null;
   readonly browserBackend?: string | null;
+  readonly browserSessionHandoff?: ExecutionAttempt['browserSessionHandoff'];
   readonly leaseOwner?: string | null;
   readonly leaseTokenHash?: string | null;
   readonly leaseExpiresAt?: string | null;
@@ -67,6 +70,17 @@ export interface ApplyStorePort {
 
   countLeasedAttempts(executorId: string, at: string): Promise<number>;
   hasValidLease(input: { readonly attemptId: string; readonly executorId: string; readonly leaseTokenHash: string; readonly now: string; readonly allowedStates: readonly ExecutionAttempt['state'][] }): Promise<boolean>;
+  createReviewSnapshot(input: { readonly snapshot: ReviewSnapshot; readonly executorId: string; readonly leaseTokenHash: string; readonly now: string }): Promise<ReviewSnapshot>;
+  listReviewSnapshots(attemptId: string, limit: number): Promise<readonly ReviewSnapshot[]>;
+  getReviewSnapshot(snapshotId: string): Promise<ReviewSnapshot | null>;
+  issueSubmitAuthorization(authorization: SubmitAuthorization): Promise<SubmitAuthorization>;
+  listSubmitAuthorizations(attemptId: string, limit: number): Promise<readonly SubmitAuthorization[]>;
+  getSubmitAuthorization(authorizationId: string): Promise<SubmitAuthorization | null>;
+  revokeSubmitAuthorization(input: { readonly attemptId: string; readonly authorizationId: string; readonly now: string }): Promise<SubmitAuthorization>;
+  validateSubmitAuthorization(input: { readonly attemptId: string; readonly executorId: string; readonly leaseTokenHash: string; readonly authorizationId: string; readonly formStateHash: string; readonly now: string }): Promise<{ readonly attempt: ExecutionAttempt; readonly authorization: SubmitAuthorization; readonly snapshot: ReviewSnapshot }>;
+  consumeAndMarkSubmitBoundary(input: { readonly attemptId: string; readonly executorId: string; readonly leaseTokenHash: string; readonly authorizationId: string; readonly formStateHash: string; readonly now: string; readonly authorizedEventId: string; readonly triggeredEventId: string }): Promise<{ readonly attempt: ExecutionAttempt; readonly authorization: SubmitAuthorization; readonly snapshot: ReviewSnapshot }>;
+  completeSubmitSuccess(input: { readonly attemptId: string; readonly executorId: string; readonly leaseTokenHash: string; readonly now: string; readonly eventIdFactory: () => string; readonly payload: Record<string, unknown> }): Promise<ExecutionAttempt>;
+  failSubmitAttempt(input: { readonly attemptId: string; readonly executorId: string; readonly leaseTokenHash: string; readonly now: string; readonly externalEffectState: 'crossed' | 'uncertain'; readonly errorCode: string; readonly errorSummary: string; readonly payload: Record<string, unknown>; readonly eventId: string }): Promise<ExecutionAttempt>;
   abandonExpiredAttempts(input: { readonly now: string; readonly limit: number; readonly eventIdFactory: () => string }): Promise<readonly ExecutionAttempt[]>;
   tryClaimAttempt(input: {
     readonly attemptId: string;
@@ -97,6 +111,9 @@ export interface ApplyStorePort {
 
 
 export interface SubmissionIntentSafetyPort {
+  beginExternal(input: { readonly intentId: string; readonly occurredAt: string }): Promise<void>;
+  confirmExternal(input: { readonly intentId: string; readonly confirmedAt: string; readonly appliedAt: string; readonly externalReference?: string | null; readonly evidence: Record<string, unknown> }): Promise<void>;
+  failExternal(input: { readonly intentId: string; readonly occurredAt: string; readonly status: 'external_failed' | 'needs_manual_review'; readonly error: string; readonly evidence: Record<string, unknown> }): Promise<void>;
   markManualReview(input: {
     readonly intentId: string;
     readonly occurredAt: string;
@@ -125,5 +142,13 @@ export interface ApplyControlPlanePort {
     fail(input: unknown): Promise<ExecutionAttempt>;
     cancel(input: unknown): Promise<ExecutionAttempt>;
     authorizeResumeArtifact(input: unknown): Promise<{ artifactId: string; revisionId: string; sha256: string; byteSize: number; mimeType: string }>;
+    createReviewSnapshot(input: unknown): Promise<ReviewSnapshot>;
+    listReviewSnapshots(input: unknown): Promise<{ items: readonly ReviewSnapshot[] }>;
+    authorizeSubmit(input: unknown): Promise<SubmitAuthorization>;
+    listSubmitAuthorizations(input: unknown): Promise<{ items: readonly SubmitAuthorization[] }>;
+    revokeSubmitAuthorization(input: unknown): Promise<SubmitAuthorization>;
+    beginSubmit(input: unknown): Promise<{ attemptId: string; state: string; externalEffectState: 'not_crossed' | 'crossed' | 'uncertain'; authorization: SubmitAuthorization }>;
+    reportSubmitSuccess(input: unknown): Promise<ExecutionAttempt>;
+    reportSubmitFailure(input: unknown): Promise<ExecutionAttempt>;
   };
 }

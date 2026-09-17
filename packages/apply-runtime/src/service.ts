@@ -1,5 +1,18 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
+  AuthorizeSubmitInputSchema,
+  BeginSubmitInputSchema,
+  BeginSubmitOutputSchema,
+  CreateReviewSnapshotInputSchema,
+  ListReviewSnapshotsInputSchema,
+  ListSubmitAuthorizationsInputSchema,
+  ReportSubmitFailureInputSchema,
+  ReportSubmitSuccessInputSchema,
+  RevokeSubmitAuthorizationInputSchema,
+  ReviewSnapshotSchema,
+  SubmitAuthorizationSchema,
+} from '@job-harness/apply-contracts';
+import {
   AuthorizeResumeArtifactInputSchema,
   CancelExecutionAttemptInputSchema,
   ClaimExecutionAttemptInputSchema,
@@ -187,6 +200,7 @@ export function createApplyControlPlane(
           adapterVersion: null,
           preferredBrowserBackend: parsed.preferredBrowserBackend ?? null,
           browserBackend: null,
+          browserSessionHandoff: null,
           executionMode: parsed.executionMode,
           state: 'queued',
           leaseOwner: null,
@@ -226,7 +240,7 @@ export function createApplyControlPlane(
               occurredAt: timestamp,
               error: `Execution attempt ${expired.id} lease expired after the external-effect boundary; verify the recruiting site before any new submit`,
               evidence: { executionAttemptId: expired.id, externalEffectState: expired.externalEffectState, reason: 'lease_expired' },
-            });
+            }).catch(() => {});
           }
         }
         const registered = await store.getExecutor(parsed.executorId);
@@ -323,6 +337,7 @@ export function createApplyControlPlane(
             leaseExpiresAt: null,
             lastHeartbeatAt: timestamp,
             checkpoint: parsed.checkpoint ?? current.checkpoint,
+            ...(parsed.browserSessionHandoff !== undefined ? { browserSessionHandoff: parsed.browserSessionHandoff } : {}),
             errorCode: parsed.reasonCode,
             errorSummary: parsed.summary,
             updatedAt: timestamp,
@@ -330,6 +345,9 @@ export function createApplyControlPlane(
           event: makeEvent(idFactory, parsed.attemptId, 'human_action_required', timestamp, parsed.checkpoint ?? current.checkpoint, {
             reasonCode: parsed.reasonCode,
             summary: parsed.summary,
+            browserSessionRetained: Boolean(parsed.browserSessionHandoff),
+            browserSessionBackend: parsed.browserSessionHandoff?.backendId ?? null,
+            browserSessionExpiresAt: parsed.browserSessionHandoff?.expiresAt ?? null,
             ...parsed.payload,
           }),
         });
@@ -340,6 +358,9 @@ export function createApplyControlPlane(
         if (!current) throw new ApplyNotFoundError('ExecutionAttempt', parsed.attemptId);
         if (!canRequeueAttempt(current)) throw new ApplyInvalidTransitionError(current.state, 'queued');
         const timestamp = now();
+        if (current.browserSessionHandoff && current.browserSessionHandoff.expiresAt <= timestamp) {
+          throw new ApplyNotReadyError(`ExecutionAttempt '${current.id}' browser handoff expired at ${current.browserSessionHandoff.expiresAt}; cancel/restart instead of silently recreating a reviewed browser state`);
+        }
         const updated = await store.mutateWithoutLease({
           attemptId: current.id,
           allowedStates: ['waiting_for_user'],
@@ -376,6 +397,7 @@ export function createApplyControlPlane(
             leaseExpiresAt: null,
             lastHeartbeatAt: timestamp,
             checkpoint: parsed.checkpoint ?? current.checkpoint,
+            browserSessionHandoff: null,
             completedAt: timestamp,
             updatedAt: timestamp,
           },
@@ -415,6 +437,7 @@ export function createApplyControlPlane(
             leaseExpiresAt: null,
             lastHeartbeatAt: timestamp,
             checkpoint: parsed.checkpoint ?? current.checkpoint,
+            browserSessionHandoff: null,
             errorCode: parsed.errorCode,
             errorSummary: parsed.errorSummary,
             completedAt: timestamp,
@@ -445,6 +468,7 @@ export function createApplyControlPlane(
             leaseOwner: null,
             leaseTokenHash: null,
             leaseExpiresAt: null,
+            browserSessionHandoff: null,
             completedAt: timestamp,
             errorCode: parsed.reason ? 'cancelled_by_user' : null,
             errorSummary: parsed.reason ?? null,
@@ -479,6 +503,195 @@ export function createApplyControlPlane(
           byteSize: artifact.byteSize,
           mimeType: artifact.mimeType,
         };
+      },
+      async createReviewSnapshot(raw) {
+        const parsed = CreateReviewSnapshotInputSchema.parse(raw);
+        const timestamp = now();
+        const attempt = await store.getAttempt(parsed.attemptId);
+        if (!attempt) throw new ApplyNotFoundError('ExecutionAttempt', parsed.attemptId);
+        if (parsed.summary.readyForSubmit && (parsed.summary.requiredPending > 0 || parsed.summary.failed > 0 || parsed.summary.blockingIssueCodes.length > 0)) {
+          throw new ApplyConflictError('ReviewSnapshot cannot be readyForSubmit while blocking/pending/failed fields remain');
+        }
+        const browserSessionRef = parsed.browserSessionRef ?? attempt.browserSessionHandoff?.sessionRef ?? null;
+        const material = {
+          attemptId: attempt.id,
+          bundleHash: attempt.bundleHash,
+          browserSessionRef,
+          formStateHash: parsed.formStateHash,
+          formVersion: parsed.formVersion,
+          catalogVersion: parsed.catalogVersion,
+          siteAdapterId: parsed.siteAdapterId,
+          siteAdapterVersion: parsed.siteAdapterVersion,
+          summary: parsed.summary,
+        };
+        const snapshot = ReviewSnapshotSchema.parse({
+          id: idFactory(),
+          ...material,
+          reviewHash: sha256(stableJson(material)),
+          createdAt: timestamp,
+        });
+        return store.createReviewSnapshot({ snapshot, executorId: parsed.executorId, leaseTokenHash: sha256(parsed.leaseToken), now: timestamp });
+      },
+      async listReviewSnapshots(raw) {
+        const parsed = ListReviewSnapshotsInputSchema.parse(raw);
+        const attempt = await store.getAttempt(parsed.attemptId);
+        if (!attempt) throw new ApplyNotFoundError('ExecutionAttempt', parsed.attemptId);
+        return { items: await store.listReviewSnapshots(parsed.attemptId, parsed.limit) };
+      },
+      async authorizeSubmit(raw) {
+        const parsed = AuthorizeSubmitInputSchema.parse(raw);
+        const timestamp = now();
+        const attempt = await store.getAttempt(parsed.attemptId);
+        if (!attempt) throw new ApplyNotFoundError('ExecutionAttempt', parsed.attemptId);
+        const snapshot = await store.getReviewSnapshot(parsed.reviewSnapshotId);
+        if (!snapshot || snapshot.attemptId !== attempt.id) throw new ApplyNotFoundError('ReviewSnapshot', parsed.reviewSnapshotId);
+        const requestHash = sha256(stableJson({
+          attemptId: parsed.attemptId,
+          reviewSnapshotId: parsed.reviewSnapshotId,
+          expiresInSeconds: parsed.expiresInSeconds,
+          actor: parsed.actor,
+        }));
+        const authorization = SubmitAuthorizationSchema.parse({
+          id: idFactory(),
+          attemptId: attempt.id,
+          reviewSnapshotId: snapshot.id,
+          reviewHash: snapshot.reviewHash,
+          actor: parsed.actor,
+          status: 'active',
+          issuedAt: timestamp,
+          expiresAt: new Date(Date.parse(timestamp) + parsed.expiresInSeconds * 1000).toISOString(),
+          consumedAt: null,
+          revokedAt: null,
+          idempotencyKey: parsed.idempotencyKey,
+          requestHash,
+        });
+        return store.issueSubmitAuthorization(authorization);
+      },
+      async listSubmitAuthorizations(raw) {
+        const parsed = ListSubmitAuthorizationsInputSchema.parse(raw);
+        const attempt = await store.getAttempt(parsed.attemptId);
+        if (!attempt) throw new ApplyNotFoundError('ExecutionAttempt', parsed.attemptId);
+        return { items: await store.listSubmitAuthorizations(parsed.attemptId, parsed.limit) };
+      },
+      async revokeSubmitAuthorization(raw) {
+        const parsed = RevokeSubmitAuthorizationInputSchema.parse(raw);
+        return store.revokeSubmitAuthorization({ ...parsed, now: now() });
+      },
+      async beginSubmit(raw) {
+        const parsed = BeginSubmitInputSchema.parse(raw);
+        const timestamp = now();
+        const leaseTokenHash = sha256(parsed.leaseToken);
+        // Validate the exact review/authorization/lease first, but do not consume the
+        // authorization yet. If the business SubmissionIntent cannot enter
+        // external_in_progress, the user authorization stays usable instead of being
+        // burned by a local coordination failure.
+        const validated = await store.validateSubmitAuthorization({
+          attemptId: parsed.attemptId,
+          executorId: parsed.executorId,
+          leaseTokenHash,
+          authorizationId: parsed.authorizationId,
+          formStateHash: parsed.formStateHash,
+          now: timestamp,
+        });
+        try {
+          await intentSafety.beginExternal({ intentId: validated.attempt.intentId, occurredAt: parsed.occurredAt });
+        } catch (error) {
+          throw new ApplyConflictError(`SubmissionIntent could not enter external_in_progress before submit: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        let crossed;
+        try {
+          crossed = await store.consumeAndMarkSubmitBoundary({
+            attemptId: parsed.attemptId,
+            executorId: parsed.executorId,
+            leaseTokenHash,
+            authorizationId: parsed.authorizationId,
+            formStateHash: parsed.formStateHash,
+            now: timestamp,
+            authorizedEventId: idFactory(),
+            triggeredEventId: idFactory(),
+          });
+        } catch (error) {
+          // The business intent is already external_in_progress but no click permission
+          // was returned. Fail closed to manual review rather than issuing another
+          // automatic submit attempt.
+          await intentSafety.markManualReview({
+            intentId: validated.attempt.intentId,
+            occurredAt: parsed.occurredAt,
+            error: 'SubmissionIntent entered external_in_progress but the local submit boundary could not be durably recorded',
+            evidence: { executionAttemptId: parsed.attemptId, submitAuthorizationId: parsed.authorizationId },
+          }).catch(() => {});
+          throw error;
+        }
+        return BeginSubmitOutputSchema.parse({
+          attemptId: crossed.attempt.id,
+          state: crossed.attempt.state,
+          externalEffectState: crossed.attempt.externalEffectState,
+          authorization: crossed.authorization,
+        });
+      },
+      async reportSubmitSuccess(raw) {
+        const parsed = ReportSubmitSuccessInputSchema.parse(raw);
+        const attempt = await store.getAttempt(parsed.attemptId);
+        if (!attempt) throw new ApplyNotFoundError('ExecutionAttempt', parsed.attemptId);
+        if (attempt.externalEffectState !== 'crossed') throw new ApplyConflictError('External success cannot be recorded before the submit boundary is durably crossed');
+        const controlPlaneNow = now();
+        const valid = await store.hasValidLease({
+          attemptId: attempt.id,
+          executorId: parsed.executorId,
+          leaseTokenHash: sha256(parsed.leaseToken),
+          now: controlPlaneNow,
+          allowedStates: ['running'],
+        });
+        if (!valid) throw new ApplyLeaseLostError(attempt.id);
+        await intentSafety.confirmExternal({
+          intentId: attempt.intentId,
+          confirmedAt: parsed.confirmedAt,
+          appliedAt: parsed.appliedAt,
+          ...(parsed.externalReference !== undefined ? { externalReference: parsed.externalReference } : {}),
+          evidence: parsed.externalEvidence,
+        });
+        return store.completeSubmitSuccess({
+          attemptId: attempt.id,
+          executorId: parsed.executorId,
+          leaseTokenHash: sha256(parsed.leaseToken),
+          now: controlPlaneNow,
+          eventIdFactory: idFactory,
+          payload: { externalReference: parsed.externalReference ?? null, evidenceKeys: Object.keys(parsed.externalEvidence).sort() },
+        });
+      },
+      async reportSubmitFailure(raw) {
+        const parsed = ReportSubmitFailureInputSchema.parse(raw);
+        const attempt = await store.getAttempt(parsed.attemptId);
+        if (!attempt) throw new ApplyNotFoundError('ExecutionAttempt', parsed.attemptId);
+        if (attempt.externalEffectState !== 'crossed') throw new ApplyConflictError('External submit failure cannot be recorded before the submit boundary is durably crossed');
+        const controlPlaneNow = now();
+        const valid = await store.hasValidLease({
+          attemptId: attempt.id,
+          executorId: parsed.executorId,
+          leaseTokenHash: sha256(parsed.leaseToken),
+          now: controlPlaneNow,
+          allowedStates: ['running'],
+        });
+        if (!valid) throw new ApplyLeaseLostError(attempt.id);
+        const status = parsed.outcome === 'external_failed' ? 'external_failed' : 'needs_manual_review';
+        await intentSafety.failExternal({
+          intentId: attempt.intentId,
+          occurredAt: parsed.occurredAt,
+          status,
+          error: parsed.error,
+          evidence: parsed.externalEvidence,
+        });
+        return store.failSubmitAttempt({
+          attemptId: attempt.id,
+          executorId: parsed.executorId,
+          leaseTokenHash: sha256(parsed.leaseToken),
+          now: controlPlaneNow,
+          externalEffectState: parsed.outcome === 'uncertain' ? 'uncertain' : 'crossed',
+          errorCode: parsed.outcome === 'uncertain' ? 'submit_result_uncertain' : 'external_submit_failed',
+          errorSummary: parsed.error,
+          payload: { outcome: parsed.outcome, evidenceKeys: Object.keys(parsed.externalEvidence).sort() },
+          eventId: idFactory(),
+        });
       },
     },
   };

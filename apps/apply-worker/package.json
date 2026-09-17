@@ -6,14 +6,18 @@
   "scripts": {
     "start": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit",
-    "smoke:steel": "tsx src/backend-smoke.ts"
+    "smoke:steel": "tsx src/backend-smoke.ts",
+    "smoke:synthetic": "tsx src/synthetic-ats-smoke.ts"
   },
   "dependencies": {
     "@job-harness/apply-browser": "workspace:*",
     "@job-harness/apply-contracts": "workspace:*",
-    "@job-harness/client": "workspace:*"
+    "@job-harness/client": "workspace:*",
+    "@job-harness/apply-adapters": "workspace:*",
+    "@job-harness/apply-core": "workspace:*"
   },
   "devDependencies": {
-    "tsx": "^4.20.5"
+    "tsx": "^4.20.5",
+    "playwright": "1.55.0"
   }
 }

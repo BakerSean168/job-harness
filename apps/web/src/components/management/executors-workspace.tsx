@@ -78,7 +78,16 @@ export async function ExecutorsWorkspace() {
                   <td><code>{attempt.executorId ?? '—'}</code></td>
                   <td>{attempt.adapterId ?? attempt.requiredAdapterId ?? '—'}</td>
                   <td>{attempt.browserBackend ?? attempt.preferredBrowserBackend ?? '—'}</td>
-                  <td>{attempt.checkpoint ?? '—'}</td>
+                  <td>
+                    <div className="executor-checkpoint">
+                      <a className="text-link" href={`/executors/${attempt.id}`}>{attempt.id.slice(0, 8)}…</a>
+                      <span>{attempt.checkpoint ?? '—'}</span>
+                      {attempt.browserSessionHandoff?.humanControlUrl ? (
+                        <a className="text-link" href={attempt.browserSessionHandoff.humanControlUrl} target="_blank" rel="noreferrer">{copy.attempts.openBrowser}</a>
+                      ) : null}
+                      {attempt.browserSessionHandoff ? <small>{copy.attempts.handoffExpires}: {formatDateTime(locale, attempt.browserSessionHandoff.expiresAt)}</small> : null}
+                    </div>
+                  </td>
                   <td><span className="executor-effect" data-effect={attempt.externalEffectState}>{copy.effects[attempt.externalEffectState]}</span></td>
                   <td className="nowrap-cell">{formatDateTime(locale, attempt.createdAt)}</td>
                 </tr>

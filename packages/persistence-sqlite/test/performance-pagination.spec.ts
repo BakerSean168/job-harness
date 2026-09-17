@@ -105,7 +105,7 @@ describe('pagination and query-plan regression', () => {
       const applicationPlan = planDb.prepare("EXPLAIN QUERY PLAN SELECT id FROM applications WHERE current_stage = 'screening' ORDER BY updated_at DESC, id LIMIT 50 OFFSET 100").all()
         .map((row) => String((row as Record<string, unknown>).detail)).join('\n');
       expect(applicationPlan).toContain('applications_stage_updated_idx');
-      expect(planDb.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 });
+      expect(planDb.prepare('PRAGMA user_version').get()).toEqual({ user_version: 10 });
     } finally {
       planDb.close();
     }

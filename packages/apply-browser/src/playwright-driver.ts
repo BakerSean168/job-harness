@@ -4,6 +4,14 @@ import type { BrowserControlSnapshot, BrowserDriverPort, BrowserUploadFile } fro
 export class PlaywrightBrowserDriver implements BrowserDriverPort {
   constructor(private readonly page: Page) {}
 
+  private async ensureEvaluationHelpers(): Promise<void> {
+    // apps/apply-worker runs TypeScript through tsx/esbuild. With keepNames, nested
+    // functions serialized into page.evaluate may reference esbuild's __name helper.
+    // The compiled production JS does not need this, but defining the identity helper
+    // in page scope keeps source-runtime and compiled-runtime behavior identical.
+    await this.page.evaluate('globalThis.__name = globalThis.__name || ((value) => value)');
+  }
+
   async navigate(url: string): Promise<void> {
     const parsed = new URL(url);
     if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error(`Unsupported navigation protocol: ${parsed.protocol}`);
@@ -80,7 +88,38 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
     return new Uint8Array(await this.page.screenshot({ type: 'png', fullPage: false }));
   }
 
+  async formStateHash(): Promise<string> {
+    await this.ensureEvaluationHelpers();
+    return this.page.evaluate(async () => {
+      const compact = (value: unknown) => String(value ?? '').replace(/\r\n/g, '\n');
+      const controls = [...document.querySelectorAll(
+        'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]), textarea, select',
+      )].filter((node): node is HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement =>
+        node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement || node instanceof HTMLSelectElement);
+      const rows = controls.map((element, index) => {
+        const ref = element.getAttribute('data-job-harness-field-id')
+          || element.getAttribute('data-job-harness-radio-group')
+          || element.name
+          || element.id
+          || `control-${index}`;
+        let value: unknown;
+        if (element instanceof HTMLInputElement && (element.type === 'checkbox' || element.type === 'radio')) {
+          value = { checked: element.checked, value: compact(element.value) };
+        } else if (element instanceof HTMLSelectElement && element.multiple) {
+          value = [...element.selectedOptions].map((option) => compact(option.value)).sort();
+        } else {
+          value = compact(element.value);
+        }
+        return [ref, element.tagName.toLowerCase(), element instanceof HTMLInputElement ? element.type : '', value] as const;
+      }).sort((left, right) => JSON.stringify(left.slice(0, 3)).localeCompare(JSON.stringify(right.slice(0, 3))));
+      const bytes = new TextEncoder().encode(JSON.stringify(rows));
+      const digest = await crypto.subtle.digest('SHA-256', bytes);
+      return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
+    });
+  }
+
   async scanControls(): Promise<readonly BrowserControlSnapshot[]> {
+    await this.ensureEvaluationHelpers();
     return this.page.evaluate(() => {
       type Snapshot = {
         controlRef: string;

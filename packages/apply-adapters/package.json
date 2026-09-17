@@ -7,6 +7,7 @@
   "dependencies": {
     "@job-harness/apply-browser": "workspace:*",
     "@job-harness/apply-contracts": "workspace:*",
-    "@job-harness/apply-core": "workspace:*"
+    "@job-harness/apply-core": "workspace:*",
+    "zod": "^4.1.8"
   }
 }

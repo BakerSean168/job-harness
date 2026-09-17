@@ -1,4 +1,22 @@
 import {
+  AuthorizeSubmitInputSchema,
+  BeginSubmitInputSchema,
+  BeginSubmitOutputSchema,
+  CreateReviewSnapshotInputSchema,
+  ListReviewSnapshotsOutputSchema,
+  ListSubmitAuthorizationsOutputSchema,
+  ReportSubmitFailureInputSchema,
+  ReportSubmitSuccessInputSchema,
+  RevokeSubmitAuthorizationInputSchema,
+  ReviewSnapshotSchema,
+  SubmitAuthorizationSchema,
+  type AuthorizeSubmitInput,
+  type BeginSubmitInput,
+  type CreateReviewSnapshotInput,
+  type ReportSubmitFailureInput,
+  type ReportSubmitSuccessInput,
+} from '@job-harness/apply-contracts';
+import {
   AnalyticsSnapshotSchema,
   BeginDiscoveryOutputSchema,
   CompleteDiscoveryOutputSchema,
@@ -578,7 +596,7 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
         },
         async waiting(input: MarkExecutionAttemptWaitingInput) {
           return ExecutionAttemptSchema.parse(await request(`/execution-attempts/${encodeURIComponent(input.attemptId)}/waiting`, {
-            method: 'POST', body: JSON.stringify({ executorId: input.executorId, leaseToken: input.leaseToken, checkpoint: input.checkpoint, reasonCode: input.reasonCode, summary: input.summary, payload: input.payload }),
+            method: 'POST', body: JSON.stringify({ executorId: input.executorId, leaseToken: input.leaseToken, checkpoint: input.checkpoint, reasonCode: input.reasonCode, summary: input.summary, payload: input.payload, browserSessionHandoff: input.browserSessionHandoff }),
           }));
         },
         async resume(input: ResumeExecutionAttemptInput) {
@@ -603,6 +621,46 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
           const parsed = AuthorizeResumeArtifactInputSchema.parse(input);
           return ResumeArtifactGrantOutputSchema.parse(await request(`/execution-attempts/${encodeURIComponent(parsed.attemptId)}/resume-artifact`, {
             method: 'POST', body: JSON.stringify({ executorId: parsed.executorId, leaseToken: parsed.leaseToken }),
+          }));
+        },
+        async createReviewSnapshot(input: CreateReviewSnapshotInput) {
+          const parsed = CreateReviewSnapshotInputSchema.parse(input);
+          return ReviewSnapshotSchema.parse(await request(`/execution-attempts/${encodeURIComponent(parsed.attemptId)}/review-snapshots`, {
+            method: 'POST', body: JSON.stringify({ ...parsed, attemptId: undefined }),
+          }));
+        },
+        async listReviewSnapshots(attemptId: string, limit = 20) {
+          return ListReviewSnapshotsOutputSchema.parse(await request(`/execution-attempts/${encodeURIComponent(attemptId)}/review-snapshots?limit=${encodeURIComponent(String(limit))}`));
+        },
+        async authorizeSubmit(input: AuthorizeSubmitInput) {
+          const parsed = AuthorizeSubmitInputSchema.parse(input);
+          return SubmitAuthorizationSchema.parse(await request(`/execution-attempts/${encodeURIComponent(parsed.attemptId)}/submit-authorizations`, {
+            method: 'POST', body: JSON.stringify({ ...parsed, attemptId: undefined }),
+          }));
+        },
+        async listSubmitAuthorizations(attemptId: string, limit = 20) {
+          return ListSubmitAuthorizationsOutputSchema.parse(await request(`/execution-attempts/${encodeURIComponent(attemptId)}/submit-authorizations?limit=${encodeURIComponent(String(limit))}`));
+        },
+        async revokeSubmitAuthorization(input: { attemptId: string; authorizationId: string }) {
+          const parsed = RevokeSubmitAuthorizationInputSchema.parse(input);
+          return SubmitAuthorizationSchema.parse(await request(`/execution-attempts/${encodeURIComponent(parsed.attemptId)}/submit-authorizations/${encodeURIComponent(parsed.authorizationId)}/revoke`, { method: 'POST', body: '{}' }));
+        },
+        async beginSubmit(input: BeginSubmitInput) {
+          const parsed = BeginSubmitInputSchema.parse(input);
+          return BeginSubmitOutputSchema.parse(await request(`/execution-attempts/${encodeURIComponent(parsed.attemptId)}/begin-submit`, {
+            method: 'POST', body: JSON.stringify({ ...parsed, attemptId: undefined }),
+          }));
+        },
+        async reportSubmitSuccess(input: ReportSubmitSuccessInput) {
+          const parsed = ReportSubmitSuccessInputSchema.parse(input);
+          return ExecutionAttemptSchema.parse(await request(`/execution-attempts/${encodeURIComponent(parsed.attemptId)}/submit-success`, {
+            method: 'POST', body: JSON.stringify({ ...parsed, attemptId: undefined }),
+          }));
+        },
+        async reportSubmitFailure(input: ReportSubmitFailureInput) {
+          const parsed = ReportSubmitFailureInputSchema.parse(input);
+          return ExecutionAttemptSchema.parse(await request(`/execution-attempts/${encodeURIComponent(parsed.attemptId)}/submit-failure`, {
+            method: 'POST', body: JSON.stringify({ ...parsed, attemptId: undefined }),
           }));
         },
       },

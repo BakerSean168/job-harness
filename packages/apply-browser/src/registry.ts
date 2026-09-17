@@ -24,4 +24,9 @@ export class BrowserBackendRegistry {
   has(id: string): boolean { return this.backends.has(id); }
   ids(): string[] { return [...this.backends.keys()].sort(); }
   descriptors() { return this.ids().map((id) => this.backends.get(id)!.describe()); }
+
+  async reapExpired(now?: string): Promise<number> {
+    const counts = await Promise.all(this.ids().map((id) => this.backends.get(id)!.reapExpired(now)));
+    return counts.reduce((sum, count) => sum + count, 0);
+  }
 }

@@ -1,3 +1,5 @@
+import type { BrowserSessionHandoff } from '@job-harness/apply-contracts';
+
 export interface BrowserBackendDescriptor {
   readonly id: string;
   readonly kind: 'managed-remote' | 'local-cdp' | 'extension';
@@ -10,6 +12,11 @@ export interface BrowserSessionRequest {
   readonly preferredUrl?: string | null;
   readonly reuseLiveSession?: boolean;
 }
+
+export interface BrowserSessionRetentionRequest {
+  readonly expiresAt: string;
+}
+
 
 export interface BrowserUploadFile {
   readonly name: string;
@@ -55,6 +62,7 @@ export interface BrowserDriverPort {
   wait(milliseconds: number): Promise<void>;
   screenshot(): Promise<Uint8Array>;
   scanControls(): Promise<readonly BrowserControlSnapshot[]>;
+  formStateHash(): Promise<string>;
 }
 
 export interface BrowserSessionPort {
@@ -63,6 +71,7 @@ export interface BrowserSessionPort {
   readonly humanControlUrl: string | null;
   driver(): BrowserDriverPort;
   persist(): Promise<void>;
+  retainForHuman(request: BrowserSessionRetentionRequest): Promise<BrowserSessionHandoff>;
   release(): Promise<void>;
 }
 
@@ -71,4 +80,6 @@ export interface BrowserBackendPort {
   describe(): BrowserBackendDescriptor;
   health(): Promise<{ ok: boolean; detail: string | null }>;
   acquire(request?: BrowserSessionRequest): Promise<BrowserSessionPort>;
+  resume(handoff: BrowserSessionHandoff): Promise<BrowserSessionPort>;
+  reapExpired(now?: string): Promise<number>;
 }

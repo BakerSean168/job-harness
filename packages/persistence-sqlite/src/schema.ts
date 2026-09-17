@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 8;
+export const SQLITE_SCHEMA_VERSION = 10;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -390,6 +390,8 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
   migrateApplicationSubmissionsV6(db);
   migrateSubmissionIntentsV7(db);
   migrateApplyExecutionV8(db);
+  migrateApplySessionHandoffV9(db);
+  migrateApplySubmitSafetyV10(db);
 }
 
 const PERFORMANCE_INDEXES_SCHEMA_V4 = `
@@ -696,6 +698,80 @@ function migrateApplyExecutionV8(db: DatabaseSync): void {
   try {
     db.exec(APPLY_EXECUTION_SCHEMA_V8);
     db.exec('PRAGMA user_version = 8');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+
+function migrateApplySessionHandoffV9(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 9) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (!hasColumn(db, 'execution_attempts', 'browser_session_handoff_json')) {
+      db.exec("ALTER TABLE execution_attempts ADD COLUMN browser_session_handoff_json TEXT");
+    }
+    db.exec('PRAGMA user_version = 9');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+
+function migrateApplySubmitSafetyV10(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 10) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS execution_review_snapshots (
+        id TEXT PRIMARY KEY,
+        attempt_id TEXT NOT NULL REFERENCES execution_attempts(id) ON DELETE CASCADE,
+        bundle_hash TEXT NOT NULL,
+        browser_session_ref TEXT,
+        form_state_hash TEXT NOT NULL,
+        form_version TEXT NOT NULL,
+        catalog_version TEXT NOT NULL,
+        site_adapter_id TEXT NOT NULL,
+        site_adapter_version TEXT NOT NULL,
+        summary_json TEXT NOT NULL,
+        review_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(attempt_id, review_hash)
+      );
+      CREATE INDEX IF NOT EXISTS execution_review_snapshots_attempt_idx
+        ON execution_review_snapshots(attempt_id, created_at DESC, id);
+
+      CREATE TABLE IF NOT EXISTS submit_authorizations (
+        id TEXT PRIMARY KEY,
+        attempt_id TEXT NOT NULL REFERENCES execution_attempts(id) ON DELETE CASCADE,
+        review_snapshot_id TEXT NOT NULL REFERENCES execution_review_snapshots(id) ON DELETE CASCADE,
+        review_hash TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        status TEXT NOT NULL,
+        issued_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        consumed_at TEXT,
+        revoked_at TEXT,
+        idempotency_key TEXT NOT NULL,
+        request_hash TEXT NOT NULL,
+        UNIQUE(attempt_id, idempotency_key)
+      );
+      CREATE INDEX IF NOT EXISTS submit_authorizations_attempt_idx
+        ON submit_authorizations(attempt_id, issued_at DESC, id);
+      CREATE INDEX IF NOT EXISTS submit_authorizations_expiry_idx
+        ON submit_authorizations(status, expires_at);
+      CREATE UNIQUE INDEX IF NOT EXISTS submit_authorizations_one_active_per_attempt_idx
+        ON submit_authorizations(attempt_id) WHERE status = 'active';
+    `);
+    db.exec('PRAGMA user_version = 10');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

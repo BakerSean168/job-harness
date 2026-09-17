@@ -1,3 +1,13 @@
+import {
+  AuthorizeSubmitInputSchema,
+  BeginSubmitInputSchema,
+  CreateReviewSnapshotInputSchema,
+  ListReviewSnapshotsInputSchema,
+  ListSubmitAuthorizationsInputSchema,
+  ReportSubmitFailureInputSchema,
+  ReportSubmitSuccessInputSchema,
+  RevokeSubmitAuthorizationInputSchema,
+} from '@job-harness/apply-contracts';
 import type { Express, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import {
@@ -168,4 +178,29 @@ export function registerApplyApi(app: Express, apply: ApplyControlPlanePort, art
       bytesBase64: Buffer.from(content.bytes).toString('base64'),
     }));
   }));
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.executionAttemptReviewSnapshots, route(async (req, res) => {
+    res.json(await apply.attempts.listReviewSnapshots(ListReviewSnapshotsInputSchema.parse({ attemptId: pathId(req.params.attemptId), limit: Number(req.query.limit ?? 20) })));
+  }));
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.createExecutionAttemptReviewSnapshot, route(async (req, res) => {
+    res.status(201).json(await apply.attempts.createReviewSnapshot(CreateReviewSnapshotInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) })));
+  }));
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.executionAttemptSubmitAuthorizations, route(async (req, res) => {
+    res.json(await apply.attempts.listSubmitAuthorizations(ListSubmitAuthorizationsInputSchema.parse({ attemptId: pathId(req.params.attemptId), limit: Number(req.query.limit ?? 20) })));
+  }));
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.authorizeExecutionAttemptSubmit, route(async (req, res) => {
+    res.status(201).json(await apply.attempts.authorizeSubmit(AuthorizeSubmitInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) })));
+  }));
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.revokeExecutionAttemptSubmitAuthorization, route(async (req, res) => {
+    res.json(await apply.attempts.revokeSubmitAuthorization(RevokeSubmitAuthorizationInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId), authorizationId: pathId(req.params.authorizationId) })));
+  }));
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.beginExecutionAttemptSubmit, route(async (req, res) => {
+    res.json(await apply.attempts.beginSubmit(BeginSubmitInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) })));
+  }));
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.reportExecutionAttemptSubmitSuccess, route(async (req, res) => {
+    res.json(await apply.attempts.reportSubmitSuccess(ReportSubmitSuccessInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) })));
+  }));
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.reportExecutionAttemptSubmitFailure, route(async (req, res) => {
+    res.json(await apply.attempts.reportSubmitFailure(ReportSubmitFailureInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) })));
+  }));
+
 }

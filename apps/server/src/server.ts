@@ -118,6 +118,27 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     applyStore,
     createApplyBundleFactory(application, resumeStore),
     {
+      async beginExternal(input) {
+        await application.submissionIntents.begin({ intentId: input.intentId, occurredAt: input.occurredAt });
+      },
+      async confirmExternal(input) {
+        await application.submissionIntents.confirm({
+          intentId: input.intentId,
+          confirmedAt: input.confirmedAt,
+          appliedAt: input.appliedAt,
+          ...(input.externalReference !== undefined ? { externalReference: input.externalReference } : {}),
+          externalEvidence: input.evidence,
+        });
+      },
+      async failExternal(input) {
+        await application.submissionIntents.fail({
+          intentId: input.intentId,
+          occurredAt: input.occurredAt,
+          status: input.status,
+          error: input.error,
+          externalEvidence: input.evidence,
+        });
+      },
       async markManualReview(input) {
         await application.submissionIntents.fail({
           intentId: input.intentId,
@@ -162,7 +183,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     return path === `${API_PREFIX}/executors/register`
       || /^\/api\/v1\/executors\/[^/]+\/heartbeat$/.test(path)
       || path === `${API_PREFIX}/execution-attempts/claim`
-      || /^\/api\/v1\/execution-attempts\/[^/]+\/(heartbeat|start|waiting|complete|fail|resume-artifact)$/.test(path);
+      || /^\/api\/v1\/execution-attempts\/[^/]+\/(heartbeat|start|waiting|complete|fail|resume-artifact|review-snapshots|begin-submit|submit-success|submit-failure)$/.test(path);
   }
   app.use((req, res, next) => {
     const protectedPath = req.path === '/mcp' || req.path.startsWith(`${API_PREFIX}/`);

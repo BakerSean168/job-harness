@@ -84,6 +84,7 @@ function fakeBackend(log: string[], options: { healthy?: boolean; failNavigate?:
     async wait() {},
     async screenshot() { return new Uint8Array(); },
     async scanControls() { return []; },
+    async formStateHash() { return 'a'.repeat(64); },
   };
   const session: BrowserSessionPort = {
     backendId: 'fake',
@@ -111,6 +112,10 @@ function fakeClient(claimed: ExecutionAttempt | null, log: string[]): ApplyWorke
       async claim() { log.push('claim'); return claimed ? { attempt: claimed, leaseToken: `lease-${'x'.repeat(40)}` } : null; },
       async start(input) { log.push(`start:${input.adapterId}:${input.browserBackend}`); return { ...claimed!, state: 'running' }; },
       async heartbeat() { log.push('attempt-heartbeat'); return claimed!; },
+      async createReviewSnapshot() { return { id: 'review-1', reviewHash: 'c'.repeat(64) }; },
+      async beginSubmit() { throw new Error('not used'); },
+      async reportSubmitSuccess() { throw new Error('not used'); },
+      async reportSubmitFailure() { throw new Error('not used'); },
       async waiting(input) { log.push(`waiting:${input.reasonCode}`); return { ...claimed!, state: 'waiting_for_user' }; },
       async complete(input) { log.push(`complete:${String(input.payload?.readinessOnly)}`); return { ...claimed!, state: 'completed' }; },
       async fail(input) { log.push(`fail:${input.errorCode}:${input.externalEffectState}`); return { ...claimed!, state: 'failed' }; },

@@ -26,16 +26,25 @@ importers:
 
   apps/apply-worker:
     dependencies:
+      '@job-harness/apply-adapters':
+        specifier: workspace:*
+        version: link:../../packages/apply-adapters
       '@job-harness/apply-browser':
         specifier: workspace:*
         version: link:../../packages/apply-browser
       '@job-harness/apply-contracts':
         specifier: workspace:*
         version: link:../../packages/apply-contracts
+      '@job-harness/apply-core':
+        specifier: workspace:*
+        version: link:../../packages/apply-core
       '@job-harness/client':
         specifier: workspace:*
         version: link:../../packages/client
     devDependencies:
+      playwright:
+        specifier: 1.55.0
+        version: 1.55.0
       tsx:
         specifier: ^4.20.5
         version: 4.23.13
@@ -167,9 +176,15 @@ importers:
       '@job-harness/apply-core':
         specifier: workspace:*
         version: link:../apply-core
+      zod:
+        specifier: ^4.1.8
+        version: 4.6.5
 
   packages/apply-browser:
     dependencies:
+      '@job-harness/apply-contracts':
+        specifier: workspace:*
+        version: link:../apply-contracts
       playwright:
         specifier: 1.55.0
         version: 1.55.0

@@ -29,7 +29,7 @@ describe('SQLite v8 Apply Executor control-plane migration', () => {
 
     const verify = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      expect(verify.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 });
+      expect(verify.prepare('PRAGMA user_version').get()).toEqual({ user_version: 10 });
       for (const table of ['executor_registrations', 'execution_attempts', 'execution_events']) {
         expect(verify.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(table)).toEqual({ name: table });
       }

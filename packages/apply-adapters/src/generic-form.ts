@@ -8,6 +8,7 @@ import {
 import { inferFieldSensitivity, normalizeFieldText } from '@job-harness/apply-core';
 import type { BrowserControlSnapshot, BrowserDriverPort } from '@job-harness/apply-browser';
 import type { ApplicantDataProviderPort } from './applicant-data';
+import type { ApplyFillAssets } from './site-adapter';
 
 export interface GenericFormSnapshotInput {
   readonly url: string;
@@ -74,8 +75,10 @@ export async function fillGenericForm(
   form: FormIR,
   plan: FillPlan,
   applicant: ApplicantDataProviderPort,
+  assets: ApplyFillAssets = {},
 ) {
-  const values = await applicant.resolve(plan.instructions.map((instruction) => instruction.applicantKey));
+  const nonFileKeys = plan.instructions.filter((instruction) => instruction.method !== 'attach_file').map((instruction) => instruction.applicantKey);
+  const values = await applicant.resolve(nonFileKeys);
   if (values.catalogVersion !== plan.catalogVersion) throw new Error(`Applicant catalog changed: plan=${plan.catalogVersion}, resolved=${values.catalogVersion}`);
   const byKey = new Map(values.values.map((value) => [value.key, value]));
   const fields = new Map(form.fields.map((field) => [field.id, field]));
@@ -83,9 +86,26 @@ export async function fillGenericForm(
 
   for (const instruction of plan.instructions) {
     const field = fields.get(instruction.fieldId);
+    if (!field) {
+      results.push({ fieldId: instruction.fieldId, applicantKey: instruction.applicantKey, status: 'manual', method: instruction.method, detail: 'missing_form_field' });
+      continue;
+    }
+    if (instruction.method === 'attach_file') {
+      try {
+        if (instruction.applicantKey !== 'documents.resume' || !assets.resumeFile) {
+          results.push({ fieldId: field.id, applicantKey: instruction.applicantKey, status: 'manual', method: instruction.method, detail: 'immutable_artifact_grant_required' });
+          continue;
+        }
+        await browser.upload(field.controlRef, assets.resumeFile);
+        results.push({ fieldId: field.id, applicantKey: instruction.applicantKey, status: 'filled', method: instruction.method, detail: null });
+      } catch {
+        results.push({ fieldId: field.id, applicantKey: instruction.applicantKey, status: 'failed', method: instruction.method, detail: 'browser_upload_failed' });
+      }
+      continue;
+    }
     const resolved = byKey.get(instruction.applicantKey);
-    if (!field || !resolved) {
-      results.push({ fieldId: instruction.fieldId, applicantKey: instruction.applicantKey, status: 'manual', method: instruction.method, detail: 'missing_field_or_literal_value' });
+    if (!resolved) {
+      results.push({ fieldId: instruction.fieldId, applicantKey: instruction.applicantKey, status: 'manual', method: instruction.method, detail: 'missing_literal_value' });
       continue;
     }
     if (!resolved.literal) {
@@ -93,10 +113,6 @@ export async function fillGenericForm(
       continue;
     }
     try {
-      if (instruction.method === 'attach_file') {
-        results.push({ fieldId: field.id, applicantKey: resolved.key, status: 'manual', method: instruction.method, detail: 'immutable_artifact_grant_required' });
-        continue;
-      }
       if (instruction.method === 'set_checked') {
         if (typeof resolved.value !== 'boolean') {
           results.push({ fieldId: field.id, applicantKey: resolved.key, status: 'manual', method: instruction.method, detail: 'boolean_value_required' });

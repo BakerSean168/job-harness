@@ -399,3 +399,20 @@ button { color: inherit; }
 .executor-boundary-note { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
 @media (max-width: 900px) { .executor-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .executor-summary-grid { grid-template-columns: 1fr; } .executor-card dl > div { grid-template-columns: 1fr; gap: 2px; } }
+.executor-checkpoint { display: grid; gap: 3px; min-width: 140px; }
+.executor-checkpoint small { color: var(--text-muted); font-size: 11px; }
+.executor-attempt-detail { display: grid; gap: 18px; }
+.executor-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.executor-detail-grid > div { display: grid; gap: 4px; min-width: 0; }
+.executor-detail-grid span, .muted-copy { color: var(--text-muted); font-size: 12px; }
+.executor-detail-grid code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.executor-review-card { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
+.executor-review-card h2 { margin: 0; font-size: 16px; }
+.executor-review-actions, .executor-authorization-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.executor-review-actions form { margin: 0; }
+.executor-evidence-line { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; }
+.executor-evidence-line span { color: var(--text-muted); font-size: 12px; }
+.executor-event-list { margin: 0; padding-left: 22px; display: grid; gap: 8px; }
+.executor-event-list li { display: grid; grid-template-columns: 48px minmax(150px, 1fr) minmax(120px, 1fr) auto; gap: 10px; align-items: baseline; }
+.executor-event-list span, .executor-event-list time { color: var(--text-muted); font-size: 12px; }
+@media (max-width: 720px) { .executor-event-list li { grid-template-columns: 44px 1fr; } .executor-event-list li span, .executor-event-list li time { grid-column: 2; } }

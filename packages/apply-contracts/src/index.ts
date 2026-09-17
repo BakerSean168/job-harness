@@ -119,6 +119,18 @@ export const ApplyBundleSchema = z.object({
   createdAt: ApplyIsoDateTimeSchema,
 }).strict();
 
+export const BrowserSessionHandoffSchema = z.object({
+  backendId: z.string().trim().min(1).max(100),
+  sessionRef: z.string().trim().min(1).max(500),
+  humanControlUrl: z.url().nullable().default(null),
+  retainedAt: ApplyIsoDateTimeSchema,
+  expiresAt: ApplyIsoDateTimeSchema,
+}).strict().superRefine((value, ctx) => {
+  if (value.expiresAt <= value.retainedAt) {
+    ctx.addIssue({ code: 'custom', path: ['expiresAt'], message: 'browser session handoff must expire after retainedAt' });
+  }
+});
+
 export const ExecutionAttemptSchema = z.object({
   id: ApplyEntityIdSchema,
   intentId: ApplyEntityIdSchema,
@@ -128,6 +140,7 @@ export const ExecutionAttemptSchema = z.object({
   adapterVersion: z.string().trim().min(1).max(100).nullable(),
   preferredBrowserBackend: z.string().trim().min(1).max(100).nullable(),
   browserBackend: z.string().trim().min(1).max(100).nullable(),
+  browserSessionHandoff: BrowserSessionHandoffSchema.nullable().default(null),
   executionMode: ExecutionModeSchema,
   state: ExecutionAttemptStateSchema,
   leaseOwner: ApplyEntityIdSchema.nullable(),
@@ -237,6 +250,7 @@ export const MarkExecutionAttemptWaitingInputSchema = AttemptLeaseInputSchema.ex
   reasonCode: z.string().trim().min(1).max(100),
   summary: z.string().trim().min(1).max(1000),
   payload: z.record(z.string(), z.unknown()).default({}),
+  browserSessionHandoff: BrowserSessionHandoffSchema.nullable().optional(),
 }).strict();
 
 export const ResumeExecutionAttemptInputSchema = z.object({
@@ -270,6 +284,7 @@ export type ExecutorCapabilities = z.infer<typeof ExecutorCapabilitiesSchema>;
 export type ExecutorDescriptor = z.infer<typeof ExecutorDescriptorSchema>;
 export type ExecutorRegistration = z.infer<typeof ExecutorRegistrationSchema>;
 export type ApplyBundle = z.infer<typeof ApplyBundleSchema>;
+export type BrowserSessionHandoff = z.infer<typeof BrowserSessionHandoffSchema>;
 export type ExecutionAttempt = z.infer<typeof ExecutionAttemptSchema>;
 export type ExecutionEvent = z.infer<typeof ExecutionEventSchema>;
 export type ExecutionAttemptDetail = z.infer<typeof ExecutionAttemptDetailSchema>;
@@ -290,3 +305,4 @@ export type CompleteExecutionAttemptInput = z.input<typeof CompleteExecutionAtte
 export type FailExecutionAttemptInput = z.input<typeof FailExecutionAttemptInputSchema>;
 export type CancelExecutionAttemptInput = z.input<typeof CancelExecutionAttemptInputSchema>;
 export * from './form';
+export * from './submit-safety';

@@ -7,6 +7,8 @@ function fake(id: string): BrowserBackendPort {
     describe: () => ({ id, kind: 'extension', persistentSession: false, humanControl: true, metadata: {} }),
     health: async () => ({ ok: true, detail: null }),
     async acquire() { throw new Error('not used'); },
+    async resume() { throw new Error('not used'); },
+    async reapExpired() { return 0; },
   };
 }
 

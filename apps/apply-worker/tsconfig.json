@@ -5,10 +5,24 @@
     "rootDir": "src",
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
   "references": [
-    { "path": "../../packages/apply-browser" },
-    { "path": "../../packages/apply-contracts" },
-    { "path": "../../packages/client" }
+    {
+      "path": "../../packages/apply-browser"
+    },
+    {
+      "path": "../../packages/apply-contracts"
+    },
+    {
+      "path": "../../packages/client"
+    },
+    {
+      "path": "../../packages/apply-adapters"
+    },
+    {
+      "path": "../../packages/apply-core"
+    }
   ]
 }

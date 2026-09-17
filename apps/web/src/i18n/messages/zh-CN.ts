@@ -83,7 +83,8 @@ export const zhCN: MessageCatalog = {
   executorsWorkspace: {
     summary: { registered: '执行器', ready: '可用', active: '执行中', waiting: '等待人工', uncertain: '结果不确定' },
     executors: { title: '执行器', empty: '还没有执行器注册。R019 worker 接入后会在这里显示。', status: '状态', backends: '浏览器后端', adapters: '适配器', modes: '执行模式', heartbeat: '最近心跳', concurrency: '并发' },
-    attempts: { title: '执行尝试', empty: '暂无 ExecutionAttempt。只有已准备的 SubmissionIntent 被显式派发后才会进入这里。', target: '岗位', state: '状态', mode: '模式', executor: '执行器', adapter: '适配器', backend: '浏览器', checkpoint: '检查点', effect: '外部副作用', created: '创建时间' },
+    attempts: { title: '执行尝试', empty: '暂无 ExecutionAttempt。只有已准备的 SubmissionIntent 被显式派发后才会进入这里。', target: '岗位', state: '状态', mode: '模式', executor: '执行器', adapter: '适配器', backend: '浏览器', checkpoint: '检查点', effect: '外部副作用', created: '创建时间', openBrowser: '打开浏览器', handoffExpires: '接管有效至' },
+    detail: { back: '返回执行器', overview: '执行概览', review: '人工审核快照', authorizations: '提交授权', events: '执行事件', noReview: '尚未生成 ReviewSnapshot。执行器完成安全字段填写后会停在这里等待审核。', noAuthorization: '当前没有提交授权。', reviewReady: '可以授权提交', reviewBlocked: '仍有阻塞项，不能授权提交', authorize: '授权本次提交（5 分钟）', resumeAuthorized: '继续已授权执行', revoke: '撤销授权', authorizationExpires: '授权有效至', oneTimeWarning: '授权只绑定当前浏览器会话与精确表单哈希；审核后任何字段变化都会使授权失效。真正点击招聘网站提交前，Worker 还必须再次校验。', formHash: '表单哈希', reviewHash: '审核哈希', fieldSummary: '字段摘要', resumeEvidence: '冻结简历证据', noResume: '本次执行未绑定 PDF Resume Artifact', handoff: '人工接管' },
     states: { queued: '排队', claimed: '已领取', running: '执行中', waiting_for_user: '等待人工', completed: '已完成', failed: '失败', cancelled: '已取消', abandoned: '已放弃' },
     executorStatuses: { ready: '可用', busy: '忙碌', degraded: '降级', login_required: '需要登录', human_action_required: '需要人工', offline: '离线' },
     modes: { fill_only: '仅填写', review_then_submit: '审核后提交', auto_submit: '自动提交' },

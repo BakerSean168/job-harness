@@ -1,3 +1,16 @@
+import {
+  AuthorizeSubmitInputSchema,
+  BeginSubmitInputSchema,
+  BeginSubmitOutputSchema,
+  CreateReviewSnapshotInputSchema,
+  ListReviewSnapshotsOutputSchema,
+  ListSubmitAuthorizationsOutputSchema,
+  ReportSubmitFailureInputSchema,
+  ReportSubmitSuccessInputSchema,
+  RevokeSubmitAuthorizationInputSchema,
+  ReviewSnapshotSchema,
+  SubmitAuthorizationSchema,
+} from '@job-harness/apply-contracts';
 import { z, type ZodType } from 'zod';
 import {
   BeginDiscoveryInputSchema,
@@ -141,6 +154,12 @@ export const CompleteExecutionAttemptBodySchema = CompleteExecutionAttemptInputS
 export const FailExecutionAttemptBodySchema = FailExecutionAttemptInputSchema.omit({ attemptId: true });
 export const CancelExecutionAttemptBodySchema = CancelExecutionAttemptInputSchema.omit({ attemptId: true });
 export const AuthorizeResumeArtifactBodySchema = AuthorizeResumeArtifactInputSchema.omit({ attemptId: true });
+export const CreateReviewSnapshotBodySchema = CreateReviewSnapshotInputSchema.omit({ attemptId: true });
+export const AuthorizeSubmitBodySchema = AuthorizeSubmitInputSchema.omit({ attemptId: true });
+export const RevokeSubmitAuthorizationBodySchema = RevokeSubmitAuthorizationInputSchema.omit({ attemptId: true, authorizationId: true });
+export const BeginSubmitBodySchema = BeginSubmitInputSchema.omit({ attemptId: true });
+export const ReportSubmitSuccessBodySchema = ReportSubmitSuccessInputSchema.omit({ attemptId: true });
+export const ReportSubmitFailureBodySchema = ReportSubmitFailureInputSchema.omit({ attemptId: true });
 
 export const RestErrorEnvelopeSchema = z.object({
   error: z.object({
@@ -190,6 +209,14 @@ export const JOB_HARNESS_REST_V1_ROUTES = {
   failExecutionAttempt: route({ operationId: 'failExecutionAttempt', method: 'post', path: '/execution-attempts/:attemptId/fail', tags: ['Apply Executors'], summary: 'Fail a leased attempt with explicit external-effect certainty', paramsSchema: IdParam('attemptId'), bodySchema: FailExecutionAttemptBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
   cancelExecutionAttempt: route({ operationId: 'cancelExecutionAttempt', method: 'post', path: '/execution-attempts/:attemptId/cancel', tags: ['Apply Executors'], summary: 'Cancel only before the irreversible external-effect boundary', paramsSchema: IdParam('attemptId'), bodySchema: CancelExecutionAttemptBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
   executionAttemptResumeArtifact: route({ operationId: 'getExecutionAttemptResumeArtifact', method: 'post', path: '/execution-attempts/:attemptId/resume-artifact', tags: ['Apply Executors'], summary: 'Fetch the frozen PDF Resume Artifact bound to a valid worker lease', paramsSchema: IdParam('attemptId'), bodySchema: AuthorizeResumeArtifactBodySchema, responseSchema: ResumeArtifactGrantOutputSchema, successStatus: 200 }),
+  executionAttemptReviewSnapshots: route({ operationId: 'listExecutionAttemptReviewSnapshots', method: 'get', path: '/execution-attempts/:attemptId/review-snapshots', tags: ['Apply Executors'], summary: 'List redacted review snapshots for an execution attempt', paramsSchema: IdParam('attemptId'), responseSchema: ListReviewSnapshotsOutputSchema, successStatus: 200 }),
+  createExecutionAttemptReviewSnapshot: route({ operationId: 'createExecutionAttemptReviewSnapshot', method: 'post', path: '/execution-attempts/:attemptId/review-snapshots', tags: ['Apply Executors'], summary: 'Persist a redacted review snapshot under the current worker lease', paramsSchema: IdParam('attemptId'), bodySchema: CreateReviewSnapshotBodySchema, responseSchema: ReviewSnapshotSchema, successStatus: 201 }),
+  executionAttemptSubmitAuthorizations: route({ operationId: 'listExecutionAttemptSubmitAuthorizations', method: 'get', path: '/execution-attempts/:attemptId/submit-authorizations', tags: ['Apply Executors'], summary: 'List submit authorizations for an execution attempt', paramsSchema: IdParam('attemptId'), responseSchema: ListSubmitAuthorizationsOutputSchema, successStatus: 200 }),
+  authorizeExecutionAttemptSubmit: route({ operationId: 'authorizeExecutionAttemptSubmit', method: 'post', path: '/execution-attempts/:attemptId/submit-authorizations', tags: ['Apply Executors'], summary: 'Authorize a short-lived submit for a reviewed immutable form-state hash', paramsSchema: IdParam('attemptId'), bodySchema: AuthorizeSubmitBodySchema, responseSchema: SubmitAuthorizationSchema, successStatus: 201 }),
+  revokeExecutionAttemptSubmitAuthorization: route({ operationId: 'revokeExecutionAttemptSubmitAuthorization', method: 'post', path: '/execution-attempts/:attemptId/submit-authorizations/:authorizationId/revoke', tags: ['Apply Executors'], summary: 'Revoke an active submit authorization', paramsSchema: z.object({ attemptId: EntityIdSchema, authorizationId: EntityIdSchema }).strict(), bodySchema: RevokeSubmitAuthorizationBodySchema, responseSchema: SubmitAuthorizationSchema, successStatus: 200 }),
+  beginExecutionAttemptSubmit: route({ operationId: 'beginExecutionAttemptSubmit', method: 'post', path: '/execution-attempts/:attemptId/begin-submit', tags: ['Apply Executors'], summary: 'Consume authorization and durably cross the external-effect boundary before the site click', paramsSchema: IdParam('attemptId'), bodySchema: BeginSubmitBodySchema, responseSchema: BeginSubmitOutputSchema, successStatus: 200 }),
+  reportExecutionAttemptSubmitSuccess: route({ operationId: 'reportExecutionAttemptSubmitSuccess', method: 'post', path: '/execution-attempts/:attemptId/submit-success', tags: ['Apply Executors'], summary: 'Record exact external submit success and reconcile SubmissionIntent', paramsSchema: IdParam('attemptId'), bodySchema: ReportSubmitSuccessBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
+  reportExecutionAttemptSubmitFailure: route({ operationId: 'reportExecutionAttemptSubmitFailure', method: 'post', path: '/execution-attempts/:attemptId/submit-failure', tags: ['Apply Executors'], summary: 'Record definite external failure or uncertain post-submit outcome', paramsSchema: IdParam('attemptId'), bodySchema: ReportSubmitFailureBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
   campaigns: route({ operationId: 'listCampaigns', method: 'get', path: '/campaigns', tags: ['Campaigns'], summary: 'List job-search campaigns', querySchema: ListCampaignsInputSchema, responseSchema: ListCampaignsOutputSchema, successStatus: 200 }),
   campaignDetail: route({ operationId: 'getCampaign', method: 'get', path: '/campaigns/:campaignId', tags: ['Campaigns'], summary: 'Read one job-search campaign', paramsSchema: IdParam('campaignId'), responseSchema: UpsertCampaignOutputSchema, successStatus: 200 }),
   upsertCampaign: route({ operationId: 'upsertCampaign', method: 'put', path: '/campaigns/:campaignId', tags: ['Campaigns'], summary: 'Create or update a job-search campaign', paramsSchema: IdParam('campaignId'), bodySchema: UpsertCampaignBodySchema, responseSchema: UpsertCampaignOutputSchema, successStatus: 200 }),
