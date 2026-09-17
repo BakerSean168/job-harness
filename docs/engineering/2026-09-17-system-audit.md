@@ -288,3 +288,89 @@ ResumeRevision, ApplicantProfileRevision and ApplicationAnswerSetRevision are tr
 This matters directly to Apply Executor safety because an execution freezes revision ids/hashes and later resolves actual applicant/Resume values from those revision snapshots. The read adapter must not silently trust a stale or corrupted immutable payload.
 
 **Required change:** add cross-field revision invariants to contracts and verify canonical content hashes when immutable Resume/Applicant revisions are loaded from SQLite. Add tamper tests proving corrupted snapshot JSON is rejected before it can become execution data.
+
+## 14. Implementation evidence — audit remediation
+
+The audit was deliberately written before remediation. The following changes were then implemented on `refactor/jh-engineering-guardrails-audit` without enabling a live recruiting-site submit path.
+
+### 14.1 Frozen ownership and Applicant correctness
+
+**A1 / A5 / A6 / A7 / A12 — fixed.** Public ExecutionAttempt dispatch no longer accepts caller-provided applicant/AnswerSet snapshot versions or hashes. `ApplyBundleFactory` derives them only from durable immutable revisions. A single `applicantSnapshotVersion()` helper now owns the canonical profile -> Resume -> AnswerSet evidence ordering for both bundle creation and lease-scoped resolution.
+
+This change surfaced a real latent mismatch: the former bundle and grant code built the same catalog digest in different evidence orders when more than one source was present. The grant now asserts the recomputed snapshot identity equals the frozen bundle identity, so a composition-order drift becomes a hard conflict rather than an invisible disagreement.
+
+`ApplicationAnswerEntry` now rejects value/type mismatches (for example a string stored under `boolean`), validates email/URL literals, and requires site scope to be an already-canonical lower-case bare hostname. The settings UI parses finite unions through runtime schemas, coerces literal shape when the answer type changes, and normalizes the host draft before persistence.
+
+`ApplyBundleSchema` also asserts that immutable evidence travels atomically: Applicant profile revision id/hash together, complete AnswerSet revision/version/hash together, and Resume Artifact revision equality. The bundle factory now consumes a narrow `ResumeApplyEvidenceReader` port rather than naming `SqliteResumeStore`.
+
+Regression evidence includes new Applicant contract and ApplyBundle invariant suites plus an integration assertion that the lease-scoped catalog version is exactly the frozen bundle value.
+
+### 14.2 Runtime trust and transport reliability
+
+**A2 / A3 / A8 / A9 / A10 / A16 / A18 — fixed.** The Steel adapter no longer uses generic `requestJson<T>` assertions. Health, session lists/records and context payloads are decoded through explicit runtime schemas. Steel HTTP requests have a bounded default deadline, and malformed provider JSON is rejected at the provider boundary.
+
+Persisted Steel context and retained-session registries now distinguish a missing file from corruption. `ENOENT` means no saved state; malformed or unreadable durable state is an operational failure instead of silently becoming an empty context/registry.
+
+The shared Job Harness REST client has a bounded default request deadline and combines it with a caller-provided cancellation signal. Successful operation payloads still use operation-specific schemas; error payloads now use the canonical `RestErrorEnvelopeSchema` rather than an unchecked cast. Server feature routers share one common envelope/Zod/internal-error writer while retaining local domain-error-to-status mapping.
+
+The MV3 Browser Bridge now bounds register/result requests to 15 seconds and long-poll requests to 30 seconds. It validates command agent, expiry and enabled command capability before page execution. Most importantly, page-driver response unwrapping was moved **outside** the one-time content-script delivery retry boundary. A page action accepted by the page driver is never replayed merely because that action reports an application error. A behavioral VM test proves one accepted error produces one send, while a missing receiver may retry delivery once.
+
+### 14.3 Dependency direction and TypeScript ratchets
+
+**A11 / A13 / high-value A14 / A15 — fixed for the audited surface.** `check-boundaries.mjs` now protects the new Applicant contracts/application packages in addition to Apply boundaries. The TypeScript base config globally enables:
+
+- `noImplicitReturns`
+- `noFallthroughCasesInSwitch`
+- `noUncheckedSideEffectImports`
+
+All workspaces passed these flags before they were made mandatory. Application-stage and Resume-header mutation selects now parse through runtime schemas instead of unchecked finite-union casts. The Browser Bridge has explicit local command-envelope validation in addition to its server-side HMAC-agent/ExecutionAttempt-lease/policy authorization.
+
+### 14.4 Immutable evidence integrity
+
+**A20 — fixed.** ResumeRevision, ApplicantProfileRevision and ApplicationAnswerSetRevision contracts now assert envelope/snapshot ids and versions agree. SQLite read adapters recompute the canonical content hash before returning immutable revisions. Raw SQLite tamper tests modify snapshot JSON while leaving the stored hash unchanged and prove reads fail before corrupted evidence can reach the Apply pipeline.
+
+Before production deployment, the new read path was also run against the existing production database without exposing candidate values: **9 Resume Revisions + 1 ApplicantProfile Revision + 1 AnswerSet Revision all passed semantic hash verification**.
+
+### 14.5 Startup configuration
+
+**A19 — fixed.** Server, Apply Worker and Resume Renderer now have explicit runtime-config parsers. Ports/intervals use strict digit-only parsing instead of permissive `parseInt`; worker booleans accept only explicit `true`/`false`; URLs/origins are validated at startup; public server/renderer binds require their corresponding authentication tokens.
+
+The worker additionally enforces operational cross-field constraints at startup: lease duration must remain inside the control-plane 30..300 second contract, attempt heartbeat must be shorter than its lease, executor heartbeat must remain below the server stale window, and extension command timeout must stay within the browser bridge contract.
+
+### 14.6 Intentionally retained/deferred items
+
+**A4 — retained as an infrastructure boundary with executable guards.** Generic JSON decoding remains inside selected SQLite/import adapters, but immutable/high-value rows are runtime-decoded before leaving persistence and now have semantic hash checks where they represent frozen evidence. It is not being replaced by a speculative generic serialization framework.
+
+**A17 — intentionally deferred.** CI/prod do not yet promote one signed immutable image digest end to end. The current single-user self-hosted deployment records source/runtime revisions, builds from a pinned clean revision and performs production backups/health checks. Build-once digest promotion becomes worthwhile if Job Harness becomes shared/multi-user infrastructure; it is not required to unlock the current supervised personal workflow.
+
+## 15. Post-remediation objective verification
+
+Repository gate after remediation:
+
+- `pnpm check`: **PASS**
+- Vitest: **85 test files / 181 tests PASS**
+- TypeScript with the new strict ratchets: **PASS**
+- package boundary guard: **PASS**
+- Browser Extension static/authority gate: **PASS**
+- OpenAPI no-drift: **PASS**
+- Next.js production build: **PASS**
+- ChatGPT integration gate: **32 tools / 18 required workflow tools / 0 external-side-effect tools**
+
+Synthetic supervised-submit proof also remains green after the changes: five safe fields filled, legal field left blank, exact PDF filename preserved, review-hash drift detected, and exactly **one** synthetic submit with one success reference. This remains synthetic evidence; it is not evidence that a live recruiting-site submit adapter is production-ready.
+
+### Final audit position
+
+No P0 defect was found. The P1 issues discovered by this review have been remediated in code and tests before any real submit-capable production adapter is enabled. The architecture remains appropriately separated:
+
+```text
+Career / Resume / Applicant truth
+        -> SubmissionIntent
+        -> immutable ApplyBundle evidence
+        -> ExecutionAttempt lease/control plane
+        -> BrowserBackend + SiteAdapter
+        -> ReviewSnapshot
+        -> explicit short-lived SubmitAuthorization
+        -> one external-effect boundary
+```
+
+The principal remaining validation risk is now **site-specific behavior**, not a missing generic control-plane safety boundary. R019 should therefore continue with real-site pre-submit canaries and one explicitly user-authorized live submit canary rather than more generic framework expansion.
