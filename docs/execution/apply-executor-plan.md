@@ -196,3 +196,13 @@ Convergence is complete when:
 - the old central ledger is no longer read by ChatGPT automation or the browser executor;
 - the Apply Executor can consume a Job Harness SubmissionIntent and report external evidence back without direct SQLite access;
 - Job Harness remains the sole durable Career truth after restart and backup/restore.
+
+## 8. R018 production evidence — 2026-09-17
+
+R018 is complete. The read-only source fingerprint was `185a57cff05ad6bdd5633bac016211db329e96a2eda1029fca4926442368218f` and contained **21 Jobs / 5 DiscoveryRuns / 22 DiscoveryEvents / 2 company-only application rows / 2 legacy company locks**.
+
+A production-shaped dry run first proved **11 inserts / 11 metadata updates across 22 observations / 0 rejects**, with 9 event-level adoptions anchored to already-existing Jobs and source evidence. The import recorded historical aliases including `语核科技 -> 语核科技 / LangCore`, `MazeAI -> MazeAI / 深圳万有引路科技有限公司`, `光启无界 -> Lumicross / 光启无界`, and `涌生智能 -> 涌生智能 Genoria（深圳华大涌生智能科技有限公司）` so future duplicate checks can resolve those names.
+
+Before production mutation, `oracle2-runtime-backup-v6` uploaded `oracle2-agent-20260917T090140Z.tar.gz`; backup verification passed schema v7, all 5 compatibility Resume artifacts and all 13 first-class Revision artifacts. Production import then moved Job Harness from **104 -> 115 Jobs**, kept **41 Applications / 41 ApplicationSubmissions** unchanged, moved DiscoveryRuns **3 -> 8**, and created 4 Company aliases. DeepSeek's lossy company-only row was covered by one existing concrete Application; Tencent's was covered by two existing concrete Applications. No placeholder Application or duplicate submission was created.
+
+The exact second import was a no-op at the durable workflow level: all 5 imported DiscoveryRuns were returned as already completed and Job/Application counts remained unchanged. `PRAGMA integrity_check = ok`, foreign-key check returned no rows, MCP stayed at 32 tools and reported **115 known Jobs / 41 Applications / 0 SubmissionIntents / 5 Resume Profiles**. Secure MCP Tunnel health and control-plane polling remained green.
