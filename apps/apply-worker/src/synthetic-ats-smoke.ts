@@ -47,12 +47,13 @@ class SyntheticAtsAdapter implements ApplySiteAdapter {
     return this.generic.fill(browser, form, plan, applicant, assets);
   }
 
-  validate(
+  async validate(
     form: Parameters<ApplySiteAdapter['validate']>[0],
     plan: Parameters<ApplySiteAdapter['validate']>[1],
     fillReport?: Parameters<ApplySiteAdapter['validate']>[2],
   ) {
-    return this.generic.validate(form, plan, fillReport);
+    const result = await this.generic.validate(form, plan, fillReport);
+    return { ...result, readyForSubmit: result.readyForReview };
   }
 
   async submit(browser: Parameters<NonNullable<ApplySiteAdapter['submit']>>[0]) {

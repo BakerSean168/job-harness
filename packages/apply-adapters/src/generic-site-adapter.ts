@@ -45,6 +45,13 @@ export class GenericAtsSiteAdapter implements ApplySiteAdapter {
         issues.push({ code: 'required_field_manual', severity: 'blocking', fieldId: result.fieldId, summary: result.detail ?? 'manual_review_required' });
       }
     }
-    return { readyForReview: !issues.some((issue) => issue.severity === 'blocking'), issues };
+    return {
+      readyForReview: !issues.some((issue) => issue.severity === 'blocking'),
+      // The generic fallback can inspect/fill arbitrary forms, but it has no
+      // site-specific submit semantics or confirmation proof. Human review is
+      // allowed; submit authorization must remain impossible.
+      readyForSubmit: false,
+      issues,
+    };
   }
 }

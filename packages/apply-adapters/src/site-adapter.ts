@@ -43,6 +43,7 @@ export interface ApplyValidationIssue {
 
 export interface ApplyValidationReport {
   readonly readyForReview: boolean;
+  readonly readyForSubmit: boolean;
   readonly issues: readonly ApplyValidationIssue[];
 }
 

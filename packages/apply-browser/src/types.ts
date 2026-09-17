@@ -31,6 +31,17 @@ export interface BrowserControlOption {
   readonly disabled: boolean;
 }
 
+export interface BrowserActionSnapshot {
+  readonly actionRef: string;
+  readonly tag: 'a' | 'button' | 'other';
+  readonly text: string;
+  readonly href: string | null;
+  readonly type: string | null;
+  readonly role: string | null;
+  readonly disabled: boolean;
+  readonly ariaDisabled: boolean;
+}
+
 export interface BrowserControlSnapshot {
   readonly controlRef: string;
   readonly kind: 'text' | 'textarea' | 'email' | 'tel' | 'url' | 'number' | 'date' | 'select' | 'radio' | 'checkbox' | 'file' | 'unknown';
@@ -62,6 +73,7 @@ export interface BrowserDriverPort {
   wait(milliseconds: number): Promise<void>;
   screenshot(): Promise<Uint8Array>;
   scanControls(): Promise<readonly BrowserControlSnapshot[]>;
+  scanActions(): Promise<readonly BrowserActionSnapshot[]>;
   formStateHash(): Promise<string>;
 }
 

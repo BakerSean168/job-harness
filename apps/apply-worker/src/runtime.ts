@@ -190,15 +190,24 @@ export class ApplyWorker {
     if (this.running) return;
     this.running = true;
     this.stopRequested = false;
-    await this.register();
+    await this.registerWithRetry();
+    if (this.stopRequested) { this.running = false; return; }
     this.executorHeartbeatTimer = setInterval(() => {
       void this.heartbeatExecutor('ready').catch((error) => this.logger.warn('Apply worker executor heartbeat failed', sanitizeError(error)));
     }, this.executorHeartbeatIntervalMs);
     this.executorHeartbeatTimer.unref();
+    let transientBackoffMs = 1_000;
     try {
       while (!this.stopRequested) {
-        await this.runOnce();
-        if (!this.stopRequested) await sleep(this.pollIntervalMs);
+        try {
+          await this.runOnce();
+          transientBackoffMs = 1_000;
+          if (!this.stopRequested) await sleep(this.pollIntervalMs);
+        } catch (error) {
+          this.logger.warn('Apply worker control-plane cycle failed; retrying without exiting', sanitizeError(error));
+          if (!this.stopRequested) await sleep(transientBackoffMs);
+          transientBackoffMs = Math.min(15_000, transientBackoffMs * 2);
+        }
       }
     } finally {
       if (this.executorHeartbeatTimer) clearInterval(this.executorHeartbeatTimer);
@@ -208,6 +217,20 @@ export class ApplyWorker {
   }
 
   stop(): void { this.stopRequested = true; }
+
+  private async registerWithRetry(): Promise<void> {
+    let backoffMs = 1_000;
+    while (!this.stopRequested) {
+      try {
+        await this.register();
+        return;
+      } catch (error) {
+        this.logger.warn('Apply worker registration failed; retrying without process restart', sanitizeError(error));
+        await sleep(backoffMs);
+        backoffMs = Math.min(15_000, backoffMs * 2);
+      }
+    }
+  }
 
   async runOnce(): Promise<ApplyWorkerRunResult> {
     await this.backends.reapExpired().catch((error) => this.logger.warn('Apply worker browser handoff reap failed', sanitizeError(error)));

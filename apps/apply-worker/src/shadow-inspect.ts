@@ -24,10 +24,11 @@ async function main(): Promise<void> {
     const body = await browser.bodyText(80_000);
     const phrases = ['立即申请','申请职位','立即投递','投递简历','投递','申请'];
     const actionHints = phrases.filter((phrase) => body.includes(phrase));
-    const actionSelectors: Array<{ selector: string; text: string | null }> = [];
-    for (const selector of ['button:has-text("立即申请")','button:has-text("申请职位")','button:has-text("立即投递")','button:has-text("投递简历")','a:has-text("立即申请")','.apply-btn','[class*="apply"] button']) {
-      if (await browser.exists(selector).catch(() => false)) actionSelectors.push({ selector, text: await browser.text(selector).catch(() => null) });
-    }
+    const actions = (await browser.scanActions()).filter((action) => {
+      const text = action.text.toLowerCase();
+      return /申请|投递|简历|沟通|打招呼|立即|apply|resume|submit|contact|chat/.test(text)
+        || Boolean(action.href && /apply|job|resume|candidate|chat|contact/i.test(action.href));
+    }).slice(0, 80);
     const adapter = new GenericAtsSiteAdapter();
     const form = await adapter.inspect(browser, { url: browser.currentUrl(), title, observedAt: new Date().toISOString() });
     console.log(JSON.stringify({
@@ -37,7 +38,7 @@ async function main(): Promise<void> {
       observedUrl: browser.currentUrl(),
       title,
       actionHints,
-      actionSelectors,
+      actions,
       fieldCount: form.fields.length,
       fields: form.fields.map((field) => ({
         type: field.type,

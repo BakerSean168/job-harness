@@ -41,7 +41,7 @@ describe('generic deterministic form adapter', () => {
       async setChecked(selector, checked) { writes.push(`check:${selector}:${checked}`); },
       async click() { throw new Error('submit/click must not be used by fillGenericForm'); },
       async upload() { throw new Error('artifact grant is not implemented in this slice'); },
-      async wait() {}, async screenshot() { return new Uint8Array(); }, async scanControls() { return controls; }, async formStateHash() { return 'a'.repeat(64); },
+      async wait() {}, async screenshot() { return new Uint8Array(); }, async scanActions() { return []; }, async scanControls() { return controls; }, async formStateHash() { return 'a'.repeat(64); },
     };
     const report = await fillGenericForm(browser, form, plan, provider);
     expect(report.filled).toBe(3);

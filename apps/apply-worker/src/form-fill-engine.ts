@@ -155,10 +155,10 @@ function summarize(
       requiredPending: plan.pending.filter((item) => item.required).length,
       prohibitedCount: plan.prohibited.length,
       blockingIssueCodes: [...new Set(blocking.map((issue) => issue.code))].sort(),
-      readyForSubmit: blocking.length === 0,
+      readyForSubmit: validation.readyForSubmit && blocking.length === 0,
     },
   } as const;
-  if (blocking.length) {
+  if (!validation.readyForReview || blocking.length) {
     return {
       outcome: 'manual_review_required',
       reasonCode: 'form_requires_manual_review',
@@ -170,7 +170,9 @@ function summarize(
   return {
     outcome: 'review_ready',
     reasonCode: 'review_ready',
-    summary: 'Deterministic form fill is ready for human review; submit remains disabled until a later authorization step',
+    summary: validation.readyForSubmit
+      ? 'Deterministic form fill is ready for human review; submit remains disabled until explicit authorization'
+      : 'Deterministic form fill is ready for human review, but this adapter has no authorized submit contract',
     payload,
     review,
   };

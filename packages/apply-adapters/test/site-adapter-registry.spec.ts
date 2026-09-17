@@ -66,3 +66,27 @@ describe('ApplySiteAdapter registry and declarative playbooks', () => {
     expect(BOSS_OUTREACH_DESCRIPTOR.semantics).not.toBe('formal_application');
   });
 });
+
+describe('submit eligibility is adapter-specific', () => {
+  it('never marks the generic fallback ready for submit even when all deterministic fields are satisfied', async () => {
+    const adapter = new GenericAtsSiteAdapter();
+    const plan = {
+      version: 1 as const,
+      formVersion: 'fixture-form-v1',
+      catalogVersion: 'fixture-v1',
+      bindings: [
+        { fieldId: 'name', applicantKey: 'person.full_name', confidence: 1, source: 'rule' as const, reason: 'fixture' },
+        { fieldId: 'email', applicantKey: 'contact.email', confidence: 1, source: 'rule' as const, reason: 'fixture' },
+      ],
+      instructions: [
+        { fieldId: 'name', applicantKey: 'person.full_name', method: 'set_text' as const, source: 'rule' as const, confidence: 1 },
+        { fieldId: 'email', applicantKey: 'contact.email', method: 'set_text' as const, source: 'rule' as const, confidence: 1 },
+      ],
+      pending: [],
+      prohibited: [],
+    };
+    const report = await adapter.validate(form, plan, { results: [], filled: 2, skipped: 0, failed: 0, manual: 0 });
+    expect(report.readyForReview).toBe(true);
+    expect(report.readyForSubmit).toBe(false);
+  });
+});

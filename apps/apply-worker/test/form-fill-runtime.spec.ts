@@ -32,7 +32,7 @@ function backend(log: string[]): BrowserBackendPort {
     async navigate(url) { log.push(`navigate:${url}`); }, currentUrl: () => 'https://jobs.example.test/apply', async title() { return 'Apply'; }, async bodyText() { return 'Form'; },
     async exists() { return true; }, async text() { return null; },
     async fill(selector, value) { log.push(`fill:${selector}:${value}`); }, async select() { throw new Error('not used'); }, async setChecked() { throw new Error('not used'); },
-    async click() { throw new Error('submit click forbidden'); }, async upload() { throw new Error('upload not used'); }, async wait() {}, async screenshot() { return new Uint8Array(); }, async scanControls() { return controls; }, async formStateHash() { return 'a'.repeat(64); },
+    async click() { throw new Error('submit click forbidden'); }, async upload() { throw new Error('upload not used'); }, async wait() {}, async screenshot() { return new Uint8Array(); }, async scanActions() { return []; }, async scanControls() { return controls; }, async formStateHash() { return 'a'.repeat(64); },
   };
   const session: BrowserSessionPort = {
     backendId: 'fake', sessionId: 'fake-session-1', humanControlUrl: 'https://viewer.example.test/ui', driver: () => driver,

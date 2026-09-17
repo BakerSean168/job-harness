@@ -83,7 +83,7 @@ function fakeBackend(log: string[], options: { healthy?: boolean; failNavigate?:
     async upload() { throw new Error('readiness worker must not upload'); },
     async wait() {},
     async screenshot() { return new Uint8Array(); },
-    async scanControls() { return []; },
+    async scanActions() { return []; }, async scanControls() { return []; },
     async formStateHash() { return 'a'.repeat(64); },
   };
   const session: BrowserSessionPort = {

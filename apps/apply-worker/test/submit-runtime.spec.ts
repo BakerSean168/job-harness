@@ -28,7 +28,7 @@ function backend(log: string[]): BrowserBackendPort {
     currentUrl: () => 'https://jobs.example.test/apply',
     async title() { return 'Apply'; }, async bodyText() { return 'Ready'; }, async exists() { return true; }, async text() { return null; },
     async fill() { throw new Error('authorized submit must not refill'); }, async select() { throw new Error('authorized submit must not reselect'); }, async setChecked() { throw new Error('authorized submit must not recheck'); },
-    async click(selector) { log.push(`click:${selector}`); }, async upload() { throw new Error('not used'); }, async wait() {}, async screenshot() { return new Uint8Array(); }, async scanControls() { return []; }, async formStateHash() { log.push('form-hash'); return 'd'.repeat(64); },
+    async click(selector) { log.push(`click:${selector}`); }, async upload() { throw new Error('not used'); }, async wait() {}, async screenshot() { return new Uint8Array(); }, async scanActions() { return []; }, async scanControls() { return []; }, async formStateHash() { log.push('form-hash'); return 'd'.repeat(64); },
   };
   const session: BrowserSessionPort = {
     backendId: 'fake', sessionId: 'fake-session-1', humanControlUrl: 'https://viewer.example.test/ui', driver: () => driver,
@@ -45,7 +45,7 @@ function submitAdapter(log: string[]): ApplySiteAdapter {
     descriptor: { id: 'fixture-submit', version: '1.0.0', semantics: 'formal_application', priority: 100, capabilities: { inspect: false, fill: false, validate: false, submit: true } },
     probe: ({ url }) => ({ supported: new URL(url).hostname === 'jobs.example.test', score: 1, reason: 'fixture' }),
     async inspect() { throw new Error('not used'); },
-    async validate() { return { readyForReview: true, issues: [] }; },
+    async validate() { return { readyForReview: true, readyForSubmit: true, issues: [] }; },
     async submit(browser) {
       log.push('adapter-submit');
       await browser.click('#submit');

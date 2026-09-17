@@ -73,7 +73,13 @@ export class PlaybookAtsSiteAdapter implements ApplySiteAdapter {
       if (result.status === 'failed') issues.push({ code: 'field_fill_failed', severity: required.has(result.fieldId) ? 'blocking' : 'warning', fieldId: result.fieldId, summary: result.detail ?? 'browser_write_failed' });
       if (result.status === 'manual' && required.has(result.fieldId)) issues.push({ code: 'required_field_manual', severity: 'blocking', fieldId: result.fieldId, summary: result.detail ?? 'manual_review_required' });
     }
-    return { readyForReview: !issues.some((issue) => issue.severity === 'blocking'), issues };
+    return {
+      readyForReview: !issues.some((issue) => issue.severity === 'blocking'),
+      // Declarative playbooks currently describe field mapping only. They do
+      // not define an irreversible submit action or success-evidence contract.
+      readyForSubmit: false,
+      issues,
+    };
   }
 
   buildPlan(form: FormIR, catalog: Parameters<typeof buildFillPlan>[1]): FillPlan {

@@ -33,7 +33,7 @@ function backend(log: string[]): BrowserBackendPort {
     async navigate(url) { log.push(`navigate:${url}`); }, currentUrl: () => 'https://jobs.example.test/apply', async title() { return 'Apply'; }, async bodyText() { return ''; },
     async exists() { return true; }, async text() { return null; }, async fill(selector, value) { log.push(`fill:${selector}:${value}`); }, async select() {}, async setChecked() {}, async click() { throw new Error('no click'); },
     async upload(selector, file) { log.push(`upload:${selector}:${file.name}:${file.mimeType}:${file.bytes.byteLength}`); expect(createHash('sha256').update(file.bytes).digest('hex')).toBe(pdfSha); },
-    async wait() {}, async screenshot() { return new Uint8Array(); }, async scanControls() { return controls; }, async formStateHash() { return 'c'.repeat(64); },
+    async wait() {}, async screenshot() { return new Uint8Array(); }, async scanActions() { return []; }, async scanControls() { return controls; }, async formStateHash() { return 'c'.repeat(64); },
   };
   const session: BrowserSessionPort = {
     backendId: 'fake', sessionId: 'fake-session-resume', humanControlUrl: 'https://viewer.example.test/ui', driver: () => driver,
@@ -52,7 +52,7 @@ function client(value: ExecutionAttempt, log: string[]): ApplyWorkerClientPort {
       async resumeArtifact() { log.push('grant-resume'); return { artifactId: 'artifact-1', revisionId: 'revision-1', fileName: '卢楼豪-前端开发工程师.pdf', mimeType: 'application/pdf', sha256: pdfSha, byteSize: pdf.byteLength, bytesBase64: Buffer.from(pdf).toString('base64') }; },
       async applicantCatalog() { log.push('grant-catalog'); return { version: 'resume-revision:revision-1:fixture', entries: [{ key: 'person.full_name', label: '姓名', valueType: 'text', sensitivity: 'personal', aliases: ['姓名','name'], allowAiMapping: false, requiresLiteral: true, source: 'job-harness-resume-revision' }] }; },
       async resolveApplicantData(input) { log.push(`resolve:${input.keys.join(',')}`); return { catalogVersion: 'resume-revision:revision-1:fixture', values: input.keys.includes('person.full_name') ? [{ key: 'person.full_name', value: 'Fixture User', valueType: 'text', sensitivity: 'personal', provenance: 'resume-revision:revision-1', literal: true }] : [] }; },
-      async createReviewSnapshot(input) { expect(input.summary.readyForSubmit).toBe(true); return { id: 'review-1', reviewHash: 'd'.repeat(64) }; },
+      async createReviewSnapshot(input) { expect(input.summary.readyForSubmit).toBe(false); return { id: 'review-1', reviewHash: 'd'.repeat(64) }; },
       async waiting(input) { log.push(`waiting:${input.reasonCode}`); return { ...value, state: 'waiting_for_user', browserSessionHandoff: input.browserSessionHandoff ?? null }; },
       async complete() { throw new Error('not used'); }, async fail(input) { throw new Error(`unexpected fail ${input.errorCode}`); },
     },

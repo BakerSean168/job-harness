@@ -1,5 +1,5 @@
 import type { Page } from 'playwright';
-import type { BrowserControlSnapshot, BrowserDriverPort, BrowserUploadFile } from './types';
+import type { BrowserActionSnapshot, BrowserControlSnapshot, BrowserDriverPort, BrowserUploadFile } from './types';
 
 export class PlaywrightBrowserDriver implements BrowserDriverPort {
   constructor(private readonly page: Page) {}
@@ -115,6 +115,49 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
       const bytes = new TextEncoder().encode(JSON.stringify(rows));
       const digest = await crypto.subtle.digest('SHA-256', bytes);
       return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
+    });
+  }
+
+  async scanActions(): Promise<readonly BrowserActionSnapshot[]> {
+    await this.ensureEvaluationHelpers();
+    return this.page.evaluate(() => {
+      type Action = {
+        actionRef: string;
+        tag: 'a' | 'button' | 'other';
+        text: string;
+        href: string | null;
+        type: string | null;
+        role: string | null;
+        disabled: boolean;
+        ariaDisabled: boolean;
+      };
+      const compact = (value: string | null | undefined, max = 500) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+      const visible = (element: Element) => {
+        const style = window.getComputedStyle(element);
+        const rect = (element as HTMLElement).getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      };
+      const nodes = [...document.querySelectorAll('a[href], button, [role="button"]')]
+        .filter((element): element is HTMLElement => element instanceof HTMLElement)
+        .filter(visible)
+        .slice(0, 500);
+      return nodes.map((element, index): Action => {
+        const id = element.getAttribute('data-job-harness-action-id') || `jha-${index}`;
+        element.setAttribute('data-job-harness-action-id', id);
+        const tagName = element.tagName.toLowerCase();
+        const anchor = element instanceof HTMLAnchorElement ? element : null;
+        const button = element instanceof HTMLButtonElement ? element : null;
+        return {
+          actionRef: `[data-job-harness-action-id="${CSS.escape(id)}"]`,
+          tag: tagName === 'a' ? 'a' : tagName === 'button' ? 'button' : 'other',
+          text: compact(element.innerText || element.getAttribute('aria-label') || element.getAttribute('title')),
+          href: anchor?.href ? compact(anchor.href, 2000) : null,
+          type: button ? compact(button.type, 100) || null : null,
+          role: compact(element.getAttribute('role'), 100) || null,
+          disabled: button ? button.disabled : false,
+          ariaDisabled: element.getAttribute('aria-disabled') === 'true',
+        };
+      });
     });
   }
 
