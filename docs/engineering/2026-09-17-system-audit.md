@@ -274,3 +274,17 @@ While tracing the Browser Bridge delivery protocol for timeout hardening, the ex
 The server bridge itself does not redeliver an in-flight command, so this is an extension-local retry bug rather than a queue bug. It is especially important for click-like commands: retries may only cover failure to deliver to a receiver, never an application-level/page-driver failure after the command was accepted.
 
 **Required change before real submit work:** separate transport delivery from response unwrapping. Retry one injection/send only when `sendMessage` itself rejects because the receiver is absent/replaced; unwrap the returned application result outside that retry catch so a page-driver failure is surfaced exactly once. Add a regression check and keep final submit outside the generic extension click command regardless.
+
+### Finding A19 — production CLI environment parsing is fragmented rather than schema-owned (P2)
+
+A post-fix audit of runtime boundaries found that production CLIs validate some values (ports, positive intervals, worker phase/backend enums) but still parse other environment values ad hoc. In particular, the Apply Worker accepts several URL/boolean/path settings through direct string operations and the server/renderer CLIs each implement their own partial parsing rules. These values are operational input and should be treated as untrusted configuration at process startup, not discovered later through a browser/fetch failure.
+
+**Follow-up:** move each production process to one explicit runtime-config parser with strict booleans/enums, bounded integers and URL/origin validation. Fail startup with a configuration-specific error. This is P2 because current invalid configuration fails before an external submit boundary, but it is a reliability/operability gap worth closing before enabling submit-capable workers.
+
+### Finding A20 — immutable Revision rows validate shape but not envelope/hash integrity on read (P1)
+
+ResumeRevision, ApplicantProfileRevision and ApplicationAnswerSetRevision are treated as immutable execution evidence. Their schemas validate field shapes, but a persisted row can still contain an internally inconsistent envelope (for example `profileVersion` differing from `snapshot.version`) or a snapshot whose stored `contentHash` no longer matches its canonical content. SQLite `integrity_check` and foreign keys do not detect this semantic corruption.
+
+This matters directly to Apply Executor safety because an execution freezes revision ids/hashes and later resolves actual applicant/Resume values from those revision snapshots. The read adapter must not silently trust a stale or corrupted immutable payload.
+
+**Required change:** add cross-field revision invariants to contracts and verify canonical content hashes when immutable Resume/Applicant revisions are loaded from SQLite. Add tamper tests proving corrupted snapshot JSON is rejected before it can become execution data.
