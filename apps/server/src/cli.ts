@@ -19,6 +19,7 @@ if (!Number.isInteger(port) || port < 0 || port > 65535) {
 const authToken = process.env.JOB_HARNESS_AUTH_TOKEN ?? null;
 const executorAuthToken = process.env.JOB_HARNESS_EXECUTOR_AUTH_TOKEN ?? null;
 const browserExtensionSigningKey = process.env.JOB_HARNESS_BROWSER_EXTENSION_SIGNING_KEY ?? null;
+const browserExtensionValidationAllowedOrigin = process.env.JOB_HARNESS_BROWSER_VALIDATION_ALLOWED_ORIGIN ?? null;
 if ((host === '0.0.0.0' || host === '::') && !authToken) {
   throw new Error('JOB_HARNESS_AUTH_TOKEN is required when binding to a non-loopback interface');
 }
@@ -30,6 +31,7 @@ const running = await startJobHarnessServer({
   authToken,
   executorAuthToken,
   browserExtensionSigningKey,
+  browserExtensionValidationAllowedOrigin,
   artifactDirectory: process.env.JOB_HARNESS_RESUME_ARTIFACT_DIR,
   resumeRendererUrl: process.env.JOB_HARNESS_RESUME_RENDERER_URL ?? null,
   resumeRendererToken: process.env.JOB_HARNESS_RENDERER_TOKEN ?? null,

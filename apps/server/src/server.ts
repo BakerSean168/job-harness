@@ -21,6 +21,7 @@ import { createFileSystemResumeArtifactStorage, createHttpResumePdfRenderer } fr
 import { getResumeRendererFingerprint, renderResumePreviewHtml } from '@job-harness/resume-renderer';
 import { BROWSER_EXTENSION_BRIDGE_PREFIX, BrowserExtensionBridge, BrowserExtensionBridgeError, registerBrowserExtensionBridgeApi } from './browser-extension-bridge';
 import { BrowserExtensionAuth } from './browser-extension-auth';
+import { BrowserExtensionValidationRegistry, registerBrowserExtensionValidationApi } from './browser-extension-validation';
 
 export interface JobHarnessServerOptions {
   readonly databasePath: string;
@@ -29,6 +30,7 @@ export interface JobHarnessServerOptions {
   readonly authToken?: string | null;
   readonly executorAuthToken?: string | null;
   readonly browserExtensionSigningKey?: string | null;
+  readonly browserExtensionValidationAllowedOrigin?: string | null;
   readonly artifactDirectory?: string;
   readonly resumeRendererUrl?: string | null;
   readonly resumeRendererToken?: string | null;
@@ -240,6 +242,10 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Bearer token is required' } });
   });
 
+  const browserExtensionValidation = options.browserExtensionValidationAllowedOrigin?.trim()
+    ? new BrowserExtensionValidationRegistry(browserExtensionBridge, { allowedOrigin: options.browserExtensionValidationAllowedOrigin })
+    : null;
+
   registerBrowserExtensionBridgeApi(app, browserExtensionBridge, {
     auth: browserExtensionAuth,
     async authorizeInvoke(input) {
@@ -286,6 +292,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
       }
     },
   });
+  registerBrowserExtensionValidationApi(app, browserExtensionValidation);
   registerJobHarnessDataAdminApi(app, options.databasePath, API_PREFIX);
   registerJobHarnessApi(app, application);
   registerResumeApi(app, resume, resumeArtifacts, pdfRenderer, API_PREFIX);
