@@ -484,13 +484,13 @@ export class ApplyWorker {
     let attemptHeartbeat: NodeJS.Timeout | null = null;
     let heartbeatError: unknown = null;
     try {
-      const adapterId = attempt.requiredAdapterId ?? 'generic-ats';
+      const adapter = this.formFillEngine!.resolveAdapterDescriptor(attempt);
       await this.client.attempts.start({
         attemptId,
         executorId: this.descriptor.executorId,
         leaseToken,
-        adapterId,
-        adapterVersion: '1.0.0',
+        adapterId: adapter.id,
+        adapterVersion: adapter.version,
         browserBackend: this.backendId,
         checkpoint: 'form-inspection',
       });
@@ -519,6 +519,19 @@ export class ApplyWorker {
       const result = await this.formFillEngine!.execute({ attempt, browser: driver, observedAt: new Date().toISOString(), resumeFile, applicant });
       const expiresAt = new Date(Date.now() + this.humanReviewHandoffSeconds * 1000).toISOString();
       const handoff = await session.retainForHuman({ expiresAt });
+      if (result.outcome === 'handoff_required') {
+        await this.client.attempts.waiting({
+          attemptId,
+          executorId: this.descriptor.executorId,
+          leaseToken,
+          checkpoint: `human-entry:${String(result.payload.pageState ?? 'unknown')}`.slice(0, 200),
+          reasonCode: result.reasonCode,
+          summary: result.summary,
+          payload: result.payload,
+          browserSessionHandoff: handoff,
+        });
+        return { claimed: true, attemptId, outcome: 'waiting' };
+      }
       const snapshot = await this.client.attempts.createReviewSnapshot({
         attemptId,
         executorId: this.descriptor.executorId,

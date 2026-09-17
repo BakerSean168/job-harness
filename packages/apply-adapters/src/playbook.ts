@@ -5,6 +5,7 @@ import type { BrowserDriverPort } from '@job-harness/apply-browser';
 import { fillGenericForm, inspectGenericForm } from './generic-form';
 import type { ApplicantDataProviderPort } from './applicant-data';
 import type { ApplyFillAssets, ApplySiteAdapter, ApplyValidationIssue } from './site-adapter';
+import { inspectApplyPagePreflight } from './page-preflight';
 
 export const AtsPlaybookSchema = z.object({
   id: z.string().trim().min(1).max(200),
@@ -41,6 +42,10 @@ export class PlaybookAtsSiteAdapter implements ApplySiteAdapter {
       const pathMatched = !this.playbook.pathPrefixes.length || this.playbook.pathPrefixes.some((prefix) => url.pathname.startsWith(prefix));
       return { supported: hostMatched && pathMatched, score: hostMatched && pathMatched ? 0.98 : 0, reason: hostMatched && pathMatched ? 'declarative-playbook-match' : 'playbook-mismatch' };
     } catch { return { supported: false, score: 0, reason: 'invalid-url' }; }
+  }
+
+  preflight(browser: BrowserDriverPort) {
+    return inspectApplyPagePreflight(browser);
   }
 
   inspect(browser: BrowserDriverPort, input: { url: string; title?: string | null; observedAt: string }) {

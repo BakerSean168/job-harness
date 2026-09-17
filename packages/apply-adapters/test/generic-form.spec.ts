@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildFillPlan } from '@job-harness/apply-core';
 import type { BrowserControlSnapshot, BrowserDriverPort } from '@job-harness/apply-browser';
-import { InMemoryApplicantDataProvider, browserControlsToFormIr, fillGenericForm } from '../src';
+import { GenericAtsSiteAdapter, InMemoryApplicantDataProvider, browserControlsToFormIr, fillGenericForm } from '../src';
 
 const controls: BrowserControlSnapshot[] = [
   { controlRef: '#name', kind: 'text', label: '姓名', name: 'name', description: null, required: true, disabled: false, readOnly: false, options: [], semanticHints: ['name'], accept: null, multiple: false, sectionLabel: '基本信息' },
@@ -51,5 +51,45 @@ describe('generic deterministic form adapter', () => {
     expect(writes).toContain('select:#degree:bachelor');
     expect(writes.some((item) => item.includes('#visa'))).toBe(false);
     expect(plan.pending).toContainEqual(expect.objectContaining({ fieldId: expect.any(String), reason: 'sensitive_field_requires_explicit_literal_binding' }));
+  });
+});
+
+describe('generic ATS surface safety', () => {
+  it('blocks sparse job-detail/search surfaces from becoming review-ready', async () => {
+    const adapter = new GenericAtsSiteAdapter();
+    const sparse = browserControlsToFormIr({
+      url: 'https://jobs.example.test/job/123',
+      title: 'Job detail',
+      observedAt: '2026-09-17T12:00:00.000Z',
+      controls: [{ controlRef: '#search', kind: 'text', label: '输入职位关键字', name: 'keyword', description: null, required: false, disabled: false, readOnly: false, options: [], semanticHints: ['keyword'], accept: null, multiple: false, sectionLabel: null }],
+    });
+    const report = await adapter.validate(sparse, { version: 1, formVersion: 'sparse', catalogVersion: 'fixture-v1', bindings: [], instructions: [], pending: [], prohibited: [] }, null);
+    expect(report.readyForReview).toBe(false);
+    expect(report.readyForSubmit).toBe(false);
+    expect(report.issues).toContainEqual(expect.objectContaining({ code: 'application_form_not_detected', severity: 'blocking' }));
+  });
+
+  it('does not write applicant values into login/verification surfaces', async () => {
+    const adapter = new GenericAtsSiteAdapter();
+    const authControls: BrowserControlSnapshot[] = [
+      { controlRef: '#phone', kind: 'text', label: '请输入手机号码', name: 'phone', description: null, required: false, disabled: false, readOnly: false, options: [], semanticHints: ['phone'], accept: null, multiple: false, sectionLabel: '登录 / 注册' },
+      { controlRef: '#code', kind: 'text', label: '请输入验证码', name: 'code', description: null, required: false, disabled: false, readOnly: false, options: [], semanticHints: ['verification-code'], accept: null, multiple: false, sectionLabel: '登录 / 注册' },
+    ];
+    const form = browserControlsToFormIr({ url: 'https://jobs.example.test/job/123', title: 'Login', observedAt: '2026-09-17T12:00:00.000Z', controls: authControls });
+    const authProvider = new InMemoryApplicantDataProvider('auth-fixture-v1', [
+      { entry: { key: 'contact.phone', label: '手机', valueType: 'phone', sensitivity: 'sensitive', aliases: ['手机号码','phone'], allowAiMapping: false, requiresLiteral: true, source: 'fixture' }, value: '13800000000', provenance: 'fixture' },
+    ]);
+    const plan = buildFillPlan(form, await authProvider.catalog());
+    const writes: string[] = [];
+    const browser: BrowserDriverPort = {
+      async navigate() {}, currentUrl: () => 'https://jobs.example.test/job/123', async title() { return 'Login'; }, async bodyText() { return ''; },
+      async exists() { return true; }, async text() { return null; }, async fill(selector, value) { writes.push(`fill:${selector}:${value}`); }, async select() {}, async setChecked() {}, async click() {}, async upload() {}, async wait() {}, async screenshot() { return new Uint8Array(); }, async scanActions() { return []; }, async scanControls() { return authControls; }, async formStateHash() { return 'a'.repeat(64); },
+    };
+    const fill = await adapter.fill(browser, form, plan, authProvider);
+    const validation = await adapter.validate(form, plan, fill);
+    expect(writes).toEqual([]);
+    expect(fill.filled).toBe(0);
+    expect(validation.readyForReview).toBe(false);
+    expect(validation.issues).toContainEqual(expect.objectContaining({ code: 'authentication_surface_detected', severity: 'blocking' }));
   });
 });

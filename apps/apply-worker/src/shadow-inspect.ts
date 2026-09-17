@@ -30,6 +30,7 @@ async function main(): Promise<void> {
         || Boolean(action.href && /apply|job|resume|candidate|chat|contact/i.test(action.href));
     }).slice(0, 80);
     const adapter = new GenericAtsSiteAdapter();
+    const preflight = await adapter.preflight(browser);
     const form = await adapter.inspect(browser, { url: browser.currentUrl(), title, observedAt: new Date().toISOString() });
     console.log(JSON.stringify({
       ok: true,
@@ -37,6 +38,7 @@ async function main(): Promise<void> {
       targetHost: parsed.hostname,
       observedUrl: browser.currentUrl(),
       title,
+      preflight,
       actionHints,
       actions,
       fieldCount: form.fields.length,

@@ -2,7 +2,7 @@ import { hostname } from 'node:os';
 import { resolve } from 'node:path';
 import { BrowserBackendRegistry, LocalCdpBrowserBackend, SteelBrowserBackend } from '@job-harness/apply-browser';
 import type { ExecutorDescriptor } from '@job-harness/apply-contracts';
-import { ApplySiteAdapterRegistry, GenericAtsSiteAdapter } from '@job-harness/apply-adapters';
+import { ApplySiteAdapterRegistry, GenericAtsSiteAdapter, MokaSocialRecruitmentAtsSiteAdapter, NowcoderAtsSiteAdapter } from '@job-harness/apply-adapters';
 import { createJobHarnessRestClient } from '@job-harness/client';
 import { FormFillExecutionEngine } from './form-fill-engine';
 import { ApplyWorker } from './runtime';
@@ -42,9 +42,16 @@ if (backendId === 'steel') {
   throw new Error(`Unsupported JOB_HARNESS_APPLY_BROWSER_BACKEND: ${backendId}`);
 }
 
-const siteAdapters = phase === 'form-fill' ? new ApplySiteAdapterRegistry([new GenericAtsSiteAdapter()]) : null;
+const siteAdapters = phase === 'form-fill'
+  ? new ApplySiteAdapterRegistry([
+      new NowcoderAtsSiteAdapter(),
+      new MokaSocialRecruitmentAtsSiteAdapter(),
+      new GenericAtsSiteAdapter(),
+    ])
+  : null;
 const formFillEngine = siteAdapters ? new FormFillExecutionEngine({ siteAdapters }) : null;
 const adapterId = phase === 'form-fill' ? 'generic-ats' : 'readiness-v1';
+const advertisedAdapterIds = siteAdapters ? siteAdapters.descriptors().map((descriptor) => descriptor.id) : [adapterId];
 
 const descriptor: ExecutorDescriptor = {
   executorId,
@@ -53,7 +60,7 @@ const descriptor: ExecutorDescriptor = {
   hostLabel: process.env.JOB_HARNESS_APPLY_HOST_LABEL ?? hostname(),
   status: 'ready',
   browserBackends: [backendId],
-  adapterIds: [adapterId],
+  adapterIds: advertisedAdapterIds,
   executionModes: ['fill_only'],
   capabilities: {
     resumeUpload: true,
@@ -63,7 +70,7 @@ const descriptor: ExecutorDescriptor = {
     semanticMapping: false,
   },
   maxConcurrency: 1,
-  metadata: { phase: phase === 'form-fill' ? 'R019-shadow-form-fill' : 'R019-readiness', sideEffects: false, applicantData: phase === 'form-fill' ? 'lease-scoped-resume-revision' : 'none' },
+  metadata: { phase: phase === 'form-fill' ? 'R019-shadow-form-fill' : 'R019-readiness', sideEffects: false, applicantData: phase === 'form-fill' ? 'lease-scoped-resume-revision' : 'none', siteAdapters: advertisedAdapterIds },
 };
 
 const client = createJobHarnessRestClient({ baseUrl: apiUrl, authToken: token });

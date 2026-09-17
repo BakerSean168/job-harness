@@ -26,3 +26,11 @@ A site is **not** promoted from shadow to form-fill merely because a job page lo
 7. the adapter has sanitized fixture/contract tests for the observed DOM family.
 
 `review_then_submit` requires a further gate: explicit success evidence, crash/recovery tests, ReviewSnapshot hash binding and one-time SubmitAuthorization. `auto_submit` remains per-adapter opt-in only after supervised production evidence.
+
+## Follow-up: exact action inventory and anonymous entry characterization
+
+The browser boundary now exposes `scanActions()` as sanitized visible-action metadata (`tag`, text, href/type/role, disabled state) with stable ephemeral action refs. This replaces CSS-class guessing in shadow work. The worker runtime also retries transient control-plane registration/poll failures in-process with bounded backoff instead of relying on repeated systemd restarts during a server rollout.
+
+A second anonymous Nowcoder characterization used a fresh non-persisted Steel session and clicked only the exact visible `button` whose text was `立即申请`. No candidate data was filled and no submit action was performed. The page stayed on the same job URL and exposed a login/registration surface containing phone-number and verification-code controls plus `登录 / 注册` actions. This establishes that `立即申请` is a **pre-submit entry action** for this unauthenticated state, but form automation must stop for human authentication rather than mapping applicant phone data into the login form.
+
+The generic fallback now fails closed in two additional ways: sparse search/job-detail surfaces are not considered application forms, and login/registration/password/OTP/verification surfaces are blocked before applicant values are written. Even a perfectly filled generic form is never marked `readyForSubmit`; only a site adapter with an explicit submit/evidence contract may opt a ReviewSnapshot into submit authorization.

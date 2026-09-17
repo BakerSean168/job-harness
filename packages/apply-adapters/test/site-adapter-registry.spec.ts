@@ -5,6 +5,8 @@ import {
   BOSS_OUTREACH_DESCRIPTOR,
   GenericAtsSiteAdapter,
   PlaybookAtsSiteAdapter,
+  NowcoderAtsSiteAdapter,
+  MokaSocialRecruitmentAtsSiteAdapter,
 } from '../src';
 
 const form = FormIRSchema.parse({
@@ -59,6 +61,20 @@ describe('ApplySiteAdapter registry and declarative playbooks', () => {
     const plan = playbook.buildPlan(form, catalog);
     expect(plan.instructions).toHaveLength(2);
     expect(plan.pending).toHaveLength(0);
+  });
+
+
+
+  it('prefers observed site adapters for known live traffic while keeping them submit-disabled', () => {
+    const registry = new ApplySiteAdapterRegistry([
+      new GenericAtsSiteAdapter(),
+      new NowcoderAtsSiteAdapter(),
+      new MokaSocialRecruitmentAtsSiteAdapter(),
+    ]);
+    const nowcoder = registry.resolve({ url: 'https://www.nowcoder.com/jobs/detail/457892', semantics: 'formal_application' });
+    expect(nowcoder?.descriptor).toMatchObject({ id: 'nowcoder-ats', capabilities: { submit: false } });
+    const moka = registry.resolve({ url: 'https://app.mokahr.com/social-recruitment/high-flyer/140576#/job/abc', semantics: 'formal_application' });
+    expect(moka?.descriptor).toMatchObject({ id: 'moka-social-recruitment', capabilities: { submit: false } });
   });
 
   it('keeps BOSS greeting/outreach semantics outside formal application submission', () => {

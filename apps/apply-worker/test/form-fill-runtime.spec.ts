@@ -93,4 +93,53 @@ describe('ApplyWorker form-fill execution engine', () => {
     expect(serialized).not.toContain('yes');
     expect(serialized).not.toContain('no');
   });
+
+  it('hands a job-detail/login entry surface to the human before resolving applicant values or creating a ReviewSnapshot', async () => {
+    const log: string[] = [];
+    const waitingBodies: Array<Record<string, unknown>> = [];
+    const attempt = ExecutionAttemptSchema.parse({
+      ...claimedAttempt(),
+      id: 'attempt-entry-1',
+      intentId: 'intent-entry-1',
+      bundle: {
+        ...claimedAttempt().bundle,
+        intentId: 'intent-entry-1',
+        attemptId: 'attempt-entry-1',
+        listingUrl: 'https://www.nowcoder.com/jobs/detail/457892',
+      },
+      idempotencyKey: 'dispatch-entry-1',
+    });
+    const sparseControls: BrowserControlSnapshot[] = [
+      { controlRef: '#search', kind: 'text', label: '输入职位关键字', name: 'keyword', description: null, required: false, disabled: false, readOnly: false, options: [], semanticHints: ['keyword'], accept: null, multiple: false, sectionLabel: null },
+    ];
+    const driver: BrowserDriverPort = {
+      async navigate(url) { log.push(`navigate:${url}`); }, currentUrl: () => 'https://www.nowcoder.com/jobs/detail/457892', async title() { return 'AI 软件开发工程师_英特尔校招_牛客网'; }, async bodyText() { return '职位详情 立即申请'; },
+      async exists() { return true; }, async text() { return null; }, async fill() { log.push('unexpected-fill'); }, async select() { log.push('unexpected-select'); }, async setChecked() { log.push('unexpected-check'); }, async click() { log.push('unexpected-click'); }, async upload() { log.push('unexpected-upload'); }, async wait() {}, async screenshot() { return new Uint8Array(); },
+      async scanActions() { return [{ actionRef: '#apply', tag: 'button', text: '立即申请', href: null, type: 'button', role: null, disabled: false, ariaDisabled: false }]; },
+      async scanControls() { return sparseControls; }, async formStateHash() { throw new Error('preflight must stop before review hashing'); },
+    };
+    const session: BrowserSessionPort = {
+      backendId: 'fake', sessionId: 'entry-session', humanControlUrl: 'https://viewer.example.test/entry', driver: () => driver,
+      async persist() {}, async retainForHuman({ expiresAt }) { log.push('retain-entry'); return { backendId: 'fake', sessionRef: 'entry-session', humanControlUrl: 'https://viewer.example.test/entry', retainedAt: '2026-09-17T12:00:00.000Z', expiresAt }; }, async release() { log.push('release-entry'); },
+    };
+    const entryBackend: BrowserBackendPort = {
+      id: 'fake', describe: () => ({ id: 'fake', kind: 'managed-remote', persistentSession: true, humanControl: true, metadata: {} }),
+      async health() { return { ok: true, detail: null }; }, async acquire() { return session; }, async resume() { return session; }, async reapExpired() { return 0; },
+    };
+    const applicant = new InMemoryApplicantDataProvider('must-not-read', []);
+    applicant.catalog = async () => { throw new Error('preflight must stop before applicant catalog access'); };
+    const engine = new FormFillExecutionEngine({ siteAdapters: new ApplySiteAdapterRegistry([new GenericAtsSiteAdapter()]), applicant });
+    const worker = new ApplyWorker({
+      client: client(attempt, log, waitingBodies), backends: new BrowserBackendRegistry([entryBackend]), descriptor, backendId: 'fake', formFillEngine: engine,
+      humanReviewHandoffSeconds: 600, attemptHeartbeatIntervalMs: 60_000, logger: { log() {}, warn() {}, error() {} },
+    });
+    expect(await worker.runOnce()).toEqual({ claimed: true, attemptId: attempt.id, outcome: 'waiting' });
+    expect(log).toContain('retain-entry');
+    expect(log).toContain('waiting:application_entry_required');
+    expect(log).not.toContain('review-snapshot');
+    expect(log.some((item) => item.startsWith('unexpected-'))).toBe(false);
+    expect(waitingBodies[0]).toMatchObject({ checkpoint: 'human-entry:job_detail', reasonCode: 'application_entry_required' });
+    expect(JSON.stringify(waitingBodies[0])).not.toContain('applicant');
+  });
+
 });

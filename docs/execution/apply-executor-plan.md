@@ -1044,3 +1044,13 @@ The `/executors/[attemptId]` route is now an actual production-build route, not 
 ## 24. Live shadow evidence
 
 Live read-only site probing is tracked in `docs/execution/live-shadow-validation.md`. The first pass confirmed why generic browser autonomy is not a safe default: Moka produced a false broad `apply` class match whose button text was actually `分享`; an isolated BOSS session was redirected to its security page; Nowcoder exposed a concrete `立即申请` entry together with login/verification controls; and Zhaopin did not finish bounded navigation. None of these probes clicked, filled, uploaded or submitted. Site promotion therefore remains evidence-driven and adapter-specific.
+
+### 18.11 Live-surface fail-closed gate
+
+The generic ATS fallback is now explicitly **review-only**. `ApplyValidationReport` separates `readyForReview` from `readyForSubmit`; the generic adapter and declarative field-mapping playbooks always return `readyForSubmit=false` because neither defines an irreversible site submit action plus success-evidence contract. Synthetic/site-specific adapters must opt in explicitly. This prevents a sparse or arbitrary web form from becoming authorizable merely because deterministic field filling produced no blocking errors.
+
+Live surface classification is also conservative. A generic page with only a search/job-detail control yields `application_form_not_detected`. Login, registration, password, OTP or verification-code surfaces yield `authentication_surface_detected`, and the generic fill path returns manual results without writing applicant values. This directly covers the anonymous Nowcoder flow observed after `立即申请`: phone and verification-code controls belong to authentication, not to the application form.
+
+The browser port now includes sanitized visible action scanning rather than broad CSS-class guessing. This lets future site-specific adapters bind exact entry actions while keeping the irreversible submit action behind the existing ReviewSnapshot/SubmitAuthorization boundary. The worker process also handles transient Job Harness control-plane restarts with bounded in-process retry/backoff, avoiding crash-loop noise during ordinary server deployment.
+
+The form-fill worker composition now advertises the observed `nowcoder-ats` and `moka-social-recruitment` families alongside the generic fallback. These adapters are still `submit=false`: their value is deterministic routing plus typed preflight/human handoff, not autonomous submission. A queued attempt can explicitly require one of these adapter ids, and the same retained browser session can be resumed after the user completes login/security/application-entry steps.

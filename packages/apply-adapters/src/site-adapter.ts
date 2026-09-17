@@ -6,6 +6,7 @@ import type {
 } from '@job-harness/apply-contracts';
 import type { BrowserDriverPort, BrowserUploadFile } from '@job-harness/apply-browser';
 import type { ApplicantDataProviderPort } from './applicant-data';
+import type { ApplyPagePreflightResult } from './page-preflight';
 
 export const APPLY_SITE_SEMANTICS = ['formal_application', 'outreach', 'discovery'] as const;
 export type ApplySiteSemantics = (typeof APPLY_SITE_SEMANTICS)[number];
@@ -63,6 +64,7 @@ export interface ApplySiteSubmitResult {
 export interface ApplySiteAdapter {
   readonly descriptor: ApplySiteAdapterDescriptor;
   probe(input: ApplySiteProbeInput): ApplySiteProbeResult;
+  preflight?(browser: BrowserDriverPort): Promise<ApplyPagePreflightResult>;
   inspect(browser: BrowserDriverPort, input: { readonly url: string; readonly title?: string | null; readonly observedAt: string }): Promise<FormIR>;
   explicitBindings?(form: FormIR): readonly FieldBinding[];
   fill?(browser: BrowserDriverPort, form: FormIR, plan: FillPlan, applicant: ApplicantDataProviderPort, assets?: ApplyFillAssets): Promise<FillReport>;

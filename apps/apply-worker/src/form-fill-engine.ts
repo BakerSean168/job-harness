@@ -15,7 +15,14 @@ export interface ResumeUploadAsset extends BrowserUploadFile {
   readonly sha256: string;
 }
 
-export interface FormFillExecutionResult {
+export interface FormFillHandoffRequiredResult {
+  readonly outcome: 'handoff_required';
+  readonly reasonCode: string;
+  readonly summary: string;
+  readonly payload: Record<string, unknown>;
+}
+
+export interface FormFillReviewResult {
   readonly outcome: 'review_ready' | 'manual_review_required';
   readonly reasonCode: string;
   readonly summary: string;
@@ -40,6 +47,8 @@ export interface FormFillExecutionResult {
   };
 }
 
+export type FormFillExecutionResult = FormFillHandoffRequiredResult | FormFillReviewResult;
+
 export interface FormFillExecutionEngineOptions {
   readonly siteAdapters: ApplySiteAdapterRegistry;
   readonly applicant?: ApplicantDataProviderPort | null;
@@ -60,6 +69,25 @@ export class FormFillExecutionEngine {
     this.semanticConfidenceThreshold = options.semanticConfidenceThreshold ?? 0.93;
   }
 
+  resolveAdapterDescriptor(attempt: ExecutionAttempt) {
+    return this.resolveAdapter(attempt).descriptor;
+  }
+
+  private resolveAdapter(attempt: ExecutionAttempt) {
+    const targetUrl = attempt.bundle.listingUrl;
+    if (!targetUrl) throw new Error('Frozen ApplyBundle has no Listing URL');
+    const requested = attempt.requiredAdapterId && attempt.requiredAdapterId !== 'form-fill-v1'
+      ? attempt.requiredAdapterId
+      : null;
+    const adapter = this.siteAdapters.resolve({
+      url: targetUrl,
+      semantics: 'formal_application',
+      requiredAdapterId: requested,
+    });
+    if (!adapter) throw new Error(`No formal-application site adapter supports '${new URL(targetUrl).hostname}'`);
+    return adapter;
+  }
+
   async execute(input: {
     readonly attempt: ExecutionAttempt;
     readonly browser: BrowserDriverPort;
@@ -69,17 +97,26 @@ export class FormFillExecutionEngine {
   }): Promise<FormFillExecutionResult> {
     const targetUrl = input.attempt.bundle.listingUrl;
     if (!targetUrl) throw new Error('Frozen ApplyBundle has no Listing URL');
-    const requested = input.attempt.requiredAdapterId && input.attempt.requiredAdapterId !== 'form-fill-v1'
-      ? input.attempt.requiredAdapterId
-      : null;
-    const adapter = this.siteAdapters.resolve({
-      url: targetUrl,
-      semantics: 'formal_application',
-      requiredAdapterId: requested,
-    });
-    if (!adapter) throw new Error(`No formal-application site adapter supports '${new URL(targetUrl).hostname}'`);
+    const adapter = this.resolveAdapter(input.attempt);
     if (!adapter.descriptor.capabilities.inspect || !adapter.descriptor.capabilities.fill) {
       throw new Error(`Site adapter '${adapter.descriptor.id}' cannot inspect/fill application forms`);
+    }
+
+    if (adapter.preflight) {
+      const preflight = await adapter.preflight(input.browser);
+      if (!preflight.canInspectForm) {
+        return {
+          outcome: 'handoff_required',
+          reasonCode: preflight.reasonCode,
+          summary: preflight.summary,
+          payload: {
+            siteAdapterId: adapter.descriptor.id,
+            siteAdapterVersion: adapter.descriptor.version,
+            pageState: preflight.state,
+            preflight: preflight.evidence,
+          },
+        };
+      }
     }
 
     const form = await adapter.inspect(input.browser, {
