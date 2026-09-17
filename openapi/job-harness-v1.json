@@ -1995,6 +1995,7 @@
                                 "anyOf": [
                                   {
                                     "type": "string",
+                                    "minLength": 1,
                                     "maxLength": 500
                                   },
                                   {
@@ -2178,6 +2179,7 @@
                                     "anyOf": [
                                       {
                                         "type": "string",
+                                        "minLength": 1,
                                         "maxLength": 500
                                       },
                                       {
@@ -2597,6 +2599,7 @@
                                 "anyOf": [
                                   {
                                     "type": "string",
+                                    "minLength": 1,
                                     "maxLength": 500
                                   },
                                   {
@@ -2780,6 +2783,7 @@
                                     "anyOf": [
                                       {
                                         "type": "string",
+                                        "minLength": 1,
                                         "maxLength": 500
                                       },
                                       {
@@ -3191,6 +3195,7 @@
                               "anyOf": [
                                 {
                                   "type": "string",
+                                  "minLength": 1,
                                   "maxLength": 500
                                 },
                                 {
@@ -22749,42 +22754,6 @@
                       "type": "string"
                     },
                     "additionalProperties": {}
-                  },
-                  "applicantCatalogVersion": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 200
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "answerSetVersion": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 200
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "answerSetHash": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 200
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
                   },
                   "idempotencyKey": {
                     "type": "string",

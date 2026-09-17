@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import {
   ApplicantFieldCatalogSchema,
   ResolvedApplicantValuesSchema,
@@ -11,6 +10,7 @@ import {
 import { ApplyConflictError, ApplyNotFoundError, ApplyNotReadyError, type ApplicantDataGrantPort } from '@job-harness/apply-runtime';
 import type { ResolvedResume, ResumeRevision } from '@job-harness/resume-contracts';
 import type { ApplicantProfileRevision, ApplicationAnswerSetRevision } from '@job-harness/applicant-contracts';
+import { applicantSnapshotVersion, answerSetVersion } from './applicant-snapshot';
 
 type ApplicantValue = ApplicantResolvedValue['value'];
 interface NativeFact { readonly entry: ApplicantFieldCatalogEntry; readonly value: ApplicantValue; readonly provenance: string; }
@@ -27,7 +27,9 @@ export function createResumeRevisionApplicantDataGrant(
 ): ApplicantDataGrantPort {
   async function factsFor(attempt: ExecutionAttempt): Promise<{ version: string; facts: NativeFact[] }> {
     const facts = new Map<string, NativeFact>();
-    const versions: string[] = [];
+    let frozenResume: { revisionId: string; contentHash: string } | null = null;
+    let frozenProfile: { revisionId: string; contentHash: string } | null = null;
+    let frozenAnswers: { revisionId: string; contentHash: string } | null = null;
 
     const revisionId = attempt.bundle.resumeRevisionId;
     if (revisionId) {
@@ -36,7 +38,7 @@ export function createResumeRevisionApplicantDataGrant(
       if (attempt.bundle.resumeProfileId && revision.profileId !== attempt.bundle.resumeProfileId) {
         throw new ApplyConflictError(`ResumeRevision '${revision.id}' does not belong to frozen Profile '${attempt.bundle.resumeProfileId}'`);
       }
-      versions.push(`resume:${revision.id}:${revision.contentHash.toLowerCase()}`);
+      frozenResume = { revisionId: revision.id, contentHash: revision.contentHash };
       for (const fact of factsFromResolvedResume(revision.resolvedDocumentSnapshot, revision.id)) facts.set(fact.entry.key, fact);
     }
 
@@ -47,7 +49,7 @@ export function createResumeRevisionApplicantDataGrant(
       if (attempt.bundle.applicantProfileHash && profileRevision.contentHash !== attempt.bundle.applicantProfileHash) {
         throw new ApplyConflictError(`ApplicantProfileRevision '${profileRevision.id}' hash no longer matches frozen ApplyBundle evidence`);
       }
-      versions.push(`profile:${profileRevision.id}:${profileRevision.contentHash}`);
+      frozenProfile = { revisionId: profileRevision.id, contentHash: profileRevision.contentHash };
       for (const fact of factsFromApplicantProfile(profileRevision)) facts.set(fact.entry.key, fact);
     }
 
@@ -58,14 +60,22 @@ export function createResumeRevisionApplicantDataGrant(
       if (attempt.bundle.answerSetHash && answerRevision.contentHash !== attempt.bundle.answerSetHash) {
         throw new ApplyConflictError(`ApplicationAnswerSetRevision '${answerRevision.id}' hash no longer matches frozen ApplyBundle evidence`);
       }
-      versions.push(`answers:${answerRevision.id}:${answerRevision.contentHash}`);
+      frozenAnswers = { revisionId: answerRevision.id, contentHash: answerRevision.contentHash };
+      const expectedAnswerVersion = answerSetVersion(answerRevision.id, answerRevision.answerSetVersion);
+      if (attempt.bundle.answerSetVersion && attempt.bundle.answerSetVersion !== expectedAnswerVersion) {
+        throw new ApplyConflictError(`ApplicationAnswerSetRevision '${answerRevision.id}' version no longer matches frozen ApplyBundle evidence`);
+      }
       const host = attempt.bundle.listingUrl ? new URL(attempt.bundle.listingUrl).hostname.toLowerCase() : null;
       for (const fact of factsFromAnswerSet(answerRevision, host)) facts.set(fact.entry.key, fact);
     }
 
     if (!facts.size) throw new ApplyNotReadyError(`ExecutionAttempt '${attempt.id}' has no frozen applicant data`);
-    const digest = createHash('sha256').update(versions.join('|')).digest('hex');
-    return { version: `applicant-snapshot:${digest}`, facts: [...facts.values()] };
+    const version = applicantSnapshotVersion({ applicantProfile: frozenProfile, resume: frozenResume, answerSet: frozenAnswers });
+    if (!version) throw new ApplyNotReadyError(`ExecutionAttempt '${attempt.id}' has no frozen applicant snapshot identity`);
+    if (attempt.bundle.applicantCatalogVersion && attempt.bundle.applicantCatalogVersion !== version) {
+      throw new ApplyConflictError(`ExecutionAttempt '${attempt.id}' applicant snapshot identity does not match the frozen ApplyBundle`);
+    }
+    return { version, facts: [...facts.values()] };
   }
 
   return {

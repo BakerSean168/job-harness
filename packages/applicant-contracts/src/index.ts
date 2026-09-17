@@ -5,16 +5,48 @@ const IsoDateTimeSchema = z.iso.datetime({ offset: true });
 const MonthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const FactKeySchema = z.string().trim().min(1).max(240).regex(/^[a-z0-9_.\[\]-]+$/);
 
-export const ApplicantFactValueTypeSchema = z.enum([
-  'text', 'multiline', 'email', 'phone', 'url', 'number', 'date', 'boolean', 'choice', 'multi_choice',
-]);
-export const ApplicantFactSensitivitySchema = z.enum(['public', 'personal', 'sensitive', 'legal', 'protected']);
+export const APPLICANT_FACT_VALUE_TYPES = ['text', 'multiline', 'email', 'phone', 'url', 'number', 'date', 'boolean', 'choice', 'multi_choice'] as const;
+export const APPLICANT_FACT_SENSITIVITIES = ['public', 'personal', 'sensitive', 'legal', 'protected'] as const;
+export const ApplicantFactValueTypeSchema = z.enum(APPLICANT_FACT_VALUE_TYPES);
+export const ApplicantFactSensitivitySchema = z.enum(APPLICANT_FACT_SENSITIVITIES);
 export const ApplicantLiteralValueSchema = z.union([
   z.string().max(100_000),
   z.number(),
   z.boolean(),
   z.array(z.union([z.string().max(10_000), z.number(), z.boolean()])).max(500),
 ]);
+
+
+const SiteHostSchema = z.string().trim().min(1).max(500).superRefine((value, ctx) => {
+  if (/[\/?#@:]/.test(value)) {
+    ctx.addIssue({ code: 'custom', message: 'siteHost must be a bare hostname without scheme, path, port, credentials, query, or fragment' });
+    return;
+  }
+  try {
+    const canonical = new URL(`https://${value}`).hostname.toLowerCase().replace(/\.$/, '');
+    if (!canonical || canonical.length > 253 || canonical !== value) {
+      ctx.addIssue({ code: 'custom', message: 'siteHost must already be a canonical lower-case hostname without a trailing dot' });
+    }
+  } catch {
+    ctx.addIssue({ code: 'custom', message: 'siteHost is not a valid hostname' });
+  }
+});
+
+function validateLiteralValueType(valueType: z.infer<typeof ApplicantFactValueTypeSchema>, value: z.infer<typeof ApplicantLiteralValueSchema>): string | null {
+  switch (valueType) {
+    case 'boolean': return typeof value === 'boolean' ? null : 'boolean answers require a boolean literal';
+    case 'number': return typeof value === 'number' && Number.isFinite(value) ? null : 'number answers require a finite numeric literal';
+    case 'multi_choice': return Array.isArray(value) ? null : 'multi_choice answers require an array literal';
+    case 'text':
+    case 'multiline':
+    case 'email':
+    case 'phone':
+    case 'url':
+    case 'date':
+    case 'choice':
+      return typeof value === 'string' ? null : `${valueType} answers require a string literal`;
+  }
+}
 
 export const ApplicantEducationSchema = z.object({
   id: IdSchema,
@@ -74,11 +106,19 @@ export const ApplicationAnswerEntrySchema = z.object({
   sensitivity: ApplicantFactSensitivitySchema,
   value: ApplicantLiteralValueSchema,
   aliases: z.array(z.string().trim().min(1).max(500)).max(100).default([]),
-  siteHost: z.string().trim().max(500).nullable().default(null),
+  siteHost: SiteHostSchema.nullable().default(null),
   enabled: z.boolean().default(true),
 }).strict().superRefine((value, ctx) => {
   if ((value.sensitivity === 'legal' || value.sensitivity === 'protected') && value.aliases.length === 0) {
     ctx.addIssue({ code: 'custom', path: ['aliases'], message: 'legal/protected answers require at least one explicit alias' });
+  }
+  const typeIssue = validateLiteralValueType(value.valueType, value.value);
+  if (typeIssue) ctx.addIssue({ code: 'custom', path: ['value'], message: typeIssue });
+  if (value.valueType === 'email' && typeof value.value === 'string' && !z.email().safeParse(value.value).success) {
+    ctx.addIssue({ code: 'custom', path: ['value'], message: 'email answers require a valid email address' });
+  }
+  if (value.valueType === 'url' && typeof value.value === 'string' && !z.url().safeParse(value.value).success) {
+    ctx.addIssue({ code: 'custom', path: ['value'], message: 'url answers require a valid URL' });
   }
 });
 

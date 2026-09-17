@@ -2,10 +2,14 @@
 
 import { useActionState, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type {
-  ApplicantProfileContext,
-  ApplicationAnswerEntry,
-  ApplicationAnswerSetContext,
+import {
+  APPLICANT_FACT_SENSITIVITIES,
+  APPLICANT_FACT_VALUE_TYPES,
+  ApplicantFactSensitivitySchema,
+  ApplicantFactValueTypeSchema,
+  type ApplicantProfileContext,
+  type ApplicationAnswerEntry,
+  type ApplicationAnswerSetContext,
 } from '@job-harness/applicant-contracts';
 import type { MessageCatalog } from '@/i18n';
 import {
@@ -22,6 +26,20 @@ function parseAnswerValue(raw: string, type: ApplicationAnswerEntry['valueType']
   if (type === 'number') return Number(raw || '0');
   if (type === 'multi_choice') return split(raw);
   return raw;
+}
+
+
+function coerceAnswerValue(value: ApplicationAnswerEntry['value'], type: ApplicationAnswerEntry['valueType']): ApplicationAnswerEntry['value'] {
+  if (type === 'boolean') return typeof value === 'boolean' ? value : false;
+  if (type === 'number') return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  if (type === 'multi_choice') return Array.isArray(value) ? value : split(String(value));
+  if (Array.isArray(value)) return value.map(String).join(', ');
+  return String(value);
+}
+
+function normalizeSiteHostDraft(value: string): string | null {
+  const normalized = value.trim().toLowerCase().replace(/\.$/, '');
+  return normalized || null;
 }
 
 export function ApplicantDataSettings({
@@ -98,13 +116,13 @@ export function ApplicantDataSettings({
               <div className="management-field-grid">
                 <label className="management-field"><span>{copy.answerLabel}</span><input value={answer.label} onChange={(e) => setAnswers(answers.map((item, i) => i === index ? { ...item, label: e.target.value } : item))} /></label>
                 <label className="management-field"><span>{copy.answerKey}</span><input value={answer.key} onChange={(e) => setAnswers(answers.map((item, i) => i === index ? { ...item, key: e.target.value } : item))} /></label>
-                <label className="management-field"><span>{copy.answerType}</span><select value={answer.valueType} onChange={(e) => setAnswers(answers.map((item, i) => i === index ? { ...item, valueType: e.target.value as ApplicationAnswerEntry['valueType'] } : item))}>{['text','multiline','email','phone','url','number','date','boolean','choice','multi_choice'].map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
-                <label className="management-field"><span>{copy.sensitivity}</span><select value={answer.sensitivity} onChange={(e) => setAnswers(answers.map((item, i) => i === index ? { ...item, sensitivity: e.target.value as ApplicationAnswerEntry['sensitivity'] } : item))}>{['public','personal','sensitive','legal','protected'].map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
+                <label className="management-field"><span>{copy.answerType}</span><select value={answer.valueType} onChange={(e) => { const next = ApplicantFactValueTypeSchema.safeParse(e.target.value); if (next.success) setAnswers(answers.map((item, i) => i === index ? { ...item, valueType: next.data, value: coerceAnswerValue(item.value, next.data) } : item)); }}>{APPLICANT_FACT_VALUE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
+                <label className="management-field"><span>{copy.sensitivity}</span><select value={answer.sensitivity} onChange={(e) => { const next = ApplicantFactSensitivitySchema.safeParse(e.target.value); if (next.success) setAnswers(answers.map((item, i) => i === index ? { ...item, sensitivity: next.data } : item)); }}>{APPLICANT_FACT_SENSITIVITIES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
               </div>
               <label className="management-field"><span>{copy.answerValue}</span>{answer.valueType === 'boolean' ? <select value={String(answer.value)} onChange={(e) => setAnswers(answers.map((item, i) => i === index ? { ...item, value: e.target.value === 'true' } : item))}><option value="true">true</option><option value="false">false</option></select> : <textarea rows={answer.valueType === 'multiline' ? 3 : 1} value={displayValue(answer.value)} onChange={(e) => setAnswers(answers.map((item, i) => i === index ? { ...item, value: parseAnswerValue(e.target.value, item.valueType) } : item))} />}</label>
               <div className="management-field-grid">
                 <label className="management-field"><span>{copy.aliases}</span><input value={answer.aliases.join(', ')} onChange={(e) => setAnswers(answers.map((item, i) => i === index ? { ...item, aliases: split(e.target.value) } : item))} /></label>
-                <label className="management-field"><span>{copy.siteHost}</span><input placeholder="example.com" value={answer.siteHost ?? ''} onChange={(e) => setAnswers(answers.map((item, i) => i === index ? { ...item, siteHost: e.target.value || null } : item))} /></label>
+                <label className="management-field"><span>{copy.siteHost}</span><input placeholder="example.com" value={answer.siteHost ?? ''} onChange={(e) => setAnswers(answers.map((item, i) => i === index ? { ...item, siteHost: e.target.value.toLowerCase() || null } : item))} onBlur={() => setAnswers((current) => current.map((item, i) => i === index ? { ...item, siteHost: normalizeSiteHostDraft(item.siteHost ?? '') } : item))} /></label>
               </div>
               <button className="action-button" type="button" onClick={() => setAnswers(answers.filter((_, i) => i !== index))}>{copy.removeAnswer}</button>
             </div>

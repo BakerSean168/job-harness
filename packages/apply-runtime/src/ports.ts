@@ -26,9 +26,6 @@ export interface ApplyBundleFactoryPort {
     readonly intentId: string;
     readonly attemptId: string;
     readonly policySnapshot: Record<string, unknown>;
-    readonly applicantCatalogVersion: string | null;
-    readonly answerSetVersion: string | null;
-    readonly answerSetHash: string | null;
     readonly createdAt: string;
   }): Promise<ApplyBundle>;
 }

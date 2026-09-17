@@ -105,6 +105,7 @@ describe('lease-scoped applicant data derived from immutable Resume Revision', (
     });
     expect(catalog.response.status).toBe(200);
     expect(catalog.body.version).toMatch(/^applicant-snapshot:[a-f0-9]{64}$/);
+    expect(catalog.body.version).toBe(dispatched.body.bundle.applicantCatalogVersion);
     expect(catalog.body.entries).toEqual(expect.arrayContaining([
       expect.objectContaining({ key: 'person.full_name', valueType: 'text', source: 'job-harness-applicant-profile' }),
       expect.objectContaining({ key: 'contact.email', valueType: 'email', sensitivity: 'sensitive', source: 'job-harness-applicant-profile' }),

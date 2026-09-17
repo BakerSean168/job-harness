@@ -121,7 +121,27 @@ export const ApplyBundleSchema = z.object({
   answerSetHash: z.string().regex(/^[a-f0-9]{64}$/).nullable().default(null),
   policySnapshot: z.record(z.string(), z.unknown()).default({}),
   createdAt: ApplyIsoDateTimeSchema,
-}).strict();
+}).strict().superRefine((value, ctx) => {
+  if (value.resumeArtifact && !value.resumeRevisionId) {
+    ctx.addIssue({ code: 'custom', path: ['resumeRevisionId'], message: 'resumeArtifact requires a frozen resumeRevisionId' });
+  }
+  if (value.resumeArtifact && value.resumeRevisionId && value.resumeArtifact.revisionId !== value.resumeRevisionId) {
+    ctx.addIssue({ code: 'custom', path: ['resumeArtifact', 'revisionId'], message: 'resumeArtifact revisionId must match resumeRevisionId' });
+  }
+  const hasApplicantRevision = value.applicantProfileRevisionId !== null;
+  const hasApplicantHash = value.applicantProfileHash !== null;
+  if (hasApplicantRevision !== hasApplicantHash) {
+    ctx.addIssue({ code: 'custom', path: ['applicantProfileRevisionId'], message: 'applicant profile revision id and hash must be frozen together' });
+  }
+  const answerEvidence = [value.answerSetRevisionId, value.answerSetVersion, value.answerSetHash];
+  const answerPresent = answerEvidence.filter((item) => item !== null).length;
+  if (answerPresent !== 0 && answerPresent !== answerEvidence.length) {
+    ctx.addIssue({ code: 'custom', path: ['answerSetRevisionId'], message: 'answer-set revision id, version and hash must be frozen together' });
+  }
+  if ((hasApplicantRevision || value.answerSetRevisionId !== null) && value.applicantCatalogVersion === null) {
+    ctx.addIssue({ code: 'custom', path: ['applicantCatalogVersion'], message: 'frozen applicant evidence requires an applicant catalog version' });
+  }
+});
 
 export const BrowserSessionHandoffSchema = z.object({
   backendId: z.string().trim().min(1).max(100),
@@ -205,9 +225,6 @@ export const DispatchExecutionAttemptInputSchema = z.object({
   preferredBrowserBackend: z.string().trim().min(1).max(100).nullable().optional(),
   requiredCapabilities: z.array(ExecutorCapabilityKeySchema).max(10).default([]),
   policySnapshot: z.record(z.string(), z.unknown()).default({}),
-  applicantCatalogVersion: z.string().trim().min(1).max(200).nullable().optional(),
-  answerSetVersion: z.string().trim().min(1).max(200).nullable().optional(),
-  answerSetHash: z.string().trim().min(1).max(200).nullable().optional(),
   idempotencyKey: z.string().trim().min(1).max(300),
 }).strict();
 

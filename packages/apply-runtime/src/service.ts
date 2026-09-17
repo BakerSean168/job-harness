@@ -189,9 +189,6 @@ export function createApplyControlPlane(
           intentId: parsed.intentId,
           attemptId: id,
           policySnapshot: parsed.policySnapshot,
-          applicantCatalogVersion: parsed.applicantCatalogVersion ?? null,
-          answerSetVersion: parsed.answerSetVersion ?? null,
-          answerSetHash: parsed.answerSetHash ?? null,
           createdAt: timestamp,
         });
         const bundleHash = sha256(stableJson(bundle));

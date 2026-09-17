@@ -1,13 +1,18 @@
-import { createHash } from 'node:crypto';
 import { ApplyBundleSchema } from '@job-harness/apply-contracts';
 import { ApplyConflictError, ApplyNotFoundError, ApplyNotReadyError, type ApplyBundleFactoryPort } from '@job-harness/apply-runtime';
 import type { CareerRuntimePorts } from '@job-harness/application';
-import type { SqliteResumeStore } from '@job-harness/persistence-sqlite';
+import type { ResumeArtifact, ResumeRevision } from '@job-harness/resume-contracts';
 import type { ApplicantStoreReadPort } from '@job-harness/applicant-application';
+import { applicantSnapshotVersion, answerSetVersion } from './applicant-snapshot';
+
+export interface ResumeApplyEvidenceReader {
+  getRevision(revisionId: string): Promise<ResumeRevision | null>;
+  getArtifact(artifactId: string): Promise<ResumeArtifact | null>;
+}
 
 export function createApplyBundleFactory(
   career: CareerRuntimePorts,
-  resumeStore: SqliteResumeStore,
+  resumeStore: ResumeApplyEvidenceReader,
   applicantStore?: ApplicantStoreReadPort | null,
 ): ApplyBundleFactoryPort {
   return {
@@ -33,14 +38,11 @@ export function createApplyBundleFactory(
       const profileRevision = applicantStore ? await applicantStore.getDefaultProfile().then(async (profile) => profile ? applicantStore.getLatestProfileRevision(profile.id) : null) : null;
       const answerRevision = applicantStore ? await applicantStore.getDefaultAnswerSet().then(async (set) => set ? applicantStore.getLatestAnswerSetRevision(set.id) : null) : null;
       const resumeRevision = intent.resumeRevisionId ? await resumeStore.getRevision(intent.resumeRevisionId) : null;
-      const catalogParts = [
-        profileRevision ? `profile:${profileRevision.id}:${profileRevision.contentHash}` : null,
-        resumeRevision ? `resume:${resumeRevision.id}:${resumeRevision.contentHash.toLowerCase()}` : null,
-        answerRevision ? `answers:${answerRevision.id}:${answerRevision.contentHash}` : null,
-      ].filter((value): value is string => Boolean(value));
-      const catalogVersion = catalogParts.length
-        ? `applicant-snapshot:${createHash('sha256').update(catalogParts.join('|')).digest('hex')}`
-        : input.applicantCatalogVersion;
+      const catalogVersion = applicantSnapshotVersion({
+        applicantProfile: profileRevision ? { revisionId: profileRevision.id, contentHash: profileRevision.contentHash } : null,
+        resume: resumeRevision ? { revisionId: resumeRevision.id, contentHash: resumeRevision.contentHash } : null,
+        answerSet: answerRevision ? { revisionId: answerRevision.id, contentHash: answerRevision.contentHash } : null,
+      });
 
       return ApplyBundleSchema.parse({
         intentId: intent.id, attemptId: input.attemptId, jobId: job.id, listingId: listing?.id ?? null, listingUrl,
@@ -50,8 +52,8 @@ export function createApplyBundleFactory(
         applicantProfileRevisionId: profileRevision?.id ?? null,
         applicantProfileHash: profileRevision?.contentHash ?? null,
         answerSetRevisionId: answerRevision?.id ?? null,
-        answerSetVersion: answerRevision ? `answer-set:${answerRevision.id}:v${answerRevision.answerSetVersion}` : input.answerSetVersion,
-        answerSetHash: answerRevision?.contentHash ?? input.answerSetHash,
+        answerSetVersion: answerRevision ? answerSetVersion(answerRevision.id, answerRevision.answerSetVersion) : null,
+        answerSetHash: answerRevision?.contentHash ?? null,
         policySnapshot: input.policySnapshot, createdAt: input.createdAt,
       });
     },
