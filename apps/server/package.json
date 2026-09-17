@@ -27,6 +27,9 @@
   },
   "devDependencies": {
     "tsx": "^4.20.5",
-    "@types/express": "^5.0.3"
+    "@types/express": "^5.0.3",
+    "@job-harness/apply-browser": "workspace:*",
+    "@job-harness/apply-adapters": "workspace:*",
+    "@job-harness/client": "workspace:*"
   }
 }

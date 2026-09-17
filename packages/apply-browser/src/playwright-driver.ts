@@ -1,5 +1,5 @@
 import type { Page } from 'playwright';
-import type { BrowserActionSnapshot, BrowserControlSnapshot, BrowserDriverPort, BrowserUploadFile } from './types';
+import type { BrowserActionSnapshot, BrowserClickExpectation, BrowserControlSnapshot, BrowserDriverPort, BrowserUploadFile } from './types';
 
 export class PlaywrightBrowserDriver implements BrowserDriverPort {
   constructor(private readonly page: Page) {}
@@ -70,8 +70,15 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
     await locator.setChecked(checked);
   }
 
-  async click(selector: string): Promise<void> {
-    await this.page.locator(selector).first().click();
+  async click(selector: string, expectation: BrowserClickExpectation = {}): Promise<void> {
+    const locator = this.page.locator(selector).first();
+    if (expectation.expectedText) {
+      const actual = (await locator.innerText()).replace(/\s+/g, ' ').trim();
+      if (actual !== expectation.expectedText.replace(/\s+/g, ' ').trim()) {
+        throw new Error(`Click target text changed: expected '${expectation.expectedText}', got '${actual}'`);
+      }
+    }
+    await locator.click();
   }
 
   async upload(selector: string, file: BrowserUploadFile): Promise<void> {

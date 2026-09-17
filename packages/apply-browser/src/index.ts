@@ -3,3 +3,4 @@ export * from './playwright-driver';
 export * from './local-cdp';
 export * from './steel';
 export * from './registry';
+export * from './extension';

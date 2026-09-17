@@ -100,6 +100,15 @@ importers:
         specifier: ^4.1.8
         version: 4.6.5
     devDependencies:
+      '@job-harness/apply-adapters':
+        specifier: workspace:*
+        version: link:../../packages/apply-adapters
+      '@job-harness/apply-browser':
+        specifier: workspace:*
+        version: link:../../packages/apply-browser
+      '@job-harness/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@types/express':
         specifier: ^5.0.3
         version: 5.0.6

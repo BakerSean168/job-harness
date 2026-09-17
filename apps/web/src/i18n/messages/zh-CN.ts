@@ -43,6 +43,7 @@ export const zhCN: MessageCatalog = {
   },
   settingsWorkspace: {
     security: '安全与访问', session: 'Web Session', enabled: '已启用', disabled: '未启用', sessionDescription: '启用后，所有工作区页面和 Server Action 都要求有效的签名 Session。', apiBoundary: 'API 凭据边界', apiBoundaryDescription: 'JOB_HARNESS_AUTH_TOKEN 仅由 Next 服务端 REST client 使用，不会发送到浏览器。', logout: '退出登录', localOnlyNote: '未配置 Web 密码时适合本地或受信 Tailnet 使用；公开入口应启用登录并使用 HTTPS。',
+    browserExtension: { title: '用户浏览器桥接', description: '为 Windows Chrome 的 Job Harness Browser Bridge 生成一次性配对码。扩展只能获得浏览器桥接权限，不能读取 Career/Resume API，也不能自行授权最终提交。', bridgeUrl: 'Bridge URL', unavailable: '尚未配置公开 Bridge URL', generate: '生成 5 分钟配对码', generating: '生成中…', code: '配对码', expires: '有效至', instructions: '在扩展 Options 中填入 Bridge URL、Agent ID 和这个一次性配对码。扩展会直接换取受限 Agent Token；长期 Token 不会显示在 Job Harness 页面。', error: '配对失败' },
     data: '数据与备份', exportJson: '导出 Career JSON', exportJsonDescription: '下载可移植、可审阅的业务真值快照：公司、岗位、Listing、观察记录、投递时间线、求职目标、简历引用和发现任务。', backupSqlite: '下载 SQLite 备份', backupSqliteDescription: '下载通过 SQLite VACUUM INTO 生成的物理一致性数据库，可用于完整灾备恢复。', download: '下载', backupNote: 'JSON 导出不包含内部幂等收据和旧迁移证据；需要完整恢复时请使用 SQLite 备份。'
   },
   companiesWorkspace: {

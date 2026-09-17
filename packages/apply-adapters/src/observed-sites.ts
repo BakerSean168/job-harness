@@ -56,7 +56,7 @@ export class NowcoderAtsSiteAdapter extends ObservedPublicAtsAdapter {
       .filter((action) => !action.disabled && !action.ariaDisabled && action.text.replace(/\s+/g, ' ').trim() === '立即申请');
     if (actions.length !== 1) throw new Error(`Nowcoder application entry requires exactly one enabled '立即申请' action, found ${actions.length}`);
     const action = actions[0]!;
-    await browser.click(action.actionRef);
+    await browser.click(action.actionRef, { expectedText: '立即申请' });
     await browser.wait(1200);
     const after = await inspectApplyPagePreflight(browser);
     return {

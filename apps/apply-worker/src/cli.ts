@@ -1,6 +1,6 @@
 import { hostname } from 'node:os';
 import { resolve } from 'node:path';
-import { BrowserBackendRegistry, LocalCdpBrowserBackend, SteelBrowserBackend } from '@job-harness/apply-browser';
+import { BrowserBackendRegistry, ExtensionBrowserBackend, LocalCdpBrowserBackend, SteelBrowserBackend } from '@job-harness/apply-browser';
 import type { ExecutorDescriptor } from '@job-harness/apply-contracts';
 import { ApplySiteAdapterRegistry, GenericAtsSiteAdapter, MokaSocialRecruitmentAtsSiteAdapter, NowcoderAtsSiteAdapter } from '@job-harness/apply-adapters';
 import { createJobHarnessRestClient } from '@job-harness/client';
@@ -38,6 +38,20 @@ if (backendId === 'steel') {
   }));
 } else if (backendId === 'local-cdp') {
   registry.register(new LocalCdpBrowserBackend({ endpoint: process.env.JOB_HARNESS_LOCAL_CDP_URL ?? 'http://127.0.0.1:9222' }));
+} else if (backendId === 'extension') {
+  const agentId = process.env.JOB_HARNESS_BROWSER_EXTENSION_AGENT_ID?.trim();
+  if (!agentId) throw new Error('JOB_HARNESS_BROWSER_EXTENSION_AGENT_ID is required for extension backend');
+  const serverOrigin = new URL(apiUrl);
+  serverOrigin.pathname = '';
+  serverOrigin.search = '';
+  serverOrigin.hash = '';
+  registry.register(new ExtensionBrowserBackend({
+    bridgeUrl: process.env.JOB_HARNESS_BROWSER_EXTENSION_BRIDGE_URL ?? `${serverOrigin.toString().replace(/\/$/, '')}/internal/browser-bridge/v1`,
+    executorAuthToken: token,
+    agentId,
+    backendId,
+    commandTimeoutMs: positiveInt('JOB_HARNESS_BROWSER_EXTENSION_COMMAND_TIMEOUT_MS', 30_000),
+  }));
 } else {
   throw new Error(`Unsupported JOB_HARNESS_APPLY_BROWSER_BACKEND: ${backendId}`);
 }
@@ -53,6 +67,9 @@ const formFillEngine = siteAdapters ? new FormFillExecutionEngine({ siteAdapters
 const adapterId = phase === 'form-fill' ? 'generic-ats' : 'readiness-v1';
 const advertisedAdapterIds = siteAdapters ? siteAdapters.descriptors().map((descriptor) => descriptor.id) : [adapterId];
 
+const extensionResumeUpload = backendId === 'extension' && (process.env.JOB_HARNESS_BROWSER_EXTENSION_RESUME_UPLOAD ?? 'false').toLowerCase() === 'true';
+const extensionScreenshots = backendId === 'extension' && (process.env.JOB_HARNESS_BROWSER_EXTENSION_SCREENSHOTS ?? 'false').toLowerCase() === 'true';
+
 const descriptor: ExecutorDescriptor = {
   executorId,
   name: process.env.JOB_HARNESS_APPLY_EXECUTOR_NAME ?? `Job Harness Apply Worker (${backendId})`,
@@ -63,14 +80,14 @@ const descriptor: ExecutorDescriptor = {
   adapterIds: advertisedAdapterIds,
   executionModes: ['fill_only'],
   capabilities: {
-    resumeUpload: true,
+    resumeUpload: backendId === 'extension' ? extensionResumeUpload : true,
     humanControl: true,
     persistentSession: true,
-    screenshots: true,
+    screenshots: backendId === 'extension' ? extensionScreenshots : true,
     semanticMapping: false,
   },
   maxConcurrency: 1,
-  metadata: { phase: phase === 'form-fill' ? 'R019-form-fill' : 'R019-readiness', externalSubmit: false, formFill: phase === 'form-fill', applicantData: phase === 'form-fill' ? 'lease-scoped-resume-revision' : 'none', siteAdapters: advertisedAdapterIds },
+  metadata: { phase: phase === 'form-fill' ? 'R019-form-fill' : 'R019-readiness', externalSubmit: false, formFill: phase === 'form-fill', applicantData: phase === 'form-fill' ? 'lease-scoped-resume-revision' : 'none', siteAdapters: advertisedAdapterIds, userBrowser: backendId === 'extension' },
 };
 
 const client = createJobHarnessRestClient({ baseUrl: apiUrl, authToken: token });

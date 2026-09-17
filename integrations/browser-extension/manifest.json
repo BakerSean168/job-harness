@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Job Harness Browser Bridge",
+  "version": "0.1.0",
+  "description": "Narrow user-browser execution bridge for Job Harness. It owns no job ledger, resume profile, scoring, or final-submit policy.",
+  "permissions": ["alarms", "scripting", "storage", "tabs"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "action": {
+    "default_title": "Job Harness Browser Bridge",
+    "default_popup": "popup.html"
+  }
+}

@@ -421,3 +421,10 @@ button { color: inherit; }
 .executor-dispatch-card small { color: var(--text-muted); font-size: 11px; }
 .executor-dispatch-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
 .executor-dispatch-actions form { margin: 0; }
+
+.settings-pairing-form { margin-top: 12px; }
+.settings-pairing-result { margin-top: 14px; display: grid; gap: 8px; padding: 12px; border: 1px dashed var(--border); border-radius: 8px; }
+.settings-pairing-result > div { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; }
+.settings-pairing-result span { color: var(--text-muted); font-size: 12px; }
+.settings-pairing-result code { font-size: 18px; letter-spacing: .08em; user-select: all; }
+.settings-pairing-result p { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.6; }

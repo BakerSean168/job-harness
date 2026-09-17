@@ -13,7 +13,7 @@
     "e2e:headed": "pnpm build:web && playwright test --headed",
     "typecheck": "tsc -b && pnpm --filter @job-harness/web typecheck",
     "test": "vitest run",
-    "check": "pnpm check:manifest && pnpm check:boundaries && pnpm check:chatgpt-integration && pnpm typecheck && pnpm check:openapi && pnpm test && pnpm build:web",
+    "check": "pnpm check:manifest && pnpm check:boundaries && pnpm check:browser-extension-bridge && pnpm check:chatgpt-integration && pnpm typecheck && pnpm check:openapi && pnpm test && pnpm build:web",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "server": "pnpm --filter @job-harness/server start",
     "import:legacy": "pnpm --filter @job-harness/server import:legacy",
@@ -29,7 +29,8 @@
     "smoke:apply-worker:steel": "pnpm --filter @job-harness/apply-worker smoke:steel",
     "smoke:apply-synthetic": "pnpm --filter @job-harness/apply-worker smoke:synthetic",
     "smoke:apply-shadow-inspect": "pnpm --filter @job-harness/apply-worker smoke:shadow-inspect",
-    "smoke:apply-live-preflight": "tsx scripts/apply-live-preflight-smoke.ts"
+    "smoke:apply-live-preflight": "tsx scripts/apply-live-preflight-smoke.ts",
+    "check:browser-extension-bridge": "tsx scripts/check-browser-extension-bridge.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",

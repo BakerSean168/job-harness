@@ -1,11 +1,14 @@
 import { WorkspaceHeader } from '@/components/shell/workspace-header';
 import { getWebAuthRuntimeConfig } from '@/auth/session';
 import { getMessages } from '@/i18n/server';
+import { BrowserExtensionPairing } from '@/components/management/browser-extension-pairing';
+import { getBrowserExtensionPublicBridgeUrl } from '@/lib/job-harness-client';
 
 export default async function SettingsPage() {
   const [messages] = await Promise.all([getMessages()]);
   const config = getWebAuthRuntimeConfig();
   const copy = messages.settingsWorkspace;
+  const publicBridgeUrl = getBrowserExtensionPublicBridgeUrl();
   return (
     <div className="workspace-page settings-page">
       <WorkspaceHeader title={messages.pages.settings.title} description={messages.pages.settings.description} />
@@ -25,6 +28,8 @@ export default async function SettingsPage() {
             <form method="post" action="/auth/logout" className="settings-logout-form"><button className="action-button" type="submit">{copy.logout}</button></form>
           ) : null}
         </section>
+
+        <BrowserExtensionPairing publicBridgeUrl={publicBridgeUrl} copy={copy.browserExtension} />
 
         <section className="settings-panel">
           <div className="management-panel-heading"><h2>{copy.data}</h2></div>

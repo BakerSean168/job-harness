@@ -307,3 +307,4 @@ export type FailExecutionAttemptInput = z.input<typeof FailExecutionAttemptInput
 export type CancelExecutionAttemptInput = z.input<typeof CancelExecutionAttemptInputSchema>;
 export * from './form';
 export * from './submit-safety';
+export * from './browser-extension-bridge';

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Server as HttpServer } from 'node:http';
@@ -18,6 +19,8 @@ import { createApplyBundleFactory } from './apply-bundle';
 import { createResumeRevisionApplicantDataGrant } from './applicant-data';
 import { createFileSystemResumeArtifactStorage, createHttpResumePdfRenderer } from './resume-artifacts';
 import { getResumeRendererFingerprint, renderResumePreviewHtml } from '@job-harness/resume-renderer';
+import { BROWSER_EXTENSION_BRIDGE_PREFIX, BrowserExtensionBridge, BrowserExtensionBridgeError, registerBrowserExtensionBridgeApi } from './browser-extension-bridge';
+import { BrowserExtensionAuth } from './browser-extension-auth';
 
 export interface JobHarnessServerOptions {
   readonly databasePath: string;
@@ -25,6 +28,7 @@ export interface JobHarnessServerOptions {
   readonly port?: number;
   readonly authToken?: string | null;
   readonly executorAuthToken?: string | null;
+  readonly browserExtensionSigningKey?: string | null;
   readonly artifactDirectory?: string;
   readonly resumeRendererUrl?: string | null;
   readonly resumeRendererToken?: string | null;
@@ -180,6 +184,9 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   });
 
   const executorAuthToken = options.executorAuthToken?.trim() || null;
+  const browserExtensionSigningKey = options.browserExtensionSigningKey?.trim() || null;
+  const browserExtensionAuth = browserExtensionSigningKey ? new BrowserExtensionAuth({ signingKey: browserExtensionSigningKey }) : null;
+  const browserExtensionBridge = new BrowserExtensionBridge();
   function isExecutorWorkerRoute(method: string, path: string): boolean {
     if (method !== 'POST') return false;
     return path === `${API_PREFIX}/executors/register`
@@ -188,18 +195,97 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
       || /^\/api\/v1\/execution-attempts\/[^/]+\/(heartbeat|start|waiting|complete|fail|resume-artifact|review-snapshots|begin-submit|submit-success|submit-failure)$/.test(path)
       || /^\/api\/v1\/execution-attempts\/[^/]+\/applicant-data\/(catalog|resolve)$/.test(path);
   }
+  function isBrowserExtensionWorkerRoute(method: string, path: string): boolean {
+    if (method === 'GET') {
+      return path === `${BROWSER_EXTENSION_BRIDGE_PREFIX}/agents`
+        || /^\/internal\/browser-bridge\/v1\/agents\/[^/]+\/status$/.test(path);
+    }
+    return method === 'POST' && path === `${BROWSER_EXTENSION_BRIDGE_PREFIX}/invoke`;
+  }
+  function browserExtensionAgentId(method: string, path: string, body: unknown): string | null {
+    if (method !== 'POST') return null;
+    if (path === `${BROWSER_EXTENSION_BRIDGE_PREFIX}/agents/register`) {
+      if (!body || typeof body !== 'object' || !('agentId' in body) || typeof (body as { agentId?: unknown }).agentId !== 'string') return null;
+      return (body as { agentId: string }).agentId.trim() || null;
+    }
+    const match = /^\/internal\/browser-bridge\/v1\/agents\/([^/]+)\/(poll|results)$/.exec(path);
+    return match ? decodeURIComponent(match[1]!) : null;
+  }
   app.use((req, res, next) => {
-    const protectedPath = req.path === '/mcp' || req.path.startsWith(`${API_PREFIX}/`);
-    if (!protectedPath || !authToken) { next(); return; }
+    const bridgePath = req.path.startsWith(`${BROWSER_EXTENSION_BRIDGE_PREFIX}/`) || req.path === BROWSER_EXTENSION_BRIDGE_PREFIX;
+    const protectedPath = req.path === '/mcp' || req.path.startsWith(`${API_PREFIX}/`) || bridgePath;
+    if (!protectedPath) { next(); return; }
     const authorization = req.headers.authorization;
-    if (authorization === `Bearer ${authToken}`) { next(); return; }
-    if (executorAuthToken && authorization === `Bearer ${executorAuthToken}` && isExecutorWorkerRoute(req.method, req.path)) {
+    if (authToken && authorization === `Bearer ${authToken}`) { next(); return; }
+    if (executorAuthToken && authorization === `Bearer ${executorAuthToken}` && (isExecutorWorkerRoute(req.method, req.path) || isBrowserExtensionWorkerRoute(req.method, req.path))) {
       next();
       return;
     }
+    if (bridgePath && req.method === 'POST' && req.path === `${BROWSER_EXTENSION_BRIDGE_PREFIX}/pair`) {
+      next();
+      return;
+    }
+    const extensionAgentId = bridgePath ? browserExtensionAgentId(req.method, req.path, req.body) : null;
+    if (
+      browserExtensionAuth
+      && extensionAgentId
+      && typeof authorization === 'string'
+      && authorization.startsWith('Bearer ')
+      && browserExtensionAuth.verifyAgentToken(authorization.slice('Bearer '.length), extensionAgentId)
+    ) {
+      next();
+      return;
+    }
+    if (!authToken && !bridgePath) { next(); return; }
     res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Bearer token is required' } });
   });
 
+  registerBrowserExtensionBridgeApi(app, browserExtensionBridge, {
+    auth: browserExtensionAuth,
+    async authorizeInvoke(input) {
+      const valid = await applyStore.hasValidLease({
+        attemptId: input.scope.attemptId,
+        executorId: input.scope.executorId,
+        leaseTokenHash: createHash('sha256').update(input.scope.leaseToken).digest('hex'),
+        now: new Date().toISOString(),
+        allowedStates: ['claimed', 'running'],
+      });
+      if (!valid) throw new BrowserExtensionBridgeError('LEASE_LOST', `ExecutionAttempt '${input.scope.attemptId}' has no current browser-command lease`, 409);
+      const attempt = await applyStore.getAttempt(input.scope.attemptId);
+      if (!attempt) throw new BrowserExtensionBridgeError('ATTEMPT_NOT_FOUND', `ExecutionAttempt '${input.scope.attemptId}' was not found`, 404);
+      if (input.command.type !== 'session_acquire' && !input.sessionRef) {
+        throw new BrowserExtensionBridgeError('SESSION_REQUIRED', `Browser command '${input.command.type}' requires a sessionRef`, 400);
+      }
+      if (input.command.type === 'session_acquire' && input.sessionRef) {
+        throw new BrowserExtensionBridgeError('SESSION_CONFLICT', 'session_acquire must not carry an existing sessionRef', 400);
+      }
+      if (input.command.type === 'session_acquire' || input.command.type === 'navigate') {
+        const requestedUrl = input.command.type === 'navigate' ? input.command.payload.url : input.command.payload.preferredUrl;
+        if (requestedUrl && attempt.bundle.listingUrl && new URL(requestedUrl).toString() !== new URL(attempt.bundle.listingUrl).toString()) {
+          throw new BrowserExtensionBridgeError('TARGET_MISMATCH', 'Browser extension initial navigation must match the frozen ApplyBundle Listing URL', 409);
+        }
+      }
+      const formWrites = new Set(['fill', 'select', 'set_checked', 'upload']);
+      if (formWrites.has(input.command.type) && attempt.policySnapshot.allowFormFill !== true) {
+        throw new BrowserExtensionBridgeError('POLICY_DENIED', `Browser write '${input.command.type}' requires frozen allowFormFill=true`, 403);
+      }
+      if (input.command.type === 'upload' && !attempt.bundle.resumeArtifact) {
+        throw new BrowserExtensionBridgeError('POLICY_DENIED', 'Resume upload requires a frozen Resume Artifact in the ApplyBundle', 403);
+      }
+      if (input.command.type === 'click') {
+        const adapterId = attempt.adapterId ?? attempt.requiredAdapterId;
+        const exactText = input.command.payload.expectedText?.replace(/\s+/g, ' ').trim() ?? null;
+        if (
+          attempt.externalEffectState !== 'not_crossed'
+          || attempt.policySnapshot.allowApplicationEntry !== true
+          || adapterId !== 'nowcoder-ats'
+          || exactText !== '立即申请'
+        ) {
+          throw new BrowserExtensionBridgeError('POLICY_DENIED', 'Extension click is restricted to the characterized Nowcoder pre-submit application-entry action', 403);
+        }
+      }
+    },
+  });
   registerJobHarnessDataAdminApi(app, options.databasePath, API_PREFIX);
   registerJobHarnessApi(app, application);
   registerResumeApi(app, resume, resumeArtifacts, pdfRenderer, API_PREFIX);
@@ -277,6 +363,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     server,
     async close() {
       if (reconciliationTimer) clearInterval(reconciliationTimer);
+      browserExtensionBridge.close();
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
       applyStore.close();
       resumeStore.close();

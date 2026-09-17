@@ -81,4 +81,14 @@ await assertNoTokens(applyWorker, [
   'JOB_HARNESS_AUTH_TOKEN',
 ], 'apply-worker');
 
+const browserExtension = new URL('../integrations/browser-extension/', import.meta.url);
+await assertNoTokens(browserExtension, [
+  '/api/ledger',
+  'jacApplications',
+  'profile-bundle.json',
+  'JOB_HARNESS_AUTH_TOKEN',
+  'submission_intents',
+  'application_submissions',
+], 'browser-extension');
+
 console.log('boundaries ok: Career core is host-neutral and Apply core/contracts/runtime stay independent from DOM/browser/persistence implementations and the worker/browser layer cannot bypass Job Harness persistence or use the global bearer');

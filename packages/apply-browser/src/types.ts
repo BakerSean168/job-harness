@@ -1,4 +1,4 @@
-import type { BrowserSessionHandoff } from '@job-harness/apply-contracts';
+import type { BrowserExtensionExecutionScope, BrowserSessionHandoff } from '@job-harness/apply-contracts';
 
 export interface BrowserBackendDescriptor {
   readonly id: string;
@@ -11,6 +11,7 @@ export interface BrowserBackendDescriptor {
 export interface BrowserSessionRequest {
   readonly preferredUrl?: string | null;
   readonly reuseLiveSession?: boolean;
+  readonly executionScope?: BrowserExtensionExecutionScope | null;
 }
 
 export interface BrowserSessionRetentionRequest {
@@ -58,6 +59,10 @@ export interface BrowserControlSnapshot {
   readonly sectionLabel: string | null;
 }
 
+export interface BrowserClickExpectation {
+  readonly expectedText?: string | null;
+}
+
 export interface BrowserDriverPort {
   navigate(url: string): Promise<void>;
   currentUrl(): string;
@@ -68,7 +73,7 @@ export interface BrowserDriverPort {
   fill(selector: string, value: string): Promise<void>;
   select(selector: string, value: string | readonly string[]): Promise<void>;
   setChecked(selector: string, checked: boolean): Promise<void>;
-  click(selector: string): Promise<void>;
+  click(selector: string, expectation?: BrowserClickExpectation): Promise<void>;
   upload(selector: string, file: BrowserUploadFile): Promise<void>;
   wait(milliseconds: number): Promise<void>;
   screenshot(): Promise<Uint8Array>;
@@ -92,6 +97,6 @@ export interface BrowserBackendPort {
   describe(): BrowserBackendDescriptor;
   health(): Promise<{ ok: boolean; detail: string | null }>;
   acquire(request?: BrowserSessionRequest): Promise<BrowserSessionPort>;
-  resume(handoff: BrowserSessionHandoff): Promise<BrowserSessionPort>;
+  resume(handoff: BrowserSessionHandoff, request?: BrowserSessionRequest): Promise<BrowserSessionPort>;
   reapExpired(now?: string): Promise<number>;
 }

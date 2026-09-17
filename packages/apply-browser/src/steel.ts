@@ -97,7 +97,7 @@ export class SteelBrowserBackend implements BrowserBackendPort {
     return this.connectSession(session, request.preferredUrl ?? null, created);
   }
 
-  async resume(handoff: BrowserSessionHandoff): Promise<BrowserSessionPort> {
+  async resume(handoff: BrowserSessionHandoff, _request: BrowserSessionRequest = {}): Promise<BrowserSessionPort> {
     const parsed = BrowserSessionHandoffSchema.parse(handoff);
     if (parsed.backendId !== this.id) throw new Error(`Browser handoff belongs to '${parsed.backendId}', not '${this.id}'`);
     const now = new Date().toISOString();

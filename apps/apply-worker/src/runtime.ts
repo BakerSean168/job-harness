@@ -332,9 +332,9 @@ export class ApplyWorker {
         if (attempt.browserSessionHandoff.backendId !== this.backendId) {
           throw new Error(`Attempt handoff requires backend '${attempt.browserSessionHandoff.backendId}', worker is '${this.backendId}'`);
         }
-        session = await backend.resume(attempt.browserSessionHandoff);
+        session = await backend.resume(attempt.browserSessionHandoff, { executionScope: { attemptId, executorId: this.descriptor.executorId, leaseToken } });
       } else {
-        session = await backend.acquire({ preferredUrl: targetUrl, reuseLiveSession: false });
+        session = await backend.acquire({ preferredUrl: targetUrl, reuseLiveSession: false, executionScope: { attemptId, executorId: this.descriptor.executorId, leaseToken } });
       }
       const driver = session.driver();
       if (!attempt.browserSessionHandoff) await driver.navigate(targetUrl);
@@ -397,7 +397,7 @@ export class ApplyWorker {
         browserBackend: this.backendId,
         checkpoint: 'submit-review-verify',
       });
-      session = await backend.resume(attempt.browserSessionHandoff);
+      session = await backend.resume(attempt.browserSessionHandoff, { executionScope: { attemptId, executorId: this.descriptor.executorId, leaseToken } });
       const driver = session.driver();
       const currentFormStateHash = await driver.formStateHash();
       // This call is the single permission gate. The server first validates the
@@ -507,9 +507,9 @@ export class ApplyWorker {
 
       if (attempt.browserSessionHandoff) {
         if (attempt.browserSessionHandoff.backendId !== this.backendId) throw new Error(`Attempt handoff requires backend '${attempt.browserSessionHandoff.backendId}', worker is '${this.backendId}'`);
-        session = await backend.resume(attempt.browserSessionHandoff);
+        session = await backend.resume(attempt.browserSessionHandoff, { executionScope: { attemptId, executorId: this.descriptor.executorId, leaseToken } });
       } else {
-        session = await backend.acquire({ preferredUrl: targetUrl, reuseLiveSession: false });
+        session = await backend.acquire({ preferredUrl: targetUrl, reuseLiveSession: false, executionScope: { attemptId, executorId: this.descriptor.executorId, leaseToken } });
       }
       const driver = session.driver();
       if (!attempt.browserSessionHandoff) await driver.navigate(targetUrl);

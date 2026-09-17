@@ -38,7 +38,7 @@ export class LocalCdpBrowserBackend implements BrowserBackendPort {
     return this.connect(request.preferredUrl ?? null);
   }
 
-  async resume(handoff: BrowserSessionHandoff): Promise<BrowserSessionPort> {
+  async resume(handoff: BrowserSessionHandoff, _request: BrowserSessionRequest = {}): Promise<BrowserSessionPort> {
     const parsed = BrowserSessionHandoffSchema.parse(handoff);
     if (parsed.backendId !== this.id) throw new Error(`Browser handoff belongs to '${parsed.backendId}', not '${this.id}'`);
     if (parsed.sessionRef !== `local-cdp:${this.endpoint}`) throw new Error('Local CDP handoff does not match the configured endpoint');
