@@ -35,6 +35,7 @@ import { ApplyRuntimeError, type ApplyControlPlanePort } from '@job-harness/appl
 import { JOB_HARNESS_REST_V1_ROUTES } from '@job-harness/contracts';
 import type { ResumeArtifactRuntimePorts } from '@job-harness/resume-application';
 import { registerRestV1Route } from './rest-route';
+import { writeCommonRestError, writeInternalRestError, writeRestError } from './http-errors';
 
 const API_PREFIX = '/api/v1';
 type AsyncHandler = (req: Request, res: Response) => Promise<void>;
@@ -70,15 +71,12 @@ function runtimeStatus(error: ApplyRuntimeError): number {
   }
 }
 function sendError(res: Response, error: unknown): void {
-  if (error instanceof ZodError) {
-    res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Request validation failed', issues: error.issues } });
-    return;
-  }
+  if (writeCommonRestError(res, error)) return;
   if (error instanceof ApplyRuntimeError) {
-    res.status(runtimeStatus(error)).json({ error: { code: error.code, message: error.message } });
+    writeRestError(res, runtimeStatus(error), error.code, error.message);
     return;
   }
-  res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+  writeInternalRestError(res);
 }
 function route(handler: AsyncHandler) {
   return (req: Request, res: Response) => { void handler(req, res).catch((error) => sendError(res, error)); };

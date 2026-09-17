@@ -1,5 +1,4 @@
 import type { Express, Request, Response } from 'express';
-import { ZodError } from 'zod';
 import { JOB_HARNESS_REST_V1_ROUTES } from '@job-harness/contracts';
 import {
   ListResumeProfilesInputSchema,
@@ -24,6 +23,7 @@ import {
 } from '@job-harness/resume-application';
 import { renderResumePreviewHtml } from '@job-harness/resume-renderer';
 import { registerRestV1Route } from './rest-route';
+import { writeCommonRestError, writeInternalRestError, writeRestError } from './http-errors';
 
 function first(value: unknown): string | undefined {
   if (Array.isArray(value)) return value.length ? String(value[0]) : undefined;
@@ -39,35 +39,14 @@ function boolean(value: unknown): boolean | undefined | string {
 }
 
 function sendError(res: Response, error: unknown): void {
-  if (error instanceof ZodError) {
-    res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Request validation failed', issues: error.issues } });
-    return;
-  }
-  if (error instanceof ResumeConcurrencyError) {
-    res.status(409).json({ error: { code: 'VERSION_CONFLICT', message: error.message } });
-    return;
-  }
-  if (error instanceof ResumeReferenceValidationError) {
-    res.status(422).json({ error: { code: 'RESUME_REFERENCE_INVALID', message: error.message, issues: error.issues } });
-    return;
-  }
-  if (error instanceof ResumeNotFoundError) {
-    res.status(404).json({ error: { code: 'NOT_FOUND', message: error.message } });
-    return;
-  }
-  if (error instanceof ResumeArtifactCapabilityError) {
-    res.status(503).json({ error: { code: 'RESUME_ARTIFACT_UNAVAILABLE', message: error.message } });
-    return;
-  }
-  if (error instanceof ResumeArtifactIntegrityError) {
-    res.status(500).json({ error: { code: 'RESUME_ARTIFACT_INTEGRITY_FAILED', message: error.message } });
-    return;
-  }
-  if (error instanceof ResumeResolutionError) {
-    res.status(422).json({ error: { code: 'RESUME_RESOLUTION_FAILED', message: error.message, issues: error.issues } });
-    return;
-  }
-  res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+  if (writeCommonRestError(res, error)) return;
+  if (error instanceof ResumeConcurrencyError) { writeRestError(res, 409, 'VERSION_CONFLICT', error.message); return; }
+  if (error instanceof ResumeReferenceValidationError) { writeRestError(res, 422, 'RESUME_REFERENCE_INVALID', error.message, error.issues); return; }
+  if (error instanceof ResumeNotFoundError) { writeRestError(res, 404, 'NOT_FOUND', error.message); return; }
+  if (error instanceof ResumeArtifactCapabilityError) { writeRestError(res, 503, 'RESUME_ARTIFACT_UNAVAILABLE', error.message); return; }
+  if (error instanceof ResumeArtifactIntegrityError) { writeRestError(res, 500, 'RESUME_ARTIFACT_INTEGRITY_FAILED', error.message); return; }
+  if (error instanceof ResumeResolutionError) { writeRestError(res, 422, 'RESUME_RESOLUTION_FAILED', error.message, error.issues); return; }
+  writeInternalRestError(res);
 }
 
 function route(handler: (req: Request, res: Response) => Promise<void>) {

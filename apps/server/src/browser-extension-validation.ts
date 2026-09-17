@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
-import { z, ZodError } from 'zod';
+import { z } from 'zod';
 import {
   BrowserExtensionDriverCommandSchema,
   InvokeBrowserExtensionCommandInputSchema,
@@ -11,6 +11,7 @@ import {
   BrowserExtensionBridge,
   BrowserExtensionBridgeError,
 } from './browser-extension-bridge';
+import { writeCommonRestError, writeInternalRestError, writeRestError } from './http-errors';
 
 const ValidationRunIdSchema = z.string().trim().min(1).max(200);
 const CreateValidationRunInputSchema = z.object({
@@ -236,15 +237,12 @@ function pathId(value: unknown): string {
   return ValidationRunIdSchema.parse(raw);
 }
 function sendValidationError(res: Response, error: unknown): void {
-  if (error instanceof ZodError) {
-    res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Request validation failed', issues: error.issues } });
-    return;
-  }
+  if (writeCommonRestError(res, error)) return;
   if (error instanceof BrowserExtensionBridgeError) {
-    res.status(error.status).json({ error: { code: error.code, message: error.message } });
+    writeRestError(res, error.status, error.code, error.message);
     return;
   }
-  res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+  writeInternalRestError(res);
 }
 function freezeRun(run: MutableValidationRun): BrowserExtensionValidationRun {
   return { ...run };

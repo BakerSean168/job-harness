@@ -100,11 +100,26 @@ async function executeEnvelope(config, envelope) {
   const commandId = String(envelope?.commandId || "");
   if (!commandId) return;
   try {
+    validateEnvelope(config, envelope);
     const result = await executeCommand(envelope);
     await postResult(config, { commandId, ok: true, result });
   } catch (error) {
     await postResult(config, { commandId, ok: false, error: sanitizeError(error) });
   }
+}
+
+function validateEnvelope(config, envelope) {
+  if (!envelope || typeof envelope !== "object") throw new Error("Invalid browser command envelope");
+  if (String(envelope.agentId || "") !== config.agentId) throw new Error("Browser command agentId does not match this paired agent");
+  const expiresAt = Date.parse(String(envelope.expiresAt || ""));
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) throw new Error("Browser command envelope is expired or has an invalid expiry");
+  const type = String(envelope.command?.type || "");
+  const allowed = new Set([
+    ...DRIVER_COMMANDS,
+    ...(config.resumeUpload ? ["upload"] : []),
+    ...(config.screenshots ? ["screenshot"] : []),
+  ]);
+  if (!allowed.has(type)) throw new Error(`Unsupported or disabled browser command '${type}'`);
 }
 
 async function postResult(config, result) {
@@ -158,16 +173,22 @@ async function acquireSession(payload) {
 }
 
 async function executePageDriver(tabId, command) {
+  const response = await deliverPageDriverCommand(tabId, command);
+  // Application/page-driver errors are intentionally unwrapped outside the
+  // delivery retry boundary. Once a receiver accepted a command, never replay
+  // that browser action merely because the command itself reported failure.
+  return unwrapPageDriverResponse(response);
+}
+
+async function deliverPageDriverCommand(tabId, command) {
   await ensurePageDriver(tabId);
   try {
-    const response = await chrome.tabs.sendMessage(tabId, { type: "JH_PAGE_DRIVER_COMMAND", command });
-    return unwrapPageDriverResponse(response);
-  } catch (error) {
+    return await chrome.tabs.sendMessage(tabId, { type: "JH_PAGE_DRIVER_COMMAND", command });
+  } catch {
     // A SPA/full navigation may have replaced the content-script world between
-    // injection and delivery. Retry injection once; never retry the page action.
+    // injection and delivery. Retry only receiver delivery once.
     await ensurePageDriver(tabId);
-    const response = await chrome.tabs.sendMessage(tabId, { type: "JH_PAGE_DRIVER_COMMAND", command });
-    return unwrapPageDriverResponse(response);
+    return chrome.tabs.sendMessage(tabId, { type: "JH_PAGE_DRIVER_COMMAND", command });
   }
 }
 
@@ -220,16 +241,24 @@ async function bridgeFetch(config, path, init = {}) {
   if (!/^https:\/\//i.test(base) && !/^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?/i.test(base)) {
     throw new Error("Bridge URL must use HTTPS (or localhost for development)");
   }
-  return fetch(`${base}${path}`, {
-    ...init,
-    cache: "no-store",
-    headers: {
-      authorization: `Bearer ${config.agentToken}`,
-      accept: "application/json",
-      ...(init.body ? { "content-type": "application/json" } : {}),
-      ...(init.headers || {}),
-    },
-  });
+  const timeoutMs = /\/poll$/.test(path) ? 30000 : 15000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error(`Bridge request timed out after ${timeoutMs}ms`)), timeoutMs);
+  try {
+    return await fetch(`${base}${path}`, {
+      ...init,
+      cache: "no-store",
+      signal: controller.signal,
+      headers: {
+        authorization: `Bearer ${config.agentToken}`,
+        accept: "application/json",
+        ...(init.body ? { "content-type": "application/json" } : {}),
+        ...(init.headers || {}),
+      },
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function settings() {

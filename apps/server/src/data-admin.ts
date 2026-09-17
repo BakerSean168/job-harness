@@ -7,6 +7,7 @@ import { buildCareerExportSnapshot, createCareerApplicationService } from '@job-
 import { JOB_HARNESS_REST_V1_ROUTES, type CareerExportSnapshot } from '@job-harness/contracts';
 import { createSqliteBackup, SqliteCareerStore } from '@job-harness/persistence-sqlite';
 import { registerRestV1Route } from './rest-route';
+import { writeInternalRestError } from './http-errors';
 
 function fileTimestamp(iso: string): string {
   return iso.replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
@@ -56,14 +57,6 @@ export function exportJsonFileName(exportedAt: string): string {
   return `job-harness-export-${fileTimestamp(exportedAt)}.json`;
 }
 
-function sendInternalError(res: Response): void {
-  if (res.headersSent) {
-    res.end();
-    return;
-  }
-  res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
-}
-
 export function registerJobHarnessDataAdminApi(app: Express, databasePath: string, apiPrefix = '/api/v1'): void {
   registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.export, async (_req, res) => {
     try {
@@ -78,7 +71,7 @@ export function registerJobHarnessDataAdminApi(app: Express, databasePath: strin
         })
         .send(JSON.stringify(snapshot));
     } catch {
-      sendInternalError(res);
+      writeInternalRestError(res);
     }
   });
 
@@ -106,12 +99,12 @@ export function registerJobHarnessDataAdminApi(app: Express, databasePath: strin
       res.once('finish', finishCleanup);
       stream.once('error', () => {
         finishCleanup();
-        sendInternalError(res);
+        writeInternalRestError(res);
       });
       stream.pipe(res);
     } catch {
       if (backup) await backup.cleanup();
-      sendInternalError(res);
+      writeInternalRestError(res);
     }
   });
 }

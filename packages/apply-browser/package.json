@@ -6,6 +6,7 @@
   "exports": "./src/index.ts",
   "dependencies": {
     "playwright": "1.55.0",
-    "@job-harness/apply-contracts": "workspace:*"
+    "@job-harness/apply-contracts": "workspace:*",
+    "zod": "^4.1.8"
   }
 }

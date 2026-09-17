@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import { z } from 'zod';
 import { BrowserSessionHandoffSchema, type BrowserSessionHandoff } from '@job-harness/apply-contracts';
 import { PlaywrightBrowserDriver } from './playwright-driver';
 import type {
@@ -11,18 +12,36 @@ import type {
   BrowserSessionRetentionRequest,
 } from './types';
 
-interface SteelSessionRecord {
-  readonly id: string;
-  readonly websocketUrl: string;
-  readonly sessionViewerUrl?: string;
-  readonly debugUrl?: string;
-  readonly status?: string;
-}
+const SteelSessionRecordSchema = z.object({
+  id: z.string().trim().min(1),
+  websocketUrl: z.string().trim().min(1),
+  sessionViewerUrl: z.string().trim().min(1).optional(),
+  debugUrl: z.string().trim().min(1).optional(),
+  status: z.string().trim().min(1).optional(),
+}).passthrough();
+type SteelSessionRecord = z.infer<typeof SteelSessionRecordSchema>;
 
-interface RetainedSessionRecord {
-  readonly sessionRef: string;
-  readonly expiresAt: string;
-}
+const SteelSessionListSchema = z.object({ sessions: z.array(SteelSessionRecordSchema).default([]) }).passthrough();
+const SteelHealthSchema = z.object({ status: z.string().trim().min(1) }).passthrough();
+const SteelSessionContextSchema = z.record(z.string(), z.unknown());
+
+const RetainedSessionRecordSchema = z.object({
+  sessionRef: z.string().trim().min(1),
+  expiresAt: z.iso.datetime({ offset: true }),
+}).strict();
+type RetainedSessionRecord = z.infer<typeof RetainedSessionRecordSchema>;
+
+const SteelContextFileSchema = z.object({
+  format: z.literal('JobHarnessSteelContext'),
+  version: z.literal(1),
+  savedAt: z.iso.datetime({ offset: true }),
+  sessionContext: SteelSessionContextSchema,
+}).strict();
+const SteelHandoffRegistrySchema = z.object({
+  format: z.literal('JobHarnessSteelHandoffs'),
+  version: z.literal(1),
+  records: z.array(RetainedSessionRecordSchema),
+}).strict();
 
 export interface SteelBrowserBackendOptions {
   readonly baseUrl: string;
@@ -33,6 +52,7 @@ export interface SteelBrowserBackendOptions {
   readonly timezone?: string;
   readonly headless?: boolean;
   readonly proxyUrl?: string | null;
+  readonly requestTimeoutMs?: number;
 }
 
 export class SteelBrowserBackend implements BrowserBackendPort {
@@ -45,6 +65,7 @@ export class SteelBrowserBackend implements BrowserBackendPort {
   private readonly timezone: string;
   private readonly headless: boolean;
   private readonly proxyUrl: string | null;
+  private readonly requestTimeoutMs: number;
   private readonly retained = new Map<string, SteelBrowserSession>();
 
   constructor(options: SteelBrowserBackendOptions) {
@@ -57,6 +78,7 @@ export class SteelBrowserBackend implements BrowserBackendPort {
     this.timezone = options.timezone ?? 'Asia/Shanghai';
     this.headless = options.headless ?? true;
     this.proxyUrl = options.proxyUrl?.trim() || null;
+    this.requestTimeoutMs = positiveTimeout(options.requestTimeoutMs ?? 15_000, 'Steel requestTimeoutMs');
   }
 
   describe(): BrowserBackendDescriptor {
@@ -71,10 +93,8 @@ export class SteelBrowserBackend implements BrowserBackendPort {
 
   async health(): Promise<{ ok: boolean; detail: string | null }> {
     try {
-      const response = await fetch(`${this.baseUrl}/v1/health`, { headers: this.headers() });
-      if (!response.ok) return { ok: false, detail: `Steel HTTP ${response.status}` };
-      const data = await response.json().catch(() => null) as { status?: string } | null;
-      return data?.status === 'ok' ? { ok: true, detail: null } : { ok: false, detail: `Steel health ${JSON.stringify(data)}` };
+      const data = SteelHealthSchema.parse(await this.requestJson('/v1/health'));
+      return data.status === 'ok' ? { ok: true, detail: null } : { ok: false, detail: `Steel health status '${data.status}'` };
     } catch (error) {
       return { ok: false, detail: error instanceof Error ? error.message : String(error) };
     }
@@ -91,7 +111,7 @@ export class SteelBrowserBackend implements BrowserBackendPort {
       const body: Record<string, unknown> = { persist: true, headless: this.headless, timezone: this.timezone };
       if (savedContext) body.sessionContext = savedContext;
       if (this.proxyUrl) body.proxyUrl = this.proxyUrl;
-      session = await this.requestJson<SteelSessionRecord>('/v1/sessions', { method: 'POST', body });
+      session = SteelSessionRecordSchema.parse(await this.requestJson('/v1/sessions', { method: 'POST', body }));
       created = true;
     }
     return this.connectSession(session, request.preferredUrl ?? null, created);
@@ -155,7 +175,7 @@ export class SteelBrowserBackend implements BrowserBackendPort {
 
   async persistSession(session: SteelSessionRecord): Promise<void> {
     if (!this.contextPath) return;
-    const raw = await this.requestJson<Record<string, unknown>>(`/v1/sessions/${encodeURIComponent(session.id)}/context`);
+    const raw = SteelSessionContextSchema.parse(await this.requestJson(`/v1/sessions/${encodeURIComponent(session.id)}/context`));
     const normalized = normalizeSessionContextOrigins(raw);
     await mkdir(dirname(this.contextPath), { recursive: true });
     await writePrivateJson(this.contextPath, { format: 'JobHarnessSteelContext', version: 1, savedAt: new Date().toISOString(), sessionContext: normalized });
@@ -186,8 +206,7 @@ export class SteelBrowserBackend implements BrowserBackendPort {
   }
 
   private async listSessions(): Promise<SteelSessionRecord[]> {
-    const data = await this.requestJson<{ sessions?: SteelSessionRecord[] }>('/v1/sessions');
-    return data.sessions ?? [];
+    return SteelSessionListSchema.parse(await this.requestJson('/v1/sessions')).sessions;
   }
 
   private async findLiveSession(): Promise<SteelSessionRecord | null> {
@@ -205,24 +224,22 @@ export class SteelBrowserBackend implements BrowserBackendPort {
   private async readSavedContext(): Promise<Record<string, unknown> | null> {
     if (!this.contextPath) return null;
     try {
-      const parsed = JSON.parse(await readFile(this.contextPath, 'utf8')) as { sessionContext?: Record<string, unknown> };
-      return parsed.sessionContext ? normalizeSessionContextOrigins(parsed.sessionContext) : null;
-    } catch { return null; }
+      const parsed = SteelContextFileSchema.parse(JSON.parse(await readFile(this.contextPath, 'utf8')) as unknown);
+      return normalizeSessionContextOrigins(parsed.sessionContext);
+    } catch (error) {
+      if (isMissingFile(error)) return null;
+      throw new Error(`Steel persisted context '${this.contextPath}' is unreadable or invalid`, { cause: error });
+    }
   }
 
   private async readRetainedRecords(): Promise<RetainedSessionRecord[]> {
     if (!this.handoffRegistryPath) return [];
     try {
-      const parsed = JSON.parse(await readFile(this.handoffRegistryPath, 'utf8')) as { records?: unknown };
-      if (!Array.isArray(parsed.records)) return [];
-      return parsed.records.flatMap((value) => {
-        if (!value || typeof value !== 'object') return [];
-        const record = value as Record<string, unknown>;
-        return typeof record.sessionRef === 'string' && typeof record.expiresAt === 'string'
-          ? [{ sessionRef: record.sessionRef, expiresAt: record.expiresAt }]
-          : [];
-      });
-    } catch { return []; }
+      return SteelHandoffRegistrySchema.parse(JSON.parse(await readFile(this.handoffRegistryPath, 'utf8')) as unknown).records;
+    } catch (error) {
+      if (isMissingFile(error)) return [];
+      throw new Error(`Steel handoff registry '${this.handoffRegistryPath}' is unreadable or invalid`, { cause: error });
+    }
   }
 
   private async writeRetainedRecords(records: readonly RetainedSessionRecord[]): Promise<void> {
@@ -257,17 +274,20 @@ export class SteelBrowserBackend implements BrowserBackendPort {
     throw lastError instanceof Error ? lastError : new Error(`Timed out connecting to Steel CDP: ${websocketUrl}`);
   }
 
-  private async requestJson<T = unknown>(pathname: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
+  private async requestJson(pathname: string, options: { method?: string; body?: unknown } = {}): Promise<unknown> {
+    const method = options.method ?? 'GET';
     const init: RequestInit = {
-      method: options.method ?? 'GET',
+      method,
       headers: { ...this.headers(), ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}) },
       ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
     };
     const response = await fetch(`${this.baseUrl}${pathname}`, init);
     const text = await response.text();
-    const data = text ? (() => { try { return JSON.parse(text); } catch { return text; } })() : null;
-    if (!response.ok) throw new Error(`Steel ${options.method ?? 'GET'} ${pathname} failed: HTTP ${response.status} ${String(text).slice(0, 500)}`);
-    return data as T;
+    if (!response.ok) throw new Error(`Steel ${method} ${pathname} failed with HTTP ${response.status}`);
+    if (!text) return null;
+    try { return JSON.parse(text) as unknown; }
+    catch (error) { throw new Error(`Steel ${method} ${pathname} returned invalid JSON`, { cause: error }); }
   }
 }
 
@@ -320,6 +340,15 @@ class SteelBrowserSession implements BrowserSessionPort {
     await this.persist().catch(() => {});
     await this.forceRelease();
   }
+}
+
+function isMissingFile(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT');
+}
+
+function positiveTimeout(value: number, label: string): number {
+  if (!Number.isFinite(value) || value <= 0) throw new Error(`${label} must be a positive finite number`);
+  return Math.floor(value);
 }
 
 async function writePrivateJson(path: string, value: unknown): Promise<void> {

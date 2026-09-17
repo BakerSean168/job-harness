@@ -1,5 +1,4 @@
 import type { Express, Request, Response } from 'express';
-import { ZodError } from 'zod';
 import {
   CareerApplicationError,
   type CareerRuntimePorts,
@@ -34,6 +33,7 @@ import {
   ReconcileSubmissionIntentsInputSchema,
 } from '@job-harness/contracts';
 import { registerRestV1Route } from './rest-route';
+import { writeCommonRestError, writeInternalRestError, writeRestError } from './http-errors';
 
 const API_PREFIX = '/api/v1';
 
@@ -83,32 +83,12 @@ function errorStatus(error: CareerApplicationError): number {
 }
 
 function sendError(res: Response, error: unknown): void {
-  if (res.headersSent) {
-    res.end();
-    return;
-  }
-  if (error instanceof ZodError) {
-    res.status(400).json({
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Request validation failed',
-        issues: error.issues,
-      },
-    });
-    return;
-  }
+  if (writeCommonRestError(res, error)) return;
   if (error instanceof CareerApplicationError) {
-    res.status(errorStatus(error)).json({
-      error: { code: error.code, message: error.message },
-    });
+    writeRestError(res, errorStatus(error), error.code, error.message);
     return;
   }
-  res.status(500).json({
-    error: {
-      code: 'INTERNAL_ERROR',
-      message: 'Internal server error',
-    },
-  });
+  writeInternalRestError(res);
 }
 
 function route(handler: AsyncHandler) {

@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
-import { ZodError } from 'zod';
 import {
   BrowserExtensionAgentStatusSchema,
   BrowserExtensionCommandEnvelopeSchema,
@@ -23,6 +22,7 @@ import {
   type RegisterBrowserExtensionAgentInput,
 } from '@job-harness/apply-contracts';
 import { BrowserExtensionAuth, BrowserExtensionAuthError } from './browser-extension-auth';
+import { writeCommonRestError, writeInternalRestError, writeRestError } from './http-errors';
 
 export const BROWSER_EXTENSION_BRIDGE_PREFIX = '/internal/browser-bridge/v1';
 
@@ -311,13 +311,10 @@ function pathId(value: unknown): string {
   return id;
 }
 function sendError(res: Response, error: unknown): void {
-  if (error instanceof ZodError) {
-    res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Request validation failed', issues: error.issues } });
-    return;
-  }
+  if (writeCommonRestError(res, error)) return;
   if (error instanceof BrowserExtensionBridgeError) {
-    res.status(error.status).json({ error: { code: error.code, message: error.message } });
+    writeRestError(res, error.status, error.code, error.message);
     return;
   }
-  res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+  writeInternalRestError(res);
 }

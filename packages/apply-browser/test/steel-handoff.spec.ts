@@ -15,6 +15,11 @@ afterEach(async () => {
 
 async function startFakeSteel(onRelease: (id: string) => void): Promise<string> {
   server = createServer((req, res) => {
+    if (req.method === 'GET' && req.url === '/v1/health') {
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ status: 'ok' }));
+      return;
+    }
     if (req.method === 'POST' && /^\/v1\/sessions\/[^/]+\/release$/.test(req.url ?? '')) {
       onRelease(decodeURIComponent((req.url ?? '').split('/')[3]!));
       req.resume();
@@ -67,4 +72,54 @@ describe('Steel retained-session cleanup', () => {
     })).rejects.toThrow(/expired/);
     expect(released).toEqual(['expired-resume']);
   });
+
+  it('treats a corrupted durable handoff registry as an operational failure instead of silently forgetting retained sessions', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-steel-corrupt-handoff-'));
+    const registryPath = join(dir, 'handoffs.json');
+    await writeFile(registryPath, '{not-json', { mode: 0o600 });
+    const baseUrl = await startFakeSteel(() => {});
+    const backend = new SteelBrowserBackend({ baseUrl, handoffRegistryPath: registryPath });
+    await expect(backend.reapExpired('2026-09-17T13:00:00.000Z')).rejects.toThrow(/handoff registry.*unreadable or invalid/);
+  });
+
+  it('treats a corrupted persisted browser context as an operational failure instead of starting with empty state', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-steel-corrupt-context-'));
+    const contextPath = join(dir, 'context.json');
+    await writeFile(contextPath, JSON.stringify({ format: 'JobHarnessSteelContext', version: 99, savedAt: 'bad', sessionContext: {} }), { mode: 0o600 });
+    const baseUrl = await startFakeSteel(() => {});
+    const backend = new SteelBrowserBackend({ baseUrl, contextPath });
+    await expect(backend.acquire()).rejects.toThrow(/persisted context.*unreadable or invalid/);
+  });
+
+  it('rejects malformed provider session payloads at the Steel adapter boundary', async () => {
+    server = createServer((req, res) => {
+      if (req.method === 'GET' && req.url === '/v1/sessions') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ sessions: [{ id: 'broken-session', status: 'live' }] }));
+        return;
+      }
+      res.statusCode = 404; res.end();
+    });
+    await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', () => resolve()));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('fake Steel did not bind');
+    const backend = new SteelBrowserBackend({ baseUrl: `http://127.0.0.1:${address.port}` });
+    await expect(backend.resume({
+      backendId: 'steel', sessionRef: 'broken-session', humanControlUrl: null,
+      retainedAt: '2099-01-01T00:00:00.000Z', expiresAt: '2099-01-01T00:10:00.000Z',
+    })).rejects.toThrow();
+  });
+
+  it('bounds Steel HTTP health checks so a half-open provider cannot stall a worker indefinitely', async () => {
+    server = createServer((_req, _res) => { /* deliberately never respond */ });
+    await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', () => resolve()));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('fake Steel did not bind');
+    const backend = new SteelBrowserBackend({ baseUrl: `http://127.0.0.1:${address.port}`, requestTimeoutMs: 25 });
+    const started = Date.now();
+    const health = await backend.health();
+    expect(health.ok).toBe(false);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
 });

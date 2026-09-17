@@ -273,6 +273,40 @@ describe('Job Harness REST client', () => {
       });
     }
   });
+
+
+  it('applies a bounded default request deadline and preserves explicit caller cancellation', async () => {
+    let observedSignal: AbortSignal | null = null;
+    const client = createJobHarnessRestClient({
+      baseUrl: 'http://job-harness/api/v1',
+      requestTimeoutMs: 25,
+      fetch: async (_input, init) => {
+        observedSignal = init?.signal ?? null;
+        return new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (!signal) { reject(new Error('missing request signal')); return; }
+          if (signal.aborted) { reject(signal.reason); return; }
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+        });
+      },
+    });
+    const started = Date.now();
+    await expect(client.analytics.getPipelineStats({})).rejects.toBeDefined();
+    expect(observedSignal).not.toBeNull();
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it('does not trust malformed REST error payloads', async () => {
+    const client = createJobHarnessRestClient({
+      baseUrl: 'http://job-harness/api/v1',
+      fetch: async () => response({ error: { code: 123, message: ['not', 'trusted'] } }, 500),
+    });
+    await expect(client.analytics.getPipelineStats({})).rejects.toMatchObject({
+      status: 500,
+      payload: { code: 'HTTP_ERROR', message: 'Job Harness request failed with 500' },
+    });
+  });
+
 });
 
 it('maps entity 404 reads to null without swallowing other errors', async () => {

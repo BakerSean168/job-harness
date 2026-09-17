@@ -55,7 +55,7 @@ export class ExtensionBrowserBackend implements BrowserBackendPort {
 
   async health(): Promise<{ ok: boolean; detail: string | null }> {
     try {
-      const response = await this.request(`/agents/${encodeURIComponent(this.agentId)}/status`);
+      const response = await this.request(`/agents/${encodeURIComponent(this.agentId)}/status`, {}, 10_000);
       if (!response.ok) return { ok: false, detail: `Browser extension bridge HTTP ${response.status}` };
       const status = BrowserExtensionAgentStatusSchema.parse(await response.json());
       return status.online ? { ok: true, detail: null } : { ok: false, detail: `Browser extension agent '${this.agentId}' is offline` };
@@ -94,7 +94,7 @@ export class ExtensionBrowserBackend implements BrowserBackendPort {
     const response = await this.request('/invoke', {
       method: 'POST',
       body: JSON.stringify({ agentId: this.agentId, sessionRef, command, timeoutMs: this.commandTimeoutMs, scope }),
-    });
+    }, this.commandTimeoutMs + 5_000);
     const body = await response.json().catch(() => null) as unknown;
     if (!response.ok) {
       const message = body && typeof body === 'object' && 'error' in body
@@ -105,9 +105,12 @@ export class ExtensionBrowserBackend implements BrowserBackendPort {
     return InvokeBrowserExtensionCommandOutputSchema.parse(body).result;
   }
 
-  private request(path: string, init: RequestInit = {}): Promise<Response> {
+  private request(path: string, init: RequestInit = {}, timeoutMs = 10_000): Promise<Response> {
+    const callerSignal = init.signal ?? null;
+    const timeoutSignal = AbortSignal.timeout(timeoutMs);
     return fetch(`${this.bridgeUrl}${path}`, {
       ...init,
+      signal: callerSignal ? AbortSignal.any([callerSignal, timeoutSignal]) : timeoutSignal,
       headers: {
         authorization: `Bearer ${this.token}`,
         accept: 'application/json',

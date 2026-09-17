@@ -44,6 +44,7 @@ import {
   ListResumeUsageOutputSchema,
   ListSavedViewsOutputSchema,
   PipelineStatsOutputSchema,
+  RestErrorEnvelopeSchema,
   SavedViewSchema,
   SearchJobListItemsOutputSchema,
   UpsertJobsBatchOutputSchema,
@@ -174,6 +175,7 @@ export interface JobHarnessRestClientOptions {
   readonly authToken?: string | null;
   readonly fetch?: typeof globalThis.fetch;
   readonly defaultInit?: RequestInit;
+  readonly requestTimeoutMs?: number;
 }
 
 export interface JobHarnessRestErrorPayload {
@@ -190,6 +192,17 @@ export class JobHarnessRestError extends Error {
     super(payload.message);
     this.name = 'JobHarnessRestError';
   }
+}
+
+function positiveRequestTimeout(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) throw new Error('requestTimeoutMs must be a positive finite number');
+  return Math.floor(value);
+}
+
+function parseErrorPayload(payload: unknown, status: number): JobHarnessRestErrorPayload {
+  const parsed = RestErrorEnvelopeSchema.safeParse(payload);
+  if (parsed.success) return parsed.data.error;
+  return { code: 'HTTP_ERROR', message: `Job Harness request failed with ${status}` };
 }
 
 function normalizedBaseUrl(value: string): string {
@@ -336,6 +349,13 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
   const fetchImpl = options.fetch ?? globalThis.fetch;
   if (!fetchImpl) throw new Error('A Fetch implementation is required');
   const baseUrl = normalizedBaseUrl(options.baseUrl);
+  const requestTimeoutMs = positiveRequestTimeout(options.requestTimeoutMs ?? 60_000);
+
+  function requestSignal(init: RequestInit): AbortSignal {
+    const callerSignal = init.signal ?? options.defaultInit?.signal ?? null;
+    const timeoutSignal = AbortSignal.timeout(requestTimeoutMs);
+    return callerSignal ? AbortSignal.any([callerSignal, timeoutSignal]) : timeoutSignal;
+  }
 
   async function request(path: string, init: RequestInit = {}): Promise<unknown> {
     const headers = new Headers(options.defaultInit?.headers);
@@ -347,16 +367,14 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
       ...options.defaultInit,
       ...init,
       headers,
+      signal: requestSignal(init),
     });
     const contentType = response.headers.get('content-type') ?? '';
     const payload = contentType.includes('application/json')
       ? await response.json()
       : await response.text();
     if (!response.ok) {
-      const error = payload && typeof payload === 'object' && 'error' in payload
-        ? (payload as { error: JobHarnessRestErrorPayload }).error
-        : { code: 'HTTP_ERROR', message: `Job Harness request failed with ${response.status}` };
-      throw new JobHarnessRestError(response.status, error);
+      throw new JobHarnessRestError(response.status, parseErrorPayload(payload, response.status));
     }
     return payload;
   }
@@ -370,14 +388,12 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
       ...options.defaultInit,
       ...init,
       headers,
+      signal: requestSignal(init),
     });
     if (!response.ok) {
       const contentType = response.headers.get('content-type') ?? '';
       const payload = contentType.includes('application/json') ? await response.json() : null;
-      const error = payload && typeof payload === 'object' && 'error' in payload
-        ? (payload as { error: JobHarnessRestErrorPayload }).error
-        : { code: 'HTTP_ERROR', message: `Job Harness request failed with ${response.status}` };
-      throw new JobHarnessRestError(response.status, error);
+      throw new JobHarnessRestError(response.status, parseErrorPayload(payload, response.status));
     }
     return new Uint8Array(await response.arrayBuffer());
   }

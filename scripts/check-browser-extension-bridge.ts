@@ -21,6 +21,12 @@ async function main(): Promise<void> {
     if (!source.includes(`"${command}"`)) throw new Error(`browser extension implementation is missing driver command '${command}'`);
   }
   if (!source.includes('JH_PAGE_DRIVER_COMMAND')) throw new Error('browser extension page-driver transport marker is missing');
+  const background = await readFile(new URL('../integrations/browser-extension/background.js', import.meta.url), 'utf8');
+  if (!background.includes('deliverPageDriverCommand') || !background.includes('const response = await deliverPageDriverCommand')) {
+    throw new Error('browser extension must keep page-driver application errors outside the delivery retry boundary');
+  }
+  if (!background.includes('Bridge request timed out after')) throw new Error('browser extension bridge requests must remain time-bounded');
+  if (!background.includes('validateEnvelope(config, envelope)')) throw new Error('browser extension must validate command envelopes before page execution');
   console.log(`browser extension bridge ok: MV3, ${BROWSER_EXTENSION_DRIVER_COMMANDS.length} driver commands, no legacy Career/Resume ledger ownership, optional site permissions`);
 }
 
