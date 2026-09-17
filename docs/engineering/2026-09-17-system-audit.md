@@ -390,3 +390,17 @@ After separating page-action delivery from page-driver application errors, the r
 This does not currently permit a final recruiting-site submit because the generic extension bridge has no final-submit command, but it can misclassify a successful fill/application-entry action and can encourage a later operator retry of a pre-submit side effect.
 
 **Required change:** separate command execution from result delivery. Produce one immutable result record (`ok/result` or `ok=false/error`) exactly once, then retry only that result acknowledgement with the same `commandId`. Make the server result endpoint idempotently acknowledge duplicate delivery for a short bounded receipt window. Never re-execute the page action merely because result acknowledgement is uncertain.
+
+### Finding A23 — post-boundary failure can mutate SubmissionIntent before lease authorization is proven (P1)
+
+A control-plane ordering review found that `attempts.fail()` currently calls `intentSafety.markManualReview()` whenever the caller reports `externalEffectState !== not_crossed`, and only afterwards enters `requireLease()` for the ExecutionAttempt mutation. A scoped worker therefore can present a known `attemptId` plus an invalid/expired lease and still cause the business `SubmissionIntent` to move to manual review before the technical failure request is rejected.
+
+This cannot cause an external site submit, but it violates the core authority invariant that an Apply Worker may mutate execution/business state only while it owns the current attempt lease. It can also create a false manual-review incident detached from a valid worker action.
+
+**Required change:** prove the current lease before any business-side failure mutation. Add a regression test where a wrong lease reports `uncertain`: the request must fail with `LEASE_LOST`, the ExecutionAttempt must stay in its prior state, and the SubmissionIntent must remain unchanged. Keep post-boundary fail-closed behavior once lease authority is established.
+
+### Finding A24 — safety-reconciliation persistence failures are intentionally suppressed but operationally invisible (P2)
+
+Two recovery paths deliberately ignore errors from `intentSafety.markManualReview()`: abandoned post-boundary attempts discovered during claim, and a `beginSubmit` coordination failure after the SubmissionIntent has entered `external_in_progress`. Suppressing the secondary error is correct for duplicate-submit safety — the system must not turn a failed recovery write into permission to retry an external effect — but a bare `.catch(() => {})` makes the safety incident invisible to operators until a later stale-intent reconciliation happens to surface it.
+
+**Required change:** preserve the fail-closed outcome while adding an explicit safety-persistence incident hook/structured log. The recovery call remains best-effort and must never authorize/retry a site action, but its failure must be observable with attempt/intent/reason metadata. Add tests proving the hook is invoked and that normal claim/submit behavior remains conservative.
