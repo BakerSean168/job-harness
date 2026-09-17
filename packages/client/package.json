@@ -5,6 +5,7 @@
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
-    "@job-harness/contracts": "workspace:*"
+    "@job-harness/contracts": "workspace:*",
+    "@job-harness/resume-contracts": "workspace:*"
   }
 }

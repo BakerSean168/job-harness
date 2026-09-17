@@ -23,6 +23,13 @@ export function renderResumeHtml(input: ResolvedResume, options: RenderResumeHtm
   return createEnvironment().render('resume.njk', toResumeTemplateContext(resume, options));
 }
 
+
+export function renderResumePreviewHtml(input: ResolvedResume, options: RenderResumeHtmlOptions = {}): string {
+  const html = renderResumeHtml(input, options);
+  const css = getResumeCss().replace(/<\/style/gi, '<\\/style');
+  return html.replace('<link rel="stylesheet" href="./resume.css" />', `<style data-resume-preview>\n${css}\n</style>`);
+}
+
 export function getResumeCss(): string {
   return fs.readFileSync(cssPath, 'utf8');
 }

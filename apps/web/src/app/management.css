@@ -143,3 +143,59 @@
   .analytics-stage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .company-job-row { align-items: flex-start; flex-direction: column; }
 }
+
+/* Resume Builder */
+.resume-builder-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--surface-subtle); }
+.resume-builder-toolbar .management-filter-bar { flex: 0 1 auto; padding: 0; border: 0; background: transparent; }
+.resume-builder-toolbar > p { max-width: 620px; margin: 0; color: var(--text-faint); font-size: 9px; line-height: 1.45; text-align: right; }
+.resume-builder-surface { min-height: 0; display: grid; grid-template-columns: minmax(220px, .48fr) minmax(320px, .72fr) minmax(520px, 1.3fr); border-bottom: 1px solid var(--border); }
+.resume-profile-pane,
+.resume-profile-detail-pane,
+.resume-preview-pane { min-width: 0; min-height: 0; background: var(--surface); }
+.resume-profile-pane,
+.resume-profile-detail-pane { border-right: 1px solid var(--border); }
+.resume-profile-list { display: grid; }
+.resume-profile-list > a { display: grid; gap: 3px; padding: 11px 12px; border-bottom: 1px solid var(--border); }
+.resume-profile-list > a:hover { background: var(--surface-hover); }
+.resume-profile-list > a[data-selected='true'] { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+.resume-profile-list strong { color: var(--text); font-size: 11px; }
+.resume-profile-list span { color: var(--text-muted); font-size: 10px; }
+.resume-profile-list small { color: var(--text-faint); font-size: 9px; }
+.resume-profile-detail-body { display: grid; gap: 18px; padding: 16px; }
+.resume-profile-title { display: grid; gap: 4px; }
+.resume-profile-title strong { font-size: 16px; }
+.resume-profile-title span { color: var(--text-muted); font-size: 11px; }
+.resume-profile-facts { display: grid; gap: 0; margin: 0; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.resume-profile-facts > div { display: grid; grid-template-columns: 110px minmax(0,1fr); gap: 10px; padding: 8px 9px; border-bottom: 1px solid var(--border); }
+.resume-profile-facts > div:last-child { border-bottom: 0; }
+.resume-profile-facts dt { color: var(--text-faint); font-size: 9px; font-weight: 650; }
+.resume-profile-facts dd { margin: 0; color: var(--text); font-size: 10px; }
+.resume-profile-usage { display: grid; gap: 9px; }
+.resume-profile-usage h3 { margin: 0; font-size: 11px; }
+.resume-usage-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
+.resume-usage-grid > div { display: grid; gap: 2px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-subtle); }
+.resume-usage-grid strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+.resume-usage-grid span { color: var(--text-faint); font-size: 9px; }
+.resume-builder-phase-note { margin: 0 -16px -16px; }
+.resume-preview-pane { background: var(--surface-subtle); }
+.resume-preview-stage { height: calc(100vh - 178px); min-height: 680px; overflow: auto; padding: 20px; background: color-mix(in srgb,var(--background) 86%,#8c8c8c); }
+.resume-preview-stage iframe { display: block; width: min(794px,100%); height: 1123px; margin: 0 auto; border: 0; background: white; box-shadow: 0 8px 32px rgb(0 0 0 / 14%); }
+
+@media (max-width: 1180px) {
+  .resume-builder-surface { grid-template-columns: 220px minmax(340px,1fr); }
+  .resume-preview-pane { grid-column: 1 / -1; border-top: 1px solid var(--border); }
+  .resume-preview-stage { height: auto; min-height: 760px; }
+}
+@media (max-width: 760px) {
+  .resume-builder-toolbar { align-items: stretch; flex-direction: column; padding: 10px; }
+  .resume-builder-toolbar > p { max-width: none; text-align: left; }
+  .resume-builder-toolbar .management-filter-bar { align-items: stretch; }
+  .resume-builder-surface { grid-template-columns: 1fr; }
+  .resume-profile-pane,
+  .resume-profile-detail-pane { border-right: 0; border-bottom: 1px solid var(--border); }
+  .resume-preview-pane { grid-column: auto; }
+  .resume-profile-list { grid-auto-flow: column; grid-auto-columns: minmax(180px,72vw); overflow-x: auto; }
+  .resume-profile-list > a { border-right: 1px solid var(--border); }
+  .resume-preview-stage { min-height: 620px; padding: 10px; overflow-x: auto; }
+  .resume-preview-stage iframe { width: 794px; max-width: none; transform-origin: top left; }
+}

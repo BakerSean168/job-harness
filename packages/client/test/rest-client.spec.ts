@@ -240,3 +240,31 @@ it('maps entity 404 reads to null without swallowing other errors', async () => 
   await expect(client.workspace.getDiscoveryRunDetail('missing')).resolves.toBeNull();
   await expect(client.campaigns.get('missing')).resolves.toBeNull();
 });
+
+describe('Resume Builder REST client', () => {
+  it('uses typed first-class Resume routes', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const at = '2026-09-17T02:10:00.000Z';
+    const library = {
+      id: 'primary', schemaVersion: 2 as const, version: 1,
+      basics: { displayName: { 'zh-CN': '测试用户' }, contact: { phone: null, email: 'test@example.com', website: null, github: null, location: null }, photoAssetId: null },
+      education: [], skills: [], workExperiences: [], projects: [], certificates: [], summaries: [], createdAt: at, updatedAt: at,
+    };
+    const profile = {
+      id: 'agent', libraryId: 'primary', version: 1, name: { 'zh-CN': 'Agent 简历' }, targetRole: { 'zh-CN': 'Agent' }, locale: 'zh-CN' as const, templateId: 'classic-v1', positioning: { 'zh-CN': 'Agent' }, output: { documentTitle: { 'zh-CN': 'Agent 简历' }, description: null, onlineUrl: null, pdfName: null }, layout: { header: 'without-photo' as const, pageSize: 'A4' as const }, sectionOrder: ['skills' as const], educationIds: [], skillIds: [], workSelections: [], projectSelections: [], certificateIds: [], summaryIds: [], overrides: [], createdAt: at, updatedAt: at, archivedAt: null,
+    };
+    const resolved = { libraryId: 'primary', libraryVersion: 1, profileId: 'agent', profileVersion: 1, locale: 'zh-CN' as const, templateId: 'classic-v1', positioning: 'Agent', output: { documentTitle: 'Agent 简历', description: null, onlineUrl: null, pdfName: null }, layout: { header: 'without-photo' as const, pageSize: 'A4' as const }, sectionOrder: ['skills' as const], basics: { displayName: '测试用户', contact: { phone: null, email: 'test@example.com', website: null, github: null, location: null }, photoAssetId: null }, education: [], skills: [], workExperiences: [], projects: [], certificates: [], summaries: [] };
+    const client = createJobHarnessRestClient({ baseUrl: 'http://job-harness/api/v1', fetch: async (input, init) => {
+      calls.push({ url: String(input), init });
+      const url = String(input);
+      if (url.includes('/resume/preview')) return response({ resolved, html: '<html>preview</html>' });
+      if (url.includes('/resume/profiles/agent')) return response({ library, profile, resolved });
+      return response({ items: [profile], total: 1 });
+    }});
+
+    expect((await client.resume.listProfiles()).total).toBe(1);
+    expect((await client.resume.getProfileContext('agent'))?.resolved.profileId).toBe('agent');
+    expect((await client.resume.preview({ library, profile })).html).toContain('preview');
+    expect(new URL(calls[0]!.url).pathname).toBe('/api/v1/resume/profiles');
+  });
+});

@@ -70,7 +70,8 @@ export const en: MessageCatalog = {
     filters: { campaign: 'Campaign', all: 'All', apply: 'Filter', reset: 'Reset' },
     summary: { registry: 'Registered resumes', used: 'Used resumes', applications: 'Linked applications', missingArtifact: 'Missing artifacts' },
     table: { resume: 'Resume', targetRole: 'Target role', version: 'Version', applications: 'Applications', screening: 'Screening', assessment: 'Assessment', interview: 'Interview', offer: 'Offer', lastUsed: 'Last used', artifact: 'Artifact', linked: 'Linked', missing: 'Missing', updated: 'Updated', empty: 'No Resume Registry data yet.', viewApplications: 'View applications' },
-    note: 'Resume content remains owned by Resume Harness/external sources. Job Harness stores references and application usage only.',
+    builder: { profiles: 'Resume profiles', preview: 'Live preview', details: 'Profile configuration', targetRole: 'Target role', locale: 'Locale', template: 'Template', profileVersion: 'Profile version', libraryVersion: 'Library version', usage: 'Application usage', noProfiles: 'No Profile has been imported into the new Resume Domain yet. Legacy Registry data remains available during migration.', readOnly: 'This phase already uses the new Resume Domain and live renderer; structured/source editing and Revision publishing are the next slice.' },
+    note: 'Resume is now a first-class Job Harness domain. The legacy Resume Registry remains temporarily as an application compatibility projection.',
   },
   discoveryWorkspace: {
     filters: { campaign: 'Campaign', executor: 'Executor', all: 'All', apply: 'Filter', reset: 'Reset' },

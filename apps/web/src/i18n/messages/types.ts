@@ -74,6 +74,7 @@ export interface MessageCatalog {
     filters: { campaign: string; all: string; apply: string; reset: string; };
     summary: { registry: string; used: string; applications: string; missingArtifact: string; };
     table: { resume: string; targetRole: string; version: string; applications: string; screening: string; assessment: string; interview: string; offer: string; lastUsed: string; artifact: string; linked: string; missing: string; updated: string; empty: string; viewApplications: string; };
+    builder: { profiles: string; preview: string; details: string; targetRole: string; locale: string; template: string; profileVersion: string; libraryVersion: string; usage: string; noProfiles: string; readOnly: string; };
     note: string;
   };
   discoveryWorkspace: {

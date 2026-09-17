@@ -16,7 +16,10 @@
     "zod": "^4.1.8",
     "express": "^5.1.0",
     "@job-harness/contracts": "workspace:*",
-    "@job-harness/importers": "workspace:*"
+    "@job-harness/importers": "workspace:*",
+    "@job-harness/resume-application": "workspace:*",
+    "@job-harness/resume-contracts": "workspace:*",
+    "@job-harness/resume-renderer": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.20.5",

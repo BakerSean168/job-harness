@@ -5,11 +5,13 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
 import { createCareerApplicationService } from '@job-harness/application';
+import { createResumeApplicationService } from '@job-harness/resume-application';
 import { CAREER_MCP_TOOLS, createCareerMcpRuntime } from '@job-harness/mcp';
-import { SqliteCareerStore } from '@job-harness/persistence-sqlite';
+import { SqliteCareerStore, SqliteResumeStore } from '@job-harness/persistence-sqlite';
 import { generateJobHarnessOpenApiDocument } from '@job-harness/contracts';
 import { API_PREFIX, registerJobHarnessApi } from './api';
 import { registerJobHarnessDataAdminApi } from './data-admin';
+import { registerResumeApi } from './resume-api';
 
 export interface JobHarnessServerOptions {
   readonly databasePath: string;
@@ -81,6 +83,8 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   mkdirSync(dirname(options.databasePath), { recursive: true });
   const store = new SqliteCareerStore(options.databasePath);
   const application = createCareerApplicationService(store);
+  const resumeStore = new SqliteResumeStore(options.databasePath);
+  const resume = createResumeApplicationService(resumeStore);
   const runtime = createCareerMcpRuntime(application);
   const host = options.host ?? '127.0.0.1';
   const app = createMcpExpressApp({ host });
@@ -106,6 +110,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
 
   registerJobHarnessDataAdminApi(app, options.databasePath, API_PREFIX);
   registerJobHarnessApi(app, application);
+  registerResumeApi(app, resume, API_PREFIX);
 
   app.post('/mcp', async (req, res) => {
     const protocolServer = createProtocolServer(runtime);
@@ -152,6 +157,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     server,
     async close() {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      resumeStore.close();
       store.close();
     },
   };

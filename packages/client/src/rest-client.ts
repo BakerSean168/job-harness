@@ -60,6 +60,18 @@ import {
   type ApplicationWorkspaceDetail,
   type DiscoveryRunDetail,
 } from '@job-harness/contracts';
+import {
+  ListResumeProfilesInputSchema,
+  ListResumeProfilesOutputSchema,
+  ResumePreviewInputSchema,
+  ResumePreviewOutputSchema,
+  ResumeProfileContextSchema,
+  type ListResumeProfilesInput,
+  type ListResumeProfilesOutput,
+  type ResumePreviewInput,
+  type ResumePreviewOutput,
+  type ResumeProfileContext,
+} from '@job-harness/resume-contracts';
 
 export interface JobHarnessRestClientOptions {
   readonly baseUrl: string;
@@ -170,6 +182,13 @@ function resumeQuery(input: ListResumeUsageInput): string {
   return query.toString();
 }
 
+function resumeProfilesQuery(input: ListResumeProfilesInput): string {
+  const query = new URLSearchParams();
+  append(query, 'libraryId', input.libraryId);
+  append(query, 'includeArchived', input.includeArchived);
+  return query.toString();
+}
+
 function dashboardQuery(input: DashboardSnapshotInput): string {
   const query = new URLSearchParams();
   append(query, 'campaignId', input.campaignId);
@@ -225,6 +244,20 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
   }
 
   return {
+    resume: {
+      async listProfiles(input: ListResumeProfilesInput = {}): Promise<ListResumeProfilesOutput> {
+        const parsed = ListResumeProfilesInputSchema.parse(input);
+        const query = resumeProfilesQuery(parsed);
+        return ListResumeProfilesOutputSchema.parse(await request(`/resume/profiles${query ? `?${query}` : ""}`));
+      },
+      async getProfileContext(profileId: string): Promise<ResumeProfileContext | null> {
+        return nullable(async () => ResumeProfileContextSchema.parse(await request(`/resume/profiles/${encodeURIComponent(profileId)}`)));
+      },
+      async preview(input: ResumePreviewInput): Promise<ResumePreviewOutput> {
+        const parsed = ResumePreviewInputSchema.parse(input);
+        return ResumePreviewOutputSchema.parse(await request('/resume/preview', { method: 'POST', body: JSON.stringify(parsed) }));
+      },
+    },
     analytics: {
       async getPipelineStats(input: PipelineStatsInput = {}): Promise<PipelineStatsOutput> {
         const query = pipelineQuery(input);
