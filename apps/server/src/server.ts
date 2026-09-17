@@ -4,7 +4,8 @@ import { dirname, join } from 'node:path';
 import type { Server as HttpServer } from 'node:http';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
+import express from 'express';
+import { localhostHostValidation } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
 import { createCareerApplicationService } from '@job-harness/application';
 import { createResumeApplicationService, createResumeArtifactService } from '@job-harness/resume-application';
 import { createJobHarnessMcpRuntime } from '@job-harness/mcp';
@@ -173,8 +174,31 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   });
   const runtime = createJobHarnessMcpRuntime(application, resume, resumeArtifacts);
   const host = options.host ?? '127.0.0.1';
-  const app = createMcpExpressApp({ host });
   const authToken = options.authToken?.trim() || null;
+  const executorAuthToken = options.executorAuthToken?.trim() || null;
+  const app = express();
+  if (['127.0.0.1', 'localhost', '::1'].includes(host)) app.use(localhostHostValidation());
+
+  // Normal Job Harness JSON remains at Express' conservative default limit.
+  // Extension upload commands are the one intentional large-body exception:
+  // a PDF is base64-encoded by the BrowserBackend contract. Authenticate these
+  // routes *before* the larger parser so an unauthenticated client cannot use
+  // them as a memory-amplification endpoint.
+  const largeBridgeJson = express.json({ limit: '22mb' });
+  app.use(`${BROWSER_EXTENSION_BRIDGE_PREFIX}/invoke`, (req, res, next) => {
+    const authorization = req.headers.authorization;
+    if (
+      (authToken && authorization === `Bearer ${authToken}`)
+      || (executorAuthToken && authorization === `Bearer ${executorAuthToken}`)
+    ) { largeBridgeJson(req, res, next); return; }
+    res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Bearer token is required' } });
+  });
+  app.use(/^\/internal\/browser-bridge\/v1\/validation-runs\/[^/]+\/invoke$/, (req, res, next) => {
+    const authorization = req.headers.authorization;
+    if (authToken && authorization === `Bearer ${authToken}`) { largeBridgeJson(req, res, next); return; }
+    res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Bearer token is required' } });
+  });
+  app.use(express.json());
 
   app.get('/healthz', (_req, res) => {
     res.json({ ok: true, service: 'job-harness', version: '0.2.0' });
@@ -185,7 +209,6 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     res.json(generateJobHarnessOpenApiDocument());
   });
 
-  const executorAuthToken = options.executorAuthToken?.trim() || null;
   const browserExtensionSigningKey = options.browserExtensionSigningKey?.trim() || null;
   const browserExtensionAuth = browserExtensionSigningKey ? new BrowserExtensionAuth({ signingKey: browserExtensionSigningKey }) : null;
   const browserExtensionBridge = new BrowserExtensionBridge();

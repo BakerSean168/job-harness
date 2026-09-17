@@ -80,5 +80,20 @@ describe('browser-extension transport auth and BrowserBackendPort', () => {
     });
     expect(forged.status).toBe(409);
     await expect(forged.json()).resolves.toMatchObject({ error: { code: 'LEASE_LOST' } });
+
+    // A real Resume PDF is commonly hundreds of KiB. The bridge accepts the
+    // typed upload envelope past JSON parsing, then still fails closed on the
+    // missing ExecutionAttempt lease. This guards against Express' 100 KiB
+    // default silently making extension-backed Resume upload impossible.
+    const largeForgedUpload = await fetch(`${bridgeUrl}/invoke`, {
+      method: 'POST', headers: workerHeaders, body: JSON.stringify({
+        agentId, sessionRef: 'chrome-tab:7',
+        command: { type: 'upload', payload: { selector: '#resume', file: { name: 'resume.pdf', mimeType: 'application/pdf', bytesBase64: 'A'.repeat(750_000) } } },
+        timeoutMs: 5_000,
+        scope: { attemptId: 'missing-attempt', executorId: 'worker', leaseToken: `lease-${'x'.repeat(48)}` },
+      }),
+    });
+    expect(largeForgedUpload.status).toBe(409);
+    await expect(largeForgedUpload.json()).resolves.toMatchObject({ error: { code: 'LEASE_LOST' } });
   });
 });
