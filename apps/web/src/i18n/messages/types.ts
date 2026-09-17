@@ -47,7 +47,7 @@ export interface MessageCatalog {
   };
   settingsWorkspace: {
     security: string; session: string; enabled: string; disabled: string; sessionDescription: string; apiBoundary: string; apiBoundaryDescription: string; logout: string; localOnlyNote: string;
-    browserExtension: { title: string; description: string; bridgeUrl: string; unavailable: string; generate: string; generating: string; code: string; expires: string; instructions: string; error: string; };
+    browserExtension: { title: string; description: string; bridgeUrl: string; unavailable: string; generate: string; generating: string; code: string; expires: string; instructions: string; error: string; agentsTitle: string; noAgents: string; online: string; offline: string; lastSeen: string; capabilities: string; resumeUpload: string; screenshots: string; };
     data: string; exportJson: string; exportJsonDescription: string; backupSqlite: string; backupSqliteDescription: string; download: string; backupNote: string;
   };
   companiesWorkspace: {

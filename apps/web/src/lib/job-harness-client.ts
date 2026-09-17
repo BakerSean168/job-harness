@@ -38,16 +38,66 @@ export async function fetchJobHarnessResumeArtifact(artifactId: string): Promise
   });
 }
 
+function browserExtensionBridgeUrl(path: string): URL {
+  const base = new URL(apiBaseUrl());
+  base.pathname = base.pathname.replace(/\/api\/v1\/?$/, `/internal/browser-bridge/v1${path}`);
+  base.search = '';
+  base.hash = '';
+  return base;
+}
+
+export interface BrowserExtensionAgentView {
+  readonly agentId: string;
+  readonly name: string;
+  readonly version: string;
+  readonly browserName: string | null;
+  readonly platform: string | null;
+  readonly online: boolean;
+  readonly lastSeenAt: string;
+  readonly queuedCommands: number;
+  readonly inFlightCommands: number;
+  readonly resumeUpload: boolean;
+  readonly screenshots: boolean;
+}
+
+export async function getBrowserExtensionAgents(): Promise<BrowserExtensionAgentView[]> {
+  const headers = new Headers({ accept: 'application/json' });
+  const token = apiAuthToken();
+  if (token) headers.set('authorization', `Bearer ${token}`);
+  const response = await fetch(browserExtensionBridgeUrl('/agents'), { headers, cache: 'no-store' });
+  if (!response.ok) return [];
+  const body = await response.json().catch(() => null) as unknown;
+  const items = body && typeof body === 'object' && Array.isArray((body as { items?: unknown }).items)
+    ? (body as { items: unknown[] }).items
+    : [];
+  return items.flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+    const record = item as Record<string, unknown>;
+    const capabilities = record.capabilities && typeof record.capabilities === 'object' ? record.capabilities as Record<string, unknown> : {};
+    if (typeof record.agentId !== 'string' || typeof record.name !== 'string' || typeof record.version !== 'string' || typeof record.lastSeenAt !== 'string') return [];
+    return [{
+      agentId: record.agentId,
+      name: record.name,
+      version: record.version,
+      browserName: typeof record.browserName === 'string' ? record.browserName : null,
+      platform: typeof record.platform === 'string' ? record.platform : null,
+      online: record.online === true,
+      lastSeenAt: record.lastSeenAt,
+      queuedCommands: typeof record.queuedCommands === 'number' ? record.queuedCommands : 0,
+      inFlightCommands: typeof record.inFlightCommands === 'number' ? record.inFlightCommands : 0,
+      resumeUpload: capabilities.resumeUpload === true,
+      screenshots: capabilities.screenshots === true,
+    } satisfies BrowserExtensionAgentView];
+  });
+}
+
 export interface BrowserExtensionPairingResult {
   readonly code: string;
   readonly expiresAt: string;
 }
 
 export async function createBrowserExtensionPairing(): Promise<BrowserExtensionPairingResult> {
-  const base = new URL(apiBaseUrl());
-  base.pathname = base.pathname.replace(/\/api\/v1\/?$/, '/internal/browser-bridge/v1/pairings');
-  base.search = '';
-  base.hash = '';
+  const base = browserExtensionBridgeUrl('/pairings');
   const headers = new Headers({ accept: 'application/json' });
   const token = apiAuthToken();
   if (token) headers.set('authorization', `Bearer ${token}`);

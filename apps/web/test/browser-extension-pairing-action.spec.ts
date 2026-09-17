@@ -37,7 +37,7 @@ describe('Web browser-extension pairing action', () => {
     process.env.JOB_HARNESS_BROWSER_EXTENSION_PUBLIC_URL = 'https://oracle.example.ts.net:20901/internal/browser-bridge/v1';
 
     const { createBrowserExtensionPairingAction } = await import('../src/app/settings/actions');
-    const { getBrowserExtensionPublicBridgeUrl } = await import('../src/lib/job-harness-client');
+    const { getBrowserExtensionAgents, getBrowserExtensionPublicBridgeUrl } = await import('../src/lib/job-harness-client');
     const state = await createBrowserExtensionPairingAction();
     expect(state).toMatchObject({ ok: true, code: expect.stringMatching(/^[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}$/), expiresAt: expect.any(String), error: null });
     expect(JSON.stringify(state)).not.toContain('signing-key');
@@ -53,6 +53,9 @@ describe('Web browser-extension pairing action', () => {
     expect(paired.status).toBe(201);
     const body = await paired.json() as { agentToken: string };
     expect(body.agentToken).toMatch(/^jhbe1\./);
+    await expect(getBrowserExtensionAgents()).resolves.toEqual([
+      expect.objectContaining({ agentId: 'windows-chrome-web-test', name: 'Windows Chrome', online: true, resumeUpload: false, screenshots: false }),
+    ]);
 
     const reuse = await fetch(`${bridgeUrl}/pair`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
       pairingCode: state.code,
