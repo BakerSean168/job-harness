@@ -412,3 +412,11 @@ The same `attempts.fail()` review exposed a second state-machine gap: `FailExecu
 This does not itself click a recruiting site, but it breaks the model's strongest invariant: **the irreversible boundary has one semantic owner**. It can create false post-submit/manual-review state and makes audit evidence ambiguous.
 
 **Required change:** generic `fail` may preserve the Attempt's already-durable external-effect state, but it must never advance it. A caller-provided effect state must exactly match the current Attempt state; crossing remains owned exclusively by the authorized `begin-submit` transaction, and post-boundary outcome changes remain owned by the dedicated submit-success/submit-failure protocol. Add a regression test proving a valid pre-submit lease cannot report `crossed`/`uncertain` through generic failure.
+
+### Finding A26 — reviewed form hash does not bind page identity, and submit resolution trusts the frozen listing URL rather than the live page (P1)
+
+The submit-safety pass found that both browser backends currently hash only visible form controls/values. `ReviewSnapshot.formStateHash` therefore proves the reviewed **form values**, but not the URL/page identity on which those values existed. During authorized resume, `SubmitExecutionEngine` resolves the submit-capable adapter from the frozen Listing URL and calls that adapter against the retained live browser without first proving that the current page still belongs to that adapter. The extension driver's cached `currentUrl()` can also be stale after a user-controlled navigation during handoff.
+
+A different page with an equivalent form shape/values could therefore reproduce the reviewed hash. No production adapter currently has `submit=true`, so this is dormant today, but it must be closed before a live submit adapter is promoted.
+
+**Required change:** make form-state hashing include exact current page identity (at minimum `location.href`) so post-review navigation invalidates authorization. Refresh the extension driver's cached URL when computing that hash. Immediately before adapter submit, probe the **live** current URL with the already-selected/frozen adapter and reject any mismatch. Add regression tests for URL drift with unchanged form values and for a submit engine refusing a live page outside the adapter family.
