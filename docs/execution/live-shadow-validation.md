@@ -34,3 +34,14 @@ The browser boundary now exposes `scanActions()` as sanitized visible-action met
 A second anonymous Nowcoder characterization used a fresh non-persisted Steel session and clicked only the exact visible `button` whose text was `立即申请`. No candidate data was filled and no submit action was performed. The page stayed on the same job URL and exposed a login/registration surface containing phone-number and verification-code controls plus `登录 / 注册` actions. This establishes that `立即申请` is a **pre-submit entry action** for this unauthenticated state, but form automation must stop for human authentication rather than mapping applicant phone data into the login form.
 
 The generic fallback now fails closed in two additional ways: sparse search/job-detail surfaces are not considered application forms, and login/registration/password/OTP/verification surfaces are blocked before applicant values are written. Even a perfectly filled generic form is never marked `readyForSubmit`; only a site adapter with an explicit submit/evidence contract may opt a ReviewSnapshot into submit authorization.
+
+
+## Typed preflight state — follow-up
+
+The reusable preflight classifier now runs before FormIR filling and persists only sanitized evidence counts/text labels. Current read-only results are:
+
+- Nowcoder public job detail: `job_detail`, exact apply action text `立即申请`, no automatic entry click.
+- Moka social-recruitment job detail: `job_detail`; sparse search control is not mistaken for an application form.
+- BOSS anonymous security redirect: `security_challenge`; no applicant data is resolved and the session is handed to a human.
+
+Traffic-derived `nowcoder-ats` and `moka-social-recruitment` adapters are registered for form-fill routing, but both remain `submit=false`. Promotion to submit capability still requires a verified irreversible action plus exact success-evidence contract and an explicitly authorized live canary.
