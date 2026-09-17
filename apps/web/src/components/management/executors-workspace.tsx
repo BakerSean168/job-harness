@@ -1,4 +1,7 @@
+import { randomUUID } from 'node:crypto';
+import Link from 'next/link';
 import { WorkspaceHeader } from '@/components/shell/workspace-header';
+import { dispatchPreparedIntentAction } from '@/app/executors/actions';
 import { getLocale, getMessages } from '@/i18n/server';
 import { getJobHarnessClient } from '@/lib/job-harness-client';
 import { formatDateTime } from '@/lib/format';
@@ -10,10 +13,18 @@ function joinOrDash(values: readonly string[]): string {
 export async function ExecutorsWorkspace() {
   const [messages, locale] = await Promise.all([getMessages(), getLocale()]);
   const client = getJobHarnessClient();
-  const [executors, attempts] = await Promise.all([
+  const [executors, attempts, prepared] = await Promise.all([
     client.apply.executors.list({ limit: 100, offset: 0 }),
     client.apply.attempts.list({ limit: 100, offset: 0 }),
+    client.submissionIntents.list({ statuses: ['planned'], limit: 20, offset: 0, order: 'oldest' }),
   ]);
+  const jobEntries = await Promise.all([...new Set(prepared.items.map((intent) => intent.jobId))].map(async (jobId) => [jobId, await client.workspace.getJobDetail(jobId)] as const));
+  const jobs = new Map(jobEntries);
+  const activeAttemptsByIntent = new Map(
+    attempts.items
+      .filter((attempt) => ['queued', 'claimed', 'running', 'waiting_for_user'].includes(attempt.state))
+      .map((attempt) => [attempt.intentId, attempt] as const),
+  );
   const copy = messages.executorsWorkspace;
   const active = attempts.items.filter((attempt) => attempt.state === 'claimed' || attempt.state === 'running').length;
   const waiting = attempts.items.filter((attempt) => attempt.state === 'waiting_for_user').length;
@@ -30,6 +41,71 @@ export async function ExecutorsWorkspace() {
           <div className="executor-summary-card"><span>{copy.summary.active}</span><strong>{active}</strong></div>
           <div className="executor-summary-card"><span>{copy.summary.waiting}</span><strong>{waiting}</strong></div>
           <div className="executor-summary-card"><span>{copy.summary.uncertain}</span><strong>{uncertain}</strong></div>
+          <div className="executor-summary-card"><span>{copy.summary.prepared}</span><strong>{prepared.total}</strong></div>
+        </section>
+
+        <section className="management-panel executor-panel">
+          <div className="management-panel-heading"><h2>{copy.dispatch.title}</h2><span>{prepared.total}</span></div>
+          {prepared.items.length ? (
+            <div className="executor-card-grid">
+              {prepared.items.map((intent) => {
+                const detail = jobs.get(intent.jobId) ?? null;
+                const listing = intent.listingId ? detail?.job.listings.find((candidate) => candidate.id === intent.listingId) ?? null : null;
+                const targetUrl = intent.externalTargetUrl ?? listing?.url ?? null;
+                const activeAttempt = activeAttemptsByIntent.get(intent.id) ?? null;
+                const compatibleExecutor = executors.items.some((executor) =>
+                  executor.status === 'ready'
+                  && executor.browserBackends.includes('steel')
+                  && executor.executionModes.includes('fill_only')
+                  && executor.capabilities.humanControl
+                  && executor.capabilities.persistentSession
+                  && executor.capabilities.resumeUpload,
+                );
+                const hasFrozenResume = Boolean(intent.resumeRevisionId && intent.resumeArtifactId);
+                const canDispatch = !activeAttempt && compatibleExecutor && Boolean(targetUrl) && hasFrozenResume;
+                const blockedReason = activeAttempt
+                  ? copy.dispatch.alreadyDispatched
+                  : !compatibleExecutor
+                    ? copy.dispatch.missingExecutor
+                    : !targetUrl
+                      ? copy.dispatch.missingTarget
+                      : !hasFrozenResume
+                        ? copy.dispatch.missingResume
+                        : null;
+                return (
+                  <article className="executor-card executor-dispatch-card" key={intent.id}>
+                    <div className="executor-card-title">
+                      <div>
+                        <strong>{detail?.job.title ?? intent.jobId}</strong>
+                        <span className="muted-copy">{detail?.job.companyName ?? '—'}{detail?.job.city ? ` · ${detail.job.city}` : ''}</span>
+                        <code>{intent.id}</code>
+                      </div>
+                      <span className="executor-status-pill" data-status="queued">{copy.dispatch.prepared}</span>
+                    </div>
+                    <dl>
+                      <div><dt>{copy.dispatch.target}</dt><dd>{targetUrl ? new URL(targetUrl).hostname : '—'}</dd></div>
+                      <div><dt>{copy.dispatch.resume}</dt><dd>{intent.resumeRevisionId ? <code>{intent.resumeRevisionId}</code> : '—'}{intent.resumeArtifactId ? <small> · PDF</small> : null}</dd></div>
+                      <div><dt>{copy.dispatch.created}</dt><dd>{formatDateTime(locale, intent.createdAt)}</dd></div>
+                    </dl>
+                    <p className="executor-boundary-note">{copy.dispatch.safeFillHint}</p>
+                    <div className="executor-dispatch-actions">
+                      {activeAttempt ? (
+                        <Link className="filter-reset" href={`/executors/${activeAttempt.id}`}>{copy.dispatch.openAttempt}</Link>
+                      ) : (
+                        <Link className="filter-reset" href={`/jobs/${intent.jobId}`}>{copy.dispatch.openJob}</Link>
+                      )}
+                      <form action={dispatchPreparedIntentAction}>
+                        <input type="hidden" name="intentId" value={intent.id} />
+                        <input type="hidden" name="decisionNonce" value={randomUUID()} />
+                        <button className="filter-submit" type="submit" disabled={!canDispatch} title={blockedReason ?? undefined}>{copy.dispatch.safeFill}</button>
+                      </form>
+                    </div>
+                    {blockedReason ? <p className="muted-copy">{blockedReason}</p> : null}
+                  </article>
+                );
+              })}
+            </div>
+          ) : <p className="management-empty">{copy.dispatch.empty}</p>}
         </section>
 
         <section className="management-panel executor-panel">

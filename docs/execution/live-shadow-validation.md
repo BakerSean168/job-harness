@@ -46,10 +46,6 @@ The reusable preflight classifier now runs before FormIR filling and persists on
 
 Traffic-derived `nowcoder-ats` and `moka-social-recruitment` adapters are registered for form-fill routing, but both remain `submit=false`. Promotion to submit capability still requires a verified irreversible action plus exact success-evidence contract and an explicitly authorized live canary.
 
-## Ephemeral end-to-end preflight smoke
-
-`pnpm smoke:apply-live-preflight` now exercises a temporary Job Harness server/database plus the real Steel-backed worker against the characterized Nowcoder job-detail family. The smoke creates no production Job/Application state and is restricted to that HTTPS URL family. The first live proof selected `nowcoder-ats` and ended at `waiting_for_user / human-entry:job_detail` with `externalEffectState=not_crossed`, zero ReviewSnapshots, zero Applications, a still-planned SubmissionIntent, a released browser handoff, and zero external actions. This is the promotion proof for **safe live preflight/handoff**, not for form submission.
-
 ## Durable ephemeral preflight smoke
 
 A repeatable integration smoke now exercises the real Job Harness Attempt protocol and real Steel browser against the observed Nowcoder public job-detail family without touching production Career state. `pnpm smoke:apply-live-preflight` starts a temporary authenticated Job Harness server/SQLite database, seeds one temporary Listing/SubmissionIntent, dispatches a `fill_only` Attempt requiring `nowcoder-ats`, and runs one scoped worker cycle through the normal REST lease/control-plane path.

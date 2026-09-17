@@ -85,8 +85,9 @@ export interface MessageCatalog {
     executors: Record<'chatgpt-web' | 'memoflow-ai' | 'import' | 'manual' | 'other', string>;
   };
   executorsWorkspace: {
-    summary: { registered: string; ready: string; active: string; waiting: string; uncertain: string; };
+    summary: { registered: string; ready: string; active: string; waiting: string; uncertain: string; prepared: string; };
     executors: { title: string; empty: string; status: string; backends: string; adapters: string; modes: string; heartbeat: string; concurrency: string; };
+    dispatch: { title: string; empty: string; prepared: string; target: string; resume: string; created: string; safeFill: string; safeFillHint: string; missingExecutor: string; missingResume: string; missingTarget: string; alreadyDispatched: string; openJob: string; openAttempt: string; };
     attempts: { title: string; empty: string; target: string; state: string; mode: string; executor: string; adapter: string; backend: string; checkpoint: string; effect: string; created: string; openBrowser: string; handoffExpires: string; };
     detail: { back: string; overview: string; review: string; authorizations: string; events: string; noReview: string; noAuthorization: string; reviewReady: string; reviewBlocked: string; authorize: string; resumeAuthorized: string; revoke: string; authorizationExpires: string; oneTimeWarning: string; formHash: string; reviewHash: string; fieldSummary: string; resumeEvidence: string; noResume: string; handoff: string; humanAction: string; humanActionDescription: string; waitingReason: string; continueAfterHuman: string; handoffExpired: string; };
     states: Record<'queued' | 'claimed' | 'running' | 'waiting_for_user' | 'completed' | 'failed' | 'cancelled' | 'abandoned', string>;

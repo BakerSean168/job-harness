@@ -1063,12 +1063,6 @@ The first traffic-derived adapters are now explicit `nowcoder-ats` and `moka-soc
 
 Read-only live probes verify the new classifier against current public surfaces: Nowcoder `/jobs/detail/...` is `job_detail` with exact visible `立即申请`; Moka social-recruitment job URLs are `job_detail` even when no trustworthy apply action is exposed; and the anonymous BOSS redirect is `security_challenge`. These probes perform no click/fill/upload/submit. Together with the earlier anonymous Nowcoder entry characterization, the safe production path is now: open listing -> typed preflight -> human entry/login when needed -> resume the same retained browser -> only then inspect/fill the actual application form.
 
-### 18.13 Ephemeral live control-plane preflight proof
-
-A repeatable `pnpm smoke:apply-live-preflight` harness now proves the **real** Job Harness control-plane/worker/browser path without polluting production Career state. It starts an ephemeral SQLite-backed Job Harness server, seeds one temporary Nowcoder Listing plus planned SubmissionIntent/ExecutionAttempt, runs the actual Steel-backed ApplyWorker with `allowFormFill=true`, then destroys the database and releases the retained browser session.
-
-The 2026-09-17 live run against the observed Nowcoder job-detail family selected `nowcoder-ats`, reached `waiting_for_user` at `human-entry:job_detail`, kept `externalEffectState=not_crossed`, created **0 ReviewSnapshots**, **0 Applications**, left the SubmissionIntent `planned`, and performed **0 external actions**. This proves routing, lease, adapter selection, typed preflight and durable human handoff on a real recruiting surface while preserving the no-submit boundary. The smoke is intentionally restricted to the characterized Nowcoder HTTPS job-detail family and does not click the visible `立即申请` action.
-
 ### 18.13 Ephemeral real-site control-plane proof
 
 R019 now has a repeatable real-site **pre-submit** proof that does not mutate the production database. `scripts/apply-live-preflight-smoke.ts` starts an ephemeral Job Harness server with independent global/worker bearer tokens and a temporary SQLite store, creates a temporary Nowcoder Job/Listing + planned SubmissionIntent, dispatches one `fill_only` Attempt requiring `nowcoder-ats`, then runs the normal `ApplyWorker` against the real Steel backend.
@@ -1086,3 +1080,11 @@ The continue action is still only the existing control-plane `resume`: it requeu
 Application entry is now a distinct adapter capability (`enter`) rather than being conflated with `fill` or `submit`. The current Nowcoder adapter is the first narrowly characterized implementation: only when the immutable Attempt policy has `allowApplicationEntry=true` may it choose exactly one enabled visible `立即申请` action, click it once, wait for the new page state, and immediately re-run typed preflight. Missing or ambiguous actions fail closed. Generic/Moka/playbook/BOSS adapters do not advertise entry capability.
 
 The first live canary produced `job_detail -> login_required` with one pre-submit navigation action and then stopped before applicant-data resolution. Durable state remained `waiting_for_user`, `externalEffectState=not_crossed`, zero ReviewSnapshots, zero Applications, and a still-planned SubmissionIntent. This gives R019 a separately auditable entry boundary while keeping login/OTP, form fill and irreversible submit as later independent gates.
+
+Validation at this slice is **70 test files / 146 tests**, plus typecheck, boundary guard, OpenAPI drift, ChatGPT **32-tool / zero external-side-effect** gate, Web production build, synthetic submit-safety smoke, and both zero-click / one-entry live ephemeral canaries.
+
+### 18.16 Human-dispatched safe form fill
+
+Prepared SubmissionIntents are now visible in `/executors` as a separate queue before any browser work starts. The user can explicitly dispatch **safe fill (no submit)** only when an immutable Resume Revision, its matching PDF Artifact, an executable target, and a compatible ready executor are present. The Web action revalidates the frozen PDF evidence and creates a `fill_only` ExecutionAttempt on Steel with `humanControl + persistentSession + resumeUpload`, sets `allowFormFill=true`, explicitly records `submitAllowed=false`, and grants the separately audited `allowApplicationEntry=true` pre-submit entry capability.
+
+The rendered decision carries a nonce: duplicate submits of the same rendered decision are idempotent, while a later deliberate retry can receive a fresh key after the previous Attempt is terminal. The workspace detects an already-active Attempt for the same intent and routes the user back to that execution instead of offering another dispatch. Dispatch itself leaves the SubmissionIntent `planned`, keeps `externalEffectState=not_crossed`, and creates no Application. ChatGPT MCP still cannot dispatch the browser worker; this remains an explicit human Web control point.

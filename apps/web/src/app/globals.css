@@ -372,7 +372,7 @@ button { color: inherit; }
 
 /* R019 Apply Executor control-plane workspace */
 .executor-workspace-content { display: grid; gap: 16px; }
-.executor-summary-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.executor-summary-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
 .executor-summary-card { min-width: 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); display: grid; gap: 6px; }
 .executor-summary-card span { color: var(--text-muted); font-size: 12px; }
 .executor-summary-card strong { font-size: 24px; line-height: 1; }
@@ -418,3 +418,6 @@ button { color: inherit; }
 @media (max-width: 720px) { .executor-event-list li { grid-template-columns: 44px 1fr; } .executor-event-list li span, .executor-event-list li time { grid-column: 2; } }
 .executor-human-action-card > p { margin: 0; line-height: 1.65; }
 .executor-human-action-card form { margin: 0; }
+.executor-dispatch-card small { color: var(--text-muted); font-size: 11px; }
+.executor-dispatch-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.executor-dispatch-actions form { margin: 0; }
