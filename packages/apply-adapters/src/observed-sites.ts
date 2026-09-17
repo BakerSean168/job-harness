@@ -4,7 +4,7 @@ import { fillGenericForm, inspectGenericForm } from './generic-form';
 import type { ApplicantDataProviderPort } from './applicant-data';
 import { inspectApplyPagePreflight } from './page-preflight';
 import { GenericAtsSiteAdapter } from './generic-site-adapter';
-import type { ApplyFillAssets, ApplySiteAdapter } from './site-adapter';
+import type { ApplyApplicationEntryResult, ApplyFillAssets, ApplySiteAdapter } from './site-adapter';
 
 abstract class ObservedPublicAtsAdapter implements ApplySiteAdapter {
   abstract readonly descriptor: ApplySiteAdapter['descriptor'];
@@ -36,7 +36,7 @@ export class NowcoderAtsSiteAdapter extends ObservedPublicAtsAdapter {
     version: '2026-09-17.1',
     semantics: 'formal_application' as const,
     priority: 180,
-    capabilities: { inspect: true, fill: true, validate: true, submit: false },
+    capabilities: { inspect: true, enter: true, fill: true, validate: true, submit: false },
   };
 
   probe(input: { url: string }) {
@@ -49,6 +49,23 @@ export class NowcoderAtsSiteAdapter extends ObservedPublicAtsAdapter {
       return { supported: false, score: 0, reason: 'invalid-url' };
     }
   }
+
+  async enterApplication(browser: BrowserDriverPort, preflight: Awaited<ReturnType<typeof inspectApplyPagePreflight>>): Promise<ApplyApplicationEntryResult> {
+    if (preflight.state !== 'job_detail') throw new Error(`Nowcoder application entry requires job_detail preflight, got '${preflight.state}'`);
+    const actions = (await browser.scanActions())
+      .filter((action) => !action.disabled && !action.ariaDisabled && action.text.replace(/\s+/g, ' ').trim() === '立即申请');
+    if (actions.length !== 1) throw new Error(`Nowcoder application entry requires exactly one enabled '立即申请' action, found ${actions.length}`);
+    const action = actions[0]!;
+    await browser.click(action.actionRef);
+    await browser.wait(1200);
+    const after = await inspectApplyPagePreflight(browser);
+    return {
+      action: { text: '立即申请', tag: action.tag, href: action.href },
+      beforeState: preflight.state,
+      after,
+      navigationActionCount: 1,
+    };
+  }
 }
 
 export class MokaSocialRecruitmentAtsSiteAdapter extends ObservedPublicAtsAdapter {
@@ -57,7 +74,7 @@ export class MokaSocialRecruitmentAtsSiteAdapter extends ObservedPublicAtsAdapte
     version: '2026-09-17.1',
     semantics: 'formal_application' as const,
     priority: 170,
-    capabilities: { inspect: true, fill: true, validate: true, submit: false },
+    capabilities: { inspect: true, enter: false, fill: true, validate: true, submit: false },
   };
 
   probe(input: { url: string }) {

@@ -24,7 +24,7 @@ class SyntheticAtsAdapter implements ApplySiteAdapter {
     version: '1.0.0',
     semantics: 'formal_application' as const,
     priority: 1000,
-    capabilities: { inspect: true, fill: true, validate: true, submit: true },
+    capabilities: { inspect: true, enter: false, fill: true, validate: true, submit: true },
   };
 
   probe(input: { url: string }) {

@@ -28,6 +28,7 @@ function validateTarget(raw: string): string {
 
 async function main(): Promise<void> {
   const targetUrl = validateTarget(process.env.JOB_HARNESS_LIVE_PREFLIGHT_URL?.trim() || DEFAULT_TARGET);
+  const allowApplicationEntry = (process.env.JOB_HARNESS_LIVE_PREFLIGHT_ALLOW_ENTRY ?? 'false').toLowerCase() === 'true';
   const work = await mkdtemp(join(tmpdir(), 'job-harness-live-preflight-'));
   const globalToken = `global-${randomUUID()}-${randomUUID()}`;
   const workerToken = `worker-${randomUUID()}-${randomUUID()}`;
@@ -83,7 +84,9 @@ async function main(): Promise<void> {
       executor: 'other',
       externalTargetUrl: targetUrl,
       idempotencyKey: `live-preflight-intent:${randomUUID()}`,
-      note: 'Ephemeral read-only live preflight smoke. No click/fill/upload/submit is permitted.',
+      note: allowApplicationEntry
+        ? 'Ephemeral live preflight smoke. One characterized Nowcoder application-entry navigation is permitted; fill/upload/submit remain forbidden.'
+        : 'Ephemeral read-only live preflight smoke. No click/fill/upload/submit is permitted.',
     });
 
     const attempt = await globalClient.apply.attempts.dispatch({
@@ -92,7 +95,7 @@ async function main(): Promise<void> {
       requiredAdapterId: 'nowcoder-ats',
       preferredBrowserBackend: 'steel',
       requiredCapabilities: ['humanControl'],
-      policySnapshot: { allowFormFill: true, livePreflightSmoke: true },
+      policySnapshot: { allowFormFill: true, allowApplicationEntry, livePreflightSmoke: true },
       idempotencyKey: `live-preflight-attempt:${randomUUID()}`,
     });
 
@@ -107,7 +110,7 @@ async function main(): Promise<void> {
       executionModes: ['fill_only'],
       capabilities: { resumeUpload: false, humanControl: true, persistentSession: true, screenshots: false, semanticMapping: false },
       maxConcurrency: 1,
-      metadata: { smoke: 'read-only-live-preflight', externalSideEffects: false },
+      metadata: { smoke: allowApplicationEntry ? 'single-entry-live-preflight' : 'read-only-live-preflight', externalSubmit: false, allowApplicationEntry },
     };
 
     const worker = new ApplyWorker({
@@ -122,7 +125,7 @@ async function main(): Promise<void> {
       leaseSeconds: 90,
       humanReviewHandoffSeconds: 300,
       attemptHeartbeatIntervalMs: 60_000,
-      logger: { log() {}, warn() {}, error() {} },
+      logger: allowApplicationEntry ? console : { log() {}, warn() {}, error() {} },
     });
 
     await worker.register();
@@ -136,6 +139,11 @@ async function main(): Promise<void> {
     assert(current.state === 'waiting_for_user', `Expected waiting_for_user, got '${current.state}'`);
     assert(current.externalEffectState === 'not_crossed', `External-effect boundary changed to '${current.externalEffectState}'`);
     assert(current.checkpoint?.startsWith('human-entry:'), `Expected human-entry checkpoint, got '${current.checkpoint}'`);
+    if (allowApplicationEntry) {
+      assert(current.checkpoint === 'human-entry:login_required', `Expected characterized entry to stop at login_required, got '${current.checkpoint}'`);
+    } else {
+      assert(current.checkpoint === 'human-entry:job_detail', `Expected read-only preflight to stop at job_detail, got '${current.checkpoint}'`);
+    }
     assert(current.browserSessionHandoff, 'Expected a retained browser handoff');
 
     const reviews = await globalClient.apply.attempts.listReviewSnapshots(attempt.id, 20);
@@ -171,7 +179,9 @@ async function main(): Promise<void> {
       applications: applications.total,
       submissionIntentStatus: intentAfter.status,
       browserHandoffReleased: true,
-      externalActionsPerformed: 0,
+      applicationEntryAllowed: allowApplicationEntry,
+      preSubmitNavigationActionsPerformed: allowApplicationEntry ? 1 : 0,
+      irreversibleSubmitActionsPerformed: 0,
     }, null, 2));
   } finally {
     if (retained) await retained.release().catch(() => {});

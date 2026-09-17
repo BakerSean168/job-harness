@@ -42,7 +42,7 @@ function backend(log: string[]): BrowserBackendPort {
 
 function submitAdapter(log: string[]): ApplySiteAdapter {
   return {
-    descriptor: { id: 'fixture-submit', version: '1.0.0', semantics: 'formal_application', priority: 100, capabilities: { inspect: false, fill: false, validate: false, submit: true } },
+    descriptor: { id: 'fixture-submit', version: '1.0.0', semantics: 'formal_application', priority: 100, capabilities: { inspect: false, enter: false, fill: false, validate: false, submit: true } },
     probe: ({ url }) => ({ supported: new URL(url).hostname === 'jobs.example.test', score: 1, reason: 'fixture' }),
     async inspect() { throw new Error('not used'); },
     async validate() { return { readyForReview: true, readyForSubmit: true, issues: [] }; },

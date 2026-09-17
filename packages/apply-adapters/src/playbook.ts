@@ -31,7 +31,7 @@ export class PlaybookAtsSiteAdapter implements ApplySiteAdapter {
       version: this.playbook.version,
       semantics: 'formal_application' as const,
       priority: 100,
-      capabilities: { inspect: true, fill: true, validate: true, submit: false },
+      capabilities: { inspect: true, enter: false, fill: true, validate: true, submit: false },
     };
   }
 
@@ -97,5 +97,5 @@ export const BOSS_OUTREACH_DESCRIPTOR = {
   version: '1.0.0',
   semantics: 'outreach' as const,
   priority: 200,
-  capabilities: { inspect: true, fill: false, validate: false, submit: false },
+  capabilities: { inspect: true, enter: false, fill: false, validate: false, submit: false },
 } as const;

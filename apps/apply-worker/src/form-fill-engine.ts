@@ -103,7 +103,27 @@ export class FormFillExecutionEngine {
     }
 
     if (adapter.preflight) {
-      const preflight = await adapter.preflight(input.browser);
+      let preflight = await adapter.preflight(input.browser);
+      let applicationEntry: Record<string, unknown> | null = null;
+      const allowApplicationEntry = input.attempt.policySnapshot.allowApplicationEntry === true;
+      if (
+        !preflight.canInspectForm
+        && preflight.state === 'job_detail'
+        && allowApplicationEntry
+        && adapter.descriptor.capabilities.enter
+        && adapter.enterApplication
+      ) {
+        const entered = await adapter.enterApplication(input.browser, preflight);
+        preflight = entered.after;
+        applicationEntry = {
+          actionText: entered.action.text,
+          actionTag: entered.action.tag,
+          actionHrefHost: entered.action.href ? new URL(entered.action.href, targetUrl).hostname : null,
+          beforeState: entered.beforeState,
+          afterState: entered.after.state,
+          navigationActionCount: entered.navigationActionCount,
+        };
+      }
       if (!preflight.canInspectForm) {
         return {
           outcome: 'handoff_required',
@@ -114,6 +134,7 @@ export class FormFillExecutionEngine {
             siteAdapterVersion: adapter.descriptor.version,
             pageState: preflight.state,
             preflight: preflight.evidence,
+            ...(applicationEntry ? { applicationEntry } : {}),
           },
         };
       }

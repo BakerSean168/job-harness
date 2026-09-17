@@ -18,6 +18,7 @@ export interface ApplySiteAdapterDescriptor {
   readonly priority: number;
   readonly capabilities: {
     readonly inspect: boolean;
+    readonly enter: boolean;
     readonly fill: boolean;
     readonly validate: boolean;
     readonly submit: boolean;
@@ -52,6 +53,18 @@ export interface ApplyFillAssets {
   readonly resumeFile?: BrowserUploadFile | null;
 }
 
+
+export interface ApplyApplicationEntryResult {
+  readonly action: {
+    readonly text: string;
+    readonly tag: 'a' | 'button' | 'other';
+    readonly href: string | null;
+  };
+  readonly beforeState: ApplyPagePreflightResult['state'];
+  readonly after: ApplyPagePreflightResult;
+  readonly navigationActionCount: 1;
+}
+
 export interface ApplySiteSubmitResult {
   readonly outcome: 'success' | 'external_failed' | 'uncertain';
   readonly appliedAt: string;
@@ -65,6 +78,7 @@ export interface ApplySiteAdapter {
   readonly descriptor: ApplySiteAdapterDescriptor;
   probe(input: ApplySiteProbeInput): ApplySiteProbeResult;
   preflight?(browser: BrowserDriverPort): Promise<ApplyPagePreflightResult>;
+  enterApplication?(browser: BrowserDriverPort, preflight: ApplyPagePreflightResult): Promise<ApplyApplicationEntryResult>;
   inspect(browser: BrowserDriverPort, input: { readonly url: string; readonly title?: string | null; readonly observedAt: string }): Promise<FormIR>;
   explicitBindings?(form: FormIR): readonly FieldBinding[];
   fill?(browser: BrowserDriverPort, form: FormIR, plan: FillPlan, applicant: ApplicantDataProviderPort, assets?: ApplyFillAssets): Promise<FillReport>;
