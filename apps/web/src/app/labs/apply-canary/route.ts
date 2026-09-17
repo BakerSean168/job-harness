@@ -132,6 +132,10 @@ function renderPage(runId: string, submitCount: number): string {
       <label>学校<input id="school" name="school" autocomplete="organization" required></label>
       <label>专业<input id="major" name="major" required></label>
     </fieldset>
+    <fieldset><legend>简历</legend>
+      <label>Resume PDF<input id="resume" name="resume" type="file" accept="application/pdf" required></label>
+      <p id="resume-evidence" class="muted">Resume: not selected</p>
+    </fieldset>
     <fieldset><legend>合规问题（应保持人工处理）</legend>
       <label>Will you require visa sponsorship?
         <select id="visa" name="visa"><option value="">Please select</option><option value="yes">Yes</option><option value="no">No</option></select>
@@ -142,6 +146,16 @@ function renderPage(runId: string, submitCount: number): string {
   <p id="submit-warning" class="warning" hidden>Canary submit boundary was crossed. This should remain hidden during fill-only validation.</p>
   <script>
     const form = document.getElementById('application-form');
+    const resumeInput = document.getElementById('resume');
+    resumeInput.addEventListener('change', async () => {
+      const file = resumeInput.files && resumeInput.files[0];
+      const evidence = document.getElementById('resume-evidence');
+      if (!file) { evidence.textContent = 'Resume: not selected'; return; }
+      const bytes = await file.arrayBuffer();
+      const digest = await crypto.subtle.digest('SHA-256', bytes);
+      const hex = [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
+      evidence.textContent = 'Resume: ' + file.name + ' | ' + file.size + ' bytes | sha256:' + hex;
+    });
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const payload = {

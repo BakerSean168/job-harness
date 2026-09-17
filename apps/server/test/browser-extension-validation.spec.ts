@@ -48,8 +48,11 @@ describe('browser-extension validation scope', () => {
       sessionRef: 'chrome-tab:17', command: { type: 'click', payload: { selector: '#submit', expectedText: 'Submit' } }, timeoutMs: 5_000,
     })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
     await expect(registry.invoke(run.id, {
-      sessionRef: 'chrome-tab:17', command: { type: 'upload', payload: { selector: '#resume', file: { name: 'resume.pdf', mimeType: 'application/pdf', bytesBase64: 'AA==' } } }, timeoutMs: 5_000,
+      sessionRef: 'chrome-tab:17', command: { type: 'screenshot', payload: {} }, timeoutMs: 5_000,
     })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
+    await expect(registry.invoke(run.id, {
+      sessionRef: 'chrome-tab:17', command: { type: 'upload', payload: { selector: '#other', file: { name: 'resume.pdf', mimeType: 'application/pdf', bytesBase64: 'AA==' } } }, timeoutMs: 5_000,
+    })).rejects.toMatchObject({ code: 'VALIDATION_UPLOAD_DENIED' });
     bridge.close();
   });
 

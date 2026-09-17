@@ -12,6 +12,9 @@ describe('synthetic ATS real-browser canary', () => {
     expect(html).toContain('name="email"');
     expect(html).toContain('name="school"');
     expect(html).toContain('name="major"');
+    expect(html).toContain('name="resume"');
+    expect(html).toContain('accept="application/pdf"');
+    expect(html).toContain('id="resume-evidence"');
     expect(html).toContain('name="visa"');
     expect(html).toContain('Submit application');
 

@@ -34,12 +34,13 @@ const SAFE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(
   'fill',
   'select',
   'set_checked',
+  'upload',
   'wait',
   'scan_controls',
   'scan_actions',
   'form_state_hash',
 ]);
-const WRITE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(['fill', 'select', 'set_checked']);
+const WRITE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(['fill', 'select', 'set_checked', 'upload']);
 
 export interface BrowserExtensionValidationRun {
   readonly id: string;
@@ -111,6 +112,12 @@ export class BrowserExtensionValidationRegistry {
     const input = InvokeValidationCommandInputSchema.parse(raw);
     if (!SAFE_VALIDATION_COMMANDS.has(input.command.type)) {
       throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', `Browser validation does not allow '${input.command.type}'`, 403);
+    }
+    if (input.command.type === 'upload') {
+      const file = input.command.payload.file;
+      if (input.command.payload.selector !== '#resume' || file.mimeType !== 'application/pdf' || !/\.pdf$/i.test(file.name) || file.bytesBase64.length < 4) {
+        throw new BrowserExtensionBridgeError('VALIDATION_UPLOAD_DENIED', 'Browser validation upload is restricted to one PDF on the synthetic #resume control', 403);
+      }
     }
 
     if (input.command.type === 'session_acquire') {
