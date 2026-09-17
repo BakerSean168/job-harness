@@ -1,11 +1,15 @@
 import { createHash } from 'node:crypto';
 import type {
+  ApplicantFieldCatalog,
+  ApplicantFieldKey,
   ClaimExecutionAttemptOutput,
+  ResolvedApplicantValues,
   ExecutionAttempt,
   ExecutorDescriptor,
   ResumeArtifactGrantOutput,
 } from '@job-harness/apply-contracts';
 import type { BrowserBackendRegistry, BrowserSessionPort } from '@job-harness/apply-browser';
+import type { ApplicantDataProviderPort } from '@job-harness/apply-adapters';
 import type { FormFillExecutionEngine } from './form-fill-engine';
 import type { SubmitExecutionEngine } from './submit-engine';
 
@@ -33,6 +37,8 @@ export interface ApplyWorkerClientPort {
       checkpoint?: string | null;
     }): Promise<ExecutionAttempt>;
     resumeArtifact?(input: { attemptId: string; executorId: string; leaseToken: string }): Promise<ResumeArtifactGrantOutput>;
+    applicantCatalog?(input: { attemptId: string; executorId: string; leaseToken: string }): Promise<ApplicantFieldCatalog>;
+    resolveApplicantData?(input: { attemptId: string; executorId: string; leaseToken: string; keys: readonly ApplicantFieldKey[] }): Promise<ResolvedApplicantValues>;
     createReviewSnapshot(input: {
       attemptId: string;
       executorId: string;
@@ -224,6 +230,18 @@ export class ApplyWorker {
         return this.executeAuthorizedSubmitClaim(claim);
       }
       if (this.formFillEngine && (attempt.executionMode === 'fill_only' || attempt.executionMode === 'review_then_submit')) {
+        if (attempt.policySnapshot.allowFormFill !== true) {
+          await this.client.attempts.waiting({
+            attemptId,
+            executorId: this.descriptor.executorId,
+            leaseToken,
+            checkpoint: 'policy-gate',
+            reasonCode: 'form_fill_not_authorized',
+            summary: 'Form filling requires the frozen policy allowFormFill=true.',
+            payload: { requiredPolicy: 'allowFormFill=true' },
+          });
+          return { claimed: true, attemptId, outcome: 'waiting' };
+        }
         return this.executeFormFillClaim(claim);
       }
       await this.client.attempts.waiting({
@@ -474,7 +492,8 @@ export class ApplyWorker {
       if (!attempt.browserSessionHandoff) await driver.navigate(targetUrl);
       if (heartbeatError) throw heartbeatError;
       const resumeFile = await this.loadResumeArtifact(attempt, leaseToken);
-      const result = await this.formFillEngine!.execute({ attempt, browser: driver, observedAt: new Date().toISOString(), resumeFile });
+      const applicant = this.createLeaseScopedApplicantProvider(attempt, leaseToken);
+      const result = await this.formFillEngine!.execute({ attempt, browser: driver, observedAt: new Date().toISOString(), resumeFile, applicant });
       const expiresAt = new Date(Date.now() + this.humanReviewHandoffSeconds * 1000).toISOString();
       const handoff = await session.retainForHuman({ expiresAt });
       const snapshot = await this.client.attempts.createReviewSnapshot({
@@ -509,6 +528,17 @@ export class ApplyWorker {
       if (attemptHeartbeat) clearInterval(attemptHeartbeat);
       if (session) await session.release().catch((error) => this.logger.warn('Browser session release failed', sanitizeError(error)));
     }
+  }
+
+  private createLeaseScopedApplicantProvider(attempt: ExecutionAttempt, leaseToken: string): ApplicantDataProviderPort | null {
+    const catalog = this.client.attempts.applicantCatalog;
+    const resolve = this.client.attempts.resolveApplicantData;
+    if (!catalog || !resolve) return null;
+    const common = { attemptId: attempt.id, executorId: this.descriptor.executorId, leaseToken };
+    return {
+      catalog: () => catalog(common),
+      resolve: (keys) => resolve({ ...common, keys }),
+    };
   }
 
   private async loadResumeArtifact(attempt: ExecutionAttempt, leaseToken: string) {

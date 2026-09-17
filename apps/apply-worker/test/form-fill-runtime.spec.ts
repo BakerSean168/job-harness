@@ -21,7 +21,7 @@ function claimedAttempt(): ExecutionAttempt {
   return ExecutionAttemptSchema.parse({
     id: 'attempt-form-1', intentId: 'intent-form-1', executorId: 'form-worker', requiredAdapterId: 'generic-ats', adapterId: null, adapterVersion: null,
     preferredBrowserBackend: 'fake', browserBackend: null, executionMode: 'fill_only', state: 'claimed', leaseOwner: 'form-worker', leaseExpiresAt: '2099-01-01T00:00:00.000Z', lastHeartbeatAt: '2026-09-17T12:00:00.000Z', checkpoint: null,
-    externalEffectState: 'not_crossed', requiredCapabilities: ['humanControl'], policySnapshot: {},
+    externalEffectState: 'not_crossed', requiredCapabilities: ['humanControl'], policySnapshot: { allowFormFill: true },
     bundle: { intentId: 'intent-form-1', attemptId: 'attempt-form-1', jobId: 'job-1', listingId: 'listing-1', listingUrl: 'https://jobs.example.test/apply', company: 'Example', title: 'Frontend Engineer', city: '杭州', resumeProfileId: null, resumeRevisionId: null, resumeArtifact: null, applicantCatalogVersion: null, answerSetVersion: null, answerSetHash: null, policySnapshot: {}, createdAt: '2026-09-17T12:00:00.000Z' },
     bundleHash: 'a'.repeat(64), dispatchRequestHash: 'b'.repeat(64), reviewHash: null, submitAuthorizationId: null, errorCode: null, errorSummary: null, startedAt: null, completedAt: null, idempotencyKey: 'dispatch-form-1', createdAt: '2026-09-17T12:00:00.000Z', updatedAt: '2026-09-17T12:00:00.000Z',
   });

@@ -96,6 +96,8 @@ import {
   type DiscoveryRunDetail,
 } from '@job-harness/contracts';
 import {
+  ApplicantDataGrantInputSchema,
+  ApplicantFieldCatalogSchema,
   AuthorizeResumeArtifactInputSchema,
   ClaimExecutionAttemptOutputSchema,
   ExecutionAttemptDetailSchema,
@@ -103,8 +105,12 @@ import {
   ExecutorRegistrationSchema,
   ListExecutionAttemptsOutputSchema,
   ListExecutorsOutputSchema,
+  ResolveApplicantDataInputSchema,
+  ResolvedApplicantValuesSchema,
   ResumeArtifactGrantOutputSchema,
+  type ApplicantDataGrantInput,
   type AuthorizeResumeArtifactInput,
+  type ResolveApplicantDataInput,
   type CancelExecutionAttemptInput,
   type ClaimExecutionAttemptInput,
   type CompleteExecutionAttemptInput,
@@ -621,6 +627,18 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
           const parsed = AuthorizeResumeArtifactInputSchema.parse(input);
           return ResumeArtifactGrantOutputSchema.parse(await request(`/execution-attempts/${encodeURIComponent(parsed.attemptId)}/resume-artifact`, {
             method: 'POST', body: JSON.stringify({ executorId: parsed.executorId, leaseToken: parsed.leaseToken }),
+          }));
+        },
+        async applicantCatalog(input: ApplicantDataGrantInput) {
+          const parsed = ApplicantDataGrantInputSchema.parse(input);
+          return ApplicantFieldCatalogSchema.parse(await request(`/execution-attempts/${encodeURIComponent(parsed.attemptId)}/applicant-data/catalog`, {
+            method: 'POST', body: JSON.stringify({ executorId: parsed.executorId, leaseToken: parsed.leaseToken }),
+          }));
+        },
+        async resolveApplicantData(input: ResolveApplicantDataInput) {
+          const parsed = ResolveApplicantDataInputSchema.parse(input);
+          return ResolvedApplicantValuesSchema.parse(await request(`/execution-attempts/${encodeURIComponent(parsed.attemptId)}/applicant-data/resolve`, {
+            method: 'POST', body: JSON.stringify({ executorId: parsed.executorId, leaseToken: parsed.leaseToken, keys: parsed.keys }),
           }));
         },
         async createReviewSnapshot(input: CreateReviewSnapshotInput) {

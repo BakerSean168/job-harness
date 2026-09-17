@@ -18145,6 +18145,12 @@
                                         "type": "string",
                                         "minLength": 1,
                                         "maxLength": 200
+                                      },
+                                      "fileName": {
+                                        "default": "resume.pdf",
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 240
                                       }
                                     },
                                     "required": [
@@ -18152,7 +18158,8 @@
                                       "revisionId",
                                       "sha256",
                                       "byteSize",
-                                      "mimeType"
+                                      "mimeType",
+                                      "fileName"
                                     ],
                                     "additionalProperties": false
                                   },
@@ -18947,6 +18954,12 @@
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 200
+                                },
+                                "fileName": {
+                                  "default": "resume.pdf",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 240
                                 }
                               },
                               "required": [
@@ -18954,7 +18967,8 @@
                                 "revisionId",
                                 "sha256",
                                 "byteSize",
-                                "mimeType"
+                                "mimeType",
+                                "fileName"
                               ],
                               "additionalProperties": false
                             },
@@ -19875,6 +19889,12 @@
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
+                                    },
+                                    "fileName": {
+                                      "default": "resume.pdf",
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 240
                                     }
                                   },
                                   "required": [
@@ -19882,7 +19902,8 @@
                                     "revisionId",
                                     "sha256",
                                     "byteSize",
-                                    "mimeType"
+                                    "mimeType",
+                                    "fileName"
                                   ],
                                   "additionalProperties": false
                                 },
@@ -20762,6 +20783,12 @@
                                           "type": "string",
                                           "minLength": 1,
                                           "maxLength": 200
+                                        },
+                                        "fileName": {
+                                          "default": "resume.pdf",
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 240
                                         }
                                       },
                                       "required": [
@@ -20769,7 +20796,8 @@
                                         "revisionId",
                                         "sha256",
                                         "byteSize",
-                                        "mimeType"
+                                        "mimeType",
+                                        "fileName"
                                       ],
                                       "additionalProperties": false
                                     },
@@ -21610,6 +21638,12 @@
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 200
+                                },
+                                "fileName": {
+                                  "default": "resume.pdf",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 240
                                 }
                               },
                               "required": [
@@ -21617,7 +21651,8 @@
                                 "revisionId",
                                 "sha256",
                                 "byteSize",
-                                "mimeType"
+                                "mimeType",
+                                "fileName"
                               ],
                               "additionalProperties": false
                             },
@@ -22458,6 +22493,12 @@
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 200
+                                },
+                                "fileName": {
+                                  "default": "resume.pdf",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 240
                                 }
                               },
                               "required": [
@@ -22465,7 +22506,8 @@
                                 "revisionId",
                                 "sha256",
                                 "byteSize",
-                                "mimeType"
+                                "mimeType",
+                                "fileName"
                               ],
                               "additionalProperties": false
                             },
@@ -23317,6 +23359,12 @@
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 200
+                                },
+                                "fileName": {
+                                  "default": "resume.pdf",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 240
                                 }
                               },
                               "required": [
@@ -23324,7 +23372,8 @@
                                 "revisionId",
                                 "sha256",
                                 "byteSize",
-                                "mimeType"
+                                "mimeType",
+                                "fileName"
                               ],
                               "additionalProperties": false
                             },
@@ -24231,6 +24280,12 @@
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 200
+                                },
+                                "fileName": {
+                                  "default": "resume.pdf",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 240
                                 }
                               },
                               "required": [
@@ -24238,7 +24293,8 @@
                                 "revisionId",
                                 "sha256",
                                 "byteSize",
-                                "mimeType"
+                                "mimeType",
+                                "fileName"
                               ],
                               "additionalProperties": false
                             },
@@ -25046,6 +25102,12 @@
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 200
+                                },
+                                "fileName": {
+                                  "default": "resume.pdf",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 240
                                 }
                               },
                               "required": [
@@ -25053,7 +25115,8 @@
                                 "revisionId",
                                 "sha256",
                                 "byteSize",
-                                "mimeType"
+                                "mimeType",
+                                "fileName"
                               ],
                               "additionalProperties": false
                             },
@@ -25896,6 +25959,12 @@
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 200
+                                },
+                                "fileName": {
+                                  "default": "resume.pdf",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 240
                                 }
                               },
                               "required": [
@@ -25903,7 +25972,8 @@
                                 "revisionId",
                                 "sha256",
                                 "byteSize",
-                                "mimeType"
+                                "mimeType",
+                                "fileName"
                               ],
                               "additionalProperties": false
                             },
@@ -26768,6 +26838,12 @@
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 200
+                                },
+                                "fileName": {
+                                  "default": "resume.pdf",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 240
                                 }
                               },
                               "required": [
@@ -26775,7 +26851,8 @@
                                 "revisionId",
                                 "sha256",
                                 "byteSize",
-                                "mimeType"
+                                "mimeType",
+                                "fileName"
                               ],
                               "additionalProperties": false
                             },
@@ -27514,6 +27591,727 @@
                 "required": [
                   "executorId",
                   "leaseToken"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/execution-attempts/{attemptId}/applicant-data/catalog": {
+      "post": {
+        "operationId": "getExecutionAttemptApplicantCatalog",
+        "tags": [
+          "Apply Executors"
+        ],
+        "summary": "Read the value-free applicant-field catalog derived from the frozen Resume Revision under a valid worker lease",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "attemptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 240
+                    },
+                    "entries": {
+                      "maxItems": 2000,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 240,
+                            "pattern": "^[a-z0-9_.\\[\\]-]+$"
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 240
+                          },
+                          "valueType": {
+                            "type": "string",
+                            "enum": [
+                              "text",
+                              "multiline",
+                              "email",
+                              "phone",
+                              "url",
+                              "number",
+                              "date",
+                              "boolean",
+                              "choice",
+                              "multi_choice",
+                              "file"
+                            ]
+                          },
+                          "sensitivity": {
+                            "type": "string",
+                            "enum": [
+                              "public",
+                              "personal",
+                              "sensitive",
+                              "legal",
+                              "protected"
+                            ]
+                          },
+                          "aliases": {
+                            "default": [],
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 240
+                            }
+                          },
+                          "allowAiMapping": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "requiresLiteral": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "source": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "label",
+                          "valueType",
+                          "sensitivity",
+                          "aliases",
+                          "allowAiMapping",
+                          "requiresLiteral",
+                          "source"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "entries"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Entity not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid lifecycle transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "executorId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "leaseToken": {
+                    "type": "string",
+                    "minLength": 32,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "executorId",
+                  "leaseToken"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/execution-attempts/{attemptId}/applicant-data/resolve": {
+      "post": {
+        "operationId": "resolveExecutionAttemptApplicantData",
+        "tags": [
+          "Apply Executors"
+        ],
+        "summary": "Resolve only explicitly requested literal applicant values from the frozen Resume Revision under a valid worker lease",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "attemptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "catalogVersion": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 240
+                    },
+                    "values": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 240,
+                            "pattern": "^[a-z0-9_.\\[\\]-]+$"
+                          },
+                          "value": {
+                            "anyOf": [
+                              {
+                                "type": [
+                                  "string",
+                                  "number",
+                                  "boolean"
+                                ]
+                              },
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": [
+                                    "string",
+                                    "number",
+                                    "boolean"
+                                  ]
+                                }
+                              }
+                            ]
+                          },
+                          "valueType": {
+                            "type": "string",
+                            "enum": [
+                              "text",
+                              "multiline",
+                              "email",
+                              "phone",
+                              "url",
+                              "number",
+                              "date",
+                              "boolean",
+                              "choice",
+                              "multi_choice",
+                              "file"
+                            ]
+                          },
+                          "sensitivity": {
+                            "type": "string",
+                            "enum": [
+                              "public",
+                              "personal",
+                              "sensitive",
+                              "legal",
+                              "protected"
+                            ]
+                          },
+                          "provenance": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 240
+                          },
+                          "literal": {
+                            "default": true,
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value",
+                          "valueType",
+                          "sensitivity",
+                          "provenance",
+                          "literal"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "catalogVersion",
+                    "values"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Entity not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid lifecycle transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "executorId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "leaseToken": {
+                    "type": "string",
+                    "minLength": 32,
+                    "maxLength": 500
+                  },
+                  "keys": {
+                    "minItems": 1,
+                    "maxItems": 250,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 240,
+                      "pattern": "^[a-z0-9_.\\[\\]-]+$"
+                    }
+                  }
+                },
+                "required": [
+                  "executorId",
+                  "leaseToken",
+                  "keys"
                 ],
                 "additionalProperties": false
               }
@@ -30270,6 +31068,12 @@
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 200
+                                },
+                                "fileName": {
+                                  "default": "resume.pdf",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 240
                                 }
                               },
                               "required": [
@@ -30277,7 +31081,8 @@
                                 "revisionId",
                                 "sha256",
                                 "byteSize",
-                                "mimeType"
+                                "mimeType",
+                                "fileName"
                               ],
                               "additionalProperties": false
                             },
@@ -31133,6 +31938,12 @@
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 200
+                                },
+                                "fileName": {
+                                  "default": "resume.pdf",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 240
                                 }
                               },
                               "required": [
@@ -31140,7 +31951,8 @@
                                 "revisionId",
                                 "sha256",
                                 "byteSize",
-                                "mimeType"
+                                "mimeType",
+                                "fileName"
                               ],
                               "additionalProperties": false
                             },

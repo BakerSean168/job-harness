@@ -11,6 +11,8 @@ import {
 import type { Express, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import {
+  ApplicantDataGrantInputSchema,
+  ApplicantFieldCatalogSchema,
   AuthorizeResumeArtifactInputSchema,
   CancelExecutionAttemptInputSchema,
   ClaimExecutionAttemptInputSchema,
@@ -23,6 +25,8 @@ import {
   ListExecutorsInputSchema,
   MarkExecutionAttemptWaitingInputSchema,
   RegisterExecutorInputSchema,
+  ResolveApplicantDataInputSchema,
+  ResolvedApplicantValuesSchema,
   ResumeArtifactGrantOutputSchema,
   ResumeExecutionAttemptInputSchema,
   StartExecutionAttemptInputSchema,
@@ -171,12 +175,20 @@ export function registerApplyApi(app: Express, apply: ApplyControlPlanePort, art
     res.json(ResumeArtifactGrantOutputSchema.parse({
       artifactId: content.artifact.id,
       revisionId: content.artifact.revisionId,
-      fileName: `${content.artifact.id}.pdf`,
+      fileName: authorization.fileName,
       mimeType: content.artifact.mimeType,
       sha256: content.artifact.sha256.toLowerCase(),
       byteSize: content.artifact.byteSize,
       bytesBase64: Buffer.from(content.bytes).toString('base64'),
     }));
+  }));
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.executionAttemptApplicantCatalog, route(async (req, res) => {
+    const input = ApplicantDataGrantInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) });
+    res.json(ApplicantFieldCatalogSchema.parse(await apply.attempts.applicantCatalog(input)));
+  }));
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.resolveExecutionAttemptApplicantData, route(async (req, res) => {
+    const input = ResolveApplicantDataInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) });
+    res.json(ResolvedApplicantValuesSchema.parse(await apply.attempts.resolveApplicantData(input)));
   }));
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.executionAttemptReviewSnapshots, route(async (req, res) => {
     res.json(await apply.attempts.listReviewSnapshots(ListReviewSnapshotsInputSchema.parse({ attemptId: pathId(req.params.attemptId), limit: Number(req.query.limit ?? 20) })));

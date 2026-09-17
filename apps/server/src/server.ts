@@ -15,6 +15,7 @@ import { registerJobHarnessDataAdminApi } from './data-admin';
 import { registerResumeApi } from './resume-api';
 import { registerApplyApi } from './apply-api';
 import { createApplyBundleFactory } from './apply-bundle';
+import { createResumeRevisionApplicantDataGrant } from './applicant-data';
 import { createFileSystemResumeArtifactStorage, createHttpResumePdfRenderer } from './resume-artifacts';
 import { getResumeRendererFingerprint, renderResumePreviewHtml } from '@job-harness/resume-renderer';
 
@@ -149,6 +150,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
         });
       },
     },
+    { applicantData: createResumeRevisionApplicantDataGrant(resumeStore) },
   );
   const artifactDirectory = options.artifactDirectory ?? join(dirname(options.databasePath), 'resume-artifacts');
   const pdfRenderer = options.resumeRendererUrl
@@ -183,7 +185,8 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     return path === `${API_PREFIX}/executors/register`
       || /^\/api\/v1\/executors\/[^/]+\/heartbeat$/.test(path)
       || path === `${API_PREFIX}/execution-attempts/claim`
-      || /^\/api\/v1\/execution-attempts\/[^/]+\/(heartbeat|start|waiting|complete|fail|resume-artifact|review-snapshots|begin-submit|submit-success|submit-failure)$/.test(path);
+      || /^\/api\/v1\/execution-attempts\/[^/]+\/(heartbeat|start|waiting|complete|fail|resume-artifact|review-snapshots|begin-submit|submit-success|submit-failure)$/.test(path)
+      || /^\/api\/v1\/execution-attempts\/[^/]+\/applicant-data\/(catalog|resolve)$/.test(path);
   }
   app.use((req, res, next) => {
     const protectedPath = req.path === '/mcp' || req.path.startsWith(`${API_PREFIX}/`);

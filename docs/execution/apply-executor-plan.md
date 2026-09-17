@@ -1019,6 +1019,18 @@ A local synthetic ATS smoke now exercises the real Playwright driver against a l
 
 Current repository validation after the resume-upload and supervised-submit slices is **65 test files / 132 tests**, plus the synthetic ATS browser smoke, TypeScript/build, boundary checks, OpenAPI drift and the unchanged ChatGPT **32-tool / zero external-side-effect** gate.
 
+### 18.10 Native applicant-data grant replaces the legacy Profile V2 ownership path
+
+The worker now has a second lease-scoped capability beside the immutable Resume PDF grant. Under a valid ExecutionAttempt lease it can request a **value-free applicant catalog** derived from the exact frozen Resume Revision, then resolve only the explicit canonical keys selected by the deterministic FormIR/FillPlan pipeline. The worker bearer still cannot call unrestricted Resume APIs. The catalog includes names/types/sensitivity/aliases/provenance but no candidate values; resolution is request-scoped and never synthesizes legal/work-authorization/EEO facts that are absent from the Revision.
+
+This removes the old `profile-bundle.json` from the long-term ownership path for name/contact/education/work/project/certificate/skill facts. A future private AnswerSet can add facts that correctly do not belong in a Resume, while legal/protected answers remain literal-only. The compatibility Profile V2 provider remains only as migration scaffolding and is no longer required by the new worker path.
+
+The frozen ApplyBundle now also stores the user-facing PDF filename from the immutable Resume Revision. The lease-scoped artifact grant returns that filename together with id/revision/MIME/size/SHA-256, so a new application uploads `卢楼豪-前端开发工程师.pdf` (or the matching Profile filename) rather than an internal artifact id.
+
+Production worker composition now supports two explicit phases: `readiness` (default) and `form-fill`. `form-fill` still has **no submit engine** and additionally requires the frozen attempt policy `allowFormFill=true`, so merely changing the worker phase cannot silently mutate arbitrary queued forms. Real submit remains unavailable until a verified submit-capable site adapter is separately enabled.
+
+Validation for this slice is now **66 test files / 133 tests**, plus the synthetic ATS browser smoke. The lease-scoped applicant-data test proves the worker can read catalog metadata and requested values while unrestricted Resume Revision access still returns 401 for the worker token.
+
 ### 18.8 R019-G explicit human authorization workspace
 
 The supervised submit protocol now has a Web review surface instead of requiring raw REST calls. `/executors/[attemptId]` shows only durable execution metadata: attempt/effect state, adapter/backend, retained browser handoff, ReviewSnapshot hashes/counts and authorization status. When a retained human-control URL exists, the user can open the exact live browser session from this page.

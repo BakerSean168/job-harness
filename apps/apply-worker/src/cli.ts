@@ -2,7 +2,9 @@ import { hostname } from 'node:os';
 import { resolve } from 'node:path';
 import { BrowserBackendRegistry, LocalCdpBrowserBackend, SteelBrowserBackend } from '@job-harness/apply-browser';
 import type { ExecutorDescriptor } from '@job-harness/apply-contracts';
+import { ApplySiteAdapterRegistry, GenericAtsSiteAdapter } from '@job-harness/apply-adapters';
 import { createJobHarnessRestClient } from '@job-harness/client';
+import { FormFillExecutionEngine } from './form-fill-engine';
 import { ApplyWorker } from './runtime';
 
 function positiveInt(name: string, fallback: number): number {
@@ -18,6 +20,10 @@ const token = process.env.JOB_HARNESS_EXECUTOR_AUTH_TOKEN?.trim();
 if (!token) throw new Error('JOB_HARNESS_EXECUTOR_AUTH_TOKEN is required');
 const backendId = (process.env.JOB_HARNESS_APPLY_BROWSER_BACKEND ?? 'steel').trim();
 const executorId = (process.env.JOB_HARNESS_APPLY_EXECUTOR_ID ?? `${hostname()}-${backendId}`).trim();
+const phase = (process.env.JOB_HARNESS_APPLY_PHASE ?? 'readiness').trim().toLowerCase();
+if (!['readiness', 'form-fill'].includes(phase)) {
+  throw new Error(`Unsupported JOB_HARNESS_APPLY_PHASE: ${phase}. Supported phases are readiness and form-fill; real submit stays disabled until a verified site adapter is explicitly configured.`);
+}
 const registry = new BrowserBackendRegistry();
 
 if (backendId === 'steel') {
@@ -36,6 +42,10 @@ if (backendId === 'steel') {
   throw new Error(`Unsupported JOB_HARNESS_APPLY_BROWSER_BACKEND: ${backendId}`);
 }
 
+const siteAdapters = phase === 'form-fill' ? new ApplySiteAdapterRegistry([new GenericAtsSiteAdapter()]) : null;
+const formFillEngine = siteAdapters ? new FormFillExecutionEngine({ siteAdapters }) : null;
+const adapterId = phase === 'form-fill' ? 'generic-ats' : 'readiness-v1';
+
 const descriptor: ExecutorDescriptor = {
   executorId,
   name: process.env.JOB_HARNESS_APPLY_EXECUTOR_NAME ?? `Job Harness Apply Worker (${backendId})`,
@@ -43,7 +53,7 @@ const descriptor: ExecutorDescriptor = {
   hostLabel: process.env.JOB_HARNESS_APPLY_HOST_LABEL ?? hostname(),
   status: 'ready',
   browserBackends: [backendId],
-  adapterIds: ['readiness-v1'],
+  adapterIds: [adapterId],
   executionModes: ['fill_only'],
   capabilities: {
     resumeUpload: true,
@@ -53,7 +63,7 @@ const descriptor: ExecutorDescriptor = {
     semanticMapping: false,
   },
   maxConcurrency: 1,
-  metadata: { phase: 'R019-C', sideEffects: false },
+  metadata: { phase: phase === 'form-fill' ? 'R019-shadow-form-fill' : 'R019-readiness', sideEffects: false, applicantData: phase === 'form-fill' ? 'lease-scoped-resume-revision' : 'none' },
 };
 
 const client = createJobHarnessRestClient({ baseUrl: apiUrl, authToken: token });
@@ -62,6 +72,8 @@ const worker = new ApplyWorker({
   backends: registry,
   descriptor,
   backendId,
+  adapterId,
+  ...(formFillEngine ? { formFillEngine } : {}),
   pollIntervalMs: positiveInt('JOB_HARNESS_APPLY_POLL_INTERVAL_MS', 3_000),
   executorHeartbeatIntervalMs: positiveInt('JOB_HARNESS_APPLY_EXECUTOR_HEARTBEAT_MS', 20_000),
   attemptHeartbeatIntervalMs: positiveInt('JOB_HARNESS_APPLY_ATTEMPT_HEARTBEAT_MS', 20_000),
@@ -78,5 +90,5 @@ function requestStop(signal: string) {
 process.on('SIGINT', () => requestStop('SIGINT'));
 process.on('SIGTERM', () => requestStop('SIGTERM'));
 
-console.log(`Apply Worker ${executorId} starting: Job Harness=${apiUrl} backend=${backendId} adapter=readiness-v1 mode=fill_only`);
+console.log(`Apply Worker ${executorId} starting: Job Harness=${apiUrl} backend=${backendId} phase=${phase} adapter=${adapterId} mode=fill_only sideEffects=false`);
 await worker.start();

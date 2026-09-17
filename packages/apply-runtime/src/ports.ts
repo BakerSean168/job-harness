@@ -1,5 +1,8 @@
 import type {
   ApplyBundle,
+  ApplicantFieldCatalog,
+  ApplicantFieldKey,
+  ResolvedApplicantValues,
   DispatchExecutionAttemptInput,
   ExecutionAttempt,
   ReviewSnapshot,
@@ -12,6 +15,11 @@ import type {
   ListExecutorsInput,
   ListExecutorsOutput,
 } from '@job-harness/apply-contracts';
+
+export interface ApplicantDataGrantPort {
+  catalog(attempt: ExecutionAttempt): Promise<ApplicantFieldCatalog>;
+  resolve(attempt: ExecutionAttempt, keys: readonly ApplicantFieldKey[]): Promise<ResolvedApplicantValues>;
+}
 
 export interface ApplyBundleFactoryPort {
   create(input: {
@@ -141,7 +149,9 @@ export interface ApplyControlPlanePort {
     complete(input: unknown): Promise<ExecutionAttempt>;
     fail(input: unknown): Promise<ExecutionAttempt>;
     cancel(input: unknown): Promise<ExecutionAttempt>;
-    authorizeResumeArtifact(input: unknown): Promise<{ artifactId: string; revisionId: string; sha256: string; byteSize: number; mimeType: string }>;
+    authorizeResumeArtifact(input: unknown): Promise<{ artifactId: string; revisionId: string; sha256: string; byteSize: number; mimeType: string; fileName: string }>;
+    applicantCatalog(input: unknown): Promise<ApplicantFieldCatalog>;
+    resolveApplicantData(input: unknown): Promise<ResolvedApplicantValues>;
     createReviewSnapshot(input: unknown): Promise<ReviewSnapshot>;
     listReviewSnapshots(input: unknown): Promise<{ items: readonly ReviewSnapshot[] }>;
     authorizeSubmit(input: unknown): Promise<SubmitAuthorization>;

@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
+  ApplicantDataGrantInputSchema,
   AuthorizeSubmitInputSchema,
   BeginSubmitInputSchema,
   BeginSubmitOutputSchema,
@@ -8,6 +9,7 @@ import {
   ListSubmitAuthorizationsInputSchema,
   ReportSubmitFailureInputSchema,
   ReportSubmitSuccessInputSchema,
+  ResolveApplicantDataInputSchema,
   RevokeSubmitAuthorizationInputSchema,
   ReviewSnapshotSchema,
   SubmitAuthorizationSchema,
@@ -46,13 +48,14 @@ import {
   ApplyNotFoundError,
   ApplyNotReadyError,
 } from './errors';
-import type { AppendExecutionEventInput, ApplyBundleFactoryPort, ApplyControlPlanePort, ApplyStorePort, SubmissionIntentSafetyPort } from './ports';
+import type { ApplicantDataGrantPort, AppendExecutionEventInput, ApplyBundleFactoryPort, ApplyControlPlanePort, ApplyStorePort, SubmissionIntentSafetyPort } from './ports';
 
 export interface ApplyRuntimeOptions {
   readonly now?: () => string;
   readonly idFactory?: () => string;
   readonly leaseTokenFactory?: () => string;
   readonly executorStaleAfterMs?: number;
+  readonly applicantData?: ApplicantDataGrantPort | null;
 }
 
 function sha256(value: string): string {
@@ -84,6 +87,7 @@ export function createApplyControlPlane(
   const idFactory = options.idFactory ?? randomUUID;
   const leaseTokenFactory = options.leaseTokenFactory ?? (() => randomBytes(32).toString('base64url'));
   const executorStaleAfterMs = options.executorStaleAfterMs ?? 60_000;
+  const applicantData = options.applicantData ?? null;
 
   function effectiveExecutor(executor: ExecutorRegistration, at: string): ExecutorRegistration {
     if (executor.status === 'offline') return executor;
@@ -502,7 +506,40 @@ export function createApplyControlPlane(
           sha256: artifact.sha256,
           byteSize: artifact.byteSize,
           mimeType: artifact.mimeType,
+          fileName: artifact.fileName,
         };
+      },
+      async applicantCatalog(raw) {
+        const parsed = ApplicantDataGrantInputSchema.parse(raw);
+        if (!applicantData) throw new ApplyNotReadyError('Applicant data grant is not configured');
+        const at = now();
+        const attempt = await store.getAttempt(parsed.attemptId);
+        if (!attempt) throw new ApplyNotFoundError('ExecutionAttempt', parsed.attemptId);
+        const valid = await store.hasValidLease({
+          attemptId: parsed.attemptId,
+          executorId: parsed.executorId,
+          leaseTokenHash: sha256(parsed.leaseToken),
+          now: at,
+          allowedStates: ['claimed', 'running'],
+        });
+        if (!valid) throw new ApplyLeaseLostError(parsed.attemptId);
+        return applicantData.catalog(attempt);
+      },
+      async resolveApplicantData(raw) {
+        const parsed = ResolveApplicantDataInputSchema.parse(raw);
+        if (!applicantData) throw new ApplyNotReadyError('Applicant data grant is not configured');
+        const at = now();
+        const attempt = await store.getAttempt(parsed.attemptId);
+        if (!attempt) throw new ApplyNotFoundError('ExecutionAttempt', parsed.attemptId);
+        const valid = await store.hasValidLease({
+          attemptId: parsed.attemptId,
+          executorId: parsed.executorId,
+          leaseTokenHash: sha256(parsed.leaseToken),
+          now: at,
+          allowedStates: ['claimed', 'running'],
+        });
+        if (!valid) throw new ApplyLeaseLostError(parsed.attemptId);
+        return applicantData.resolve(attempt, parsed.keys);
       },
       async createReviewSnapshot(raw) {
         const parsed = CreateReviewSnapshotInputSchema.parse(raw);

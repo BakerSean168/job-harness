@@ -98,6 +98,7 @@ export const ApplyBundleResumeArtifactSchema = z.object({
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
   byteSize: z.number().int().nonnegative(),
   mimeType: z.string().trim().min(1).max(200),
+  fileName: z.string().trim().min(1).max(240).default('resume.pdf'),
 }).strict();
 
 export const ApplyBundleSchema = z.object({

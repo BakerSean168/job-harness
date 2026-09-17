@@ -74,6 +74,8 @@ import {
 } from './saved-views';
 import { CareerExportSnapshotSchema } from './export';
 import {
+  ApplicantDataGrantInputSchema,
+  ApplicantFieldCatalogSchema,
   AuthorizeResumeArtifactInputSchema,
   CancelExecutionAttemptInputSchema,
   ClaimExecutionAttemptInputSchema,
@@ -92,6 +94,8 @@ import {
   ListExecutorsOutputSchema,
   MarkExecutionAttemptWaitingInputSchema,
   RegisterExecutorInputSchema,
+  ResolveApplicantDataInputSchema,
+  ResolvedApplicantValuesSchema,
   ResumeArtifactGrantOutputSchema,
   ResumeExecutionAttemptInputSchema,
   StartExecutionAttemptInputSchema,
@@ -154,6 +158,8 @@ export const CompleteExecutionAttemptBodySchema = CompleteExecutionAttemptInputS
 export const FailExecutionAttemptBodySchema = FailExecutionAttemptInputSchema.omit({ attemptId: true });
 export const CancelExecutionAttemptBodySchema = CancelExecutionAttemptInputSchema.omit({ attemptId: true });
 export const AuthorizeResumeArtifactBodySchema = AuthorizeResumeArtifactInputSchema.omit({ attemptId: true });
+export const ApplicantDataGrantBodySchema = ApplicantDataGrantInputSchema.omit({ attemptId: true });
+export const ResolveApplicantDataBodySchema = ResolveApplicantDataInputSchema.omit({ attemptId: true });
 export const CreateReviewSnapshotBodySchema = CreateReviewSnapshotInputSchema.omit({ attemptId: true });
 export const AuthorizeSubmitBodySchema = AuthorizeSubmitInputSchema.omit({ attemptId: true });
 export const RevokeSubmitAuthorizationBodySchema = RevokeSubmitAuthorizationInputSchema.omit({ attemptId: true, authorizationId: true });
@@ -209,6 +215,8 @@ export const JOB_HARNESS_REST_V1_ROUTES = {
   failExecutionAttempt: route({ operationId: 'failExecutionAttempt', method: 'post', path: '/execution-attempts/:attemptId/fail', tags: ['Apply Executors'], summary: 'Fail a leased attempt with explicit external-effect certainty', paramsSchema: IdParam('attemptId'), bodySchema: FailExecutionAttemptBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
   cancelExecutionAttempt: route({ operationId: 'cancelExecutionAttempt', method: 'post', path: '/execution-attempts/:attemptId/cancel', tags: ['Apply Executors'], summary: 'Cancel only before the irreversible external-effect boundary', paramsSchema: IdParam('attemptId'), bodySchema: CancelExecutionAttemptBodySchema, responseSchema: ExecutionAttemptSchema, successStatus: 200 }),
   executionAttemptResumeArtifact: route({ operationId: 'getExecutionAttemptResumeArtifact', method: 'post', path: '/execution-attempts/:attemptId/resume-artifact', tags: ['Apply Executors'], summary: 'Fetch the frozen PDF Resume Artifact bound to a valid worker lease', paramsSchema: IdParam('attemptId'), bodySchema: AuthorizeResumeArtifactBodySchema, responseSchema: ResumeArtifactGrantOutputSchema, successStatus: 200 }),
+  executionAttemptApplicantCatalog: route({ operationId: 'getExecutionAttemptApplicantCatalog', method: 'post', path: '/execution-attempts/:attemptId/applicant-data/catalog', tags: ['Apply Executors'], summary: 'Read the value-free applicant-field catalog derived from the frozen Resume Revision under a valid worker lease', paramsSchema: IdParam('attemptId'), bodySchema: ApplicantDataGrantBodySchema, responseSchema: ApplicantFieldCatalogSchema, successStatus: 200 }),
+  resolveExecutionAttemptApplicantData: route({ operationId: 'resolveExecutionAttemptApplicantData', method: 'post', path: '/execution-attempts/:attemptId/applicant-data/resolve', tags: ['Apply Executors'], summary: 'Resolve only explicitly requested literal applicant values from the frozen Resume Revision under a valid worker lease', paramsSchema: IdParam('attemptId'), bodySchema: ResolveApplicantDataBodySchema, responseSchema: ResolvedApplicantValuesSchema, successStatus: 200 }),
   executionAttemptReviewSnapshots: route({ operationId: 'listExecutionAttemptReviewSnapshots', method: 'get', path: '/execution-attempts/:attemptId/review-snapshots', tags: ['Apply Executors'], summary: 'List redacted review snapshots for an execution attempt', paramsSchema: IdParam('attemptId'), responseSchema: ListReviewSnapshotsOutputSchema, successStatus: 200 }),
   createExecutionAttemptReviewSnapshot: route({ operationId: 'createExecutionAttemptReviewSnapshot', method: 'post', path: '/execution-attempts/:attemptId/review-snapshots', tags: ['Apply Executors'], summary: 'Persist a redacted review snapshot under the current worker lease', paramsSchema: IdParam('attemptId'), bodySchema: CreateReviewSnapshotBodySchema, responseSchema: ReviewSnapshotSchema, successStatus: 201 }),
   executionAttemptSubmitAuthorizations: route({ operationId: 'listExecutionAttemptSubmitAuthorizations', method: 'get', path: '/execution-attempts/:attemptId/submit-authorizations', tags: ['Apply Executors'], summary: 'List submit authorizations for an execution attempt', paramsSchema: IdParam('attemptId'), responseSchema: ListSubmitAuthorizationsOutputSchema, successStatus: 200 }),

@@ -35,12 +35,15 @@ export function createApplyBundleFactory(
         if (artifact.kind !== 'pdf' || artifact.mimeType !== 'application/pdf') {
           throw new ApplyConflictError(`Apply Executor requires a PDF Resume Artifact; '${artifact.id}' is '${artifact.kind}/${artifact.mimeType}'`);
         }
+        const revision = await resumeStore.getRevision(artifact.revisionId);
+        if (!revision) throw new ApplyNotFoundError('ResumeRevision', artifact.revisionId);
         resumeArtifact = {
           id: artifact.id,
           revisionId: artifact.revisionId,
           sha256: artifact.sha256.toLowerCase(),
           byteSize: artifact.byteSize,
           mimeType: artifact.mimeType,
+          fileName: pdfFileName(revision.resolvedDocumentSnapshot.output.pdfName ?? revision.resolvedDocumentSnapshot.output.documentTitle),
         };
       }
 
@@ -64,4 +67,15 @@ export function createApplyBundleFactory(
       });
     },
   };
+}
+
+
+function pdfFileName(value: string): string {
+  const cleaned = value
+    .replace(/[\/:*?"<>|\x00-\x1f]/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/[. ]+$/g, '')
+    .trim()
+    .slice(0, 220) || 'resume';
+  return cleaned.toLowerCase().endsWith('.pdf') ? cleaned : `${cleaned}.pdf`;
 }

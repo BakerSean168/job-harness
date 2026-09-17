@@ -42,20 +42,20 @@ export interface FormFillExecutionResult {
 
 export interface FormFillExecutionEngineOptions {
   readonly siteAdapters: ApplySiteAdapterRegistry;
-  readonly applicant: ApplicantDataProviderPort;
+  readonly applicant?: ApplicantDataProviderPort | null;
   readonly semanticMapper?: SemanticFieldMapperPort | null;
   readonly semanticConfidenceThreshold?: number;
 }
 
 export class FormFillExecutionEngine {
   private readonly siteAdapters: ApplySiteAdapterRegistry;
-  private readonly applicant: ApplicantDataProviderPort;
+  private readonly applicant: ApplicantDataProviderPort | null;
   private readonly semanticMapper: SemanticFieldMapperPort | null;
   private readonly semanticConfidenceThreshold: number;
 
   constructor(options: FormFillExecutionEngineOptions) {
     this.siteAdapters = options.siteAdapters;
-    this.applicant = options.applicant;
+    this.applicant = options.applicant ?? null;
     this.semanticMapper = options.semanticMapper ?? null;
     this.semanticConfidenceThreshold = options.semanticConfidenceThreshold ?? 0.93;
   }
@@ -65,6 +65,7 @@ export class FormFillExecutionEngine {
     readonly browser: BrowserDriverPort;
     readonly observedAt: string;
     readonly resumeFile?: ResumeUploadAsset | null;
+    readonly applicant?: ApplicantDataProviderPort | null;
   }): Promise<FormFillExecutionResult> {
     const targetUrl = input.attempt.bundle.listingUrl;
     if (!targetUrl) throw new Error('Frozen ApplyBundle has no Listing URL');
@@ -86,10 +87,12 @@ export class FormFillExecutionEngine {
       title: await input.browser.title().catch(() => null),
       observedAt: input.observedAt,
     });
-    const baseCatalog = await this.applicant.catalog();
+    const applicant = input.applicant ?? this.applicant;
+    if (!applicant) throw new Error('No ApplicantDataProvider is available for this execution attempt');
+    const baseCatalog = await applicant.catalog();
     const { catalog, provider } = input.resumeFile
-      ? createResumeArtifactApplicantView(this.applicant, baseCatalog, input.resumeFile.sha256)
-      : { catalog: baseCatalog, provider: this.applicant };
+      ? createResumeArtifactApplicantView(applicant, baseCatalog, input.resumeFile.sha256)
+      : { catalog: baseCatalog, provider: applicant };
     let proposals: readonly SemanticMappingProposal[] = [];
     if (this.semanticMapper) {
       const mappingView = buildSemanticMappingView(form, catalog);

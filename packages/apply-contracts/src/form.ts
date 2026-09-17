@@ -210,3 +210,17 @@ export const ResumeArtifactGrantOutputSchema = z.object({
 }).strict();
 export type AuthorizeResumeArtifactInput = z.input<typeof AuthorizeResumeArtifactInputSchema>;
 export type ResumeArtifactGrantOutput = z.output<typeof ResumeArtifactGrantOutputSchema>;
+
+
+export const ApplicantDataGrantInputSchema = z.object({
+  attemptId: z.string().trim().min(1).max(200),
+  executorId: z.string().trim().min(1).max(200),
+  leaseToken: z.string().min(32).max(500),
+}).strict();
+
+export const ResolveApplicantDataInputSchema = ApplicantDataGrantInputSchema.extend({
+  keys: z.array(ApplicantFieldKeySchema).min(1).max(250),
+}).strict();
+
+export type ApplicantDataGrantInput = z.input<typeof ApplicantDataGrantInputSchema>;
+export type ResolveApplicantDataInput = z.input<typeof ResolveApplicantDataInputSchema>;

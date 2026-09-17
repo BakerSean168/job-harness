@@ -114,7 +114,7 @@ describe('lease-scoped Resume Artifact grant', () => {
       method: 'POST', body: JSON.stringify({ executorId: 'worker-grant', leaseToken }),
     });
     expect(grant.response.status).toBe(200);
-    expect(grant.body).toMatchObject({ artifactId, revisionId, mimeType: 'application/pdf', sha256: artifactSha });
+    expect(grant.body).toMatchObject({ artifactId, revisionId, fileName: 'frontend-resume.pdf', mimeType: 'application/pdf', sha256: artifactSha });
     const bytes = Buffer.from(String(grant.body.bytesBase64), 'base64');
     expect(bytes.subarray(0, 5).toString()).toBe('%PDF-');
     expect(createHash('sha256').update(bytes).digest('hex')).toBe(artifactSha);
