@@ -7,7 +7,8 @@
   "scripts": {
     "start": "tsx src/cli.ts",
     "import:legacy": "tsx src/import-legacy.ts",
-    "smoke:chatgpt-mcp": "tsx scripts/chatgpt-mcp-smoke.ts"
+    "smoke:chatgpt-mcp": "tsx scripts/chatgpt-mcp-smoke.ts",
+    "import:legacy-ledger": "tsx src/import-legacy-ledger.ts"
   },
   "dependencies": {
     "@job-harness/application": "workspace:*",

@@ -24,7 +24,8 @@
     "resume:legacy:dry-run": "tsx scripts/resume-legacy-dry-run.ts",
     "resume:legacy:import": "tsx scripts/resume-legacy-import.ts",
     "check:chatgpt-integration": "tsx scripts/check-chatgpt-integration.ts",
-    "smoke:chatgpt-mcp": "pnpm --filter @job-harness/server smoke:chatgpt-mcp"
+    "smoke:chatgpt-mcp": "pnpm --filter @job-harness/server smoke:chatgpt-mcp",
+    "import:legacy-ledger": "pnpm --filter @job-harness/server import:legacy-ledger"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",

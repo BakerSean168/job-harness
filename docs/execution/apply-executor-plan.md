@@ -26,7 +26,7 @@ Examples include browser-confirmed Zhaopin submissions, official/email submissio
 - 21 Jobs;
 - 21 JobSources;
 - 5 DiscoveryRuns;
-- 27 DiscoveryEvents;
+- 22 DiscoveryEvents;
 - 2 company-only application records whose exact role was not preserved;
 - 2 matching company application locks.
 

@@ -55,7 +55,7 @@ import {
   type SubmissionIntent,
   type UpsertJobCandidate,
 } from '@job-harness/contracts';
-import { canTransitionApplicationStage, canTransitionJobState } from '@job-harness/domain';
+import { canTransitionApplicationStage, canTransitionJobState, normalizeIdentityText } from '@job-harness/domain';
 import type { CareerApplicationPorts, CareerResumeRegistryPort, CareerRuntimePorts } from './ports';
 import {
   CareerConflictError,
@@ -191,7 +191,11 @@ export function createCareerApplicationService(
             }
             const duplicate = await findCandidateDuplicate(tx, candidate);
             if (duplicate.duplicate && duplicate.job) {
-              const merged = await tx.mergeJobCandidate(duplicate.job.id, candidate, now());
+              const timestamp = now();
+              if (normalizeIdentityText(candidate.companyName) !== normalizeIdentityText(duplicate.job.companyName)) {
+                await tx.addCompanyAlias(duplicate.job.companyId, candidate.companyName, timestamp);
+              }
+              const merged = await tx.mergeJobCandidate(duplicate.job.id, candidate, timestamp);
               for (const listing of merged.touchedListings) {
                 const observation: JobObservation = {
                   id: idFactory(),

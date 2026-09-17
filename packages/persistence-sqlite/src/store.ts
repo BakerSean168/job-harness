@@ -1400,6 +1400,28 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     return this.companyById(id)!;
   }
 
+  async addCompanyAlias(companyId: string, alias: string, now: string): Promise<Company> {
+    const company = this.companyById(companyId);
+    if (!company) throw new Error(`Company '${companyId}' not found`);
+    const trimmed = alias.trim();
+    const normalized = normalizeIdentityText(trimmed);
+    if (!normalized || normalized === normalizeIdentityText(company.name) || company.aliases.some((value) => normalizeIdentityText(value) === normalized)) {
+      return company;
+    }
+    const owner = this.db.prepare(`
+      SELECT c.id FROM companies c
+      LEFT JOIN company_aliases ca ON ca.company_id = c.id
+      WHERE c.normalized_name = ? OR ca.normalized_alias = ?
+      LIMIT 1
+    `).get(normalized, normalized) as Row | undefined;
+    if (owner && String(owner.id) !== companyId) {
+      throw new Error(`Company alias '${trimmed}' is already owned by another Company`);
+    }
+    this.db.prepare('INSERT OR IGNORE INTO company_aliases(company_id,alias,normalized_alias) VALUES(?,?,?)').run(companyId, trimmed, normalized);
+    this.db.prepare('UPDATE companies SET updated_at=? WHERE id=?').run(now, companyId);
+    return this.companyById(companyId)!;
+  }
+
   async insertJob(job: Job): Promise<void> {
     this.db.prepare(`INSERT INTO jobs(id,company_id,title,normalized_title,city,normalized_city,state,canonical_url,description,first_seen_at,last_seen_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       job.id, job.companyId, job.title, normalizeIdentityText(job.title), job.city, normalizeIdentityText(job.city ?? ''), job.state,

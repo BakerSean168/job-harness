@@ -94,6 +94,7 @@ export interface CareerStoreReadPort {
 
 export interface CareerStoreTransactionPort extends CareerStoreReadPort {
   resolveCompany(name: string, now: string): Promise<Company>;
+  addCompanyAlias(companyId: string, alias: string, now: string): Promise<Company>;
   insertJob(job: Job): Promise<void>;
   mergeJobCandidate(jobId: string, candidate: UpsertJobCandidate, now: string): Promise<{ job: Job; metadataChanged: boolean; touchedListings: JobListing[] }>;
   insertObservation(observation: JobObservation): Promise<void>;
