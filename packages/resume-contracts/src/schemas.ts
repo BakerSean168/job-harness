@@ -34,6 +34,7 @@ export const ResumePeriodSchema = z
     start: ResumeYearMonthSchema.nullable().default(null),
     end: ResumeYearMonthSchema.nullable().default(null),
     current: z.boolean().default(false),
+    note: LocalizedTextSchema.nullable().default(null),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -47,14 +48,14 @@ export const ResumePeriodSchema = z
 
 export const ResumeLinkSchema = z
   .object({
-    label: LocalizedTextSchema.optional(),
+    label: LocalizedTextSchema.nullable().default(null),
     url: z.url(),
   })
   .strict();
 
 export const ResumeContactSchema = z
   .object({
-    phone: z.string().trim().min(1).max(100).nullable().default(null),
+    phone: LocalizedTextSchema.nullable().default(null),
     email: z.email().nullable().default(null),
     website: z.url().nullable().default(null),
     github: z.url().nullable().default(null),
@@ -116,6 +117,7 @@ export const ResumeWorkExperienceSchema = z
 export const ResumeProjectPresentationSchema = z
   .object({
     id: ResumeEntityIdSchema,
+    name: LocalizedTextSchema.nullable().default(null),
     description: LocalizedRichTextSchema,
     stack: LocalizedTextSchema.nullable().default(null),
     role: LocalizedTextSchema.nullable().default(null),
@@ -266,6 +268,12 @@ export const ResumeProfileSchema = z
     locale: ResumeLocaleSchema,
     templateId: ResumeEntityIdSchema,
     positioning: LocalizedTextSchema,
+    output: z.object({
+      documentTitle: LocalizedTextSchema,
+      description: LocalizedTextSchema.nullable().default(null),
+      onlineUrl: z.url().nullable().default(null),
+      pdfName: LocalizedTextSchema.nullable().default(null),
+    }).strict(),
     layout: ResumeLayoutSchema,
     sectionOrder: z.array(ResumeSectionSchema).min(1),
     educationIds: z.array(ResumeEntityIdSchema).default([]),
@@ -290,6 +298,13 @@ export const ResumeProfileSchema = z
     addDuplicateIdIssues(value.projectSelections.map((item) => ({ id: item.projectId })), ctx, ['projectSelections']);
   });
 
+export const ResolvedResumePeriodSchema = z.object({
+  start: ResumeYearMonthSchema.nullable(),
+  end: ResumeYearMonthSchema.nullable(),
+  current: z.boolean(),
+  note: z.string().nullable(),
+}).strict();
+
 const ResolvedContactSchema = z.object({
   phone: z.string().nullable(),
   email: z.string().nullable(),
@@ -307,13 +322,19 @@ export const ResolvedResumeSchema = z
     locale: ResumeLocaleSchema,
     templateId: ResumeEntityIdSchema,
     positioning: z.string().trim().min(1),
+    output: z.object({
+      documentTitle: z.string().trim().min(1),
+      description: z.string().nullable(),
+      onlineUrl: z.url().nullable(),
+      pdfName: z.string().nullable(),
+    }).strict(),
     layout: ResumeLayoutSchema,
     sectionOrder: z.array(ResumeSectionSchema).min(1),
     basics: z.object({ displayName: z.string().trim().min(1), contact: ResolvedContactSchema, photoAssetId: ResumeEntityIdSchema.nullable() }).strict(),
-    education: z.array(z.object({ id: ResumeEntityIdSchema, institution: z.string(), institutionTag: z.string().nullable(), major: z.string(), degree: z.string(), department: z.string().nullable(), studyType: z.string().nullable(), location: z.string().nullable(), period: ResumePeriodSchema, courseSummary: z.string().nullable() }).strict()),
+    education: z.array(z.object({ id: ResumeEntityIdSchema, institution: z.string(), institutionTag: z.string().nullable(), major: z.string(), degree: z.string(), department: z.string().nullable(), studyType: z.string().nullable(), location: z.string().nullable(), period: ResolvedResumePeriodSchema, courseSummary: z.string().nullable() }).strict()),
     skills: z.array(z.object({ id: ResumeEntityIdSchema, label: z.string().nullable(), content: z.string(), keywords: z.array(z.string()) }).strict()),
-    workExperiences: z.array(z.object({ id: ResumeEntityIdSchema, company: z.string(), role: z.string(), department: z.string().nullable(), location: z.string().nullable(), period: ResumePeriodSchema, bullets: z.array(z.object({ id: ResumeEntityIdSchema, content: z.string() }).strict()) }).strict()),
-    projects: z.array(z.object({ id: ResumeEntityIdSchema, name: z.string(), role: z.string().nullable(), location: z.string().nullable(), period: ResumePeriodSchema, links: z.array(z.object({ label: z.string().nullable(), url: z.url() }).strict()), description: z.string(), stack: z.string().nullable(), highlights: z.array(z.object({ id: ResumeEntityIdSchema, label: z.string().nullable(), detail: z.string() }).strict()) }).strict()),
+    workExperiences: z.array(z.object({ id: ResumeEntityIdSchema, company: z.string(), role: z.string(), department: z.string().nullable(), location: z.string().nullable(), period: ResolvedResumePeriodSchema, bullets: z.array(z.object({ id: ResumeEntityIdSchema, content: z.string() }).strict()) }).strict()),
+    projects: z.array(z.object({ id: ResumeEntityIdSchema, name: z.string(), role: z.string().nullable(), location: z.string().nullable(), period: ResolvedResumePeriodSchema, links: z.array(z.object({ label: z.string().nullable(), url: z.url() }).strict()), description: z.string(), stack: z.string().nullable(), highlights: z.array(z.object({ id: ResumeEntityIdSchema, label: z.string().nullable(), detail: z.string() }).strict()) }).strict()),
     certificates: z.array(z.object({ id: ResumeEntityIdSchema, label: z.string(), issuer: z.string().nullable(), issuedAt: ResumeYearMonthSchema.nullable() }).strict()),
     summaries: z.array(z.object({ id: ResumeEntityIdSchema, label: z.string().nullable(), detail: z.string() }).strict()),
   })

@@ -1,0 +1,27 @@
+<section class="resume-section">
+  <div class="section-title">
+    <span></span>
+    <h2>{{ '教育背景' if lang == 'zh' else 'Education' }}</h2>
+  </div>
+  {% for edu in education %}
+  <article>
+    <div class="line between keep-together">
+      <h3>{{ edu.school }}{% if edu.schoolTag %} <strong>{{ edu.schoolTag }}</strong>{% endif %}</h3>
+      <span>{{ edu.date }}{{ ' (Expected)' if lang == 'en' }}</span>
+    </div>
+    <div class="line between keep-together">
+      {% if lang == 'en' %}
+      <p>{{ edu.degree }} in {{ edu.major }} | {{ edu.department }}</p>
+      {% else %}
+      <p>{{ edu.major }} {{ edu.degree }} {{ edu.department }} {{ edu.type }}</p>
+      {% endif %}
+      <span>{{ edu.location }}</span>
+    </div>
+    {% if edu.courses %}
+    <div class="muted text-justify">
+      <p><strong>{{ '主修课程：' if lang == 'zh' else 'Core Coursework:' }}</strong>{{ ' ' if lang == 'en' }}{{ edu.courses }}</p>
+    </div>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>

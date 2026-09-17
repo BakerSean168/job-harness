@@ -1,0 +1,14 @@
+{
+  "name": "@job-harness/resume-renderer",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@job-harness/resume-contracts": "workspace:*",
+    "nunjucks": "^3.2.4"
+  },
+  "devDependencies": {
+    "@types/nunjucks": "^3.2.6"
+  }
+}

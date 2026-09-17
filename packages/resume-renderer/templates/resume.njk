@@ -1,0 +1,21 @@
+{% extends "base.njk" %}
+
+{% block content %}
+  {% include "blocks/header.njk" %}
+
+  {% for section in sections %}
+    {% if section == "education" %}
+      {% include "blocks/education.njk" %}
+    {% elif section == "skills" %}
+      {% include "blocks/skills.njk" %}
+    {% elif section == "work" %}
+      {% include "blocks/work-experience.njk" %}
+    {% elif section == "projects" %}
+      {% include "blocks/projects.njk" %}
+    {% elif section == "certificates" %}
+      {% include "blocks/certificates.njk" %}
+    {% elif section == "summary" %}
+      {% include "blocks/summary.njk" %}
+    {% endif %}
+  {% endfor %}
+{% endblock %}

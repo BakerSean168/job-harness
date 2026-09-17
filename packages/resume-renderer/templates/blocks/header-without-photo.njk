@@ -1,0 +1,19 @@
+<header class="resume-header resume-header--without-photo">
+  <div class="header-content">
+    <div class="header-heading">
+      <h1>{{ name }}</h1>
+      {% if positioning %}
+      <div class="header-positioning">{{ positioning }}</div>
+      {% endif %}
+    </div>
+
+    <div class="header-contact-grid" aria-label="{{ 'Contact' if lang == 'en' else '联系方式' }}">
+      <span class="contact-item"><svg><use href="#icon-phone" /></svg>{{ contact.phone }}</span>
+      <a class="contact-item" href="mailto:{{ contact.email }}"><svg><use href="#icon-mail" /></svg>{{ contact.email }}</a>
+      <a class="contact-item" href="{{ contact.website }}"><svg><use href="#icon-monitor" /></svg>{{ contact.website }}</a>
+      {% if lang == 'zh' and contact.github %}
+      <a class="contact-item" href="{{ contact.github }}"><svg><use href="#icon-github" /></svg>{{ contact.github }}</a>
+      {% endif %}
+    </div>
+  </div>
+</header>

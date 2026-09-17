@@ -1,0 +1,5 @@
+3d4511291759126dbfded807e42ab4bacb35da61c790e6b4b56fd14f0cfbdc46  test/fixtures/legacy/ai-agent-app.html
+7aeefebe0bf2eb3319ac7ba58c8571576680634b18ff8884c9e1169163c654df  test/fixtures/legacy/ai-agent-dongxu.html
+99d0438af76a56ab2293b68850c0c3e3c93f140b9f8062fde2c32cf67a0aecbd  test/fixtures/legacy/ai-agent-forgeflow.html
+1eed23ff8b7ef2c3529883c35165ddf0ecdf54da0c15f85b36029e196439aa5c  test/fixtures/legacy/ai-frontend.html
+9011759eed3b63c4f034c6ea7f11ed6a7bf4ac74baef9c363dbc7af0070f78c6  test/fixtures/legacy/ai-fullstack.html

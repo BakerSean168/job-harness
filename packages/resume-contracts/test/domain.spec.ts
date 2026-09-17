@@ -17,10 +17,10 @@ function library() {
   return ResumeLibrarySchema.parse({
     id: 'primary', schemaVersion: 2, version: 1,
     basics: { displayName: both('测试用户', 'Test User'), contact: { phone: null, email: 'test@example.com', website: null, github: null, location: null }, photoAssetId: null },
-    education: [{ id: 'sicau', institution: both('四川农业大学', 'Sichuan Agricultural University'), major: both('物联网工程', 'IoT Engineering'), degree: both('本科', 'B.Eng.'), period: { start: '2022-09', end: '2026-06', current: false } }],
+    education: [{ id: 'sicau', institution: both('四川农业大学', 'Sichuan Agricultural University'), major: both('物联网工程', 'IoT Engineering'), degree: both('本科', 'B.Eng.'), period: { start: '2022-09', end: '2026-06', current: false, note: null } }],
     skills: [{ id: 'agent', content: both('Agent 工程', 'Agent engineering') }],
-    workExperiences: [{ id: 'krjx', company: zh('科睿金信'), role: zh('前端工程师'), period: { start: '2025-07', end: '2025-11', current: false }, bullets: [{ id: 'delivery', content: zh('交付业务功能') }] }],
-    projects: [{ id: 'body-sense', name: zh('BodySense'), period: { start: '2026-01', end: null, current: true }, presentations: [{ id: 'default', description: zh('默认描述') }, { id: 'agent', description: zh('Agent 描述'), stack: zh('LangGraph') }], highlights: [{ id: 'runtime', detail: zh('Runtime') }] }],
+    workExperiences: [{ id: 'krjx', company: zh('科睿金信'), role: zh('前端工程师'), period: { start: '2025-07', end: '2025-11', current: false, note: null }, bullets: [{ id: 'delivery', content: zh('交付业务功能') }] }],
+    projects: [{ id: 'body-sense', name: zh('BodySense'), period: { start: '2026-01', end: null, current: true, note: null }, presentations: [{ id: 'default', description: zh('默认描述') }, { id: 'agent', description: zh('Agent 描述'), stack: zh('LangGraph') }], highlights: [{ id: 'runtime', detail: zh('Runtime') }] }],
     certificates: [{ id: 'cet6', label: zh('CET-6') }],
     summaries: [{ id: 'summary', detail: zh('总结') }],
     createdAt: at, updatedAt: at,
@@ -30,6 +30,7 @@ function library() {
 function profile() {
   return ResumeProfileSchema.parse({
     id: 'ai-agent', version: 1, name: zh('AI Agent 简历'), targetRole: zh('AI Agent 工程师'), locale: 'zh-CN', templateId: 'classic-v1', positioning: zh('AI Agent 工程师'),
+    output: { documentTitle: zh('AI Agent 简历'), description: null, onlineUrl: null, pdfName: zh('AI-Agent') },
     layout: { header: 'without-photo', pageSize: 'A4' },
     sectionOrder: ['education', 'skills', 'projects', 'work', 'certificates'],
     educationIds: ['sicau'], skillIds: ['agent'], workSelections: [{ experienceId: 'krjx', bulletIds: ['delivery'] }], projectSelections: [{ projectId: 'body-sense', presentationId: 'agent', highlightIds: ['runtime'] }], certificateIds: ['cet6'], summaryIds: [], overrides: [],
@@ -71,7 +72,7 @@ describe('Resume Domain v2 contracts', () => {
 
   it('keeps a resolved resume single-locale and revision immutable-shaped', () => {
     const resolved = ResolvedResumeSchema.parse({
-      libraryId: 'primary', libraryVersion: 1, profileId: 'ai-agent', profileVersion: 1, locale: 'zh-CN', templateId: 'classic-v1', positioning: 'AI Agent 工程师', layout: { header: 'without-photo', pageSize: 'A4' }, sectionOrder: ['education'],
+      libraryId: 'primary', libraryVersion: 1, profileId: 'ai-agent', profileVersion: 1, locale: 'zh-CN', templateId: 'classic-v1', positioning: 'AI Agent 工程师', output: { documentTitle: 'AI Agent 简历', description: null, onlineUrl: null, pdfName: 'AI-Agent' }, layout: { header: 'without-photo', pageSize: 'A4' }, sectionOrder: ['education'],
       basics: { displayName: '测试用户', contact: { phone: null, email: 'test@example.com', website: null, github: null, location: null }, photoAssetId: null },
       education: [], skills: [], workExperiences: [], projects: [], certificates: [], summaries: [],
     });

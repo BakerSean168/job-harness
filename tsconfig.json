@@ -30,6 +30,15 @@
     },
     {
       "path": "./packages/resume-contracts"
+    },
+    {
+      "path": "./packages/resume-renderer"
+    },
+    {
+      "path": "./packages/resume-application"
+    },
+    {
+      "path": "./packages/resume-importers"
     }
   ]
 }

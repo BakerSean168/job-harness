@@ -52,6 +52,17 @@ Move the valuable runtime pieces only:
 
 Build a migration adapter from old YAML structures to v2 contracts. Establish HTML/visual regression fixtures for all five profiles before changing UI.
 
+### R002 parity evidence — 2026-09-17
+
+The migration dry-run against the frozen dirty Resume source resolves all five canonical Profiles through the new v2 domain and reproduces the old rendered HTML byte-for-byte:
+
+- 5/5 profiles resolve successfully;
+- 5/5 HTML SHA-256 values match the frozen legacy renderer baseline;
+- 0 migration findings;
+- imported Library counts: 1 education, 36 skill blocks, 1 work experience, 7 projects, 3 certificates and 14 summary blocks.
+
+No personal rendered HTML or profile photo is committed to the public Job Harness repository; only hashes and template/CSS source baselines are tracked.
+
 ## JH-R003 — SQLite Resume persistence
 
 Add a new Job Harness schema migration with document-shaped Resume tables. Import the merged zh/en Library and five Profiles. Keep legacy `resume_profile_refs` as a read compatibility projection until all consumers move.

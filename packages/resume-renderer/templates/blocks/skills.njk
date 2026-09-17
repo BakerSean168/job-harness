@@ -1,0 +1,11 @@
+<section class="resume-section">
+  <div class="section-title">
+    <span></span>
+    <h2>{{ '专业技能' if lang == 'zh' else 'Technical Skills' }}</h2>
+  </div>
+  <div class="compact text-justify">
+    {% for skill in skills %}
+    <p>{{ skill | safe }}</p>
+    {% endfor %}
+  </div>
+</section>

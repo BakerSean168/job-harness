@@ -1,0 +1,19 @@
+<section class="resume-section">
+  <div class="section-title">
+    <span></span>
+    <h2>{{ '个人总结' if lang == 'zh' else 'Professional Summary' }}</h2>
+  </div>
+  {% if lang == 'en' %}
+  <div class="text-justify">
+    {% for item in summary %}
+    <p>{{ item.detail }}</p>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="compact">
+    {% for item in summary %}
+    <p>• <strong>{{ item.label }}</strong>{{ item.detail }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>

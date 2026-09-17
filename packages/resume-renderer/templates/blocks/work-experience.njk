@@ -1,0 +1,27 @@
+<section class="resume-section">
+  <div class="section-title">
+    <span></span>
+    <h2>{{ '实习经历' if lang == 'zh' else 'Internship Experience' }}</h2>
+  </div>
+  {% for w in work %}
+  <article>
+    <div class="line between keep-together">
+      <h3>{{ w.company }}</h3>
+      <span>{{ w.date }}</span>
+    </div>
+    <div class="line between keep-together">
+      {% if lang == 'en' %}
+      <p>{{ w.role }}{% if w.department %} | {{ w.department }}{% endif %}</p>
+      {% else %}
+      <p>{{ w.role }}{% if w.department %} {{ w.department }}{% endif %}</p>
+      {% endif %}
+      {% if w.location %}<span>{{ w.location }}</span>{% endif %}
+    </div>
+    <div class="compact">
+      {% for bullet in w.bullets %}
+      <p>{{ bullet | safe }}</p>
+      {% endfor %}
+    </div>
+  </article>
+  {% endfor %}
+</section>

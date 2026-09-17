@@ -20,7 +20,8 @@
     "build:web": "pnpm --filter @job-harness/web build",
     "web": "pnpm --filter @job-harness/web dev",
     "openapi:generate": "tsx scripts/openapi-artifact.ts --write",
-    "check:openapi": "tsx scripts/openapi-artifact.ts"
+    "check:openapi": "tsx scripts/openapi-artifact.ts",
+    "resume:legacy:dry-run": "tsx scripts/resume-legacy-dry-run.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",

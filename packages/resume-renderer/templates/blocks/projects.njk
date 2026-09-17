@@ -1,0 +1,49 @@
+<section class="resume-section projects-section">
+  <div class="section-title">
+    <span></span>
+    <h2>{{ '项目经历' if lang == 'zh' else 'Projects' }}</h2>
+  </div>
+
+  {% for project in projects %}
+  <article class="project-item">
+    <div class="line between keep-together">
+      <h3>{{ project.name }}</h3>
+      {% if project.date %}<span>{{ project.date }}</span>{% endif %}
+    </div>
+    {% if project.role or project.link %}
+    <div class="line between keep-together">
+      {% if project.role %}
+        <p>{{ project.role }}</p>
+      {% elif project.link %}
+        <p>{{ project.link }}</p>
+      {% endif %}
+
+      {% if project.location %}
+        <span>{{ project.location }}</span>
+      {% elif project.role and project.link %}
+        <span>{{ project.link }}</span>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div>
+      {% if project.description %}
+      <p class="project-summary text-justify keep-together"><strong>{% if lang == 'zh' %}{{ '项目简介：' if project.id == 'video-craft-agent' or project.id == 'dailyuse' or project.id == 'body-sense' or project.id == 'digital-biome' else '项目描述：' }}{% else %}Description:{% endif %}</strong>{{ project.description }}</p>
+      {% endif %}
+
+      {% if project.stack %}
+      <p class="tech text-justify keep-together"><strong>{{ '技术栈：' if lang == 'zh' else 'Tech Stack:' }}</strong>{{ project.stack }}</p>
+      {% endif %}
+
+      {% if project.highlights | length %}
+      <p class="label keep-together">{% if lang == 'zh' %}{{ '项目亮点：' if project.id == 'digital-biome' or project.id == 'dailyuse' or project.id == 'video-craft-agent' or project.id == 'body-sense' else '核心职责：' }}{% else %}Key Contributions:{% endif %}</p>
+      <div class="compact text-justify">
+        {% for h in project.highlights %}
+        <p><strong>{{ h.label }}</strong>{{ ' ' if lang == 'en' }}{{ h.detail | safe }}</p>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</section>

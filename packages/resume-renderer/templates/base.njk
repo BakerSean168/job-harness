@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="{{ lang }}">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="{{ description }}" />
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="./resume.css" />
+  </head>
+  <body class="variant-{{ variant }}">
+    {% include "blocks/icon-sprite.njk" %}
+
+    <main id="resume-wrapper" class="resume">
+      {% block content %}{% endblock %}
+    </main>
+
+    <div class="actions" aria-label="{{ 'Resume actions' if lang == 'en' else '简历操作' }}">
+      <button type="button" onclick="window.print()">
+        <svg><use href="#icon-printer" /></svg>
+        {{ 'Print / Save as PDF' if lang == 'en' else '打印 / 保存为 PDF' }}
+      </button>
+      {% if onlineUrl %}
+      <a href="{{ onlineUrl }}">{{ 'Online Version' if lang == 'en' else '线上版本' }}</a>
+      {% endif %}
+    </div>
+  </body>
+</html>

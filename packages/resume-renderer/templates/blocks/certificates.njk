@@ -1,0 +1,11 @@
+<section class="resume-section">
+  <div class="section-title">
+    <span></span>
+    <h2>{{ '技能证书' if lang == 'zh' else 'Certifications' }}</h2>
+  </div>
+  <div class="compact">
+    {% for cert in certificates %}
+    <p>• {{ cert }}</p>
+    {% endfor %}
+  </div>
+</section>

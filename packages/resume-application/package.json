@@ -1,0 +1,10 @@
+{
+  "name": "@job-harness/resume-application",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@job-harness/resume-contracts": "workspace:*"
+  }
+}

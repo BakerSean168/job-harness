@@ -1,0 +1,16 @@
+{
+  "name": "@job-harness/resume-importers",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@job-harness/resume-contracts": "workspace:*",
+    "js-yaml": "^4.1.0",
+    "zod": "^4.1.8"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@job-harness/resume-application": "workspace:*"
+  }
+}
