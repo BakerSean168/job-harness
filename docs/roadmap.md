@@ -98,7 +98,7 @@ Detailed design: `docs/resume/agent-workflow-and-workspace-plan.md`.
 - [x] **JH-R013:** exact unsaved Draft PDF preview goes through the production Chromium renderer, shows real PDF pagination, and does not persist Revision/Artifact state.
 - [x] **JH-R014:** explicit Web Add Job and Record Application entry points reuse canonical application services, Listing identity rules, idempotent submission recording and optional immutable Resume evidence.
 - [x] **JH-R015:** production MCP exposes seven semantic Resume tools for Profile/context reads, narrow selection/override mutation, Revision publish and Artifact materialization without database access.
-- [ ] **JH-R016:** ChatGPT integration packaging is implemented and the dedicated Secure MCP Tunnel is now active on Oracle2 with a healthy MCP session and control-plane poll; final completion awaits only ChatGPT custom-app tool scan/approval in the workspace.
+- [x] **JH-R016:** ChatGPT integration packaging, workflow/agent policy, dedicated Secure MCP Tunnel runtime, workspace custom MCP app scan and 32-tool catalog approval are complete; Job Harness remains the only durable mutation boundary and exposes no external recruiting-site side-effect tool.
 - [x] **JH-R017:** durable SubmissionIntent/outbox boundary with prepare-before-side-effect, immutable external confirmation evidence, idempotent ApplicationSubmission reconciliation, restart recovery, bounded retry/manual-review handling, REST/MCP contracts, export v3 and production SQLite v7 proof.
 
 See `docs/resume/` for the benchmark, domain model, baseline, migration plan and implementation plan.
