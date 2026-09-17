@@ -239,9 +239,12 @@ describe('workspace read models', () => {
       const resumeUsage = await career.workspace.listResumeUsage({ campaignId: campaign.id, limit: 20, offset: 0 });
       expect(resumeUsage.total).toBe(2);
       expect(resumeUsage.items.find((item) => item.resume.id === 'resume-agent')).toMatchObject({
+        resume: { source: 'legacy-registry' },
         applications: 1,
+        submissions: 1,
         applicationsByStage: { screening: 1 },
         lastUsedAt: t1,
+        revisionUsage: [],
       });
       expect(resumeUsage.items.find((item) => item.resume.id === 'resume-fullstack')?.applications).toBe(0);
 

@@ -78,6 +78,32 @@ describe('ApplicationSubmission -> Resume Revision/Artifact', () => {
     expect(retry.response.status).toBe(201);
     expect((retry.body as any).submissions).toHaveLength(1);
 
+    const secondSubmission = await request('/applications', { method: 'POST', body: JSON.stringify({
+      jobId, appliedAt: '2026-09-17T04:15:00.000Z', listingId, channel: 'email', resumeRevisionId: revisionId, resumeArtifactId: artifactId, idempotencyKey: 'submission-with-revision-email', actor: 'user', note: 'Same immutable revision sent by email',
+    }) });
+    expect(secondSubmission.response.status).toBe(201);
+    expect((secondSubmission.body as any).submissions).toHaveLength(2);
+
+    const filtered = await request('/applications?resumeProfileId=agent-profile&terminal=include');
+    expect(filtered.response.status).toBe(200);
+    expect((filtered.body as any).total).toBe(1);
+    expect((filtered.body as any).items[0].resume).toMatchObject({ id: 'agent-profile', name: 'Agent Resume', source: 'resume-domain' });
+    expect((filtered.body as any).items[0].submissionCount).toBe(2);
+
+    const usage = await request('/resumes?limit=20&offset=0');
+    expect(usage.response.status).toBe(200);
+    const profileUsage = (usage.body as any).items.find((item: any) => item.resume.id === 'agent-profile');
+    expect(profileUsage).toMatchObject({
+      resume: { id: 'agent-profile', name: 'Agent Resume', source: 'resume-domain' },
+      applications: 1,
+      submissions: 2,
+      applicationsByStage: { applied: 1 },
+      lastUsedAt: '2026-09-17T04:15:00.000Z',
+    });
+    expect(profileUsage.revisionUsage).toEqual([expect.objectContaining({
+      revisionId, applications: 1, submissions: 2, lastUsedAt: '2026-09-17T04:15:00.000Z', artifactKinds: ['html'],
+    })]);
+
     const invalid = await request('/applications', { method: 'POST', body: JSON.stringify({
       jobId, appliedAt: '2026-09-17T04:20:00.000Z', resumeRevisionId: 'missing-revision', idempotencyKey: 'missing-revision', actor: 'user',
     }) });

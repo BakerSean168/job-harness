@@ -240,6 +240,7 @@
 .resume-revision-row strong { font-size: 10px; }
 .resume-revision-row span, .resume-revision-row small { color: var(--text-faint); font-size: 9px; }
 .resume-revision-row small { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resume-revision-row .resume-revision-usage { white-space: normal; line-height: 1.45; color: var(--text-muted); }
 .resume-revision-row > div:last-child { flex: 0 0 auto; display: flex; gap: 4px; }
 .resume-revision-row button { border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text-muted); font-size: 9px; padding: 4px 6px; }
 .resume-revision-row button:hover { background: var(--surface-hover); color: var(--text); }

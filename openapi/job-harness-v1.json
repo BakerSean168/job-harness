@@ -267,29 +267,7 @@
                                 "minLength": 1,
                                 "maxLength": 300
                               },
-                              "source": {
-                                "type": "string",
-                                "enum": [
-                                  "resume-harness",
-                                  "external",
-                                  "manual"
-                                ]
-                              },
-                              "externalProfileId": {
-                                "default": null,
-                                "anyOf": [
-                                  {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 300
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
                               "targetRole": {
-                                "default": null,
                                 "anyOf": [
                                   {
                                     "type": "string",
@@ -302,7 +280,6 @@
                                 ]
                               },
                               "version": {
-                                "default": null,
                                 "anyOf": [
                                   {
                                     "type": "string",
@@ -314,30 +291,11 @@
                                   }
                                 ]
                               },
-                              "hash": {
-                                "default": null,
-                                "anyOf": [
-                                  {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 200
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "artifactUri": {
-                                "default": null,
-                                "anyOf": [
-                                  {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 2000
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
+                              "source": {
+                                "type": "string",
+                                "enum": [
+                                  "resume-domain",
+                                  "legacy-registry"
                                 ]
                               },
                               "updatedAt": {
@@ -349,17 +307,19 @@
                             "required": [
                               "id",
                               "name",
-                              "source",
-                              "externalProfileId",
                               "targetRole",
                               "version",
-                              "hash",
-                              "artifactUri",
+                              "source",
                               "updatedAt"
                             ],
                             "additionalProperties": false
                           },
                           "applications": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "submissions": {
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 9007199254740991
@@ -404,13 +364,124 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "revisionUsage": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "revisionId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "revisionNumber": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "contentHash": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time",
+                                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                                },
+                                "note": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "applications": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "submissions": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "applicationsByStage": {
+                                  "type": "object",
+                                  "propertyNames": {
+                                    "type": "string",
+                                    "enum": [
+                                      "applied",
+                                      "screening",
+                                      "assessment",
+                                      "interview",
+                                      "offer",
+                                      "rejected",
+                                      "withdrawn"
+                                    ]
+                                  },
+                                  "additionalProperties": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "required": [
+                                    "applied",
+                                    "screening",
+                                    "assessment",
+                                    "interview",
+                                    "offer",
+                                    "rejected",
+                                    "withdrawn"
+                                  ]
+                                },
+                                "lastUsedAt": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "format": "date-time",
+                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "artifactKinds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "html",
+                                      "pdf",
+                                      "json",
+                                      "markdown"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "revisionId",
+                                "revisionNumber",
+                                "contentHash",
+                                "createdAt",
+                                "note",
+                                "applications",
+                                "submissions",
+                                "applicationsByStage",
+                                "lastUsedAt",
+                                "artifactKinds"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [
                           "resume",
                           "applications",
+                          "submissions",
                           "applicationsByStage",
-                          "lastUsedAt"
+                          "lastUsedAt",
+                          "revisionUsage"
                         ],
                         "additionalProperties": false
                       }
@@ -1442,29 +1513,7 @@
                                 "minLength": 1,
                                 "maxLength": 300
                               },
-                              "source": {
-                                "type": "string",
-                                "enum": [
-                                  "resume-harness",
-                                  "external",
-                                  "manual"
-                                ]
-                              },
-                              "externalProfileId": {
-                                "default": null,
-                                "anyOf": [
-                                  {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 300
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
                               "targetRole": {
-                                "default": null,
                                 "anyOf": [
                                   {
                                     "type": "string",
@@ -1477,7 +1526,6 @@
                                 ]
                               },
                               "version": {
-                                "default": null,
                                 "anyOf": [
                                   {
                                     "type": "string",
@@ -1489,30 +1537,11 @@
                                   }
                                 ]
                               },
-                              "hash": {
-                                "default": null,
-                                "anyOf": [
-                                  {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 200
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "artifactUri": {
-                                "default": null,
-                                "anyOf": [
-                                  {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 2000
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
+                              "source": {
+                                "type": "string",
+                                "enum": [
+                                  "resume-domain",
+                                  "legacy-registry"
                                 ]
                               },
                               "updatedAt": {
@@ -1524,17 +1553,19 @@
                             "required": [
                               "id",
                               "name",
-                              "source",
-                              "externalProfileId",
                               "targetRole",
                               "version",
-                              "hash",
-                              "artifactUri",
+                              "source",
                               "updatedAt"
                             ],
                             "additionalProperties": false
                           },
                           "applications": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "submissions": {
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 9007199254740991
@@ -1579,13 +1610,124 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "revisionUsage": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "revisionId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "revisionNumber": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "contentHash": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time",
+                                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                                },
+                                "note": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "applications": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "submissions": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "applicationsByStage": {
+                                  "type": "object",
+                                  "propertyNames": {
+                                    "type": "string",
+                                    "enum": [
+                                      "applied",
+                                      "screening",
+                                      "assessment",
+                                      "interview",
+                                      "offer",
+                                      "rejected",
+                                      "withdrawn"
+                                    ]
+                                  },
+                                  "additionalProperties": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "required": [
+                                    "applied",
+                                    "screening",
+                                    "assessment",
+                                    "interview",
+                                    "offer",
+                                    "rejected",
+                                    "withdrawn"
+                                  ]
+                                },
+                                "lastUsedAt": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "format": "date-time",
+                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "artifactKinds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "html",
+                                      "pdf",
+                                      "json",
+                                      "markdown"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "revisionId",
+                                "revisionNumber",
+                                "contentHash",
+                                "createdAt",
+                                "note",
+                                "applications",
+                                "submissions",
+                                "applicationsByStage",
+                                "lastUsedAt",
+                                "artifactKinds"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [
                           "resume",
                           "applications",
+                          "submissions",
                           "applicationsByStage",
-                          "lastUsedAt"
+                          "lastUsedAt",
+                          "revisionUsage"
                         ],
                         "additionalProperties": false
                       }
@@ -2883,29 +3025,7 @@
                                     "minLength": 1,
                                     "maxLength": 300
                                   },
-                                  "source": {
-                                    "type": "string",
-                                    "enum": [
-                                      "resume-harness",
-                                      "external",
-                                      "manual"
-                                    ]
-                                  },
-                                  "externalProfileId": {
-                                    "default": null,
-                                    "anyOf": [
-                                      {
-                                        "type": "string",
-                                        "minLength": 1,
-                                        "maxLength": 300
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
-                                    ]
-                                  },
                                   "targetRole": {
-                                    "default": null,
                                     "anyOf": [
                                       {
                                         "type": "string",
@@ -2918,7 +3038,6 @@
                                     ]
                                   },
                                   "version": {
-                                    "default": null,
                                     "anyOf": [
                                       {
                                         "type": "string",
@@ -2930,30 +3049,11 @@
                                       }
                                     ]
                                   },
-                                  "hash": {
-                                    "default": null,
-                                    "anyOf": [
-                                      {
-                                        "type": "string",
-                                        "minLength": 1,
-                                        "maxLength": 200
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
-                                    ]
-                                  },
-                                  "artifactUri": {
-                                    "default": null,
-                                    "anyOf": [
-                                      {
-                                        "type": "string",
-                                        "minLength": 1,
-                                        "maxLength": 2000
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
+                                  "source": {
+                                    "type": "string",
+                                    "enum": [
+                                      "resume-domain",
+                                      "legacy-registry"
                                     ]
                                   },
                                   "updatedAt": {
@@ -2965,12 +3065,9 @@
                                 "required": [
                                   "id",
                                   "name",
-                                  "source",
-                                  "externalProfileId",
                                   "targetRole",
                                   "version",
-                                  "hash",
-                                  "artifactUri",
+                                  "source",
                                   "updatedAt"
                                 ],
                                 "additionalProperties": false
@@ -3758,29 +3855,7 @@
                                     "minLength": 1,
                                     "maxLength": 300
                                   },
-                                  "source": {
-                                    "type": "string",
-                                    "enum": [
-                                      "resume-harness",
-                                      "external",
-                                      "manual"
-                                    ]
-                                  },
-                                  "externalProfileId": {
-                                    "default": null,
-                                    "anyOf": [
-                                      {
-                                        "type": "string",
-                                        "minLength": 1,
-                                        "maxLength": 300
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
-                                    ]
-                                  },
                                   "targetRole": {
-                                    "default": null,
                                     "anyOf": [
                                       {
                                         "type": "string",
@@ -3793,7 +3868,6 @@
                                     ]
                                   },
                                   "version": {
-                                    "default": null,
                                     "anyOf": [
                                       {
                                         "type": "string",
@@ -3805,30 +3879,11 @@
                                       }
                                     ]
                                   },
-                                  "hash": {
-                                    "default": null,
-                                    "anyOf": [
-                                      {
-                                        "type": "string",
-                                        "minLength": 1,
-                                        "maxLength": 200
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
-                                    ]
-                                  },
-                                  "artifactUri": {
-                                    "default": null,
-                                    "anyOf": [
-                                      {
-                                        "type": "string",
-                                        "minLength": 1,
-                                        "maxLength": 2000
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
+                                  "source": {
+                                    "type": "string",
+                                    "enum": [
+                                      "resume-domain",
+                                      "legacy-registry"
                                     ]
                                   },
                                   "updatedAt": {
@@ -3840,12 +3895,9 @@
                                 "required": [
                                   "id",
                                   "name",
-                                  "source",
-                                  "externalProfileId",
                                   "targetRole",
                                   "version",
-                                  "hash",
-                                  "artifactUri",
+                                  "source",
                                   "updatedAt"
                                 ],
                                 "additionalProperties": false
@@ -4908,29 +4960,7 @@
                                       "minLength": 1,
                                       "maxLength": 300
                                     },
-                                    "source": {
-                                      "type": "string",
-                                      "enum": [
-                                        "resume-harness",
-                                        "external",
-                                        "manual"
-                                      ]
-                                    },
-                                    "externalProfileId": {
-                                      "default": null,
-                                      "anyOf": [
-                                        {
-                                          "type": "string",
-                                          "minLength": 1,
-                                          "maxLength": 300
-                                        },
-                                        {
-                                          "type": "null"
-                                        }
-                                      ]
-                                    },
                                     "targetRole": {
-                                      "default": null,
                                       "anyOf": [
                                         {
                                           "type": "string",
@@ -4943,7 +4973,6 @@
                                       ]
                                     },
                                     "version": {
-                                      "default": null,
                                       "anyOf": [
                                         {
                                           "type": "string",
@@ -4955,30 +4984,11 @@
                                         }
                                       ]
                                     },
-                                    "hash": {
-                                      "default": null,
-                                      "anyOf": [
-                                        {
-                                          "type": "string",
-                                          "minLength": 1,
-                                          "maxLength": 200
-                                        },
-                                        {
-                                          "type": "null"
-                                        }
-                                      ]
-                                    },
-                                    "artifactUri": {
-                                      "default": null,
-                                      "anyOf": [
-                                        {
-                                          "type": "string",
-                                          "minLength": 1,
-                                          "maxLength": 2000
-                                        },
-                                        {
-                                          "type": "null"
-                                        }
+                                    "source": {
+                                      "type": "string",
+                                      "enum": [
+                                        "resume-domain",
+                                        "legacy-registry"
                                       ]
                                     },
                                     "updatedAt": {
@@ -4990,12 +5000,9 @@
                                   "required": [
                                     "id",
                                     "name",
-                                    "source",
-                                    "externalProfileId",
                                     "targetRole",
                                     "version",
-                                    "hash",
-                                    "artifactUri",
+                                    "source",
                                     "updatedAt"
                                   ],
                                   "additionalProperties": false
@@ -6994,29 +7001,7 @@
                                     "minLength": 1,
                                     "maxLength": 300
                                   },
-                                  "source": {
-                                    "type": "string",
-                                    "enum": [
-                                      "resume-harness",
-                                      "external",
-                                      "manual"
-                                    ]
-                                  },
-                                  "externalProfileId": {
-                                    "default": null,
-                                    "anyOf": [
-                                      {
-                                        "type": "string",
-                                        "minLength": 1,
-                                        "maxLength": 300
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
-                                    ]
-                                  },
                                   "targetRole": {
-                                    "default": null,
                                     "anyOf": [
                                       {
                                         "type": "string",
@@ -7029,7 +7014,6 @@
                                     ]
                                   },
                                   "version": {
-                                    "default": null,
                                     "anyOf": [
                                       {
                                         "type": "string",
@@ -7041,30 +7025,11 @@
                                       }
                                     ]
                                   },
-                                  "hash": {
-                                    "default": null,
-                                    "anyOf": [
-                                      {
-                                        "type": "string",
-                                        "minLength": 1,
-                                        "maxLength": 200
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
-                                    ]
-                                  },
-                                  "artifactUri": {
-                                    "default": null,
-                                    "anyOf": [
-                                      {
-                                        "type": "string",
-                                        "minLength": 1,
-                                        "maxLength": 2000
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
+                                  "source": {
+                                    "type": "string",
+                                    "enum": [
+                                      "resume-domain",
+                                      "legacy-registry"
                                     ]
                                   },
                                   "updatedAt": {
@@ -7076,12 +7041,9 @@
                                 "required": [
                                   "id",
                                   "name",
-                                  "source",
-                                  "externalProfileId",
                                   "targetRole",
                                   "version",
-                                  "hash",
-                                  "artifactUri",
+                                  "source",
                                   "updatedAt"
                                 ],
                                 "additionalProperties": false
@@ -8909,29 +8871,7 @@
                               "minLength": 1,
                               "maxLength": 300
                             },
-                            "source": {
-                              "type": "string",
-                              "enum": [
-                                "resume-harness",
-                                "external",
-                                "manual"
-                              ]
-                            },
-                            "externalProfileId": {
-                              "default": null,
-                              "anyOf": [
-                                {
-                                  "type": "string",
-                                  "minLength": 1,
-                                  "maxLength": 300
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
                             "targetRole": {
-                              "default": null,
                               "anyOf": [
                                 {
                                   "type": "string",
@@ -8944,7 +8884,6 @@
                               ]
                             },
                             "version": {
-                              "default": null,
                               "anyOf": [
                                 {
                                   "type": "string",
@@ -8956,30 +8895,11 @@
                                 }
                               ]
                             },
-                            "hash": {
-                              "default": null,
-                              "anyOf": [
-                                {
-                                  "type": "string",
-                                  "minLength": 1,
-                                  "maxLength": 200
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "artifactUri": {
-                              "default": null,
-                              "anyOf": [
-                                {
-                                  "type": "string",
-                                  "minLength": 1,
-                                  "maxLength": 2000
-                                },
-                                {
-                                  "type": "null"
-                                }
+                            "source": {
+                              "type": "string",
+                              "enum": [
+                                "resume-domain",
+                                "legacy-registry"
                               ]
                             },
                             "updatedAt": {
@@ -8991,12 +8911,9 @@
                           "required": [
                             "id",
                             "name",
-                            "source",
-                            "externalProfileId",
                             "targetRole",
                             "version",
-                            "hash",
-                            "artifactUri",
+                            "source",
                             "updatedAt"
                           ],
                           "additionalProperties": false
@@ -27194,7 +27111,7 @@
         "tags": [
           "Resumes"
         ],
-        "summary": "List Resume Registry usage projections",
+        "summary": "List Submission-derived Resume Profile and Revision usage projections",
         "security": [
           {
             "bearerAuth": []
@@ -27260,29 +27177,7 @@
                                 "minLength": 1,
                                 "maxLength": 300
                               },
-                              "source": {
-                                "type": "string",
-                                "enum": [
-                                  "resume-harness",
-                                  "external",
-                                  "manual"
-                                ]
-                              },
-                              "externalProfileId": {
-                                "default": null,
-                                "anyOf": [
-                                  {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 300
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
                               "targetRole": {
-                                "default": null,
                                 "anyOf": [
                                   {
                                     "type": "string",
@@ -27295,7 +27190,6 @@
                                 ]
                               },
                               "version": {
-                                "default": null,
                                 "anyOf": [
                                   {
                                     "type": "string",
@@ -27307,30 +27201,11 @@
                                   }
                                 ]
                               },
-                              "hash": {
-                                "default": null,
-                                "anyOf": [
-                                  {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 200
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "artifactUri": {
-                                "default": null,
-                                "anyOf": [
-                                  {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 2000
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
+                              "source": {
+                                "type": "string",
+                                "enum": [
+                                  "resume-domain",
+                                  "legacy-registry"
                                 ]
                               },
                               "updatedAt": {
@@ -27342,17 +27217,19 @@
                             "required": [
                               "id",
                               "name",
-                              "source",
-                              "externalProfileId",
                               "targetRole",
                               "version",
-                              "hash",
-                              "artifactUri",
+                              "source",
                               "updatedAt"
                             ],
                             "additionalProperties": false
                           },
                           "applications": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "submissions": {
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 9007199254740991
@@ -27397,13 +27274,124 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "revisionUsage": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "revisionId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "revisionNumber": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "contentHash": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time",
+                                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                                },
+                                "note": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "applications": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "submissions": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "applicationsByStage": {
+                                  "type": "object",
+                                  "propertyNames": {
+                                    "type": "string",
+                                    "enum": [
+                                      "applied",
+                                      "screening",
+                                      "assessment",
+                                      "interview",
+                                      "offer",
+                                      "rejected",
+                                      "withdrawn"
+                                    ]
+                                  },
+                                  "additionalProperties": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "required": [
+                                    "applied",
+                                    "screening",
+                                    "assessment",
+                                    "interview",
+                                    "offer",
+                                    "rejected",
+                                    "withdrawn"
+                                  ]
+                                },
+                                "lastUsedAt": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "format": "date-time",
+                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "artifactKinds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "html",
+                                      "pdf",
+                                      "json",
+                                      "markdown"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "revisionId",
+                                "revisionNumber",
+                                "contentHash",
+                                "createdAt",
+                                "note",
+                                "applications",
+                                "submissions",
+                                "applicationsByStage",
+                                "lastUsedAt",
+                                "artifactKinds"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [
                           "resume",
                           "applications",
+                          "submissions",
                           "applicationsByStage",
-                          "lastUsedAt"
+                          "lastUsedAt",
+                          "revisionUsage"
                         ],
                         "additionalProperties": false
                       }
@@ -30600,29 +30588,7 @@
                                     "minLength": 1,
                                     "maxLength": 300
                                   },
-                                  "source": {
-                                    "type": "string",
-                                    "enum": [
-                                      "resume-harness",
-                                      "external",
-                                      "manual"
-                                    ]
-                                  },
-                                  "externalProfileId": {
-                                    "default": null,
-                                    "anyOf": [
-                                      {
-                                        "type": "string",
-                                        "minLength": 1,
-                                        "maxLength": 300
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
-                                    ]
-                                  },
                                   "targetRole": {
-                                    "default": null,
                                     "anyOf": [
                                       {
                                         "type": "string",
@@ -30635,7 +30601,6 @@
                                     ]
                                   },
                                   "version": {
-                                    "default": null,
                                     "anyOf": [
                                       {
                                         "type": "string",
@@ -30647,30 +30612,11 @@
                                       }
                                     ]
                                   },
-                                  "hash": {
-                                    "default": null,
-                                    "anyOf": [
-                                      {
-                                        "type": "string",
-                                        "minLength": 1,
-                                        "maxLength": 200
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
-                                    ]
-                                  },
-                                  "artifactUri": {
-                                    "default": null,
-                                    "anyOf": [
-                                      {
-                                        "type": "string",
-                                        "minLength": 1,
-                                        "maxLength": 2000
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
+                                  "source": {
+                                    "type": "string",
+                                    "enum": [
+                                      "resume-domain",
+                                      "legacy-registry"
                                     ]
                                   },
                                   "updatedAt": {
@@ -30682,12 +30628,9 @@
                                 "required": [
                                   "id",
                                   "name",
-                                  "source",
-                                  "externalProfileId",
                                   "targetRole",
                                   "version",
-                                  "hash",
-                                  "artifactUri",
+                                  "source",
                                   "updatedAt"
                                 ],
                                 "additionalProperties": false

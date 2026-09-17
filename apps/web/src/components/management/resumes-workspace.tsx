@@ -79,14 +79,17 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
             initialContext={context}
             initialHtml={preview.html}
             initialRevisions={revisions.items}
+            revisionUsage={selectedUsage?.revisionUsage ?? []}
             usage={{
               applications: selectedUsage?.applications ?? 0,
+              submissions: selectedUsage?.submissions ?? 0,
               screening: selectedUsage?.applicationsByStage.screening ?? 0,
               assessment: selectedUsage?.applicationsByStage.assessment ?? 0,
               interview: selectedUsage?.applicationsByStage.interview ?? 0,
             }}
             usageLabels={{
               applications: copy.table.applications,
+              submissions: copy.table.submissions,
               screening: copy.table.screening,
               assessment: copy.table.assessment,
               interview: copy.table.interview,

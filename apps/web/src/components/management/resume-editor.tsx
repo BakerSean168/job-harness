@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
+import type { ResumeRevisionUsageSummary } from '@job-harness/contracts';
 import { dump, load } from 'js-yaml';
 import {
   ResumeLibrarySchema,
@@ -61,14 +62,17 @@ export interface ResumeEditorCopy {
   readonly downloadPdf: string;
   readonly downloadHtml: string;
   readonly downloadJson: string;
+  readonly revisionUnused: string;
+  readonly revisionLastUsed: string;
 }
 
 interface Props {
   initialContext: ResumeProfileContext;
   initialHtml: string;
   initialRevisions: readonly ResumeRevision[];
-  usage: { applications: number; screening: number; assessment: number; interview: number };
-  usageLabels: { applications: string; screening: string; assessment: string; interview: string };
+  revisionUsage: readonly ResumeRevisionUsageSummary[];
+  usage: { applications: number; submissions: number; screening: number; assessment: number; interview: number };
+  usageLabels: { applications: string; submissions: string; screening: string; assessment: string; interview: string };
   applicationsHref: string;
   viewApplicationsLabel: string;
   copy: ResumeEditorCopy;
@@ -85,7 +89,7 @@ function setLocalized<T extends Record<string, string | undefined>>(value: T, lo
   return { ...value, [locale]: next };
 }
 
-export function ResumeEditor({ initialContext, initialHtml, initialRevisions, usage, usageLabels, applicationsHref, viewApplicationsLabel, copy }: Props) {
+export function ResumeEditor({ initialContext, initialHtml, initialRevisions, revisionUsage, usage, usageLabels, applicationsHref, viewApplicationsLabel, copy }: Props) {
   const [library, setLibrary] = useState<ResumeLibrary>(initialContext.library);
   const [profile, setProfile] = useState<ResumeProfile>(initialContext.profile);
   const [previewHtml, setPreviewHtml] = useState(initialHtml);
@@ -105,6 +109,7 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, us
   const [pending, startTransition] = useTransition();
   const locale = profile.locale;
   const hasUnsavedChanges = profileDirty || libraryDirty;
+  const revisionUsageById = useMemo(() => new Map(revisionUsage.map((item) => [item.revisionId, item])), [revisionUsage]);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -310,9 +315,20 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, us
           {revisionMessage ? <p className="resume-revision-message">{revisionMessage}</p> : null}
           {revisions.length ? (
             <div className="resume-revision-list">
-              {revisions.map((revision) => (
+              {revisions.map((revision) => {
+                const evidence = revisionUsageById.get(revision.id);
+                return (
                 <div key={revision.id} className="resume-revision-row">
-                  <div><strong>v{revision.revisionNumber}</strong><span>{new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(revision.createdAt))}</span><small>{revision.note ?? revision.contentHash.slice(0, 12)}</small></div>
+                  <div>
+                    <strong>v{revision.revisionNumber}</strong>
+                    <span>{new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(revision.createdAt))}</span>
+                    <small>{revision.note ?? revision.contentHash.slice(0, 12)}</small>
+                    <small className="resume-revision-usage">
+                      {evidence?.submissions
+                        ? `${evidence.applications} ${usageLabels.applications} · ${evidence.submissions} ${usageLabels.submissions}${evidence.artifactKinds.length ? ` · ${evidence.artifactKinds.map((kind) => kind.toUpperCase()).join('/')}` : ''}${evidence.lastUsedAt ? ` · ${copy.revisionLastUsed} ${new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(evidence.lastUsedAt))}` : ''}`
+                        : copy.revisionUnused}
+                    </small>
+                  </div>
                   <div>
                     <button type="button" disabled={diffLoading} onClick={() => void loadRevisionDiff(revision.id, 'previous')}>{copy.comparePrevious}</button>
                     <button type="button" disabled={diffLoading} onClick={() => void loadRevisionDiff(revision.id, 'current')}>{copy.compareCurrent}</button>
@@ -324,7 +340,8 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, us
                     </form>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : <p className="management-muted">{copy.noRevisions}</p>}
           {revisionDiff ? (
@@ -339,6 +356,7 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, us
           <h3>{copy.usage}</h3>
           <div className="resume-usage-grid">
             <div><strong>{usage.applications}</strong><span>{usageLabels.applications}</span></div>
+            <div><strong>{usage.submissions}</strong><span>{usageLabels.submissions}</span></div>
             <div><strong>{usage.screening}</strong><span>{usageLabels.screening}</span></div>
             <div><strong>{usage.assessment}</strong><span>{usageLabels.assessment}</span></div>
             <div><strong>{usage.interview}</strong><span>{usageLabels.interview}</span></div>

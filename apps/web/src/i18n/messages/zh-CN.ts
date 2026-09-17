@@ -57,7 +57,7 @@ export const zhCN: MessageCatalog = {
     companies: { title: '公司关联表现', company: '公司', jobs: '岗位', applications: '投递', screening: '筛选', interview: '面试', offer: 'Offer', empty: '暂无公司数据。' },
     campaigns: { title: '求职目标对比', campaign: '求职目标', jobs: '岗位', applications: '投递', screening: '筛选', interview: '面试', offer: 'Offer', empty: '暂无求职目标数据。' },
     sources: { title: '来源关联表现', source: '来源', jobs: '岗位', applications: '投递', screening: '筛选', interview: '面试', note: '一个 Opportunity 可以关联多个 Listing 来源；这些数字不是实际提交渠道归因。', empty: '暂无来源数据。' },
-    resumes: { title: '简历关联表现', resume: '简历', applications: '投递', screening: '筛选', assessment: '测评', interview: '面试', offer: 'Offer', note: '这是相关性统计，不表示简历本身造成了招聘结果。', empty: '暂无简历使用数据。' },
+    resumes: { title: '简历关联表现', resume: '简历', applications: '投递', submissions: '提交', screening: '筛选', assessment: '测评', interview: '面试', offer: 'Offer', note: '这是相关性统计，不表示简历本身造成了招聘结果。', empty: '暂无简历使用数据。' },
     generatedAt: '生成时间',
   },
   campaignsWorkspace: {
@@ -69,8 +69,8 @@ export const zhCN: MessageCatalog = {
   resumesWorkspace: {
     filters: { campaign: '求职目标', all: '全部', apply: '筛选', reset: '重置' },
     summary: { registry: '注册简历', used: '已使用简历', applications: '关联投递', missingArtifact: '缺少 artifact' },
-    table: { resume: '简历', targetRole: '目标方向', version: '版本', applications: '投递', screening: '筛选', assessment: '测评', interview: '面试', offer: 'Offer', lastUsed: '最近使用', artifact: 'Artifact', linked: '已关联', missing: '缺失', updated: '最近更新', empty: '暂无 Resume Registry 数据。', viewApplications: '查看投递' },
-    builder: { profiles: '简历版本', preview: '实时预览', details: '简历编辑器', targetRole: '目标方向', locale: '语言', template: '模板', profileVersion: 'Profile 版本', libraryVersion: '内容库版本', usage: '投递使用', noProfiles: '新的 Resume Domain 还没有导入 Profile。迁移完成前仍保留旧 Registry 数据。', readOnly: '当前编辑器使用新的 Resume Domain；保存只更新 mutable draft，不会创建历史 Revision。', editProfile: '当前 Profile', editShared: '共享内容', formMode: '表单', sourceMode: 'Source YAML', save: '保存', saving: '保存中…', saved: '已保存', saveFailed: '保存失败', sourceInvalid: 'Source YAML 无效', previewFailed: '预览失败', sharedWarning: '这里修改的是共享 ResumeLibrary，会影响所有引用这些内容的 Profile。保存前系统会验证全部 Profile，避免产生悬空引用。', name: 'Profile 名称', positioning: '简历定位', documentTitle: '文档标题', pdfName: 'PDF 文件名', header: '页头布局', displayName: '姓名', email: '邮箱', phone: '电话', website: '网站', github: 'GitHub', unsavedChanges: '有尚未保存的简历修改，确定离开吗？', history: 'Revision 历史', noRevisions: '尚未发布 Revision。', publish: '发布 Revision', publishing: '发布中…', publishNote: 'Revision 说明（可选）', published: '已发布 Revision', reusedRevision: '内容未变化，复用已有 Revision', saveBeforePublish: '请先保存当前所有修改，再发布 Revision。', comparePrevious: '对比上一版', compareCurrent: '对比当前', changes: '处变化', noChanges: '没有差异', diffFailed: '加载 Diff 失败', downloadPdf: 'PDF', downloadHtml: 'HTML', downloadJson: 'JSON' },
+    table: { resume: '简历', targetRole: '目标方向', version: '版本', applications: '投递', submissions: '提交', screening: '筛选', assessment: '测评', interview: '面试', offer: 'Offer', lastUsed: '最近使用', artifact: 'Artifact', linked: '已关联', missing: '缺失', updated: '最近更新', empty: '暂无简历 Profile 数据。', viewApplications: '查看投递' },
+    builder: { profiles: '简历版本', preview: '实时预览', details: '简历编辑器', targetRole: '目标方向', locale: '语言', template: '模板', profileVersion: 'Profile 版本', libraryVersion: '内容库版本', usage: '投递使用', noProfiles: '新的 Resume Domain 还没有导入 Profile。迁移完成前仍保留旧 Registry 数据。', readOnly: '当前编辑器使用新的 Resume Domain；保存只更新 mutable draft，不会创建历史 Revision。', editProfile: '当前 Profile', editShared: '共享内容', formMode: '表单', sourceMode: 'Source YAML', save: '保存', saving: '保存中…', saved: '已保存', saveFailed: '保存失败', sourceInvalid: 'Source YAML 无效', previewFailed: '预览失败', sharedWarning: '这里修改的是共享 ResumeLibrary，会影响所有引用这些内容的 Profile。保存前系统会验证全部 Profile，避免产生悬空引用。', name: 'Profile 名称', positioning: '简历定位', documentTitle: '文档标题', pdfName: 'PDF 文件名', header: '页头布局', displayName: '姓名', email: '邮箱', phone: '电话', website: '网站', github: 'GitHub', unsavedChanges: '有尚未保存的简历修改，确定离开吗？', history: 'Revision 历史', noRevisions: '尚未发布 Revision。', publish: '发布 Revision', publishing: '发布中…', publishNote: 'Revision 说明（可选）', published: '已发布 Revision', reusedRevision: '内容未变化，复用已有 Revision', saveBeforePublish: '请先保存当前所有修改，再发布 Revision。', comparePrevious: '对比上一版', compareCurrent: '对比当前', changes: '处变化', noChanges: '没有差异', diffFailed: '加载 Diff 失败', downloadPdf: 'PDF', downloadHtml: 'HTML', downloadJson: 'JSON', revisionUnused: '尚无实际投递使用', revisionLastUsed: '最近使用' },
     note: 'Resume 已成为 Job Harness 内的一等领域；旧 Resume Registry 暂时保留为投递兼容投影。',
   },
   discoveryWorkspace: {
@@ -97,7 +97,7 @@ export const zhCN: MessageCatalog = {
     },
     weekly: { title: '最近 7 天活动', jobsObserved: '观察岗位', opportunitiesInserted: '新增 Opportunity', shortlisted: '加入候选', applicationsRecorded: '新增投递', stageChanges: '阶段变化', interviewsScheduled: '安排面试', unavailable: '尚未记录历史事件', utcNote: '当前按 UTC 日期边界聚合；“加入候选”没有独立历史事件，因此不伪造计数。' },
     recent: { title: '最近发现任务', empty: '暂无发现任务记录。', candidates: '候选', inserted: '新增', duplicates: '重复', rejected: '拒绝', started: '开始于' },
-    resumes: { title: '简历关联表现', applications: '投递', screening: '筛选', interview: '面试', lastUsed: '最近使用', correlationNote: '这是相关性视图，不表示某份简历导致了结果。', empty: '暂无简历使用数据。' },
+    resumes: { title: '简历关联表现', applications: '投递', submissions: '提交', screening: '筛选', interview: '面试', lastUsed: '最近使用', correlationNote: '这是相关性视图，不表示某份简历导致了结果。', empty: '暂无简历使用数据。' },
     sources: { title: '来源关联表现', source: '来源', opportunities: '岗位', applications: '投递', screening: '筛选', interview: '面试', associationNote: '一个 Opportunity 可以同时有多个 Listing 来源；这里统计“关联来源”，不是实际提交渠道归因。', empty: '暂无来源数据。' },
     generatedAt: '生成时间',
   },

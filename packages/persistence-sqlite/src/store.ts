@@ -42,6 +42,8 @@ import type {
   ListSavedViewsInput,
   ListSavedViewsOutput,
   ResumeProfileRef,
+  ResumeUsageProfile,
+  ResumeRevisionUsageSummary,
   SavedView,
   SavedViewWorkspace,
   SearchJobsInput,
@@ -76,6 +78,8 @@ import {
   ListDiscoveryRunsOutputSchema,
   ListResumeUsageOutputSchema,
   ResumeProfileRefSchema,
+  ResumeUsageProfileSchema,
+  ResumeRevisionUsageSummarySchema,
   SavedViewSchema,
   ResumeUsageSummarySchema,
 } from '@job-harness/contracts';
@@ -94,6 +98,7 @@ import {
   type ApplicationStage,
   type JobState,
 } from '@job-harness/domain';
+import { ResumeProfileSchema, type ResumeProfile } from '@job-harness/resume-contracts';
 import { migrateSqliteDatabase } from './schema';
 
 type Row = Record<string, unknown>;
@@ -220,22 +225,26 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       applicationByJobId.set(application.jobId, application);
     }
 
-    const resumeIds = [...new Set(
-      [...applicationByJobId.values()]
-        .map((application) => application.resumeProfileId)
-        .filter((resumeId): resumeId is string => Boolean(resumeId)),
-    )];
-    const resumeById = new Map<string, ResumeProfileRef>();
-    if (resumeIds.length) {
-      const resumePlaceholders = resumeIds.map(() => '?').join(',');
+    const applicationIds = [...applicationByJobId.values()].map((application) => application.id);
+    const submissionsByApplicationId = new Map<string, ApplicationSubmission[]>();
+    if (applicationIds.length) {
+      const submissionPlaceholders = applicationIds.map(() => '?').join(',');
       const rows = this.db.prepare(
-        `SELECT * FROM resume_profile_refs WHERE id IN (${resumePlaceholders})`,
-      ).all(...resumeIds) as Row[];
+        `SELECT * FROM application_submissions WHERE application_id IN (${submissionPlaceholders}) ORDER BY application_id, submitted_at, id`,
+      ).all(...applicationIds) as Row[];
       for (const row of rows) {
-        const resume = this.resumeFromRow(row);
-        resumeById.set(resume.id, resume);
+        const submission = this.applicationSubmissionFromRow(row);
+        const entries = submissionsByApplicationId.get(submission.applicationId) ?? [];
+        entries.push(submission);
+        submissionsByApplicationId.set(submission.applicationId, entries);
       }
     }
+    const resumeIds = [...new Set(
+      [...applicationByJobId.values()]
+        .map((application) => this.applicationResumeProfileId(application, submissionsByApplicationId.get(application.id) ?? []))
+        .filter((resumeId): resumeId is string => Boolean(resumeId)),
+    )];
+    const resumeById = this.resumeUsageProfilesByIds(resumeIds);
 
     const campaignsByJobId = new Map<string, ReturnType<typeof CampaignRefSchema.parse>[]>();
     const campaignRows = this.db.prepare(`
@@ -255,7 +264,10 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
 
     return jobs.map((job) => {
       const application = applicationByJobId.get(job.id) ?? null;
-      const resume = application?.resumeProfileId ? resumeById.get(application.resumeProfileId) ?? null : null;
+      const effectiveResumeId = application
+        ? this.applicationResumeProfileId(application, submissionsByApplicationId.get(application.id) ?? [])
+        : null;
+      const resume = effectiveResumeId ? resumeById.get(effectiveResumeId) ?? null : null;
       return JobListItemSchema.parse({
         jobId: job.id,
         companyId: job.companyId,
@@ -424,8 +436,11 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       params.push(input.campaignId);
     }
     if (input.resumeProfileId) {
-      where.push('a.resume_profile_id = ?');
-      params.push(input.resumeProfileId);
+      where.push(`(
+        EXISTS (SELECT 1 FROM application_submissions s WHERE s.application_id = a.id AND s.resume_profile_id = ?)
+        OR (a.resume_profile_id = ? AND NOT EXISTS (SELECT 1 FROM application_submissions s2 WHERE s2.application_id = a.id))
+      )`);
+      params.push(input.resumeProfileId, input.resumeProfileId);
     }
     if (input.appliedFrom) {
       where.push('a.applied_at >= ?');
@@ -529,6 +544,74 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     return ResumeProfileRefSchema.parse({ id: row.id, name: row.name, source: row.source, externalProfileId: row.external_profile_id, targetRole: row.target_role, version: row.version, hash: row.hash, artifactUri: row.artifact_uri, updatedAt: row.updated_at });
   }
 
+  private localizedProfileText(value: ResumeProfile['name'], locale: ResumeProfile['locale']): string | null {
+    return value[locale] ?? value['zh-CN'] ?? value.en ?? null;
+  }
+
+  private resumeUsageProfileFromDomainRow(row: Row): ResumeUsageProfile {
+    const profile = ResumeProfileSchema.parse(json(row.profile_json));
+    return ResumeUsageProfileSchema.parse({
+      id: profile.id,
+      name: this.localizedProfileText(profile.name, profile.locale) ?? profile.id,
+      targetRole: this.localizedProfileText(profile.targetRole, profile.locale),
+      version: String(profile.version),
+      source: 'resume-domain',
+      updatedAt: profile.updatedAt,
+    });
+  }
+
+  private resumeUsageProfileFromLegacyRow(row: Row): ResumeUsageProfile {
+    const legacy = this.resumeFromRow(row);
+    return ResumeUsageProfileSchema.parse({
+      id: legacy.id,
+      name: legacy.name,
+      targetRole: legacy.targetRole,
+      version: legacy.version,
+      source: 'legacy-registry',
+      updatedAt: legacy.updatedAt,
+    });
+  }
+
+  private allResumeUsageProfiles(): ResumeUsageProfile[] {
+    const byId = new Map<string, ResumeUsageProfile>();
+    const domainRows = this.db.prepare("SELECT profile_json FROM resume_profiles WHERE archived_at IS NULL ORDER BY updated_at DESC, id").all() as Row[];
+    for (const row of domainRows) {
+      const profile = this.resumeUsageProfileFromDomainRow(row);
+      byId.set(profile.id, profile);
+    }
+    const legacyRows = this.db.prepare('SELECT * FROM resume_profile_refs ORDER BY updated_at DESC, id').all() as Row[];
+    for (const row of legacyRows) {
+      const profile = this.resumeUsageProfileFromLegacyRow(row);
+      if (!byId.has(profile.id)) byId.set(profile.id, profile);
+    }
+    return [...byId.values()].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id));
+  }
+
+  private resumeUsageProfilesByIds(ids: readonly string[]): Map<string, ResumeUsageProfile> {
+    const profiles = new Map<string, ResumeUsageProfile>();
+    for (const id of new Set(ids)) {
+      const profile = this.resumeUsageProfileById(id);
+      if (profile) profiles.set(id, profile);
+    }
+    return profiles;
+  }
+
+  private resumeUsageProfileById(profileId: string | null): ResumeUsageProfile | null {
+    if (!profileId) return null;
+    const domainRow = this.db.prepare('SELECT profile_json FROM resume_profiles WHERE id = ?').get(profileId) as Row | undefined;
+    if (domainRow) return this.resumeUsageProfileFromDomainRow(domainRow);
+    const legacyRow = this.db.prepare('SELECT * FROM resume_profile_refs WHERE id = ?').get(profileId) as Row | undefined;
+    return legacyRow ? this.resumeUsageProfileFromLegacyRow(legacyRow) : null;
+  }
+
+  private applicationResumeProfileId(application: Application, submissions: readonly ApplicationSubmission[]): string | null {
+    for (let index = submissions.length - 1; index >= 0; index -= 1) {
+      const profileId = submissions[index]!.resumeProfileId;
+      if (profileId) return profileId;
+    }
+    return submissions.length === 0 ? application.resumeProfileId : null;
+  }
+
   async getResumeProfile(resumeProfileId: string): Promise<ResumeProfileRef | null> {
     const row = this.db.prepare('SELECT * FROM resume_profile_refs WHERE id = ?').get(resumeProfileId) as Row | undefined;
     return row ? this.resumeFromRow(row) : null;
@@ -570,7 +653,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     const items = await Promise.all(page.items.map(async ({ application, job }) => {
       const detail = await this.getApplication(application.id);
       if (!detail) throw new Error(`Application '${application.id}' disappeared during board projection`);
-      const resume = application.resumeProfileId ? await this.getResumeProfile(application.resumeProfileId) : null;
+      const resume = this.resumeUsageProfileById(this.applicationResumeProfileId(application, detail.submissions));
       const latestEvent = detail.timeline.length ? detail.timeline[detail.timeline.length - 1]! : null;
       return ApplicationBoardItemSchema.parse({
         application,
@@ -593,9 +676,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
   async getApplicationWorkspaceDetail(applicationId: string): Promise<ApplicationWorkspaceDetail | null> {
     const detail = await this.getApplication(applicationId);
     if (!detail) return null;
-    const resume = detail.application.resumeProfileId
-      ? await this.getResumeProfile(detail.application.resumeProfileId)
-      : null;
+    const resume = this.resumeUsageProfileById(this.applicationResumeProfileId(detail.application, detail.submissions));
     const latestEvent = detail.timeline.length ? detail.timeline[detail.timeline.length - 1]! : null;
     return ApplicationWorkspaceDetailSchema.parse({
       application: detail.application,
@@ -624,7 +705,9 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     if (!job) return null;
     const application = await this.findApplicationByJobId(jobId);
     const applicationDetail = application ? await this.getApplication(application.id) : null;
-    const resume = application?.resumeProfileId ? await this.getResumeProfile(application.resumeProfileId) : null;
+    const resume = application && applicationDetail
+      ? this.resumeUsageProfileById(this.applicationResumeProfileId(application, applicationDetail.submissions))
+      : null;
     const observationRows = this.db.prepare(`
       SELECT * FROM job_observations
       WHERE job_id = ?
@@ -664,7 +747,10 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
   }
 
   async listResumeUsage(input: ListResumeUsageInput): Promise<ListResumeUsageOutput> {
-    const resumePage = await this.listResumeProfiles({ limit: input.limit ?? 50, offset: input.offset ?? 0 });
+    const allProfiles = this.allResumeUsageProfiles();
+    const offset = input.offset ?? 0;
+    const limit = input.limit ?? 50;
+    const profiles = allProfiles.slice(offset, offset + limit);
     const campaignFilter = input.campaignId
       ? ` AND EXISTS (
           SELECT 1 FROM job_observations o
@@ -673,28 +759,89 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
         )`
       : '';
     const campaignParams = input.campaignId ? [input.campaignId] : [];
-    const items = resumePage.items.map((resume) => {
-      const rows = this.db.prepare(`
-        SELECT a.current_stage AS stage, COUNT(*) AS n, MAX(a.applied_at) AS last_used_at
+
+    const items = profiles.map((resume) => {
+      const submissionRows = this.db.prepare(`
+        SELECT s.id AS submission_id, s.application_id AS application_id, a.current_stage AS stage,
+               s.submitted_at AS used_at
+        FROM application_submissions s
+        JOIN applications a ON a.id = s.application_id
+        JOIN jobs j ON j.id = a.job_id
+        WHERE s.resume_profile_id = ?${campaignFilter}
+        ORDER BY s.submitted_at, s.id
+      `).all(resume.id, ...campaignParams) as Row[];
+      const legacyRows = this.db.prepare(`
+        SELECT a.id AS application_id, a.current_stage AS stage, a.applied_at AS used_at
         FROM applications a
         JOIN jobs j ON j.id = a.job_id
-        WHERE a.resume_profile_id = ?${campaignFilter}
-        GROUP BY a.current_stage
+        WHERE a.resume_profile_id = ?
+          AND NOT EXISTS (SELECT 1 FROM application_submissions s WHERE s.application_id = a.id)${campaignFilter}
+        ORDER BY a.applied_at, a.id
       `).all(resume.id, ...campaignParams) as Row[];
-      const applicationsByStage = Object.fromEntries(APPLICATION_STAGES.map((stage) => [stage, 0])) as Record<ApplicationStage, number>;
-      let applications = 0;
+
+      const applicationsById = new Map<string, { stage: ApplicationStage; usedAt: string }>();
       let lastUsedAt: string | null = null;
-      for (const row of rows) {
-        const stage = row.stage as ApplicationStage;
-        const count = Number(row.n);
-        applicationsByStage[stage] = count;
-        applications += count;
-        const candidate = row.last_used_at == null ? null : String(row.last_used_at);
-        if (candidate && (!lastUsedAt || candidate > lastUsedAt)) lastUsedAt = candidate;
+      for (const row of [...submissionRows, ...legacyRows]) {
+        const applicationId = String(row.application_id);
+        const usedAt = String(row.used_at);
+        applicationsById.set(applicationId, { stage: row.stage as ApplicationStage, usedAt });
+        if (!lastUsedAt || usedAt > lastUsedAt) lastUsedAt = usedAt;
       }
-      return ResumeUsageSummarySchema.parse({ resume, applications, applicationsByStage, lastUsedAt });
+      const applicationsByStage = Object.fromEntries(APPLICATION_STAGES.map((stage) => [stage, 0])) as Record<ApplicationStage, number>;
+      for (const application of applicationsById.values()) applicationsByStage[application.stage] += 1;
+
+      const revisionRows = this.db.prepare(`
+        SELECT id, revision_number, content_hash, created_at, note
+        FROM resume_revisions
+        WHERE profile_id = ?
+        ORDER BY revision_number DESC, id
+      `).all(resume.id) as Row[];
+      const revisionUsage: ResumeRevisionUsageSummary[] = revisionRows.map((revision) => {
+        const rows = this.db.prepare(`
+          SELECT s.id AS submission_id, s.application_id AS application_id, a.current_stage AS stage,
+                 s.submitted_at AS used_at, ra.kind AS artifact_kind
+          FROM application_submissions s
+          JOIN applications a ON a.id = s.application_id
+          JOIN jobs j ON j.id = a.job_id
+          LEFT JOIN resume_artifacts ra ON ra.id = s.resume_artifact_id
+          WHERE s.resume_revision_id = ?${campaignFilter}
+          ORDER BY s.submitted_at, s.id
+        `).all(String(revision.id), ...campaignParams) as Row[];
+        const revisionApplications = new Map<string, ApplicationStage>();
+        const artifactKinds = new Set<'html' | 'pdf' | 'json' | 'markdown'>();
+        let revisionLastUsedAt: string | null = null;
+        for (const row of rows) {
+          revisionApplications.set(String(row.application_id), row.stage as ApplicationStage);
+          if (row.artifact_kind) artifactKinds.add(String(row.artifact_kind) as 'html' | 'pdf' | 'json' | 'markdown');
+          const usedAt = String(row.used_at);
+          if (!revisionLastUsedAt || usedAt > revisionLastUsedAt) revisionLastUsedAt = usedAt;
+        }
+        const revisionApplicationsByStage = Object.fromEntries(APPLICATION_STAGES.map((stage) => [stage, 0])) as Record<ApplicationStage, number>;
+        for (const stage of revisionApplications.values()) revisionApplicationsByStage[stage] += 1;
+        return ResumeRevisionUsageSummarySchema.parse({
+          revisionId: revision.id,
+          revisionNumber: Number(revision.revision_number),
+          contentHash: revision.content_hash,
+          createdAt: revision.created_at,
+          note: revision.note,
+          applications: revisionApplications.size,
+          submissions: rows.length,
+          applicationsByStage: revisionApplicationsByStage,
+          lastUsedAt: revisionLastUsedAt,
+          artifactKinds: [...artifactKinds].sort(),
+        });
+      });
+
+      return ResumeUsageSummarySchema.parse({
+        resume,
+        applications: applicationsById.size,
+        submissions: submissionRows.length,
+        applicationsByStage,
+        lastUsedAt,
+        revisionUsage,
+      });
     });
-    return ListResumeUsageOutputSchema.parse({ items, total: resumePage.total });
+    return ListResumeUsageOutputSchema.parse({ items, total: allProfiles.length });
   }
 
   async listCompanyViews(input: ListCompaniesInput): Promise<ListCompaniesOutput> {

@@ -154,18 +154,19 @@ function WeeklyActivity({ snapshot, locale, messages }: { snapshot: DashboardSna
 
 function ResumePanel({ items, locale, messages }: { items: readonly ResumeUsageSummary[]; locale: Locale; messages: MessageCatalog }) {
   const copy = messages.dashboardWorkspace.resumes;
-  const rows = [...items].sort((a, b) => b.applications - a.applications || a.resume.name.localeCompare(b.resume.name)).slice(0, 6);
+  const rows = [...items].sort((a, b) => b.applications - a.applications || b.submissions - a.submissions || a.resume.name.localeCompare(b.resume.name)).slice(0, 6);
   return (
     <section className="dashboard-panel">
       <div className="dashboard-panel-heading"><h2>{copy.title}</h2></div>
       {rows.length ? (
         <div className="dashboard-compact-table-wrap">
           <table className="dashboard-compact-table">
-            <thead><tr><th>{messages.nav.resumes}</th><th>{copy.applications}</th><th>{copy.screening}</th><th>{copy.interview}</th><th>{copy.lastUsed}</th></tr></thead>
+            <thead><tr><th>{messages.nav.resumes}</th><th>{copy.applications}</th><th>{copy.submissions}</th><th>{copy.screening}</th><th>{copy.interview}</th><th>{copy.lastUsed}</th></tr></thead>
             <tbody>{rows.map((item) => (
               <tr key={item.resume.id}>
                 <td><strong>{item.resume.name}</strong></td>
                 <td>{item.applications}</td>
+                <td>{item.submissions}</td>
                 <td>{item.applicationsByStage.screening}</td>
                 <td>{item.applicationsByStage.interview}</td>
                 <td>{item.lastUsedAt ? formatDate(locale, item.lastUsedAt) : '—'}</td>

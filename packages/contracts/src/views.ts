@@ -48,6 +48,16 @@ export const CampaignRefSchema = JobSearchCampaignSchema.pick({
   status: true,
 });
 
+
+export const ResumeUsageProfileSchema = z.object({
+  id: EntityIdSchema,
+  name: z.string().trim().min(1).max(300),
+  targetRole: z.string().trim().min(1).max(300).nullable(),
+  version: z.string().trim().min(1).max(100).nullable(),
+  source: z.enum(['resume-domain', 'legacy-registry']),
+  updatedAt: IsoDateTimeSchema,
+}).strict();
+
 export const JobApplicationSummarySchema = ApplicationSchema.pick({
   id: true,
   currentStage: true,
@@ -68,7 +78,7 @@ export const JobListItemSchema = z.object({
   listingCount: z.number().int().nonnegative(),
   sourceKinds: z.array(JobSourceKindSchema),
   campaigns: z.array(CampaignRefSchema),
-  resume: ResumeProfileRefSchema.nullable(),
+  resume: ResumeUsageProfileSchema.nullable(),
   firstSeenAt: IsoDateTimeSchema,
   lastSeenAt: IsoDateTimeSchema,
 }).strict();
@@ -97,7 +107,7 @@ export const JobApplicationViewSchema = z.object({
   application: ApplicationSchema,
   timeline: z.array(ApplicationEventSchema),
   submissions: z.array(ApplicationSubmissionSchema),
-  resume: ResumeProfileRefSchema.nullable(),
+  resume: ResumeUsageProfileSchema.nullable(),
   latestEvent: ApplicationEventSchema.nullable(),
   submissionCount: z.number().int().nonnegative(),
 }).strict();
@@ -122,7 +132,7 @@ export const ApplicationBoardItemSchema = z.object({
   jobState: z.enum(JOB_STATES),
   primaryListing: JobListingSchema.nullable(),
   campaigns: z.array(CampaignRefSchema),
-  resume: ResumeProfileRefSchema.nullable(),
+  resume: ResumeUsageProfileSchema.nullable(),
   latestEvent: ApplicationEventSchema.nullable(),
   stageEnteredAt: IsoDateTimeSchema,
   submissionCount: z.number().int().nonnegative(),
@@ -147,7 +157,7 @@ export const ApplicationWorkspaceDetailSchema = z.object({
   job: JobSchema,
   primaryListing: JobListingSchema.nullable(),
   campaigns: z.array(CampaignRefSchema),
-  resume: ResumeProfileRefSchema.nullable(),
+  resume: ResumeUsageProfileSchema.nullable(),
   timeline: z.array(ApplicationEventSchema),
   submissions: z.array(ApplicationSubmissionSchema),
   latestEvent: ApplicationEventSchema.nullable(),
@@ -158,11 +168,28 @@ export const GetApplicationWorkspaceDetailInputSchema = z.object({ applicationId
 export const GetApplicationWorkspaceDetailOutputSchema = ApplicationWorkspaceDetailSchema.nullable();
 
 
-export const ResumeUsageSummarySchema = z.object({
-  resume: ResumeProfileRefSchema,
+
+
+export const ResumeRevisionUsageSummarySchema = z.object({
+  revisionId: EntityIdSchema,
+  revisionNumber: z.number().int().positive(),
+  contentHash: z.string().regex(/^[a-f0-9]{64}$/i),
+  createdAt: IsoDateTimeSchema,
+  note: z.string().nullable(),
   applications: z.number().int().nonnegative(),
+  submissions: z.number().int().nonnegative(),
   applicationsByStage: z.record(ApplicationStageSchema, z.number().int().nonnegative()),
   lastUsedAt: NullableIsoDateTimeSchema,
+  artifactKinds: z.array(z.enum(['html', 'pdf', 'json', 'markdown'])),
+}).strict();
+
+export const ResumeUsageSummarySchema = z.object({
+  resume: ResumeUsageProfileSchema,
+  applications: z.number().int().nonnegative(),
+  submissions: z.number().int().nonnegative(),
+  applicationsByStage: z.record(ApplicationStageSchema, z.number().int().nonnegative()),
+  lastUsedAt: NullableIsoDateTimeSchema,
+  revisionUsage: z.array(ResumeRevisionUsageSummarySchema),
 }).strict();
 
 export const ListResumeUsageInputSchema = PageSchema.extend({
@@ -317,6 +344,8 @@ export type ApplicationBoardItem = z.infer<typeof ApplicationBoardItemSchema>;
 export type ListApplicationBoardInput = z.input<typeof ListApplicationBoardInputSchema>;
 export type ListApplicationBoardOutput = z.output<typeof ListApplicationBoardOutputSchema>;
 export type ApplicationWorkspaceDetail = z.infer<typeof ApplicationWorkspaceDetailSchema>;
+export type ResumeUsageProfile = z.infer<typeof ResumeUsageProfileSchema>;
+export type ResumeRevisionUsageSummary = z.infer<typeof ResumeRevisionUsageSummarySchema>;
 export type ResumeUsageSummary = z.infer<typeof ResumeUsageSummarySchema>;
 export type ListResumeUsageInput = z.input<typeof ListResumeUsageInputSchema>;
 export type ListResumeUsageOutput = z.output<typeof ListResumeUsageOutputSchema>;
