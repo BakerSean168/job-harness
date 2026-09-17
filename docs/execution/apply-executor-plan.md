@@ -1040,3 +1040,7 @@ A submit button is **not** exposed directly. The UI can issue a five-minute Subm
 Authorization form submissions carry a per-render nonce. Repeated browser submits of the same rendered decision are idempotent, while an explicit revoke followed by a fresh page review can produce a new authorization rather than being trapped by the previous idempotency receipt. The Web page never receives applicant field values, browser cookies, Resume bytes or the worker bearer.
 
 The `/executors/[attemptId]` route is now an actual production-build route, not only a design placeholder. It renders the durable attempt state, immutable Resume evidence fingerprint, retained-browser handoff, latest redacted review counts/hashes, authorization history and append-only execution events. Authorization and resume remain separate server actions, and the per-render decision nonce prevents a revoked decision from accidentally reusing an older authorization receipt.
+
+## 24. Live shadow evidence
+
+Live read-only site probing is tracked in `docs/execution/live-shadow-validation.md`. The first pass confirmed why generic browser autonomy is not a safe default: Moka produced a false broad `apply` class match whose button text was actually `分享`; an isolated BOSS session was redirected to its security page; Nowcoder exposed a concrete `立即申请` entry together with login/verification controls; and Zhaopin did not finish bounded navigation. None of these probes clicked, filled, uploaded or submitted. Site promotion therefore remains evidence-driven and adapter-specific.

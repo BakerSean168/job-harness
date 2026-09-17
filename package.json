@@ -27,7 +27,8 @@
     "smoke:chatgpt-mcp": "pnpm --filter @job-harness/server smoke:chatgpt-mcp",
     "import:legacy-ledger": "pnpm --filter @job-harness/server import:legacy-ledger",
     "smoke:apply-worker:steel": "pnpm --filter @job-harness/apply-worker smoke:steel",
-    "smoke:apply-synthetic": "pnpm --filter @job-harness/apply-worker smoke:synthetic"
+    "smoke:apply-synthetic": "pnpm --filter @job-harness/apply-worker smoke:synthetic",
+    "smoke:apply-shadow-inspect": "pnpm --filter @job-harness/apply-worker smoke:shadow-inspect"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",
