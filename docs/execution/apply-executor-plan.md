@@ -1,124 +1,34 @@
-# Legacy discovery convergence and Apply Executor module
+# Apply Executor architecture and migration plan
 
-Status: implementation plan, 2026-09-17.
+Status: **R019 design frozen for implementation**, revised 2026-09-17 after open-source benchmark.
 
-## 1. Problem statement
+Benchmark: `docs/execution/apply-executor-benchmark.md`.
 
-Job Harness is now the canonical source of truth for job discovery, application state, Resume evidence and ChatGPT workflows, but two historical capability/data islands still exist:
+R018 legacy discovery convergence is complete. R019 must now turn the useful browser-automation pieces of `job-application-copilot` into a replaceable execution capability without importing its old ledger, resume ownership or monolithic browser logic into Job Harness.
 
-1. the former `job-application-copilot` central ledger contains recurring ChatGPT automation discoveries that were created after the older JSONL/application-pool import;
-2. the `job-application-copilot` browser extension + Playwright/BOSS runtime still owns the real recruiting-site interaction capability.
+## 1. Architectural goals
 
-The goal is not to create a second application product inside Job Harness. The goal is to converge durable state into Job Harness and turn the old browser automation into a replaceable **Apply Executor capability module**.
+R019 has six hard goals:
 
-## 2. Current evidence
+1. Job Harness remains the canonical Career control plane and durable source of truth.
+2. Browser execution can run on Oracle2, a user's real Chrome, or another future worker without changing Career domain code.
+3. Adding a new ATS/platform is an adapter/playbook addition, not a cross-cutting rewrite.
+4. Known sites run deterministically and model-free wherever practical; AI is a bounded fallback.
+5. External submit is at-most-once by protocol: crashes, lease expiry and network loss cannot justify a blind second click.
+6. The old `job-application-copilot` is strangled gradually behind contracts and characterization tests; no wholesale copy/paste migration.
 
-### 2.1 Job Harness production
+Non-goals for R019:
 
-Before this convergence slice, production contains 104 Jobs, 41 Applications and 41 ApplicationSubmissions. Those 41 submissions already include the known browser/email/script application history from 2026-09-02 through 2026-09-16, imported with evidence notes and Resume profile references where known.
+- turning Job Harness into a general browser-agent framework;
+- bypassing CAPTCHA, MFA, account locks or site anti-abuse controls;
+- moving browser cookies/passwords into Job Harness;
+- treating every BOSS greeting as a formal Application;
+- exposing a ChatGPT MCP tool that can directly trigger a recruiting-site side effect;
+- adopting Temporal, Skyvern or Stagehand as a mandatory runtime dependency before the lightweight architecture proves insufficient.
 
-Examples include browser-confirmed Zhaopin submissions, official/email submissions, Tencent screening state, DeepSeek, ByteDance, Xiaohongshu, Intel and other historical applications. Therefore those concrete application facts must **not** be replayed again merely because another legacy store also mentions the company.
+## 2. Problems in the previous R019 draft
 
-### 2.2 Legacy central Job Ledger
-
-`job-application-copilot/.local/job-ledger/jobs.sqlite3` currently contains:
-
-- 21 Jobs;
-- 21 JobSources;
-- 5 DiscoveryRuns;
-- 22 DiscoveryEvents;
-- 2 company-only application records whose exact role was not preserved;
-- 2 matching company application locks.
-
-The 21 Jobs are the recurring `26届AI岗位筛选` / rolling-rescan discoveries from 2026-09-14 through 2026-09-17. They include source URLs, source kinds, contact emails and, for newer entries, raw JD metadata.
-
-The two company-only application rows are DeepSeek and Tencent. They are **not** suitable for creating new Job Harness Applications because Job Harness correctly requires a concrete Job. Job Harness already contains concrete DeepSeek/Tencent application evidence, so these rows are migration evidence, not additional submissions.
-
-## 3. Canonical ownership after convergence
-
-```text
-ChatGPT / scheduled discovery
-        |
-        v
-Job Harness
-  Company
-  Job / Listing / Observation
-  Campaign / DiscoveryRun
-  Application / ApplicationSubmission
-  Resume Profile / Revision / Artifact
-  SubmissionIntent
-        |
-        | executor protocol only
-        v
-Apply Executor module
-  BOSS adapter (Playwright)
-  Generic browser-extension adapter
-  future ATS adapters
-        |
-        v
-external recruiting site
-```
-
-Rules:
-
-- Job Harness is the only durable Job/Application ledger.
-- The executor never maintains an authoritative duplicate job database.
-- The executor never chooses an arbitrary mutable Resume file; it receives an immutable Job Harness Resume Revision/Artifact when available.
-- ChatGPT/MCP may prepare a `SubmissionIntent`, but the MCP app itself continues to expose **zero external recruiting-site side-effect tools**.
-- The external executor must follow `prepare -> begin -> external side effect -> confirm/fail -> reconcile`.
-- A network/process crash after external success may retry local reconciliation, never the external submit.
-
-## 4. Legacy ledger import design
-
-### 4.1 Source is read-only
-
-The legacy SQLite database is opened read-only by a migration reader. No table in the old repository is modified during import.
-
-### 4.2 Preserve historical runs
-
-Each old `discovery_runs` row is replayed as a Job Harness `DiscoveryRun(executor=import)` under campaign `2026-grad-agent-fullstack-frontend` when that campaign exists. The original legacy run id, source/scope/counts and source database fingerprint are preserved in `contextSnapshot`.
-
-A deterministic import idempotency key is derived from the legacy run id and source fingerprint, so rerunning the same import returns/reuses the same logical migration rather than creating duplicate observations.
-
-### 4.3 Job and Listing mapping
-
-For every legacy Job:
-
-- company/title/city remain descriptive Opportunity fields;
-- strong listing identity uses source external job id when present;
-- job-specific URLs use `identityKind=url`;
-- generic careers/join pages use `identityKind=scoped`, because one careers page may publish several distinct roles;
-- source kind is mapped to Job Harness vocabulary (`official`, `boss`, `zhilian`, `liepin`, `email`, `other`, ...);
-- contact email, legacy source kind, raw JSON, graduation/experience signals and legacy IDs are preserved in `metadataSnapshot`;
-- JD/raw metadata is folded into the Job description only as migration evidence, not rewritten as an AI summary.
-
-Job Harness application services perform duplicate resolution. The importer must not direct-write SQLite or invent its own destructive `company + title + city` merge.
-
-### 4.4 State mapping
-
-- `shortlisted` -> `shortlisted`
-- `discovered` -> `discovered`
-- `closed` -> `closed`
-- `skipped` -> `ignored`
-- legacy `applied` is only mapped to Job triage `shortlisted`; an Application is created only from concrete application evidence.
-
-### 4.5 Legacy application reconciliation
-
-Concrete application facts already in Job Harness are authoritative. A company-only legacy row with no Job identity is never converted to a fake placeholder Job/Application.
-
-For this dataset:
-
-- DeepSeek legacy company-only row is considered reconciled by existing concrete DeepSeek application evidence;
-- Tencent legacy company-only row/lock is considered reconciled by existing concrete Tencent application evidence;
-- importer reports them as `applicationEvidenceReconciled` / `applicationEvidenceUnresolved` rather than creating duplicate submissions.
-
-If a future source contains an unresolved company-only application with no matching Job Harness evidence, the importer fails closed and reports it for manual reconciliation. We do not weaken the Application aggregate merely to fit a lossy legacy record.
-
-## 5. Apply Executor module
-
-### 5.1 Product boundary
-
-The existing `job-application-copilot` is not merged wholesale as a new source of truth. Its useful capabilities are extracted behind an execution boundary:
+The first draft had the right ownership direction but its executor boundary was too coarse:
 
 ```text
 ApplyExecutorPort
@@ -128,76 +38,919 @@ ApplyExecutorPort
   cancel?(intentId)
 ```
 
-The first implementation may remain a separate local process while Job Harness presents it as a module. Physical process boundaries can change later without changing the Career domain.
+`execute(intentId)` hides too much. It collapses queue ownership, worker leasing, browser session management, platform routing, form interpretation, value resolution, review, submit and outcome verification into one black box. That would make the next ATS or browser backend expensive to add and would make crash recovery hard to reason about.
 
-### 5.2 Adapters to retain
+The revised design introduces explicit layers and durable execution attempts while keeping the existing `SubmissionIntent` business lifecycle.
 
-- **BOSS Playwright adapter**: persistent browser profile, login/manual takeover and BOSS-specific form/navigation logic.
-- **Browser extension adapter**: generic ATS/form autofill and local human-in-the-loop UI.
-- **Resume upload adapter**: must obtain the selected immutable PDF Artifact from Job Harness rather than the old packaged Resume bundle.
+## 3. Ownership map
 
-The old central ledger/API is retired after migration. The old extension-side `applications[]` cache becomes a local UX cache only; confirmed submissions must write back through SubmissionIntent reconciliation.
+```text
+                              Job Harness control plane
+┌─────────────────────────────────────────────────────────────────────┐
+│ Career domain                                                        │
+│ Company / Job / Listing / Observation                                │
+│ Application / ApplicationSubmission                                  │
+│ Resume Profile / Revision / immutable Artifact                       │
+│ SubmissionIntent  <---- one intended real-world application          │
+│                                                                     │
+│ Apply orchestration                                                  │
+│ ExecutorRegistration                                                 │
+│ ExecutionAttempt / ExecutionEvent                                    │
+│ ReviewSnapshot hash / SubmitAuthorization                            │
+│ ExecutionQueuePort                                                   │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │ pull / claim / heartbeat / report
+                               v
+                        Apply Worker process
+┌─────────────────────────────────────────────────────────────────────┐
+│ Worker loop + lease                                                   │
+│ AdapterRegistry                                                       │
+│ SiteAdapter             ApplicantDataProvider                         │
+│ FormEngine              EvidenceCollector                             │
+│ BrowserBackendRegistry                                                │
+└───────────────┬──────────────────────┬───────────────────────────────┘
+                │                      │
+        BrowserBackend          Site / ATS Adapter
+     Steel / local CDP /       BOSS / Workday / Moka /
+     extension bridge          Greenhouse / generic ATS
+                │                      │
+                └──────────────┬───────┘
+                               v
+                       external recruiting site
+```
 
-### 5.3 Job Harness Web module
+### 3.1 Durable ownership
 
-Add an `自动投递 / Executor` workspace that projects, rather than duplicates, Job Harness state:
+Job Harness owns:
 
-- executor online/ready/login-required state;
-- adapter capabilities and supported sites;
-- pending/running/manual-review SubmissionIntents;
-- target Job/Listing and immutable Resume evidence;
-- execution timestamps and sanitized evidence;
-- explicit start/cancel/retry-local-reconcile controls;
-- safety policy (manual checkpoint, allowlist, per-site throttling).
+- Job/Listing identity and target URL;
+- immutable Resume Revision/Artifact identity and hash;
+- SubmissionIntent and its confirmed external evidence;
+- execution attempts, lease state and sanitized progress events;
+- review fingerprint and submit authorization state;
+- final Application/ApplicationSubmission reconciliation;
+- user-visible executor status projection and audit timeline.
 
-The page does not become a second queue database. `SubmissionIntent` remains the queue/outbox truth.
+Job Harness does **not** own:
 
-### 5.4 Safety and reliability invariants
+- browser cookies or raw session storage;
+- recruiting-site passwords;
+- CAPTCHA/MFA secrets;
+- a second copy of the old Copilot job ledger;
+- arbitrary mutable Resume PDFs inside the executor.
 
-1. Never execute without a persisted `SubmissionIntent`.
-2. Never re-click submit merely because MCP or Job Harness temporarily disconnected.
-3. Check intent state before every external action.
-4. `external_confirmed`, `persistence_pending`, `committed` are terminal with respect to the external submit action.
-5. Resume evidence is frozen before `begin` where the site requires a resume.
-6. Human login/CAPTCHA/manual review is represented explicitly; bypass is not attempted.
-7. Executor logs must not persist browser cookies, passwords or bearer tokens.
+Browser/session credentials remain in the browser backend or OS-local secret store. Candidate application values may be supplied by a local `ApplicantDataProvider`; Job Harness stores field keys/hashes and provenance as needed, not raw secrets merely for executor convenience.
 
-## 6. Delivery plan
+## 4. Core domain split: Intent versus Attempt
 
-### JH-R018 — legacy ledger convergence
+### 4.1 `SubmissionIntent` remains the business aggregate
 
-- add typed read-only legacy SQLite reader/importer;
-- unit-test generic careers-page identity and strong listing identity;
-- unit-test exact rerun idempotency;
-- dry-run against a copy of production;
-- production backup;
-- migrate the 5 runs / 21 jobs through application ports;
-- reconcile the two company-only application facts against existing concrete Applications;
-- verify counts, FK/integrity and rerun no-op behavior;
-- freeze a migration report and retire the old ledger from scheduled workflows.
+Existing schema-v7 `SubmissionIntent` continues to answer:
 
-### JH-R019 — Apply Executor module
+> “Do we intend to submit this specific Job/Listing with this Resume evidence, and what is the externally verified result?”
 
-- define executor capability contract and status projection;
-- add Job Harness executor workspace backed by SubmissionIntent;
-- create compatibility adapter for the existing `job-application-copilot` browser runtime without importing its ledger/resume ownership;
-- change executor input to Job Harness JobListing + Resume Artifact + SubmissionIntent;
-- change success/failure writeback to SubmissionIntent confirm/fail;
-- run one non-destructive readiness smoke, then a user-authorized real-site end-to-end proof;
-- retire old `/api/ledger/*` writes and duplicate resume bundle as authoritative paths after proof.
+Its current lifecycle remains the authoritative external-effect lifecycle:
 
-## 7. Completion criteria
+```text
+planned
+  -> external_in_progress
+  -> external_confirmed
+  -> committed
 
-Convergence is complete when:
+recovery:
+  persistence_pending
+  external_failed
+  needs_manual_review
+```
 
-- all recoverable recurring-discovery Jobs are represented in Job Harness with source evidence and historical DiscoveryRun provenance;
-- no historical concrete Application is duplicated;
-- ambiguous legacy company-only application rows are either reconciled to existing evidence or surfaced for manual review;
-- the old central ledger is no longer read by ChatGPT automation or the browser executor;
-- the Apply Executor can consume a Job Harness SubmissionIntent and report external evidence back without direct SQLite access;
-- Job Harness remains the sole durable Career truth after restart and backup/restore.
+Do not turn this into a worker queue state machine.
 
-## 8. R018 production evidence — 2026-09-17
+### 4.2 New `ExecutionAttempt` is technical execution state
+
+One intent may have more than one *technical* attempt because a browser can crash before reaching the irreversible boundary. This does **not** permit more than one external submit.
+
+Proposed state:
+
+```text
+ExecutionAttempt
+  id
+  intentId
+  executorId
+  adapterId
+  adapterVersion
+  browserBackend
+  executionMode: fill_only | review_then_submit | auto_submit
+  state: queued | claimed | running | waiting_for_user | completed | failed | cancelled | abandoned
+  leaseOwner
+  leaseExpiresAt
+  lastHeartbeatAt
+  checkpoint
+  externalEffectState: not_crossed | crossed | uncertain
+  policySnapshotJson
+  bundleHash
+  reviewHash?
+  submitAuthorizationId?
+  errorCode?
+  errorSummary?
+  startedAt?
+  completedAt?
+  createdAt
+  updatedAt
+```
+
+`ExecutionEvent` is append-oriented:
+
+```text
+ExecutionEvent
+  id
+  attemptId
+  sequence
+  type
+  occurredAt
+  checkpoint?
+  payloadJson   # sanitized; no cookies/passwords/raw resume values
+```
+
+Representative event types:
+
+- `attempt_claimed`
+- `browser_session_ready`
+- `listing_opened`
+- `form_inspected`
+- `fields_filled`
+- `resume_attached`
+- `validation_failed`
+- `review_ready`
+- `human_action_required`
+- `submit_authorized`
+- `submit_triggered`
+- `external_success_observed`
+- `external_failure_observed`
+- `external_result_uncertain`
+- `attempt_completed`
+
+### 4.3 Why Attempts are separate
+
+This separation fixes several problems:
+
+- executor crashes no longer mutate the business meaning of SubmissionIntent;
+- multiple workers can be coordinated with a lease without adding worker states to Career domain enums;
+- adapter/browser versions are audit history, not intent identity;
+- a pre-submit technical attempt can be safely replaced while a post-submit uncertain attempt cannot;
+- Web UI can show operational progress without deriving it from generic application notes.
+
+## 5. Pull worker, leases and recovery
+
+Job Harness is the control plane. Executors are workers that **poll** for work rather than exposing arbitrary inbound HTTP endpoints.
+
+This follows the durable-worker model used by systems such as Temporal while remaining lightweight in v1.
+
+### 5.1 Worker protocol
+
+```text
+worker starts
+  -> register executor descriptor
+  -> heartbeat capabilities/status
+  -> claim compatible queued attempt
+  -> receive attempt-scoped capability token
+  -> heartbeat lease + checkpoint while running
+  -> report waiting/completed/failure/evidence
+  -> claim next work
+```
+
+Advantages:
+
+- a Windows/local-browser worker can sit behind NAT without an inbound route;
+- Oracle2 Steel and local Chrome workers can coexist;
+- backpressure is natural: a worker polls only when it has capacity;
+- worker outage leaves durable queued state in Job Harness;
+- task routing can use adapter/browser capabilities;
+- adding a Temporal-backed `ExecutionQueuePort` later does not change adapter contracts.
+
+### 5.2 Lease rules
+
+Recommended initial defaults, configuration-backed rather than hard-coded:
+
+- lease TTL: 90 seconds;
+- worker heartbeat: 20 seconds;
+- executor considered stale after 60 seconds without registration heartbeat;
+- one active lease per Attempt;
+- one active Attempt per SubmissionIntent unless the previous attempt is terminal or explicitly abandoned by recovery policy.
+
+Lease expiry behavior is controlled by `externalEffectState`:
+
+- `not_crossed`: attempt may be abandoned and safely requeued if the adapter declares its pre-submit steps resumable;
+- `crossed`: never automatically re-dispatch the external submit;
+- `uncertain`: force `SubmissionIntent.needs_manual_review` or adapter-specific evidence recovery; no new submit authorization.
+
+A queue retry is therefore **not** synonymous with retrying the recruiting-site submit.
+
+## 6. Executor registration and capability routing
+
+`ExecutorRegistration` is operational metadata, not Career business truth.
+
+Descriptor:
+
+```text
+executorId
+name
+version
+hostLabel?
+status: ready | busy | degraded | login_required | human_action_required | offline
+browserBackends[]
+adapterIds[]
+executionModes[]
+capabilities:
+  resumeUpload
+  humanControl
+  persistentSession
+  screenshots
+  semanticMapping
+maxConcurrency
+lastHeartbeatAt
+metadata   # sanitized runtime info only
+```
+
+Routing uses required capabilities from the Attempt plus user preference. It must fail closed when no compatible worker is ready.
+
+The old `SubmissionIntent.executor` enum remains backward-compatible provenance/request metadata. Actual worker identity lives on `ExecutionAttempt.executorId`; do not overload the old enum with concrete machine identities.
+
+## 7. Browser backend is independent from site adapter
+
+The historical Copilot already has useful `SteelProvider` and `LocalCdpProvider` abstractions. Those are extracted/refined, not rewritten into ATS code.
+
+### 7.1 `BrowserBackendPort`
+
+Conceptual contract:
+
+```ts
+interface BrowserBackendPort {
+  readonly id: string;
+  describe(): BrowserBackendDescriptor;
+  acquire(input: BrowserSessionRequest): Promise<BrowserSessionPort>;
+}
+
+interface BrowserSessionPort {
+  readonly sessionId: string;
+  readonly humanControlUrl?: string;
+  driver(): Promise<BrowserDriverPort>;
+  persist(): Promise<void>;
+  release(): Promise<void>;
+}
+```
+
+Initial implementations:
+
+- `steel` — Oracle2 managed/persistent browser sessions;
+- `local-cdp` — user-owned Chrome via CDP;
+- later `extension` — normal Chrome via a local bridge/native messaging.
+
+The WebExtension path should not require every site adapter to know Chrome extension message formats. Its transport implements the same browser-driver capability surface.
+
+### 7.2 Deterministic driver plus optional semantic layer
+
+Keep two interfaces rather than making every browser action an LLM call:
+
+```text
+BrowserDriverPort
+  navigate / locate / read / fill / select / click / upload / screenshot / wait
+
+SemanticBrowserPort?   # optional capability
+  observe / classify / extract / actAtomic
+```
+
+Known adapters use `BrowserDriverPort`. Semantic operations are only fallback tools.
+
+## 8. Site adapter protocol
+
+Replace opaque `execute(intentId)` with an inspectable lifecycle.
+
+```ts
+interface ApplySiteAdapter {
+  readonly id: string;
+  readonly version: string;
+  readonly capabilities: AdapterCapabilities;
+
+  probe(ctx: ApplyContext, browser: BrowserDriverPort): Promise<AdapterProbe>;
+  inspect(ctx: ApplyContext, browser: BrowserDriverPort): Promise<FormIR>;
+  fill(ctx: ApplyContext, browser: BrowserDriverPort, plan: FillPlan): Promise<FillReport>;
+  validate(ctx: ApplyContext, browser: BrowserDriverPort): Promise<ReviewSnapshot>;
+  submit(ctx: ApplyContext, browser: BrowserDriverPort, permit: SubmitAuthorization): Promise<SubmitObservation>;
+  verify(ctx: ApplyContext, browser: BrowserDriverPort, observation: SubmitObservation): Promise<SubmissionEvidence>;
+  recover?(ctx: ApplyContext, browser: BrowserDriverPort, attempt: AttemptSnapshot): Promise<RecoveryDecision>;
+}
+```
+
+Important invariants:
+
+- `probe`, `inspect`, `validate`, and `verify` are observational;
+- `fill` may mutate form fields but must not cross the final submit boundary;
+- only `submit` may trigger the real application side effect;
+- `submit` requires a valid one-time authorization;
+- `verify` must not convert absence of an error into success;
+- adapter code never writes Career SQLite directly.
+
+### 8.1 Adapter routing ladder
+
+```text
+1. exact deterministic site/ATS adapter
+2. validated ATS playbook
+3. generic deterministic form engine
+4. bounded semantic field mapper
+5. human handoff
+```
+
+No full autonomous browser-agent loop is the default path.
+
+## 9. Form engine: pure IR, plans and value separation
+
+The largest maintainability improvement is to stop mixing DOM details with candidate data.
+
+### 9.1 Pure core
+
+New DOM-free concepts:
+
+```text
+FormIR
+  pages[]
+  sections[]
+  fields[]
+
+FieldIR
+  id
+  type
+  label
+  description?
+  required
+  options[]
+  semanticHints[]
+  sensitivityHint?
+
+FieldBinding
+  fieldId
+  applicantKey
+  confidence
+  source: playbook | rule | semantic | user
+
+FillInstruction
+  fieldId
+  applicantKey
+  method
+  expectedReadBack
+
+FillPlan
+  bindings[]
+  pending[]
+  prohibited[]
+```
+
+CI must enforce that the pure form/planning package does not import `document`, `window`, `HTMLElement`, Playwright or Steel.
+
+### 9.2 Applicant data provider
+
+Candidate values do not belong inside SiteAdapter.
+
+```ts
+interface ApplicantDataProviderPort {
+  catalog(): Promise<ApplicantFieldCatalog>;       // keys/types/sensitivity, no values
+  resolve(keys: readonly ApplicantFieldKey[]): Promise<ResolvedApplicantValues>;
+}
+```
+
+Initial providers may include:
+
+- Resume-derived facts from Job Harness;
+- compatibility adapter over the existing local extension Profile V2 for non-resume application fields;
+- future encrypted/private application-answer store.
+
+The compatibility provider is intentionally temporary. It lets us migrate execution without pretending the old browser profile bundle is a new Job Harness domain.
+
+### 9.3 Privacy and sensitive values
+
+Field mapping and value resolution are separate:
+
+```text
+page metadata + field catalog names
+        -> matcher / optional AI
+        -> applicant field keys
+        -> local deterministic value resolver
+        -> browser fill
+```
+
+The optional AI mapper receives labels/options and canonical field keys, **not the values** for protected fields.
+
+Work authorization, sponsorship, legal attestations, EEO/self-identification, identity-document fields and other configured sensitive categories are literal-only. They are never generated from an LLM. Unknown required sensitive fields become `waiting_for_user`.
+
+## 10. ATS playbooks versus custom adapters
+
+Do not create a large TypeScript class for every minor ATS variation.
+
+Introduce versioned `ATSPlaybook` data for repeatable form mappings/actions:
+
+```text
+playbook id/version
+host/detection rules
+field selectors/signatures
+page transitions
+fill methods
+option mappings
+resume upload rule
+validation rules
+confirmation signals
+fixture version
+```
+
+Use a code adapter only when the site has a meaningful state machine or behavior that cannot be expressed safely as data, e.g. Workday account/application stages or BOSS platform-specific flows.
+
+Playbook tests run against sanitized fixtures. A playbook is not promoted to autonomous submit capability merely because structural fixture tests pass; real-site verification remains separate evidence.
+
+## 11. Determinism ladder and AI boundary
+
+Use the same rule throughout R019:
+
+```text
+known selector/state machine       -> deterministic code
+known ATS with variations          -> playbook
+unknown field semantics            -> bounded semantic mapper
+unknown flow / unsupported control -> human
+```
+
+If Stagehand or another semantic browser layer is added later, it implements `SemanticBrowserPort`; it does not become the application-domain orchestrator.
+
+AI may:
+
+- classify a page field into a canonical applicant key;
+- extract a bounded page signal;
+- propose a free-text answer grounded in Resume/JD facts when policy allows.
+
+AI may not:
+
+- create a new legal/personal fact;
+- choose a different Resume Artifact after the Attempt bundle is frozen;
+- approve its own changed Review unless policy explicitly delegates that gate;
+- click submit outside the SubmitAuthorization path;
+- convert an ambiguous post-submit page into success.
+
+## 12. Frozen Apply Bundle
+
+Before a worker starts filling, Job Harness produces a stateless immutable `ApplyBundle`:
+
+```text
+intentId
+attemptId
+jobId
+listingId
+listingUrl
+company/title/city snapshot
+resumeProfileId?
+resumeRevisionId?
+resumeArtifact:
+  id
+  sha256
+  byteSize
+  mimeType
+  short-lived download grant
+applicantCatalogVersion
+answerSetVersion/hash?          # when a durable answer store exists
+policySnapshot
+createdAt
+bundleHash
+```
+
+The executor never asks “what is the latest Resume now?” after the bundle is created. If the user wants a different Resume, create/replace the planned Intent/Attempt before submission rather than mutating evidence underneath a running attempt.
+
+### 12.1 Artifact access
+
+Do not give a browser extension the global `JOB_HARNESS_AUTH_TOKEN`.
+
+Claiming a task returns an attempt-scoped, expiring capability token. That token may access only:
+
+- its Attempt heartbeat/report endpoints;
+- the exact Resume Artifact bound to the ApplyBundle;
+- the exact completion/failure endpoints for that Attempt.
+
+It cannot enumerate all Resume data or mutate arbitrary Jobs/Applications.
+
+## 13. Two-gate external-submit protocol
+
+R017 already provides the first durable gate: `SubmissionIntent.prepare` freezes the intended target/evidence before browser work.
+
+R019 adds a second, later submit gate.
+
+### 13.1 Gate A — preflight / intent
+
+Must exist before browser work:
+
+- concrete Job and Listing;
+- selected immutable Resume evidence when required;
+- execution policy/mode;
+- planned external target URL;
+- ApplyBundle hash.
+
+### 13.2 Review Snapshot
+
+After filling but before Submit, adapter validation creates a redacted snapshot:
+
+```text
+required fields satisfied/pending
+canonical field keys used
+hashed read-back values for protected/private fields
+non-sensitive visible values when policy permits
+uploaded Artifact id + content hash
+current URL / ATS stage
+validation findings
+page/form fingerprint
+adapter id/version
+bundleHash
+```
+
+Raw passwords, cookies, bearer tokens and unnecessary PII are never included.
+
+### 13.3 Gate B — one-time `SubmitAuthorization`
+
+Authorization binds at minimum:
+
+```text
+intentId
+attemptId
+listing identity/url hash
+bundleHash
+resume artifact hash
+reviewHash
+policyHash
+expiresAt
+oneTimeAuthorizationId
+```
+
+Authorization can be issued by:
+
+- human review in `review_then_submit` mode;
+- deterministic policy in `auto_submit` mode only for an adapter/site explicitly enabled by the user.
+
+Immediately before the adapter triggers submit, Job Harness atomically consumes the authorization and marks the Attempt `externalEffectState=crossed` / intent in progress. A consumed authorization cannot be replayed.
+
+If the click occurs and verification is inconclusive, outcome is **uncertain**, not retryable failure. No fresh submit authorization is issued automatically.
+
+## 14. Evidence model
+
+A successful external submission requires affirmative evidence, for example:
+
+- explicit confirmation page text + URL;
+- ATS application/reference ID;
+- specific success network response when stable and safe to observe;
+- site status page showing the application;
+- user confirmation tied to the Attempt;
+- optional sanitized screenshot artifact/hash.
+
+`SubmissionEvidence` is typed and sanitized. “No visible error” is not evidence.
+
+Initial R019 can continue storing structured evidence in the existing `SubmissionIntent.externalEvidence`. A generic content-addressed evidence-artifact store for screenshots can be added after the protocol is proven; it is not required to block the first cut.
+
+## 15. BOSS semantics must be split
+
+The historical project currently mixes:
+
+- BOSS discovery/search;
+- job scoring/screening;
+- first greeting;
+- resume sending/chat behavior;
+- old ledger writes.
+
+R019 must not call all of that “Apply Executor”.
+
+Target split:
+
+```text
+BOSS Discovery Adapter
+  search / inspect JD / scoring input
+  -> DiscoveryRun / JobObservation / JobAssessment later
+
+BOSS Outreach capability
+  greeting/chat/resume send
+  -> not automatically an ApplicationSubmission
+
+BOSS Application Adapter
+  only when the platform exposes concrete submit/application semantics
+  -> SubmissionIntent protocol
+```
+
+If a greeting + resume action is the platform-specific application equivalent, the adapter must still verify a concrete platform state before Job Harness confirms an ApplicationSubmission. A greeting event alone does not count.
+
+## 16. Proposed monorepo structure
+
+Do not dump legacy files under `apps/web` or `apps/server`.
+
+```text
+packages/
+  apply-contracts/          Zod DTOs: executor, attempt, FormIR, FillPlan, review/evidence
+  apply-core/               pure DOM-free planning, routing policy, state helpers
+  apply-runtime/            worker orchestration, adapter registry, queue/lease ports
+  apply-browser/            BrowserBackend ports + Steel/local-CDP/extension connectors
+  apply-adapters/           adapter SPI, ATS playbook interpreter, site adapters
+
+apps/
+  apply-worker/             poll/claim/heartbeat/execute composition root
+  server/                   control-plane REST, persistence composition
+  web/                      Executor/Automation workspace projection
+```
+
+The exact package count may be collapsed if implementation proves two packages have no independent boundary, but dependencies must flow inward:
+
+```text
+apply-core <- apply-contracts
+apply-runtime -> core/contracts ports
+apply-browser -> browser infrastructure only
+apply-adapters -> core/contracts + browser ports
+apply-worker -> composition of runtime + adapters + browser + REST client
+```
+
+Forbidden dependencies should be added to `check:boundaries`, including:
+
+- pure `apply-core` importing DOM/Playwright/Steel;
+- adapters importing SQLite implementation;
+- browser backends importing Career persistence;
+- Web code importing legacy Copilot runtime files.
+
+## 17. REST/control surface
+
+Executor control plane is REST, not MCP.
+
+Suggested endpoints (names may be normalized during contract implementation):
+
+```text
+GET  /api/v1/executors
+POST /api/v1/executors/register
+POST /api/v1/executors/:executorId/heartbeat
+
+GET  /api/v1/execution-attempts
+GET  /api/v1/execution-attempts/:attemptId
+POST /api/v1/execution-attempts                 # dispatch from prepared intent
+POST /api/v1/execution-attempts/claim
+POST /api/v1/execution-attempts/:id/heartbeat
+POST /api/v1/execution-attempts/:id/waiting
+POST /api/v1/execution-attempts/:id/review
+POST /api/v1/execution-attempts/:id/authorize-submit
+POST /api/v1/execution-attempts/:id/complete
+POST /api/v1/execution-attempts/:id/fail
+POST /api/v1/execution-attempts/:id/cancel
+
+GET  /api/v1/execution-attempts/:id/resume-artifact
+```
+
+The ChatGPT custom MCP app keeps its current zero-external-side-effect property. It may inspect Intent/Attempt state and prepare durable intent data, but no MCP tool is added whose invocation dispatches or submits a real application.
+
+## 18. Web workspace
+
+Add a `投递自动化 / Executors` workspace as a projection over durable Intent/Attempt state.
+
+It should show:
+
+- executor cards: status, version, host label, browser backend, supported adapters, human-control URL when active;
+- queues: planned/queued, running, waiting for user, uncertain/manual review, recently completed;
+- target Job/Listing and exact Resume Revision/Artifact;
+- execution mode and policy snapshot;
+- current checkpoint, lease/heartbeat age and adapter/browser version;
+- redacted Review summary;
+- sanitized evidence and final reconciliation state.
+
+Controls:
+
+- dispatch a prepared Intent;
+- cancel before the external boundary;
+- open human-control browser;
+- acknowledge/resume after human action;
+- approve Review / issue submit authorization;
+- retry **local reconciliation** after external confirmation;
+- never show a generic “retry submit” button once `externalEffectState` is `crossed` or `uncertain`.
+
+## 19. Migration strategy: strangler, not copy/paste
+
+### Phase R019-A — characterize and freeze
+
+No behavior cutover yet.
+
+- freeze current legacy commit/hash and runtime inventory;
+- add characterization tests for existing field scan/fill, resume upload, Steel session persistence and BOSS auth/search behavior;
+- record upstream MIT provenance/NOTICE for OpenJobAutofill-derived code;
+- explicitly label old ledger/profile-bundle/application-cache paths as compatibility ownership only.
+
+### Phase R019-B — control-plane contracts
+
+- SQLite schema v8 for ExecutorRegistration, ExecutionAttempt and ExecutionEvent;
+- contracts/application service/REST/client;
+- lease CAS rules and crash/recovery tests;
+- Web Executor workspace reads real state but no live browser worker yet;
+- add boundary checks.
+
+### Phase R019-C — worker and browser runtime extraction
+
+- create `apps/apply-worker`;
+- refactor existing SteelProvider and LocalCdpProvider behavior behind BrowserBackendPort;
+- worker register/claim/heartbeat;
+- non-destructive browser readiness proof;
+- no submit capability yet.
+
+### Phase R019-D — form engine and compatibility data provider
+
+- extract/rebuild legacy scanner/filler behind FormIR/FillPlan contracts;
+- use characterization fixtures to prove behavior parity rather than copying `content.js` wholesale;
+- retain MIT notice for code that is genuinely moved/derived;
+- add compatibility ApplicantDataProvider over current Profile V2;
+- Resume PDF is fetched only from immutable Job Harness Artifact grant;
+- default execution mode `fill_only`.
+
+### Phase R019-E — adapter/playbook registry
+
+- generic ATS playbook interpreter;
+- first deterministic adapters chosen from actual user traffic, not an artificial list;
+- BOSS-specific code split into discovery/outreach/application semantics;
+- every adapter/playbook has sanitized fixture contract tests;
+- unknown site falls back to generic mapper or human, never silent submit.
+
+### Phase R019-F — supervised real submit
+
+- ReviewSnapshot + hash;
+- one-time SubmitAuthorization;
+- `review_then_submit` mode;
+- typed success/failed/uncertain evidence;
+- crash matrix proves no duplicate submit;
+- one explicitly user-authorized live end-to-end proof.
+
+### Phase R019-G — optional autonomous policy
+
+Only after supervised evidence is healthy:
+
+- per-site opt-in `auto_submit` policy;
+- no global auto-submit default;
+- hard stops remain for CAPTCHA/MFA/account lock/new sensitive required answers;
+- adapter must be explicitly marked `autonomousSubmitVerified` from real-site evidence.
+
+### Phase R019-H — legacy retirement
+
+After cutover proof:
+
+- extension `applications[]` becomes local display/cache only or is removed;
+- remove writes to `/api/ledger/*`;
+- old Job Ledger stays archived/read-only, not live runtime state;
+- packaged Resume bundle no longer controls uploads;
+- retire old BOSS companion endpoints that duplicate Job Harness/worker contracts;
+- archive `job-application-copilot` repository/runtime once the final needed browser components have a tested replacement.
+
+## 20. Testing and acceptance gates
+
+### 20.1 Pure unit/contract tests
+
+- Attempt state machine and lease CAS;
+- queue claim compatibility routing;
+- one active Attempt per Intent invariant;
+- submit authorization hash binding/expiry/one-time consumption;
+- sensitive field policy;
+- FormIR classifier and FillPlan builder;
+- adapter registry conflict/fail-closed rules.
+
+### 20.2 Browser fixture tests
+
+For each adapter/playbook:
+
+- inspect sanitized HTML fixture;
+- build canonical FormIR;
+- fill synthetic profile;
+- read back actual DOM state;
+- attach synthetic PDF and verify file hash/name policy;
+- stop at Review by default;
+- verify confirmation fixture separately.
+
+Fixture evidence must be labeled as fixture evidence, never live reliability.
+
+### 20.3 Browser backend contract tests
+
+Same test contract for Steel/local-CDP/extension backend where supported:
+
+- session acquisition;
+- persistent login state contract;
+- navigation/read/fill/upload primitives;
+- human-control handoff;
+- release without credential/log leakage.
+
+### 20.4 Crash/recovery matrix
+
+Must explicitly test:
+
+1. worker dies before browser acquisition;
+2. dies after listing open;
+3. dies after form fill but before Review;
+4. dies after Review before authorization;
+5. loses Job Harness connection after authorization but before click;
+6. dies immediately after submit click;
+7. external success occurs, then local Application persistence fails;
+8. lease expires while browser is alive;
+9. duplicate worker attempts to claim the same task;
+10. restart with stale `external_in_progress` state.
+
+Required result: no path performs a second external submit solely because of technical retry/restart.
+
+### 20.5 Security/privacy tests
+
+- main Job Harness bearer never enters extension page context;
+- attempt token cannot read another Attempt or arbitrary Resume Artifact;
+- event/evidence redaction rejects cookies/password/token-looking values;
+- semantic mapper fixtures contain field labels/keys but not protected values;
+- legal/EEO/work-auth values cannot be produced by AI path;
+- no raw browser session context is persisted in Job Harness.
+
+## 21. Observability
+
+Metrics are projections, not new truth:
+
+- attempts by adapter/backend/outcome;
+- Review arrival rate;
+- verified submit rate;
+- uncertain-submit count;
+- human-handoff rate/reason;
+- selector/playbook drift failures;
+- average execution duration;
+- lease expiration count;
+- model-call count per attempt;
+- duplicate-submit count (target: zero);
+- verified submission evidence coverage (target: 100% for committed automated submissions).
+
+Do not log candidate field values merely to improve observability.
+
+## 22. Dependency and license policy
+
+Initial runtime choice:
+
+- Playwright: deterministic browser primitive already in use;
+- Steel: initial Oracle2 session backend already deployed;
+- OpenJobAutofill-derived MIT code: may be refactored with attribution preserved;
+- Stagehand/open-browser-use: optional future semantic/backend implementations, not core dependencies;
+- Temporal: architectural upgrade path, not required in R019 v1;
+- Autograph GPL, AIHawk/Skyvern AGPL: architecture reference only; no code vendoring into the MIT core.
+
+Before any external code is copied rather than merely studied, record exact upstream path/commit/license in a Job Harness NOTICE/provenance file.
+
+## 23. Concrete migration map from the existing Copilot
+
+Historical component -> target:
+
+```text
+scripts/browser/steel-provider.mjs
+  -> apply-browser SteelBackend
+
+scripts/browser/local-cdp-provider.mjs
+  -> apply-browser LocalCdpBackend
+
+scripts/browser/browser-provider.mjs
+  -> BrowserBackendRegistry
+
+scripts/browser/boss-adapter.mjs
+  -> split BOSS discovery/auth primitives and later BOSS Apply adapter
+
+scripts/boss-browser-screen.mjs
+  -> Discovery executor / screener, NOT generic Apply runtime
+
+src/content.js form scan/write behavior
+  -> Form scanner/filler adapters behind FormIR + characterization tests
+
+src/background.js mapFields/analyzePageStructure
+  -> bounded SemanticFieldMapper compatibility implementation
+
+src/background.js profile bundle / active resume file
+  -> ApplicantDataProvider compatibility + Job Harness immutable Artifact grant
+
+src/background.js applications[]
+  -> remove as authority; optional local UI cache only
+
+syncCopilotApplicationToLedger()
+  -> remove; execution completion reports through SubmissionIntent/Attempt API
+
+scripts/lib/job-ledger.mjs
+  -> already converged by R018; archive/read-only only
+
+boss-companion /api/ledger/*
+  -> retire after R019 cutover
+
+private-channel update/package mechanism
+  -> keep only if needed for extension distribution; not part of Career domain
+```
+
+## 24. Completion criteria
+
+R019 is complete only when all are true:
+
+- executor/browser/site/data-provider boundaries exist as typed contracts;
+- at least one Steel-backed and one user-browser-backed execution path can reach Review through the same Attempt protocol;
+- immutable Job Harness Resume Artifact is used for upload;
+- a real supervised submission completes through Review -> one-time authorization -> submit -> explicit evidence -> ApplicationSubmission;
+- crash tests prove no duplicate external submission;
+- MCP still exposes zero recruiting-site side-effect tools;
+- old ledger writes and old resume-bundle authority are disabled;
+- BOSS discovery/greeting is not silently counted as formal application without concrete evidence;
+- all migrated/copied code has explicit provenance/license treatment;
+- production backup/restart preserves Intent/Attempt/Event/reconciliation state;
+- the old Copilot can be archived without losing Career truth.
+
+## 25. R018 production evidence — 2026-09-17
 
 R018 is complete. The read-only source fingerprint was `185a57cff05ad6bdd5633bac016211db329e96a2eda1029fca4926442368218f` and contained **21 Jobs / 5 DiscoveryRuns / 22 DiscoveryEvents / 2 company-only application rows / 2 legacy company locks**.
 
