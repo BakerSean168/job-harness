@@ -153,3 +153,12 @@ Only after cutover evidence:
 - mark old repository runtime as retired/read-only;
 - keep research/interview-prep/history where appropriate instead of copying it into production packages;
 - update navigation/documentation to one Job Harness Resume entry point.
+
+### R010 evidence — 2026-09-17
+
+The standalone Resume runtimes on **Oracle2 (`4173`)** and **GCP Dev (`20400`)** were retired only after R009 production and restore evidence was complete. Before shutdown, each dirty repository/runtime was frozen into a private retirement archive containing the working tree (including untracked runtime/research material but excluding `.git`/`node_modules`), full Git bundle, binary tracked/index patches, Git/status metadata, the active systemd unit, an internal SHA-256 manifest, and the exact dirty working tree retained in place. Both archives passed internal checksum verification, Git bundle verification and nested working-tree archive verification, then were copied to `myonedrive:/ServerBackups/Oracle2/Retired/Resume/`:
+
+- `resume-oracle2-retired-20260917T051456Z.tar.gz` — SHA-256 `e59f9bbf3080543f726b844e94a4e99c420db6d1ad83cef0089f23c8ed9133ab`;
+- `resume-gcp-dev-retired-20260917T051445Z.tar.gz` — SHA-256 `dec0990a1028b877e65e97559b2693643716e70523f42ad4541484731893ed71`.
+
+Neither old dirty repository was normalized, rebased or overwritten. Their runtime units were disabled, removed from systemd discovery by renaming the local unit to a dated retired file, and the Tailscale Serve routes for `4173`/`20400` were removed; both old listeners are absent. Infrastructure registry state now marks `resume` as `desired_state: retired`, keeps the GCP unit only as `.service.retired` rollback documentation, and points the canonical Resume entry to **Job Harness `/resumes`**. Research, interview-prep and historical source remain in the preserved old repositories/archives rather than becoming production package dependencies. Job Harness `renderer`, `server` and `web` remained healthy and `/resumes` remained reachable after retirement.

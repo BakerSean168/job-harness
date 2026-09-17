@@ -1,6 +1,6 @@
 # Resume Context
 
-Job Harness absorbs the runtime responsibilities of the former standalone Resume Harness while keeping Resume as its own bounded context.
+Job Harness now owns the production runtime responsibilities of the retired standalone Resume Harness while keeping Resume as its own bounded context. The canonical UI entry is `/resumes`; the former Oracle2/GCP Resume Studio services are archived rollback/history sources only.
 
 The product goal is one career workspace with two explicit owners:
 
@@ -27,7 +27,7 @@ A mutable Profile describes how to assemble a resume. A Revision freezes the exa
 
 - `open-source-benchmark.md` — external design references and explicit takeaways.
 - `domain-model-v2.md` — canonical Resume domain, invariants, ownership and lifecycle.
-- `migration-plan.md` — phased migration from the standalone Resume repository.
+- `migration-plan.md` — completed JH-R000..R010 migration and retirement evidence from the standalone Resume repository.
 - `baseline-2026-09-17.md` — verified source baseline for the migration.
 
 ## Non-goals
