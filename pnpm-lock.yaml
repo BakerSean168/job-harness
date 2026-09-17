@@ -24,6 +24,22 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@24.13.5)(jsdom@27.0.0)(tsx@4.23.13)
 
+  apps/apply-worker:
+    dependencies:
+      '@job-harness/apply-browser':
+        specifier: workspace:*
+        version: link:../../packages/apply-browser
+      '@job-harness/apply-contracts':
+        specifier: workspace:*
+        version: link:../../packages/apply-contracts
+      '@job-harness/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+    devDependencies:
+      tsx:
+        specifier: ^4.20.5
+        version: 4.23.13
+
   apps/resume-renderer-service:
     dependencies:
       playwright-core:
@@ -139,6 +155,12 @@ importers:
       '@job-harness/domain':
         specifier: workspace:*
         version: link:../domain
+
+  packages/apply-browser:
+    dependencies:
+      playwright:
+        specifier: 1.55.0
+        version: 1.55.0
 
   packages/apply-contracts:
     dependencies:

@@ -117,3 +117,44 @@ describe('Apply Executor REST control plane', () => {
     expect(document.paths).toHaveProperty('/api/v1/execution-attempts/{attemptId}/waiting');
   });
 });
+
+describe('Apply Executor worker bearer scope', () => {
+  it('allows the worker token only on worker pull/heartbeat/report routes', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-apply-worker-auth-'));
+    running = await startJobHarnessServer({
+      databasePath: join(dir, 'career.db'),
+      host: '127.0.0.1',
+      port: 0,
+      authToken: 'global-secret',
+      executorAuthToken: 'worker-secret',
+    });
+
+    const workerHeaders = { authorization: 'Bearer worker-secret', 'content-type': 'application/json' };
+    const registered = await fetch(`${running.apiUrl}/executors/register`, {
+      method: 'POST', headers: workerHeaders, body: JSON.stringify({
+        executorId: 'worker-1', name: 'Worker 1', version: '0.1.0', status: 'ready', browserBackends: ['steel'],
+        adapterIds: ['readiness-v1'], executionModes: ['fill_only'],
+        capabilities: { resumeUpload: false, humanControl: true, persistentSession: true, screenshots: false, semanticMapping: false },
+        maxConcurrency: 1, metadata: {},
+      }),
+    });
+    expect(registered.status).toBe(200);
+
+    const claim = await fetch(`${running.apiUrl}/execution-attempts/claim`, {
+      method: 'POST', headers: workerHeaders, body: JSON.stringify({ executorId: 'worker-1', leaseSeconds: 90 }),
+    });
+    expect(claim.status).toBe(200);
+
+    const readCareer = await fetch(`${running.apiUrl}/jobs`, { headers: { authorization: 'Bearer worker-secret' } });
+    expect(readCareer.status).toBe(401);
+    const dispatch = await fetch(`${running.apiUrl}/execution-attempts`, {
+      method: 'POST', headers: workerHeaders, body: JSON.stringify({
+        intentId: 'forbidden', executionMode: 'fill_only', idempotencyKey: 'forbidden',
+      }),
+    });
+    expect(dispatch.status).toBe(401);
+
+    const globalRead = await fetch(`${running.apiUrl}/executors`, { headers: { authorization: 'Bearer global-secret' } });
+    expect(globalRead.status).toBe(200);
+  });
+});

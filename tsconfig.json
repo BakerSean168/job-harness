@@ -51,6 +51,12 @@
     },
     {
       "path": "./packages/apply-runtime"
+    },
+    {
+      "path": "./packages/apply-browser"
+    },
+    {
+      "path": "./apps/apply-worker"
     }
   ]
 }

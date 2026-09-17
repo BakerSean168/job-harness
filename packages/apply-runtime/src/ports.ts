@@ -66,6 +66,7 @@ export interface ApplyStorePort {
   insertAttempt(attempt: ExecutionAttempt, initialEvent: AppendExecutionEventInput): Promise<ExecutionAttempt>;
 
   countLeasedAttempts(executorId: string, at: string): Promise<number>;
+  abandonExpiredAttempts(input: { readonly now: string; readonly limit: number; readonly eventIdFactory: () => string }): Promise<readonly ExecutionAttempt[]>;
   tryClaimAttempt(input: {
     readonly attemptId: string;
     readonly executorId: string;

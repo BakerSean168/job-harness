@@ -1,0 +1,19 @@
+{
+  "name": "@job-harness/apply-worker",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "smoke:steel": "tsx src/backend-smoke.ts"
+  },
+  "dependencies": {
+    "@job-harness/apply-browser": "workspace:*",
+    "@job-harness/apply-contracts": "workspace:*",
+    "@job-harness/client": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5"
+  }
+}

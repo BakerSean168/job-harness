@@ -217,6 +217,17 @@ export function createApplyControlPlane(
       async claim(raw) {
         const parsed = ClaimExecutionAttemptInputSchema.parse(raw);
         const timestamp = now();
+        const abandoned = await store.abandonExpiredAttempts({ now: timestamp, limit: 100, eventIdFactory: idFactory });
+        for (const expired of abandoned) {
+          if (expired.externalEffectState !== 'not_crossed') {
+            await intentSafety.markManualReview({
+              intentId: expired.intentId,
+              occurredAt: timestamp,
+              error: `Execution attempt ${expired.id} lease expired after the external-effect boundary; verify the recruiting site before any new submit`,
+              evidence: { executionAttemptId: expired.id, externalEffectState: expired.externalEffectState, reason: 'lease_expired' },
+            });
+          }
+        }
         const registered = await store.getExecutor(parsed.executorId);
         if (!registered) throw new ApplyNotFoundError('ExecutorRegistration', parsed.executorId);
         const executor = effectiveExecutor(registered, timestamp);

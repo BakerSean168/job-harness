@@ -281,6 +281,38 @@ export class SqliteApplyStore implements ApplyStorePort {
       WHERE executor_id = ? AND state IN ('claimed','running') AND lease_expires_at IS NOT NULL AND lease_expires_at > ?`).get(executorId, at) as Row).n);
   }
 
+  async abandonExpiredAttempts(input: Parameters<ApplyStorePort['abandonExpiredAttempts']>[0]) {
+    return this.withTransaction((session) => {
+      const rows = session.db.prepare(`SELECT * FROM execution_attempts
+        WHERE state IN ('claimed','running') AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?
+        ORDER BY lease_expires_at, id LIMIT ?`).all(input.now, input.limit) as Row[];
+      const abandoned: ExecutionAttempt[] = [];
+      for (const row of rows) {
+        const attempt = session.attemptFromRow(row);
+        session.applyMutation(attempt.id, {
+          state: 'abandoned',
+          leaseOwner: null,
+          leaseTokenHash: null,
+          leaseExpiresAt: null,
+          completedAt: input.now,
+          errorCode: 'lease_expired',
+          errorSummary: 'Worker lease expired before the attempt reached a durable terminal result',
+          updatedAt: input.now,
+        });
+        session.appendEvent({
+          id: input.eventIdFactory(),
+          attemptId: attempt.id,
+          type: 'attempt_abandoned',
+          occurredAt: input.now,
+          checkpoint: attempt.checkpoint,
+          payload: { reason: 'lease_expired', externalEffectState: attempt.externalEffectState },
+        });
+        abandoned.push(session.getAttempt(attempt.id)!);
+      }
+      return abandoned;
+    });
+  }
+
   async tryClaimAttempt(input: Parameters<ApplyStorePort['tryClaimAttempt']>[0]) {
     return this.withTransaction((session) => {
       const db = session.db;

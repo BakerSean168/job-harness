@@ -15,6 +15,8 @@ const t2 = '2026-09-17T09:02:00.000Z';
 const t3 = '2026-09-17T09:03:00.000Z';
 const t4 = '2026-09-17T09:04:00.000Z';
 const t5 = '2026-09-17T09:05:00.000Z';
+const t5b = '2026-09-17T09:05:31.000Z';
+const t6 = '2026-09-17T09:06:00.000Z';
 
 describe('Apply Executor control plane', () => {
   it('keeps technical attempts separate from submission intent truth and protects leases/idempotency', async () => {
@@ -186,8 +188,18 @@ describe('Apply Executor control plane', () => {
     expect(completed.state).toBe('completed');
     expect((await career.submissionIntents.get(intent.id))?.status).toBe('planned');
 
-    const second = await apply.attempts.dispatch({ ...dispatchInput, idempotencyKey: 'dispatch-acme-front-2' });
+    const expired = await apply.attempts.dispatch({ ...dispatchInput, idempotencyKey: 'dispatch-acme-front-expired' });
     clock = t5;
+    await apply.executors.heartbeat({ executorId: 'oracle2-steel', status: 'ready' });
+    const expiredClaim = await apply.attempts.claim({ executorId: 'oracle2-steel', leaseSeconds: 30 });
+    expect(expiredClaim?.attempt.id).toBe(expired.id);
+    clock = t5b;
+    expect(await apply.attempts.claim({ executorId: 'oracle2-steel', leaseSeconds: 30 })).toBeNull();
+    expect((await apply.attempts.get(expired.id))?.attempt.state).toBe('abandoned');
+    expect((await apply.attempts.get(expired.id))?.events.at(-1)?.type).toBe('attempt_abandoned');
+
+    const second = await apply.attempts.dispatch({ ...dispatchInput, idempotencyKey: 'dispatch-acme-front-2' });
+    clock = t6;
     await apply.executors.heartbeat({ executorId: 'oracle2-steel', status: 'ready' });
     const secondClaim = await apply.attempts.claim({ executorId: 'oracle2-steel', leaseSeconds: 90 });
     await apply.attempts.start({

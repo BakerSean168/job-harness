@@ -57,4 +57,19 @@ await assertNoTokens(applyRuntime, [
   '@job-harness/persistence-sqlite',
 ], 'apply-runtime');
 
-console.log('boundaries ok: Career core is host-neutral and Apply core/contracts/runtime stay independent from DOM/browser/persistence implementations');
+
+const applyBrowser = new URL('../packages/apply-browser/', import.meta.url);
+await assertNoTokens(applyBrowser, [
+  '@job-harness/persistence-sqlite',
+  '@job-harness/application',
+  'submission_intents',
+  'execution_attempts',
+], 'apply-browser');
+
+const applyWorker = new URL('../apps/apply-worker/', import.meta.url);
+await assertNoTokens(applyWorker, [
+  '@job-harness/persistence-sqlite',
+  'JOB_HARNESS_AUTH_TOKEN',
+], 'apply-worker');
+
+console.log('boundaries ok: Career core is host-neutral and Apply core/contracts/runtime stay independent from DOM/browser/persistence implementations and the worker/browser layer cannot bypass Job Harness persistence or use the global bearer');

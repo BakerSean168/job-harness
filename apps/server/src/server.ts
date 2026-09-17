@@ -23,6 +23,7 @@ export interface JobHarnessServerOptions {
   readonly host?: string;
   readonly port?: number;
   readonly authToken?: string | null;
+  readonly executorAuthToken?: string | null;
   readonly artifactDirectory?: string;
   readonly resumeRendererUrl?: string | null;
   readonly resumeRendererToken?: string | null;
@@ -155,13 +156,24 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     res.json(generateJobHarnessOpenApiDocument());
   });
 
+  const executorAuthToken = options.executorAuthToken?.trim() || null;
+  function isExecutorWorkerRoute(method: string, path: string): boolean {
+    if (method !== 'POST') return false;
+    return path === `${API_PREFIX}/executors/register`
+      || /^\/api\/v1\/executors\/[^/]+\/heartbeat$/.test(path)
+      || path === `${API_PREFIX}/execution-attempts/claim`
+      || /^\/api\/v1\/execution-attempts\/[^/]+\/(heartbeat|start|waiting|complete|fail)$/.test(path);
+  }
   app.use((req, res, next) => {
     const protectedPath = req.path === '/mcp' || req.path.startsWith(`${API_PREFIX}/`);
-    if (protectedPath && authToken && req.headers.authorization !== `Bearer ${authToken}`) {
-      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Bearer token is required' } });
+    if (!protectedPath || !authToken) { next(); return; }
+    const authorization = req.headers.authorization;
+    if (authorization === `Bearer ${authToken}`) { next(); return; }
+    if (executorAuthToken && authorization === `Bearer ${executorAuthToken}` && isExecutorWorkerRoute(req.method, req.path)) {
+      next();
       return;
     }
-    next();
+    res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Bearer token is required' } });
   });
 
   registerJobHarnessDataAdminApi(app, options.databasePath, API_PREFIX);
