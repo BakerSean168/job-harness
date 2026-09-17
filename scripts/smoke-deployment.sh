@@ -94,7 +94,7 @@ const db = new DatabaseSync('/data/job-harness.db');
 const integrity = db.prepare('PRAGMA integrity_check').get();
 const version = db.prepare('PRAGMA user_version').get();
 db.close();
-if (integrity.integrity_check !== 'ok' || Number(version.user_version) !== 4) process.exit(1);
+if (integrity.integrity_check !== 'ok' || Number(version.user_version) !== 5) process.exit(1);
 NODE
 
 echo 'deployment runtime smoke ok: compose network, auth, persistence, restart'

@@ -8,6 +8,7 @@ export interface ResumeReferenceIssue {
 
 export function validateResumeProfileReferences(library: ResumeLibrary, profile: ResumeProfile): ResumeReferenceIssue[] {
   const issues: ResumeReferenceIssue[] = [];
+  if (profile.libraryId !== library.id) issues.push({ path: 'libraryId', id: profile.libraryId, message: `profile libraryId does not match ResumeLibrary '${library.id}'` });
   const education = new Set(library.education.map((item) => item.id));
   const skills = new Set(library.skills.map((item) => item.id));
   const work = new Map(library.workExperiences.map((item) => [item.id, item]));

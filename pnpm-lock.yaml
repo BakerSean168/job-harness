@@ -166,6 +166,12 @@ importers:
       '@job-harness/domain':
         specifier: workspace:*
         version: link:../domain
+      '@job-harness/resume-application':
+        specifier: workspace:*
+        version: link:../resume-application
+      '@job-harness/resume-contracts':
+        specifier: workspace:*
+        version: link:../resume-contracts
 
   packages/resume-application:
     dependencies:

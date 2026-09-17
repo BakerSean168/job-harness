@@ -69,6 +69,10 @@ Add a new Job Harness schema migration with document-shaped Resume tables. Impor
 
 Do not alter Career counts.
 
+### R003 persistence evidence — 2026-09-17
+
+SQLite v5 now owns document-shaped Resume Library/Profile/Revision/Artifact persistence while preserving `resume_profile_refs` as a compatibility table. A consistent copy of the GCP historical Career database migrated from schema v2 to v5 with Career counts unchanged; the real five-profile legacy import produced one Library + five Profiles, zero findings, 5/5 exact HTML parity, and remained idempotent on a second run. Production Oracle2 is intentionally untouched in this ticket.
+
 ## JH-R004 — Resume Workspace
 
 Replace the Registry-only `/resumes` page with:

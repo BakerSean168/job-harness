@@ -29,7 +29,7 @@ function library() {
 
 function profile() {
   return ResumeProfileSchema.parse({
-    id: 'ai-agent', version: 1, name: zh('AI Agent 简历'), targetRole: zh('AI Agent 工程师'), locale: 'zh-CN', templateId: 'classic-v1', positioning: zh('AI Agent 工程师'),
+    id: 'ai-agent', libraryId: 'primary', version: 1, name: zh('AI Agent 简历'), targetRole: zh('AI Agent 工程师'), locale: 'zh-CN', templateId: 'classic-v1', positioning: zh('AI Agent 工程师'),
     output: { documentTitle: zh('AI Agent 简历'), description: null, onlineUrl: null, pdfName: zh('AI-Agent') },
     layout: { header: 'without-photo', pageSize: 'A4' },
     sectionOrder: ['education', 'skills', 'projects', 'work', 'certificates'],

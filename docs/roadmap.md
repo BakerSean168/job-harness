@@ -80,7 +80,7 @@ The standalone Web V1 hardening plan is complete and production evidence now sat
 - [x] **JH-R000:** freeze the dirty standalone Resume baseline without modifying it; validation 45/45; five Profile IDs and five PDF hashes recorded; private recovery snapshot verified; credentials excluded.
 - [x] **JH-R001:** freeze Resume Domain v2 contracts for localized canonical content, Profile recipes, explicit project presentations, resolved snapshots, immutable Revisions, immutable Artifacts and stable-ID reference validation.
 - [x] **JH-R002:** port the existing Nunjucks/HTML/CSS renderer behind `ResolvedResume`; add strict resolver + legacy importer; real dirty Resume source reaches 5/5 exact HTML SHA parity with 0 migration findings.
-- [ ] **JH-R003:** add SQLite Resume persistence and import the merged zh/en Library + five Profiles.
+- [x] **JH-R003:** add SQLite v5 Resume persistence plus atomic legacy catalog import; GCP historical-copy verification preserves 100 Jobs / 41 Applications / 5 legacy refs / 82 Companies, imports 1 Library + 5 Profiles, remains idempotent and keeps 5/5 exact HTML SHA parity.
 - [ ] **JH-R004:** replace the Registry-only Resumes page with structured/source editing and live unsaved preview.
 - [ ] **JH-R005:** publish immutable Revision history and diff.
 - [ ] **JH-R006:** artifact pipeline and Oracle2 ARM64 PDF renderer spike.

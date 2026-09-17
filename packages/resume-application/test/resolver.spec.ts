@@ -19,7 +19,7 @@ const library = ResumeLibrarySchema.parse({
 
 function profile(locale: 'zh-CN' | 'en' = 'zh-CN') {
   return ResumeProfileSchema.parse({
-    id: 'agent-profile', version: 5, name: both('Agent 简历', 'Agent Resume'), targetRole: both('Agent 工程师', 'Agent Engineer'), locale, templateId: 'classic-v1', positioning: both('Agent 工程师', 'Agent Engineer'), output: { documentTitle: both('Agent 简历', 'Agent Resume'), description: null, onlineUrl: null, pdfName: both('Agent简历', 'Agent-Resume') }, layout: { header: 'without-photo', pageSize: 'A4' },
+    id: 'agent-profile', libraryId: 'primary', version: 5, name: both('Agent 简历', 'Agent Resume'), targetRole: both('Agent 工程师', 'Agent Engineer'), locale, templateId: 'classic-v1', positioning: both('Agent 工程师', 'Agent Engineer'), output: { documentTitle: both('Agent 简历', 'Agent Resume'), description: null, onlineUrl: null, pdfName: both('Agent简历', 'Agent-Resume') }, layout: { header: 'without-photo', pageSize: 'A4' },
     sectionOrder: ['education', 'skills', 'projects', 'work', 'certificates', 'summary'], educationIds: ['school'], skillIds: ['agent'], workSelections: [{ experienceId: 'work', bulletIds: ['delivery'] }], projectSelections: [{ projectId: 'project', presentationId: 'agent', highlightIds: ['runtime'] }], certificateIds: ['cert'], summaryIds: ['summary'], overrides: [
       { kind: 'work-bullet', experienceId: 'work', bulletId: 'delivery', value: both('定向描述', 'Tailored') },
       { kind: 'project-highlight', projectId: 'project', highlightId: 'runtime', value: both('定向亮点', 'Tailored highlight') },

@@ -7,6 +7,8 @@
   "dependencies": {
     "@job-harness/application": "workspace:*",
     "@job-harness/contracts": "workspace:*",
-    "@job-harness/domain": "workspace:*"
+    "@job-harness/domain": "workspace:*",
+    "@job-harness/resume-application": "workspace:*",
+    "@job-harness/resume-contracts": "workspace:*"
   }
 }

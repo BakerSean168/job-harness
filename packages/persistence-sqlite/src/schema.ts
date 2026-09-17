@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 4;
+export const SQLITE_SCHEMA_VERSION = 5;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -382,6 +382,7 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
   migrateSqliteDatabaseV2(db);
   migrateSavedViewsV3(db);
   migratePerformanceIndexesV4(db);
+  migrateResumeDomainV5(db);
 }
 
 const PERFORMANCE_INDEXES_SCHEMA_V4 = `
@@ -403,6 +404,75 @@ function migratePerformanceIndexesV4(db: DatabaseSync): void {
   try {
     db.exec(PERFORMANCE_INDEXES_SCHEMA_V4);
     db.exec('PRAGMA user_version = 4');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+
+const RESUME_DOMAIN_SCHEMA_V5 = `
+CREATE TABLE IF NOT EXISTS resume_libraries (
+  id TEXT PRIMARY KEY,
+  schema_version INTEGER NOT NULL,
+  version INTEGER NOT NULL CHECK(version > 0),
+  document_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS resume_profiles (
+  id TEXT PRIMARY KEY,
+  library_id TEXT NOT NULL REFERENCES resume_libraries(id) ON DELETE RESTRICT,
+  version INTEGER NOT NULL CHECK(version > 0),
+  locale TEXT NOT NULL CHECK(locale IN ('zh-CN','en')),
+  template_id TEXT NOT NULL,
+  profile_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  archived_at TEXT
+);
+CREATE INDEX IF NOT EXISTS resume_profiles_library_updated_idx ON resume_profiles(library_id, updated_at DESC, id);
+CREATE TABLE IF NOT EXISTS resume_revisions (
+  id TEXT PRIMARY KEY,
+  profile_id TEXT NOT NULL REFERENCES resume_profiles(id) ON DELETE RESTRICT,
+  revision_number INTEGER NOT NULL CHECK(revision_number > 0),
+  library_id TEXT NOT NULL REFERENCES resume_libraries(id) ON DELETE RESTRICT,
+  library_version INTEGER NOT NULL CHECK(library_version > 0),
+  profile_version INTEGER NOT NULL CHECK(profile_version > 0),
+  snapshot_json TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL CHECK(created_by IN ('user','import','system')),
+  note TEXT,
+  UNIQUE(profile_id, revision_number),
+  UNIQUE(profile_id, content_hash)
+);
+CREATE INDEX IF NOT EXISTS resume_revisions_profile_number_idx ON resume_revisions(profile_id, revision_number DESC);
+CREATE TABLE IF NOT EXISTS resume_artifacts (
+  id TEXT PRIMARY KEY,
+  revision_id TEXT NOT NULL REFERENCES resume_revisions(id) ON DELETE RESTRICT,
+  kind TEXT NOT NULL CHECK(kind IN ('html','pdf','json','markdown')),
+  mime_type TEXT NOT NULL,
+  storage_uri TEXT NOT NULL,
+  sha256 TEXT NOT NULL,
+  byte_size INTEGER NOT NULL CHECK(byte_size >= 0),
+  renderer_id TEXT NOT NULL,
+  renderer_version TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(revision_id, kind, renderer_id, renderer_version)
+);
+CREATE INDEX IF NOT EXISTS resume_artifacts_revision_idx ON resume_artifacts(revision_id, created_at DESC, id);
+`;
+
+function migrateResumeDomainV5(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 5) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(RESUME_DOMAIN_SCHEMA_V5);
+    db.exec('PRAGMA user_version = 5');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

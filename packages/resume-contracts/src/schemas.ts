@@ -262,6 +262,7 @@ export const ResumeProfileOverrideSchema = z.discriminatedUnion('kind', [
 export const ResumeProfileSchema = z
   .object({
     id: ResumeEntityIdSchema,
+    libraryId: ResumeEntityIdSchema,
     version: z.number().int().positive(),
     name: LocalizedTextSchema,
     targetRole: LocalizedTextSchema,

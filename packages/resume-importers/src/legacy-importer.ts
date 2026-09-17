@@ -312,6 +312,7 @@ export function importLegacyResumeBundle(input: LegacyResumeBundle, importedAt: 
     });
     return ResumeProfileSchema.parse({
       id: legacy.meta.variant,
+      libraryId: library.id,
       version: 1,
       name: local(legacy.meta.name, legacy.meta.nameEn),
       targetRole: local(legacy.positioning),
