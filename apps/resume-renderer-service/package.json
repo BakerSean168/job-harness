@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "playwright-core": "1.55.0",
-    "tsx": "^4.20.5"
+    "tsx": "^4.20.5",
+    "zod": "^4.1.8"
   }
 }

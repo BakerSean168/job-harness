@@ -1,56 +1,35 @@
-import { hostname } from 'node:os';
-import { resolve } from 'node:path';
 import { BrowserBackendRegistry, ExtensionBrowserBackend, LocalCdpBrowserBackend, SteelBrowserBackend } from '@job-harness/apply-browser';
 import type { ExecutorDescriptor } from '@job-harness/apply-contracts';
 import { ApplySiteAdapterRegistry, GenericAtsSiteAdapter, MokaSocialRecruitmentAtsSiteAdapter, NowcoderAtsSiteAdapter } from '@job-harness/apply-adapters';
 import { createJobHarnessRestClient } from '@job-harness/client';
 import { FormFillExecutionEngine } from './form-fill-engine';
 import { ApplyWorker } from './runtime';
+import { readApplyWorkerRuntimeConfig } from './runtime-config';
 
-function positiveInt(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const value = Number.parseInt(raw, 10);
-  if (!Number.isInteger(value) || value <= 0) throw new Error(`Invalid ${name}: ${raw}`);
-  return value;
-}
-
-const apiUrl = process.env.JOB_HARNESS_API_URL ?? 'http://127.0.0.1:20901/api/v1';
-const token = process.env.JOB_HARNESS_EXECUTOR_AUTH_TOKEN?.trim();
-if (!token) throw new Error('JOB_HARNESS_EXECUTOR_AUTH_TOKEN is required');
-const backendId = (process.env.JOB_HARNESS_APPLY_BROWSER_BACKEND ?? 'steel').trim();
-const executorId = (process.env.JOB_HARNESS_APPLY_EXECUTOR_ID ?? `${hostname()}-${backendId}`).trim();
-const phase = (process.env.JOB_HARNESS_APPLY_PHASE ?? 'readiness').trim().toLowerCase();
-if (!['readiness', 'form-fill'].includes(phase)) {
-  throw new Error(`Unsupported JOB_HARNESS_APPLY_PHASE: ${phase}. Supported phases are readiness and form-fill; real submit stays disabled until a verified site adapter is explicitly configured.`);
-}
+const config = readApplyWorkerRuntimeConfig();
+const { apiUrl, token, backendId, executorId, phase } = config;
 const registry = new BrowserBackendRegistry();
 
 if (backendId === 'steel') {
   registry.register(new SteelBrowserBackend({
-    baseUrl: process.env.JOB_HARNESS_STEEL_BASE_URL ?? 'http://127.0.0.1:3000',
-    viewerBaseUrl: process.env.JOB_HARNESS_STEEL_VIEWER_BASE_URL ?? null,
-    apiKey: process.env.STEEL_API_KEY ?? null,
-    contextPath: resolve(process.env.JOB_HARNESS_STEEL_CONTEXT_PATH ?? `${process.env.HOME ?? '/tmp'}/.local/share/job-harness/apply-worker/steel-context.json`),
-    timezone: process.env.JOB_HARNESS_APPLY_BROWSER_TIMEZONE ?? 'Asia/Shanghai',
-    headless: (process.env.JOB_HARNESS_STEEL_HEADLESS ?? 'true').toLowerCase() !== 'false',
-    proxyUrl: process.env.JOB_HARNESS_STEEL_PROXY_URL ?? null,
+    baseUrl: config.steelBaseUrl,
+    viewerBaseUrl: config.steelViewerBaseUrl,
+    apiKey: config.steelApiKey,
+    contextPath: config.steelContextPath,
+    timezone: config.steelTimezone,
+    headless: config.steelHeadless,
+    proxyUrl: config.steelProxyUrl,
   }));
 } else if (backendId === 'local-cdp') {
-  registry.register(new LocalCdpBrowserBackend({ endpoint: process.env.JOB_HARNESS_LOCAL_CDP_URL ?? 'http://127.0.0.1:9222' }));
+  registry.register(new LocalCdpBrowserBackend({ endpoint: config.localCdpUrl }));
 } else if (backendId === 'extension') {
-  const agentId = process.env.JOB_HARNESS_BROWSER_EXTENSION_AGENT_ID?.trim();
-  if (!agentId) throw new Error('JOB_HARNESS_BROWSER_EXTENSION_AGENT_ID is required for extension backend');
-  const serverOrigin = new URL(apiUrl);
-  serverOrigin.pathname = '';
-  serverOrigin.search = '';
-  serverOrigin.hash = '';
+  const agentId = config.extensionAgentId!;
   registry.register(new ExtensionBrowserBackend({
-    bridgeUrl: process.env.JOB_HARNESS_BROWSER_EXTENSION_BRIDGE_URL ?? `${serverOrigin.toString().replace(/\/$/, '')}/internal/browser-bridge/v1`,
+    bridgeUrl: config.extensionBridgeUrl,
     executorAuthToken: token,
     agentId,
     backendId,
-    commandTimeoutMs: positiveInt('JOB_HARNESS_BROWSER_EXTENSION_COMMAND_TIMEOUT_MS', 30_000),
+    commandTimeoutMs: config.extensionCommandTimeoutMs,
   }));
 } else {
   throw new Error(`Unsupported JOB_HARNESS_APPLY_BROWSER_BACKEND: ${backendId}`);
@@ -67,14 +46,14 @@ const formFillEngine = siteAdapters ? new FormFillExecutionEngine({ siteAdapters
 const adapterId = phase === 'form-fill' ? 'generic-ats' : 'readiness-v1';
 const advertisedAdapterIds = siteAdapters ? siteAdapters.descriptors().map((descriptor) => descriptor.id) : [adapterId];
 
-const extensionResumeUpload = backendId === 'extension' && (process.env.JOB_HARNESS_BROWSER_EXTENSION_RESUME_UPLOAD ?? 'false').toLowerCase() === 'true';
-const extensionScreenshots = backendId === 'extension' && (process.env.JOB_HARNESS_BROWSER_EXTENSION_SCREENSHOTS ?? 'false').toLowerCase() === 'true';
+const extensionResumeUpload = config.extensionResumeUpload;
+const extensionScreenshots = config.extensionScreenshots;
 
 const descriptor: ExecutorDescriptor = {
   executorId,
-  name: process.env.JOB_HARNESS_APPLY_EXECUTOR_NAME ?? `Job Harness Apply Worker (${backendId})`,
+  name: config.executorName,
   version: '0.2.0',
-  hostLabel: process.env.JOB_HARNESS_APPLY_HOST_LABEL ?? hostname(),
+  hostLabel: config.hostLabel,
   status: 'ready',
   browserBackends: [backendId],
   adapterIds: advertisedAdapterIds,
@@ -87,7 +66,7 @@ const descriptor: ExecutorDescriptor = {
     semanticMapping: false,
   },
   maxConcurrency: 1,
-  metadata: { phase: phase === 'form-fill' ? 'R019-form-fill' : 'R019-readiness', externalSubmit: false, formFill: phase === 'form-fill', applicantData: phase === 'form-fill' ? 'lease-scoped-resume-revision' : 'none', siteAdapters: advertisedAdapterIds, userBrowser: backendId === 'extension' },
+  metadata: { phase: phase === 'form-fill' ? 'R019-form-fill' : 'R019-readiness', externalSubmit: false, formFill: phase === 'form-fill', applicantData: phase === 'form-fill' ? 'lease-scoped-frozen-applicant-snapshot' : 'none', siteAdapters: advertisedAdapterIds, userBrowser: backendId === 'extension' },
 };
 
 const client = createJobHarnessRestClient({ baseUrl: apiUrl, authToken: token });
@@ -98,10 +77,10 @@ const worker = new ApplyWorker({
   backendId,
   adapterId,
   ...(formFillEngine ? { formFillEngine } : {}),
-  pollIntervalMs: positiveInt('JOB_HARNESS_APPLY_POLL_INTERVAL_MS', 3_000),
-  executorHeartbeatIntervalMs: positiveInt('JOB_HARNESS_APPLY_EXECUTOR_HEARTBEAT_MS', 20_000),
-  attemptHeartbeatIntervalMs: positiveInt('JOB_HARNESS_APPLY_ATTEMPT_HEARTBEAT_MS', 20_000),
-  leaseSeconds: positiveInt('JOB_HARNESS_APPLY_LEASE_SECONDS', 90),
+  pollIntervalMs: config.pollIntervalMs,
+  executorHeartbeatIntervalMs: config.executorHeartbeatIntervalMs,
+  attemptHeartbeatIntervalMs: config.attemptHeartbeatIntervalMs,
+  leaseSeconds: config.leaseSeconds,
 });
 
 let stopping = false;
