@@ -8,7 +8,8 @@
     "start": "tsx src/cli.ts",
     "import:legacy": "tsx src/import-legacy.ts",
     "smoke:chatgpt-mcp": "tsx scripts/chatgpt-mcp-smoke.ts",
-    "import:legacy-ledger": "tsx src/import-legacy-ledger.ts"
+    "import:legacy-ledger": "tsx src/import-legacy-ledger.ts",
+    "boss:bridge": "tsx src/boss-outreach-bridge-cli.ts"
   },
   "dependencies": {
     "@job-harness/application": "workspace:*",
@@ -25,13 +26,13 @@
     "@job-harness/apply-contracts": "workspace:*",
     "@job-harness/apply-runtime": "workspace:*",
     "@job-harness/applicant-contracts": "workspace:*",
-    "@job-harness/applicant-application": "workspace:*"
+    "@job-harness/applicant-application": "workspace:*",
+    "@job-harness/client": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.20.5",
     "@types/express": "^5.0.3",
     "@job-harness/apply-browser": "workspace:*",
-    "@job-harness/apply-adapters": "workspace:*",
-    "@job-harness/client": "workspace:*"
+    "@job-harness/apply-adapters": "workspace:*"
   }
 }

@@ -81,6 +81,9 @@ importers:
       '@job-harness/apply-runtime':
         specifier: workspace:*
         version: link:../../packages/apply-runtime
+      '@job-harness/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@job-harness/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -118,9 +121,6 @@ importers:
       '@job-harness/apply-browser':
         specifier: workspace:*
         version: link:../../packages/apply-browser
-      '@job-harness/client':
-        specifier: workspace:*
-        version: link:../../packages/client
       '@types/express':
         specifier: ^5.0.3
         version: 5.0.6
