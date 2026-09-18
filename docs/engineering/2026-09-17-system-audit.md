@@ -992,3 +992,13 @@ Recruiting-site upload is now linked directly to the first-class Job Harness Res
 `ResumeProfile -> published ResumeRevision -> materialize/reuse PDF ResumeArtifact -> Site Resume Sync -> fresh read-only characterization -> SiteResumeBinding -> Apply/SubmissionIntent`
 
 No Windows Downloads file and no native file picker is required. Draft preview bytes are deliberately ineligible: only an immutable published Revision can be synchronized. The Browser Bridge receives PDF bytes through the server-side Artifact service, which retains the existing SHA-256 integrity verification. Liepin is the first exposed target because its `c.liepin.com/resume/create` flow has been live-characterized; additional sites should be added only after their resume-center upload semantics are characterized. Site Resume Sync remains distinct from job submission authority: application/message/submit actions remain blocked by the sync-mode click policy, and a write-mode sync cannot itself satisfy the read-only evidence requirement for SiteResumeBinding.
+
+#### A70 — Resume Manager projects durable SiteResumeBindings beside immutable Revisions
+
+The Resume Manager site-sync action is no longer a one-shot upload with no durable UI context. `/resumes` now loads active SiteResumeBindings for the selected ResumeProfile and groups them by exact `resumeRevisionId`. Each immutable Revision row displays its active recruiting-site binding(s) as `siteFamily · externalResumeLabel`, and a Revision that already has an active Liepin binding exposes `Re-sync to Liepin` rather than presenting the relationship as unknown.
+
+This projection is deliberately read-only. The canonical binding remains the server-owned SiteResumeBinding record containing Profile, exact immutable Revision, exact PDF Artifact, browser agent, observed external label, characterization evidence and assurance. Resume Manager only renders that durable truth alongside the Revision from which the site PDF was derived. This makes the full ownership chain visible in one place:
+
+`ResumeProfile -> ResumeRevision -> PDF ResumeArtifact -> Site Resume Sync -> SiteResumeBinding -> SubmissionIntent/Application`
+
+Revoked bindings are excluded by the existing list contract; no new mutable synchronization state is duplicated in the Resume domain.

@@ -324,3 +324,7 @@
 .applicant-inline-inputs { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
 .applicant-add-answer { justify-self: start; }
 @media (max-width: 720px) { .applicant-inline-inputs { grid-template-columns: 1fr; } }
+
+
+.resume-site-binding-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.resume-site-binding-badges span { border: 1px solid var(--border-subtle, #d7dce3); border-radius: 999px; padding: 2px 8px; font-size: 12px; line-height: 1.5; }

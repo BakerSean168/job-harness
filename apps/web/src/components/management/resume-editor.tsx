@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import type { ResumeRevisionUsageSummary } from '@job-harness/contracts';
+import type { ResumeRevisionUsageSummary, SiteResumeBinding } from '@job-harness/contracts';
 import { dump, load } from 'js-yaml';
 import {
   ResumeLibrarySchema,
@@ -81,6 +81,9 @@ export interface ResumeEditorCopy {
   readonly syncingToSite: string;
   readonly siteSyncSuccess: string;
   readonly siteSyncFailed: string;
+  readonly siteBinding: string;
+  readonly siteBindingNone: string;
+  readonly resyncLiepin: string;
   readonly composer: ResumeComposerCopy;
 }
 
@@ -94,6 +97,7 @@ interface Props {
   applicationsHref: string;
   viewApplicationsLabel: string;
   syncAgents: readonly BrowserExtensionAgentView[];
+  siteBindings: readonly SiteResumeBinding[];
   copy: ResumeEditorCopy;
 }
 
@@ -109,7 +113,7 @@ function setLocalized<T extends Record<string, string | undefined>>(value: T, lo
   return { ...value, [locale]: next };
 }
 
-export function ResumeEditor({ initialContext, initialHtml, initialRevisions, revisionUsage, usage, usageLabels, applicationsHref, viewApplicationsLabel, syncAgents, copy }: Props) {
+export function ResumeEditor({ initialContext, initialHtml, initialRevisions, revisionUsage, usage, usageLabels, applicationsHref, viewApplicationsLabel, syncAgents, siteBindings, copy }: Props) {
   const [library, setLibrary] = useState<ResumeLibrary>(initialContext.library);
   const [profile, setProfile] = useState<ResumeProfile>(initialContext.profile);
   const [previewHtml, setPreviewHtml] = useState(initialHtml);
@@ -138,6 +142,16 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
   const locale = profile.locale;
   const hasUnsavedChanges = profileDirty || libraryDirty;
   const revisionUsageById = useMemo(() => new Map(revisionUsage.map((item) => [item.revisionId, item])), [revisionUsage]);
+  const siteBindingsByRevision = useMemo(() => {
+    const grouped = new Map<string, SiteResumeBinding[]>();
+    for (const binding of siteBindings) {
+      if (binding.status !== 'active') continue;
+      const values = grouped.get(binding.resumeRevisionId) ?? [];
+      values.push(binding);
+      grouped.set(binding.resumeRevisionId, values);
+    }
+    return grouped;
+  }, [siteBindings]);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -398,7 +412,7 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
         <div className="resume-history-panel">
           <div className="resume-history-heading"><h3>{copy.history}</h3><span>{revisions.length}</span></div>
           <div className="resume-site-sync-panel">
-            <div><strong>{copy.siteSync}</strong><p>{copy.siteSyncDescription}</p></div>
+            <div><strong>{copy.siteSync}</strong><p>{copy.siteSyncDescription}</p><small>{copy.siteBinding}: {siteBindings.filter((binding) => binding.status === 'active').length || copy.siteBindingNone}</small></div>
             {syncAgents.length ? (
               <label className="management-field"><span>{copy.siteSyncAgent}</span><select value={syncAgentId} onChange={(event) => setSyncAgentId(event.target.value)}>{syncAgents.map((agent) => <option key={agent.agentId} value={agent.agentId}>{agent.name} · {agent.version}</option>)}</select></label>
             ) : <p className="management-error">{copy.siteSyncNoAgent}</p>}
@@ -413,6 +427,8 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
             <div className="resume-revision-list">
               {revisions.map((revision) => {
                 const evidence = revisionUsageById.get(revision.id);
+                const revisionBindings = siteBindingsByRevision.get(revision.id) ?? [];
+                const hasLiepinBinding = revisionBindings.some((binding) => binding.siteFamily === 'liepin');
                 return (
                 <div key={revision.id} className="resume-revision-row">
                   <div>
@@ -424,11 +440,16 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
                         ? `${evidence.applications} ${usageLabels.applications} · ${evidence.submissions} ${usageLabels.submissions}${evidence.artifactKinds.length ? ` · ${evidence.artifactKinds.map((kind) => kind.toUpperCase()).join('/')}` : ''}${evidence.lastUsedAt ? ` · ${copy.revisionLastUsed} ${new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(evidence.lastUsedAt))}` : ''}`
                         : copy.revisionUnused}
                     </small>
+                    {revisionBindings.length ? (
+                      <div className="resume-site-binding-badges" aria-label={copy.siteBinding}>
+                        {revisionBindings.map((binding) => <span key={binding.id}>{binding.siteFamily} · {binding.externalResumeLabel}</span>)}
+                      </div>
+                    ) : null}
                   </div>
                   <div>
                     <button type="button" disabled={diffLoading} onClick={() => void loadRevisionDiff(revision.id, 'previous')}>{copy.comparePrevious}</button>
                     <button type="button" disabled={diffLoading} onClick={() => void loadRevisionDiff(revision.id, 'current')}>{copy.compareCurrent}</button>
-                    <button type="button" disabled={!syncAgentId || syncingRevisionId === revision.id} onClick={() => syncRevisionToLiepin(revision)}>{syncingRevisionId === revision.id ? copy.syncingToSite : copy.syncLiepin}</button>
+                    <button type="button" disabled={!syncAgentId || syncingRevisionId === revision.id} onClick={() => syncRevisionToLiepin(revision)}>{syncingRevisionId === revision.id ? copy.syncingToSite : hasLiepinBinding ? copy.resyncLiepin : copy.syncLiepin}</button>
                     <form method="post" action="/downloads/resume-artifact" className="resume-artifact-actions">
                       <input type="hidden" name="revisionId" value={revision.id} />
                       <button type="submit" name="kind" value="pdf">{copy.downloadPdf}</button>

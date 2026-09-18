@@ -28,12 +28,13 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
   const resumeSyncAgents = browserAgents.filter((agent) => agent.online && agent.resumeUpload);
   const selected = profiles.items.find((profile) => profile.id === requestedProfile) ?? profiles.items[0] ?? null;
   const context = selected ? await client.resume.getProfileContext(selected.id) : null;
-  const [preview, revisions] = context
+  const [preview, revisions, siteResumeBindings] = context
     ? await Promise.all([
         client.resume.preview({ library: context.library, profile: context.profile }),
         client.resume.listRevisions(selected!.id),
+        client.siteResumeBindings.list({ profileId: selected!.id }),
       ])
-    : [null, { items: [], total: 0 }];
+    : [null, { items: [], total: 0 }, { items: [] }];
   const usageByProfile = new Map(usage.items.map((item) => [item.resume.id, item]));
   const selectedUsage = selected ? usageByProfile.get(selected.id) ?? null : null;
   const copy = messages.resumesWorkspace;
@@ -99,6 +100,7 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
             applicationsHref={`/applications?resume=${encodeURIComponent(selected.id)}${campaignId ? `&campaign=${encodeURIComponent(campaignId)}` : ''}`}
             viewApplicationsLabel={copy.table.viewApplications}
             syncAgents={resumeSyncAgents}
+            siteBindings={siteResumeBindings.items}
             copy={copy.builder}
           />
         </div>
