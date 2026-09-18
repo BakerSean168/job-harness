@@ -72,6 +72,9 @@
     },
     {
       "path": "./apps/discovery-worker"
+    },
+    {
+      "path": "./apps/intent-dispatch-worker"
     }
   ]
 }

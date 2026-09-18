@@ -90,6 +90,16 @@ importers:
         specifier: ^4.20.5
         version: 4.23.13
 
+  apps/intent-dispatch-worker:
+    dependencies:
+      '@job-harness/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+    devDependencies:
+      tsx:
+        specifier: ^4.20.5
+        version: 4.23.13
+
   apps/resume-renderer-service:
     dependencies:
       playwright-core:

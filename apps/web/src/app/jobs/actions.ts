@@ -127,12 +127,19 @@ export async function prepareRecommendedApplicationAction(formData: FormData): P
   let requiredBrowserAgentId: string | null = null;
   if (siteFamily) {
     const bindings = await client.siteResumeBindings.list({ siteFamily, profileId: prepared.intent.resumeProfileId ?? preferredProfileId });
-    const compatible = bindings.items.filter((binding) => readyExtensionExecutors.some((executor) =>
-      typeof executor.metadata.browserAgentId === 'string' && executor.metadata.browserAgentId === binding.browserAgentId,
-    ));
+    const compatible = bindings.items.filter((binding) =>
+      binding.status === 'active'
+      && binding.resumeRevisionId === prepared.intent.resumeRevisionId
+      && binding.resumeArtifactId === prepared.intent.resumeArtifactId
+      && readyExtensionExecutors.some((executor) =>
+        typeof executor.metadata.browserAgentId === 'string'
+        && executor.metadata.browserAgentId === binding.browserAgentId
+        && executor.adapterIds.includes(siteFamily === 'zhilian' ? 'zhilian-ats' : 'liepin-ats'),
+      ),
+    );
     if (compatible.length !== 1) {
       throw new Error(compatible.length === 0
-        ? `No active ${siteFamily} site-resume binding matches this Resume Profile and an online Chrome agent. Characterize the site and confirm the binding in Settings first.`
+        ? `No active ${siteFamily} site-resume binding matches this exact Resume Revision/PDF and an online compatible Chrome agent. Re-characterize the site and confirm the binding in Settings first.`
         : `Multiple active ${siteFamily} site-resume bindings match online Chrome agents. Revoke the unused binding before automatic fill.`);
     }
     siteResumeBindingId = compatible[0]!.id;
