@@ -92,9 +92,8 @@ export class DiscoveryWorker {
       failedQueryCount = result.failedQueryCount;
       if (failedQueryCount > 0) this.logger.warn('Discovery provider completed with partial query failures', JSON.stringify({ provider: this.options.provider.id, runId: run.id, failedQueryCount, diagnostics: result.diagnostics }));
 
-      for (let offset = 0; offset < result.candidates.length; offset += 100) {
-        const batch = result.candidates.slice(offset, offset + 100).map((candidate) => ({ ...candidate, discoveryRunId: run.id }));
-        if (!batch.length) continue;
+      for (const candidateBatch of chunkCandidates(result.candidates)) {
+        const batch = candidateBatch.map((candidate) => ({ ...candidate, discoveryRunId: run.id }));
         const upserted = await this.options.client.jobs.upsertJobsBatch({ jobs: batch });
         for (const item of upserted.items) {
           if (item.status === 'inserted') insertedCount += 1;
@@ -120,4 +119,28 @@ export class DiscoveryWorker {
 
     return { runId: run.id, providerId: this.options.provider.id, candidateCount, insertedCount, duplicateCount, rejectedCount, queryCount, failedQueryCount };
   }
+}
+
+
+export const DISCOVERY_UPSERT_BODY_BUDGET_BYTES = 64 * 1024;
+
+export function chunkCandidates(
+  candidates: readonly UpsertJobCandidate[],
+  bodyBudgetBytes = DISCOVERY_UPSERT_BODY_BUDGET_BYTES,
+): UpsertJobCandidate[][] {
+  const batches: UpsertJobCandidate[][] = [];
+  let current: UpsertJobCandidate[] = [];
+  let currentBytes = Buffer.byteLength('{"jobs":[]}');
+  for (const candidate of candidates) {
+    const candidateBytes = Buffer.byteLength(JSON.stringify(candidate)) + (current.length ? 1 : 0);
+    if (current.length > 0 && (current.length >= 100 || currentBytes + candidateBytes > bodyBudgetBytes)) {
+      batches.push(current);
+      current = [];
+      currentBytes = Buffer.byteLength('{"jobs":[]}');
+    }
+    current.push(candidate);
+    currentBytes += candidateBytes;
+  }
+  if (current.length) batches.push(current);
+  return batches;
 }

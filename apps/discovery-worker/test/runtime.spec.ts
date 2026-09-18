@@ -51,4 +51,26 @@ describe('DiscoveryWorker', () => {
     await expect(worker.runOnce()).rejects.toThrow('provider unavailable');
     expect(completed).toEqual({ runId: 'run-fail', completedAt: '2026-09-18T10:00:00.000Z', candidateCount: 0, insertedCount: 0, duplicateCount: 0, rejectedCount: 1 });
   });
+
+  it('chunks complete JDs by serialized body budget instead of the 100-item contract maximum', async () => {
+    const payloadSizes: number[] = [];
+    const large = Array.from({ length: 4 }, (_, index) => ({ ...candidate(`CC-LARGE-${index}`), description: 'x'.repeat(40_000) }));
+    const client = {
+      campaigns: { async get() { return campaign; } },
+      discovery: { async begin() { return { id: 'run-large' }; }, async complete(input: any) { return input; } },
+      jobs: {
+        async upsertJobsBatch(input: { jobs: UpsertJobCandidate[] }) {
+          payloadSizes.push(Buffer.byteLength(JSON.stringify(input)));
+          return { items: input.jobs.map(() => ({ status: 'inserted' as const })) };
+        },
+      },
+    };
+    const provider: DiscoveryProviderPort = { id: 'fixture-provider', sourceKind: 'zhilian', plan: () => ({}), async discover() { return { candidates: large, queryCount: 1, failedQueryCount: 0, diagnostics: {} }; } };
+    const worker = new DiscoveryWorker({ client, provider, campaignId: campaign.id, idFactory: () => 'nonce-large', now: () => '2026-09-18T10:00:00.000Z', logger: { info() {}, warn() {}, error() {} } });
+    const result = await worker.runOnce();
+    expect(result.insertedCount).toBe(4);
+    expect(payloadSizes.length).toBeGreaterThan(1);
+    expect(payloadSizes.every((size) => size < 100 * 1024)).toBe(true);
+  });
+
 });
