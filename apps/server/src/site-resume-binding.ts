@@ -76,6 +76,9 @@ export function createSiteResumeBindingService(
       if (observedFamily !== input.siteFamily) {
         throw new SiteResumeBindingError('INVALID_EVIDENCE', `CharacterizationRun '${run.id}' observed '${observedFamily ?? 'unsupported'}', not '${input.siteFamily}'`);
       }
+      if (run.characterization.stateSignals.includes('需要登录')) {
+        throw new SiteResumeBindingError('INVALID_EVIDENCE', `CharacterizationRun '${run.id}' indicates the recruiting site still requires login`);
+      }
       const requestedLabel = normalized(input.externalResumeLabel);
       const observedLabels = new Set(run.characterization.controls.flatMap((control) => control.optionLabels.map(normalized)).filter(Boolean));
       if (!observedLabels.has(requestedLabel)) {

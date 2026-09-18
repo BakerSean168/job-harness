@@ -361,7 +361,11 @@ function freezeRun(run: MutableValidationRun): BrowserExtensionValidationRun {
 }
 function characterizedStateSignals(bodyText: string): string[] {
   const signals = ['立即投递','投简历','继续沟通','已投递','已申请','选择简历','我的简历','在线简历','默认简历','附件简历','上传简历','聊一聊'];
-  return signals.filter((signal) => bodyText.includes(signal));
+  const observed = signals.filter((signal) => bodyText.includes(signal));
+  const loginMarkers = ['手机号','短信验证码','验证码'];
+  const hasLoginForm = bodyText.includes('登录') && loginMarkers.filter((signal) => bodyText.includes(signal)).length >= 2;
+  if (hasLoginForm) observed.unshift('需要登录');
+  return observed;
 }
 function sanitizedHref(value: unknown): string | null {
   if (typeof value !== 'string' || !value.trim()) return null;

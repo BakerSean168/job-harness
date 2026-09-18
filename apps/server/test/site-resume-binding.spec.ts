@@ -78,6 +78,14 @@ describe('site-managed resume binding', () => {
     } finally { wrote.bindingStore.close(); wrote.resumeStore.close(); }
   });
 
+  it('rejects binding evidence from an unauthenticated recruiting page even if a resume-like option is present', async () => {
+    const f = await fixture();
+    try {
+      f.run.characterization = { ...f.run.characterization!, stateSignals:['需要登录','投简历'] };
+      await expect(f.service.create({ siteFamily:'zhilian', browserAgentId:'windows-chrome-primary', profileId:f.profile.id, externalResumeLabel:'AI Agent简历', characterizationRunId:f.run.id, idempotencyKey:'login-bind' })).rejects.toMatchObject({ code:'INVALID_EVIDENCE' });
+    } finally { f.bindingStore.close(); f.resumeStore.close(); }
+  });
+
   it('binds the exact frozen Revision/PDF requested by a pending Intent even when the Profile has a newer revision', async () => {
     const f = await fixture();
     try {

@@ -39,6 +39,7 @@ export interface AtsCharacterizationCopy {
   readonly controls: string;
   readonly formHash: string;
   readonly noSignals: string;
+  readonly loginRequired: string;
   readonly noActions: string;
   readonly noControls: string;
   readonly bindingTitle: string;
@@ -161,6 +162,7 @@ export function AtsCharacterizationPanel({
           <p><strong>{state.evidence.title}</strong></p>
           <p><code>{state.evidence.currentUrl}</code></p>
           <p>{copy.signals}: {state.evidence.stateSignals.length ? state.evidence.stateSignals.join(' · ') : copy.noSignals}</p>
+          {state.evidence.stateSignals.includes('需要登录') ? <p className="form-error" role="alert">{copy.loginRequired}</p> : null}
           <p>{copy.formHash}: <code>{state.evidence.formStateHash}</code></p>
           <p>{copy.actions}: {state.evidence.actions.length ? state.evidence.actions.map((item) => `${item.text || item.tag}${item.disabled || item.ariaDisabled ? ' [disabled]' : ''}`).join(' · ') : copy.noActions}</p>
           <p>{copy.controls}: {state.evidence.controls.length ? state.evidence.controls.map((item) => `${item.kind}:${item.label || item.name || '—'}${item.required ? '*' : ''}`).join(' · ') : copy.noControls}</p>
