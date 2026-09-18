@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { JOB_SOURCE_KINDS } from '@job-harness/domain';
 import type { MessageCatalog } from '@/i18n';
 import { RecordSidePanelDialog } from '@/components/ui/record-side-panel-dialog';
-import { addJobAction, initialAddJobActionState } from '@/app/jobs/actions';
+import { addJobAction } from '@/app/jobs/actions';
+import { initialAddJobActionState } from '@/app/jobs/action-state';
 
 export function AddJobPanel({ closeHref, messages }: { closeHref: string; messages: MessageCatalog }) {
   const router = useRouter();

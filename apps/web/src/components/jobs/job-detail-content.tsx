@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
-import type { JobDetail } from '@job-harness/contracts';
+import type { JobDetail, RecommendJobResumesOutput } from '@job-harness/contracts';
 import type { ResumeProfile } from '@job-harness/resume-contracts';
 import type { Locale, MessageCatalog } from '@/i18n';
 import { formatDateTime } from '@/lib/format';
 import { StatusBadge } from './status-badge';
 import { TriageActions } from './triage-actions';
 import { RecordApplicationForm } from './record-application-form';
+import { ResumeRecommendations } from './resume-recommendations';
 
 export function JobDetailContent({
   detail,
@@ -16,6 +17,7 @@ export function JobDetailContent({
   closeAfterMutation = false,
   compact = false,
   resumeProfiles = [],
+  resumeRecommendations,
 }: {
   detail: JobDetail;
   locale: Locale;
@@ -24,6 +26,7 @@ export function JobDetailContent({
   closeAfterMutation?: boolean;
   compact?: boolean;
   resumeProfiles?: readonly ResumeProfile[];
+  resumeRecommendations?: RecommendJobResumesOutput;
 }) {
   const copy = messages.jobsWorkspace;
   const { job } = detail;
@@ -98,6 +101,15 @@ export function JobDetailContent({
           ))}
         </div>
       </section>
+
+      {!detail.application && resumeRecommendations ? (
+        <ResumeRecommendations
+          jobId={job.id}
+          listingId={detail.primaryListing?.id ?? null}
+          recommendations={resumeRecommendations}
+          messages={messages}
+        />
+      ) : null}
 
       <section className="detail-section">
         <h3>{copy.detail.application}</h3>

@@ -276,3 +276,63 @@ export class MokaSocialRecruitmentAtsSiteAdapter extends ObservedPublicAtsAdapte
     }
   }
 }
+
+abstract class LegacyCopilotObservedAtsAdapter extends ObservedPublicAtsAdapter {
+  abstract readonly descriptor: ApplySiteAdapter['descriptor'];
+  abstract readonly hostSuffixes: readonly string[];
+
+  probe(input: { url: string }) {
+    try {
+      const url = new URL(input.url);
+      const host = url.hostname.toLowerCase();
+      const supported = this.hostSuffixes.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+      return {
+        supported,
+        score: supported ? 0.96 : 0,
+        reason: supported ? `legacy-copilot-observed:${this.descriptor.id}` : `legacy-copilot-mismatch:${this.descriptor.id}`,
+      };
+    } catch {
+      return { supported: false, score: 0, reason: 'invalid-url' };
+    }
+  }
+}
+
+export class BeisenAtsSiteAdapter extends LegacyCopilotObservedAtsAdapter {
+  readonly descriptor = {
+    id: 'beisen-ats', version: 'legacy-copilot-2026-09-18.1', semantics: 'formal_application' as const, priority: 165,
+    capabilities: { inspect: true, enter: false, fill: true, validate: true, submit: false },
+  };
+  readonly hostSuffixes = ['beisen.com', 'italent.cn', 'italentx.cn', 'italentx.com'] as const;
+}
+
+export class FeishuJobsAtsSiteAdapter extends LegacyCopilotObservedAtsAdapter {
+  readonly descriptor = {
+    id: 'feishu-jobs-ats', version: 'legacy-copilot-2026-09-18.1', semantics: 'formal_application' as const, priority: 165,
+    capabilities: { inspect: true, enter: false, fill: true, validate: true, submit: false },
+  };
+  readonly hostSuffixes = ['jobs.feishu.cn'] as const;
+}
+
+export class HotJobAtsSiteAdapter extends LegacyCopilotObservedAtsAdapter {
+  readonly descriptor = {
+    id: 'hotjob-ats', version: 'legacy-copilot-2026-09-18.1', semantics: 'formal_application' as const, priority: 160,
+    capabilities: { inspect: true, enter: false, fill: true, validate: true, submit: false },
+  };
+  readonly hostSuffixes = ['hotjob.cn'] as const;
+}
+
+export class ZhiyeAtsSiteAdapter extends LegacyCopilotObservedAtsAdapter {
+  readonly descriptor = {
+    id: 'zhiye-ats', version: 'legacy-copilot-2026-09-18.1', semantics: 'formal_application' as const, priority: 160,
+    capabilities: { inspect: true, enter: false, fill: true, validate: true, submit: false },
+  };
+  readonly hostSuffixes = ['zhiye.com'] as const;
+}
+
+export class LegacyMokaAtsSiteAdapter extends LegacyCopilotObservedAtsAdapter {
+  readonly descriptor = {
+    id: 'legacy-moka-ats', version: 'legacy-copilot-2026-09-18.1', semantics: 'formal_application' as const, priority: 155,
+    capabilities: { inspect: true, enter: false, fill: true, validate: true, submit: false },
+  };
+  readonly hostSuffixes = ['mokahr.com', 'moka.com'] as const;
+}

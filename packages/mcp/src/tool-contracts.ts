@@ -50,6 +50,9 @@ import {
   ListSubmissionIntentsOutputSchema,
   GetSubmissionIntentInputSchema,
   GetSubmissionIntentOutputSchema,
+  RecommendJobResumesOutputSchema,
+  PrepareRecommendedSubmissionIntentInputSchema,
+  PrepareRecommendedSubmissionIntentOutputSchema,
 } from '@job-harness/contracts';
 import {
   ListResumeProfilesInputSchema,
@@ -83,6 +86,9 @@ function tool(contract: CareerMcpToolContract): CareerMcpToolContract {
   return Object.freeze(contract);
 }
 
+export const JobResumeRecommendToolInputSchema = z.object({ jobId: z.string().trim().min(1).max(200) }).strict();
+export const JobResumePrepareToolInputSchema = PrepareRecommendedSubmissionIntentInputSchema.extend({ jobId: z.string().trim().min(1).max(200) });
+
 export const CAREER_MCP_TOOLS = [
   tool({ name: 'career_context_get', description: 'Read the compact job-search context an AI should load before discovery or application work.', mutability: 'read', externalSideEffect: false, inputSchema: CareerContextInputSchema, outputSchema: CareerContextOutputSchema }),
   tool({ name: 'career_jobs_search', description: 'Search durable known jobs with filters; this does not search the public web.', mutability: 'read', externalSideEffect: false, inputSchema: SearchJobsInputSchema, outputSchema: SearchJobsOutputSchema }),
@@ -113,6 +119,10 @@ export const CAREER_MCP_TOOLS = [
 
 export const CAREER_MCP_TOOL_BY_NAME = new Map(CAREER_MCP_TOOLS.map((entry) => [entry.name, entry]));
 
+export const JOB_RESUME_MCP_TOOLS = [
+  tool({ name: 'career_job_resume_recommend', description: 'Rank active Resume Profiles for a known job using deterministic explainable matching; performs no application side effect.', mutability: 'read', externalSideEffect: false, inputSchema: JobResumeRecommendToolInputSchema, outputSchema: RecommendJobResumesOutputSchema }),
+  tool({ name: 'career_submission_intent_prepare_recommended', description: 'Choose or honor a Resume Profile for a job, freeze its latest Revision/PDF Artifact, and create a durable SubmissionIntent. Does not interact with the recruiting site.', mutability: 'state-write', externalSideEffect: false, inputSchema: JobResumePrepareToolInputSchema, outputSchema: PrepareRecommendedSubmissionIntentOutputSchema }),
+] as const satisfies readonly CareerMcpToolContract[];
 
 export const ResumeProfileIdInputSchema = z.object({ profileId: ResumeEntityIdSchema }).strict();
 export const ResumeProfileContextOutputSchema = ResumeProfileContextSchema.nullable();
@@ -157,5 +167,5 @@ export const RESUME_MCP_TOOLS = [
   tool({ name: 'resume_revision_artifact_materialize', description: 'Materialize an immutable HTML/PDF/JSON Artifact for a published Resume Revision.', mutability: 'state-write', externalSideEffect: false, inputSchema: MaterializeResumeArtifactInputSchema, outputSchema: MaterializeResumeArtifactOutputSchema }),
 ] as const satisfies readonly CareerMcpToolContract[];
 
-export const JOB_HARNESS_MCP_TOOLS = [...CAREER_MCP_TOOLS, ...RESUME_MCP_TOOLS] as const;
+export const JOB_HARNESS_MCP_TOOLS = [...CAREER_MCP_TOOLS, ...RESUME_MCP_TOOLS, ...JOB_RESUME_MCP_TOOLS] as const;
 export const JOB_HARNESS_MCP_TOOL_BY_NAME = new Map(JOB_HARNESS_MCP_TOOLS.map((entry) => [entry.name, entry]));

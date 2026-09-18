@@ -184,6 +184,57 @@ export const PrepareSubmissionIntentInputSchema = z.object({
   }
 });
 export const PrepareSubmissionIntentOutputSchema = SubmissionIntentSchema;
+
+export const JobResumeMatchKeywordSchema = z.object({
+  keyword: z.string().trim().min(1).max(200),
+  score: z.number().int().min(-100).max(100),
+}).strict();
+
+export const JobResumeMatchSchema = z.object({
+  profileId: EntityIdSchema,
+  profileName: z.string().trim().min(1).max(300),
+  targetRole: z.string().trim().max(300),
+  score: z.number().int().min(0).max(100),
+  decision: z.enum(['strong-match', 'review', 'low-match']),
+  family: z.enum(['agent', 'frontend', 'fullstack', 'generic']),
+  latestRevisionId: EntityIdSchema.nullable(),
+  latestPdfArtifactId: EntityIdSchema.nullable(),
+  executable: z.boolean(),
+  breakdown: z.object({
+    titleScore: z.number().int(),
+    detailScore: z.number().int(),
+    supportScore: z.number().int(),
+    comboScore: z.number().int(),
+    specializationScore: z.number().int(),
+    titlePenaltyScore: z.number().int(),
+    penaltyScore: z.number().int(),
+  }).strict(),
+  positiveSignals: z.array(JobResumeMatchKeywordSchema),
+  riskSignals: z.array(JobResumeMatchKeywordSchema),
+}).strict();
+
+export const RecommendJobResumesOutputSchema = z.object({
+  jobId: EntityIdSchema,
+  recommendedProfileId: EntityIdSchema.nullable(),
+  recommendationDelta: z.number().int().min(0).max(100),
+  items: z.array(JobResumeMatchSchema),
+}).strict();
+
+export const PrepareRecommendedSubmissionIntentInputSchema = z.object({
+  listingId: EntityIdSchema.nullable().optional(),
+  channel: ApplicationSubmissionChannelSchema.nullable().optional(),
+  preferredProfileId: EntityIdSchema.nullable().optional(),
+  executor: SubmissionIntentExecutorSchema.default('browser-extension'),
+  executorSessionId: z.string().trim().min(1).max(500).nullable().optional(),
+  externalTargetUrl: z.url().nullable().optional(),
+  idempotencyKey: IdempotencyKeySchema,
+  note: z.string().trim().max(4000).nullable().optional(),
+}).strict();
+
+export const PrepareRecommendedSubmissionIntentOutputSchema = z.object({
+  selection: JobResumeMatchSchema,
+  intent: SubmissionIntentSchema,
+}).strict();
 export const GetSubmissionIntentInputSchema = z.object({ intentId: EntityIdSchema }).strict();
 export const GetSubmissionIntentOutputSchema = SubmissionIntentSchema.nullable();
 
@@ -308,6 +359,10 @@ export const CareerContextOutputSchema = z
 
 
 export type PrepareSubmissionIntentInput = z.input<typeof PrepareSubmissionIntentInputSchema>;
+export type JobResumeMatch = z.output<typeof JobResumeMatchSchema>;
+export type RecommendJobResumesOutput = z.output<typeof RecommendJobResumesOutputSchema>;
+export type PrepareRecommendedSubmissionIntentInput = z.input<typeof PrepareRecommendedSubmissionIntentInputSchema>;
+export type PrepareRecommendedSubmissionIntentOutput = z.output<typeof PrepareRecommendedSubmissionIntentOutputSchema>;
 export type BeginSubmissionIntentInput = z.input<typeof BeginSubmissionIntentInputSchema>;
 export type ConfirmSubmissionIntentInput = z.input<typeof ConfirmSubmissionIntentInputSchema>;
 export type FailSubmissionIntentInput = z.input<typeof FailSubmissionIntentInputSchema>;

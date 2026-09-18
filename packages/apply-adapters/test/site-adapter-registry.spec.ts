@@ -10,6 +10,11 @@ import {
   ZhilianAtsSiteAdapter,
   LiepinAtsSiteAdapter,
   BossOutreachSiteAdapter,
+  BeisenAtsSiteAdapter,
+  FeishuJobsAtsSiteAdapter,
+  HotJobAtsSiteAdapter,
+  ZhiyeAtsSiteAdapter,
+  LegacyMokaAtsSiteAdapter,
 } from '../src';
 
 const form = FormIRSchema.parse({
@@ -84,6 +89,32 @@ describe('ApplySiteAdapter registry and declarative playbooks', () => {
     expect(nowcoder?.descriptor).toMatchObject({ id: 'nowcoder-ats', capabilities: { submit: true } });
     const moka = registry.resolve({ url: 'https://app.mokahr.com/social-recruitment/high-flyer/140576#/job/abc', semantics: 'formal_application' });
     expect(moka?.descriptor).toMatchObject({ id: 'moka-social-recruitment', capabilities: { submit: false } });
+  });
+
+  it('restores legacy Copilot ATS host coverage as fill-only adapters without promoting submit authority', () => {
+    const registry = new ApplySiteAdapterRegistry([
+      new GenericAtsSiteAdapter(),
+      new MokaSocialRecruitmentAtsSiteAdapter(),
+      new BeisenAtsSiteAdapter(),
+      new FeishuJobsAtsSiteAdapter(),
+      new HotJobAtsSiteAdapter(),
+      new ZhiyeAtsSiteAdapter(),
+      new LegacyMokaAtsSiteAdapter(),
+    ]);
+    const cases = [
+      ['https://acme.beisen.com/campus/apply/1', 'beisen-ats'],
+      ['https://foo.italentx.com/apply/1', 'beisen-ats'],
+      ['https://jobs.feishu.cn/acme/123', 'feishu-jobs-ats'],
+      ['https://acme.hotjob.cn/wt/acme/web/index/applyPosition', 'hotjob-ats'],
+      ['https://acme.zhiye.com/campus/jobs/1', 'zhiye-ats'],
+      ['https://acme.mokahr.com/apply/1', 'legacy-moka-ats'],
+    ] as const;
+    for (const [url, id] of cases) {
+      const adapter = registry.resolve({ url, semantics: 'formal_application' });
+      expect(adapter?.descriptor).toMatchObject({ id, capabilities: { fill: true, submit: false } });
+    }
+    const nativeMoka = registry.resolve({ url: 'https://app.mokahr.com/social-recruitment/high-flyer/140576#/job/abc', semantics: 'formal_application' });
+    expect(nativeMoka?.descriptor.id).toBe('moka-social-recruitment');
   });
 
   it('keeps BOSS greeting/outreach semantics outside formal application submission', () => {

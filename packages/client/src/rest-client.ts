@@ -86,6 +86,9 @@ import {
   RecordApplicationOutputSchema,
   TransitionApplicationOutputSchema,
   PrepareSubmissionIntentOutputSchema,
+  RecommendJobResumesOutputSchema,
+  PrepareRecommendedSubmissionIntentInputSchema,
+  PrepareRecommendedSubmissionIntentOutputSchema,
   BeginSubmissionIntentOutputSchema,
   SubmissionIntentCommitOutputSchema,
   FailSubmissionIntentOutputSchema,
@@ -94,6 +97,9 @@ import {
   DiscoveryRunDetailSchema,
   type ApplicationWorkspaceDetail,
   type PrepareSubmissionIntentInput,
+  type RecommendJobResumesOutput,
+  type PrepareRecommendedSubmissionIntentInput,
+  type PrepareRecommendedSubmissionIntentOutput,
   type BeginSubmissionIntentInput,
   type ConfirmSubmissionIntentInput,
   type FailSubmissionIntentInput,
@@ -537,6 +543,16 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
         return JobSchema.parse(await request(`/jobs/${encodeURIComponent(input.jobId)}/state`, {
           method: 'PATCH',
           body: JSON.stringify({ state: input.state, idempotencyKey: input.idempotencyKey }),
+        }));
+      },
+      async recommendResumes(jobId: string): Promise<RecommendJobResumesOutput> {
+        return RecommendJobResumesOutputSchema.parse(await request(`/jobs/${encodeURIComponent(jobId)}/resume-recommendations`));
+      },
+      async prepareRecommendedSubmission(jobId: string, input: PrepareRecommendedSubmissionIntentInput): Promise<PrepareRecommendedSubmissionIntentOutput> {
+        const parsed = PrepareRecommendedSubmissionIntentInputSchema.parse(input);
+        return PrepareRecommendedSubmissionIntentOutputSchema.parse(await request(`/jobs/${encodeURIComponent(jobId)}/prepare-application`, {
+          method: 'POST',
+          body: JSON.stringify(parsed),
         }));
       },
     },

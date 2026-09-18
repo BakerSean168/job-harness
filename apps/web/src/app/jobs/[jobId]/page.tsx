@@ -9,11 +9,12 @@ import { getJobHarnessClient } from '@/lib/job-harness-client';
 export default async function JobDetailPage({ params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = await params;
   const client = getJobHarnessClient();
-  const [detail, messages, locale, resumeProfiles] = await Promise.all([
+  const [detail, messages, locale, resumeProfiles, resumeRecommendations] = await Promise.all([
     client.workspace.getJobDetail(jobId),
     getMessages(),
     getLocale(),
     client.resume.listProfiles(),
+    client.jobs.recommendResumes(jobId),
   ]);
   if (!detail) notFound();
 
@@ -30,7 +31,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
         )}
       />
       <div className="workspace-surface job-full-surface">
-        <JobDetailContent detail={detail} locale={locale} messages={messages} resumeProfiles={resumeProfiles.items} />
+        <JobDetailContent detail={detail} locale={locale} messages={messages} resumeProfiles={resumeProfiles.items} resumeRecommendations={resumeRecommendations} />
       </div>
     </div>
   );

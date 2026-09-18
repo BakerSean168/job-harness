@@ -136,6 +136,7 @@ export interface MessageCatalog {
   jobsWorkspace: {
     add: { trigger: string; title: string; description: string; company: string; role: string; city: string; source: string; url: string; externalId: string; jd: string; save: string; saving: string; saved: string; failed: string; };
     record: { title: string; recordAgain: string; hint: string; appliedAt: string; listing: string; channel: string; resume: string; none: string; linkLatestRevision: string; linkLatestRevisionHint: string; note: string; notePlaceholder: string; save: string; saving: string; saved: string; failed: string; };
+    recommendation: { title: string; deterministic: string; hint: string; recommended: string; signals: string; risks: string; frozenReady: string; freezeOnPrepare: string; delta: string; prepare: string; decisions: Record<'strong-match' | 'review' | 'low-match', string>; };
     filters: {
       title: string;
       company: string;

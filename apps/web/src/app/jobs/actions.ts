@@ -2,15 +2,12 @@
 
 import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import type { Job } from '@job-harness/contracts';
 import { JobHarnessRestError } from '@job-harness/client';
 import { JobSourceKindSchema } from '@job-harness/contracts';
 import { getJobHarnessClient } from '../../lib/job-harness-client';
-
-export interface JobStateActionResult {
-  ok: boolean;
-  code?: string;
-}
+import type { AddJobActionState, JobStateActionResult } from './action-state';
 
 export async function setJobStateAction(
   jobId: string,
@@ -35,22 +32,6 @@ export async function setJobStateAction(
   }
 }
 
-
-export interface AddJobActionState {
-  ok: boolean;
-  jobId: string | null;
-  status: 'inserted' | 'updated' | 'duplicate' | 'rejected' | null;
-  code: string | null;
-  message: string | null;
-}
-
-export const initialAddJobActionState: AddJobActionState = {
-  ok: false,
-  jobId: null,
-  status: null,
-  code: null,
-  message: null,
-};
 
 function formString(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -111,4 +92,22 @@ export async function addJobAction(_previous: AddJobActionState, formData: FormD
       message: error instanceof Error ? error.message : 'Could not add job.',
     };
   }
+}
+
+
+export async function prepareRecommendedApplicationAction(formData: FormData): Promise<void> {
+  const jobId = formString(formData, 'jobId');
+  const listingId = formString(formData, 'listingId');
+  const preferredProfileId = formString(formData, 'preferredProfileId');
+  if (!jobId || !preferredProfileId) throw new Error('Job and Resume Profile are required');
+  await getJobHarnessClient().jobs.prepareRecommendedSubmission(jobId, {
+    ...(listingId ? { listingId } : {}),
+    preferredProfileId,
+    executor: 'browser-extension',
+    idempotencyKey: `web:auto-resume:${jobId}:${randomUUID()}`,
+    note: 'Prepared from Job detail using deterministic Resume Profile recommendation.',
+  });
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath('/executors');
+  redirect('/executors');
 }

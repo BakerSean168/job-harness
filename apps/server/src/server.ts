@@ -21,6 +21,7 @@ import { registerApplicantApi } from './applicant-api';
 import { ensureApplicantDefaultsFromResume } from './applicant-bootstrap';
 import { createApplyBundleFactory } from './apply-bundle';
 import { createResumeRevisionApplicantDataGrant } from './applicant-data';
+import { createJobResumePreparationService, registerJobResumeApi } from './job-resume';
 import { createFileSystemResumeArtifactStorage, createHttpResumePdfRenderer } from './resume-artifacts';
 import { getResumeRendererFingerprint, renderResumePreviewHtml } from '@job-harness/resume-renderer';
 import { BROWSER_EXTENSION_BRIDGE_PREFIX, BrowserExtensionBridge, BrowserExtensionBridgeError, registerBrowserExtensionBridgeApi } from './browser-extension-bridge';
@@ -184,7 +185,8 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     storage: createFileSystemResumeArtifactStorage(artifactDirectory),
     pdfRenderer,
   });
-  const runtime = createJobHarnessMcpRuntime(application, resume, resumeArtifacts);
+  const jobResume = createJobResumePreparationService(application, resume, resumeArtifacts);
+  const runtime = createJobHarnessMcpRuntime(application, resume, resumeArtifacts, jobResume);
   const host = options.host ?? '127.0.0.1';
   const authToken = options.authToken?.trim() || null;
   const executorAuthToken = options.executorAuthToken?.trim() || null;
@@ -322,6 +324,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   registerJobHarnessDataAdminApi(app, options.databasePath, API_PREFIX);
   registerJobHarnessApi(app, application);
   registerResumeApi(app, resume, resumeArtifacts, pdfRenderer, API_PREFIX);
+  registerJobResumeApi(app, jobResume, API_PREFIX);
   registerApplicantApi(app, applicant, API_PREFIX);
   registerApplyApi(app, apply, resumeArtifacts);
 

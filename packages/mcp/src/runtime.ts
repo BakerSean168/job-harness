@@ -51,6 +51,11 @@ import {
   ListSubmissionIntentsOutputSchema,
   GetSubmissionIntentInputSchema,
   GetSubmissionIntentOutputSchema,
+  RecommendJobResumesOutputSchema,
+  PrepareRecommendedSubmissionIntentOutputSchema,
+  type PrepareRecommendedSubmissionIntentInput,
+  type RecommendJobResumesOutput,
+  type PrepareRecommendedSubmissionIntentOutput,
 } from '@job-harness/contracts';
 import {
   CAREER_MCP_TOOL_BY_NAME,
@@ -62,6 +67,8 @@ import {
   ResumeProfileIdInputSchema,
   ResumeProfileOverridesPatchInputSchema,
   ResumeProfileSelectionPatchInputSchema,
+  JobResumeRecommendToolInputSchema,
+  JobResumePrepareToolInputSchema,
 } from './tool-contracts';
 import {
   ListResumeProfilesInputSchema,
@@ -72,6 +79,11 @@ import {
   PublishResumeRevisionOutputSchema,
   ResumeProfileContextSchema,
 } from '@job-harness/resume-contracts';
+
+export interface JobResumeMcpPort {
+  recommend(jobId: string): Promise<RecommendJobResumesOutput>;
+  prepare(jobId: string, input: PrepareRecommendedSubmissionIntentInput): Promise<PrepareRecommendedSubmissionIntentOutput>;
+}
 
 export class UnknownCareerMcpToolError extends Error {
   constructor(readonly toolName: string) {
@@ -92,10 +104,14 @@ export class CareerMcpRuntime {
     private readonly ports: CareerApplicationPorts,
     private readonly resume?: ResumeRuntimePorts,
     private readonly resumeArtifacts?: ResumeArtifactRuntimePorts,
+    private readonly jobResume?: JobResumeMcpPort,
   ) {}
 
   listTools() {
-    return this.resume && this.resumeArtifacts ? JOB_HARNESS_MCP_TOOLS : CAREER_MCP_TOOLS;
+    if (!this.resume || !this.resumeArtifacts) return CAREER_MCP_TOOLS;
+    return this.jobResume
+      ? JOB_HARNESS_MCP_TOOLS
+      : JOB_HARNESS_MCP_TOOLS.filter((tool) => tool.name !== 'career_job_resume_recommend' && tool.name !== 'career_submission_intent_prepare_recommended');
   }
 
   private requireResume(): ResumeRuntimePorts {
@@ -109,7 +125,7 @@ export class CareerMcpRuntime {
   }
 
   async invoke(toolName: string, rawInput: unknown): Promise<unknown> {
-    const registry = this.resume && this.resumeArtifacts ? JOB_HARNESS_MCP_TOOL_BY_NAME : CAREER_MCP_TOOL_BY_NAME;
+    const registry = new Map(this.listTools().map((entry) => [entry.name, entry]));
     if (!registry.has(toolName)) throw new UnknownCareerMcpToolError(toolName);
 
     switch (toolName) {
@@ -217,6 +233,17 @@ export class CareerMcpRuntime {
         return UpsertCampaignOutputSchema.parse(
           await this.ports.campaigns.upsertCampaign(UpsertCampaignInputSchema.parse(rawInput)),
         );
+      case 'career_job_resume_recommend': {
+        if (!this.jobResume) throw new Error('Job/Resume recommendation capability is not configured');
+        const input = JobResumeRecommendToolInputSchema.parse(rawInput);
+        return RecommendJobResumesOutputSchema.parse(await this.jobResume.recommend(input.jobId));
+      }
+      case 'career_submission_intent_prepare_recommended': {
+        if (!this.jobResume) throw new Error('Job/Resume recommendation capability is not configured');
+        const input = JobResumePrepareToolInputSchema.parse(rawInput);
+        const { jobId, ...prepareInput } = input;
+        return PrepareRecommendedSubmissionIntentOutputSchema.parse(await this.jobResume.prepare(jobId, prepareInput));
+      }
       case 'resume_profiles_list':
         return ListResumeProfilesOutputSchema.parse(
           await this.requireResume().listProfiles(ListResumeProfilesInputSchema.parse(rawInput)),
@@ -288,6 +315,6 @@ export function createCareerMcpRuntime(ports: CareerApplicationPorts): CareerMcp
   return new CareerMcpRuntime(ports);
 }
 
-export function createJobHarnessMcpRuntime(ports: CareerApplicationPorts, resume: ResumeRuntimePorts, resumeArtifacts: ResumeArtifactRuntimePorts): CareerMcpRuntime {
-  return new CareerMcpRuntime(ports, resume, resumeArtifacts);
+export function createJobHarnessMcpRuntime(ports: CareerApplicationPorts, resume: ResumeRuntimePorts, resumeArtifacts: ResumeArtifactRuntimePorts, jobResume?: JobResumeMcpPort): CareerMcpRuntime {
+  return new CareerMcpRuntime(ports, resume, resumeArtifacts, jobResume);
 }
