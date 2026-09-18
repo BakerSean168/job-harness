@@ -590,3 +590,20 @@ Verification after A34/A35 and the site-adapter pass:
 - Browser Extension bridge/static gate: **PASS**
 - OpenAPI no-drift: **PASS**
 - Next.js production build: **PASS**
+
+### Finding A36 — browser action discovery misses custom recruiting-site controls (P1 real-site compatibility)
+
+The first two logged-in Zhaopin canaries (英维克 `AI应用工程师` and 深度制耀 `AI全栈工程师`) both reached the real job-detail page with `externalEffectState = not_crossed`, but `scan_actions` reported no apply CTA even though the page contained application-related DOM structure. Read-only characterization showed the Browser Bridge only treated `a[href]`, `button`, and `[role=button]` as actions. Modern recruiting sites can attach JavaScript listeners to `div`/`span` controls without using those semantic tags, so the adapter could incorrectly classify a real page as requiring an opaque human entry step.
+
+**A36 — fixed.** Both MV3 Browser Bridge and Playwright/Steel action discovery now include visible custom interaction candidates only when they carry explicit interaction evidence (`onclick`, non-negative `tabindex`, or `cursor:pointer`) together with bounded action-like semantics (`apply`, `deliver`, `submit`, `chat`, `btn`, `button`, `action`, or the corresponding Chinese application/contact text). Standard anchors/buttons retain their previous behavior, candidates are deduplicated before stable `data-job-harness-action-id` allocation, and oversized non-action containers are excluded.
+
+This change widens **read-only discovery only**. It does not widen browser write authority: the server-side extension bridge still independently gates every `click`, and Zhaopin remains unable to receive an automated click until a characterized site-specific entry/submit policy is explicitly implemented. Browser Bridge manifest version is advanced to **0.1.3**. A regression fixture proves a custom pointer-style `<div class="job-apply-trigger">立即投递</div>` is discovered as `tag=other` while stable action references remain intact.
+
+Verification after A36:
+
+- `pnpm check`: **PASS**
+- Vitest: **87 test files / 201 tests PASS**
+- strict TypeScript: **PASS**
+- Browser Extension bridge/static gate: **PASS**
+- OpenAPI no-drift: **PASS**
+- Next.js production build: **PASS**

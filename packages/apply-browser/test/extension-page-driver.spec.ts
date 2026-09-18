@@ -8,13 +8,13 @@ import { PlaywrightBrowserDriver } from '../src/playwright-driver';
 const driverPath = fileURLToPath(new URL('../../../integrations/browser-extension/page-driver.js', import.meta.url));
 
 async function withDriver<T>(run: (page: import('playwright').Page) => Promise<T>): Promise<T> {
-  const html = `<!doctype html><style>input,select,button{display:block;width:180px;height:30px;margin:8px}</style>
+  const html = `<!doctype html><style>input,select,button{display:block;width:180px;height:30px;margin:8px}.job-apply-trigger{display:block;width:180px;height:30px;margin:8px;cursor:pointer}</style>
       <form><fieldset><legend>基本信息</legend>
         <label>姓名 <input id="name" name="name" required></label>
         <label>邮箱 <input id="email" type="email" name="email" required></label>
         <label>学历 <select id="degree" name="degree" required><option value="">请选择</option><option value="bachelor">本科</option></select></label>
         <label>简历 <input id="resume" type="file" name="resume" accept="application/pdf,.pdf" required></label>
-      </fieldset><button id="next" type="button">继续</button></form>`;
+      </fieldset><button id="next" type="button">继续</button><div id="custom-apply" class="job-apply-trigger">立即投递</div></form>`;
   const server = createServer((_req, res) => { res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(html); });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -77,6 +77,7 @@ describe('MV3 page driver contract', () => {
 
       const actions = await command(page, 'scan_actions') as Array<Record<string, unknown>>;
       expect(actions).toEqual(expect.arrayContaining([expect.objectContaining({ tag: 'button', text: '继续', disabled: false })]));
+      expect(actions).toEqual(expect.arrayContaining([expect.objectContaining({ tag: 'other', text: '立即投递', disabled: false })]));
       const firstHash = await command(page, 'form_state_hash');
       expect(firstHash).toMatch(/^[a-f0-9]{64}$/);
       await command(page, 'fill', { selector: name!.controlRef, value: 'Changed User' });

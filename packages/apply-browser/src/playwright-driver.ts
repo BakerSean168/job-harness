@@ -157,7 +157,21 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
         const rect = (element as HTMLElement).getBoundingClientRect();
         return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
       };
-      const nodes = [...document.querySelectorAll('a[href], button, [role="button"]')]
+      const standard = [...document.querySelectorAll('a[href], button, [role="button"]')];
+      const inferred = [...document.querySelectorAll(
+        '[onclick],[tabindex],[class*="apply" i],[class*="deliver" i],[class*="submit" i],[class*="chat" i],[class*="btn" i],[class*="button" i],[class*="action" i]'
+      )].filter((element) => {
+        if (!(element instanceof HTMLElement)) return false;
+        if (element.matches('a[href], button, [role="button"]')) return true;
+        const text = compact(element.innerText || element.getAttribute('aria-label') || element.getAttribute('title'));
+        if (!text || text.length > 220) return false;
+        const className = typeof element.className === 'string' ? element.className : '';
+        const semantic = /apply|deliver|submit|chat|btn|button|action|投递|申请|沟通/i.test(`${className} ${text}`);
+        const tabIndex = Number(element.getAttribute('tabindex') ?? '-1');
+        const style = window.getComputedStyle(element);
+        return element.hasAttribute('onclick') || tabIndex >= 0 || (style.cursor === 'pointer' && semantic);
+      });
+      const nodes = [...new Set([...standard, ...inferred])]
         .filter((element): element is HTMLElement => element instanceof HTMLElement)
         .filter(visible)
         .slice(0, 500);
