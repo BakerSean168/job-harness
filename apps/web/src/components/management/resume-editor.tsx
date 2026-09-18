@@ -84,6 +84,9 @@ export interface ResumeEditorCopy {
   readonly siteBinding: string;
   readonly siteBindingNone: string;
   readonly resyncLiepin: string;
+  readonly siteSyncMissingFacts: string;
+  readonly siteSyncFactsComplete: string;
+  readonly siteSyncApplicantSettings: string;
   readonly composer: ResumeComposerCopy;
 }
 
@@ -98,6 +101,7 @@ interface Props {
   viewApplicationsLabel: string;
   syncAgents: readonly BrowserExtensionAgentView[];
   siteBindings: readonly SiteResumeBinding[];
+  siteSyncMissingFacts: readonly string[];
   copy: ResumeEditorCopy;
 }
 
@@ -113,7 +117,7 @@ function setLocalized<T extends Record<string, string | undefined>>(value: T, lo
   return { ...value, [locale]: next };
 }
 
-export function ResumeEditor({ initialContext, initialHtml, initialRevisions, revisionUsage, usage, usageLabels, applicationsHref, viewApplicationsLabel, syncAgents, siteBindings, copy }: Props) {
+export function ResumeEditor({ initialContext, initialHtml, initialRevisions, revisionUsage, usage, usageLabels, applicationsHref, viewApplicationsLabel, syncAgents, siteBindings, siteSyncMissingFacts, copy }: Props) {
   const [library, setLibrary] = useState<ResumeLibrary>(initialContext.library);
   const [profile, setProfile] = useState<ResumeProfile>(initialContext.profile);
   const [previewHtml, setPreviewHtml] = useState(initialHtml);
@@ -416,6 +420,9 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
             {syncAgents.length ? (
               <label className="management-field"><span>{copy.siteSyncAgent}</span><select value={syncAgentId} onChange={(event) => setSyncAgentId(event.target.value)}>{syncAgents.map((agent) => <option key={agent.agentId} value={agent.agentId}>{agent.name} · {agent.version}</option>)}</select></label>
             ) : <p className="management-error">{copy.siteSyncNoAgent}</p>}
+            {siteSyncMissingFacts.length ? (
+              <p className="management-warning">{copy.siteSyncMissingFacts}: {siteSyncMissingFacts.join('、')} · <a href="/settings#applicant-profile">{copy.siteSyncApplicantSettings}</a></p>
+            ) : <p className="management-success">{copy.siteSyncFactsComplete}</p>}
             {siteSyncMessage ? <p className={siteSyncMessage.startsWith(copy.siteSyncFailed) ? 'management-error' : 'management-success'}>{siteSyncMessage}</p> : null}
           </div>
           <div className="resume-publish-row">

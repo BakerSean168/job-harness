@@ -1002,3 +1002,11 @@ This projection is deliberately read-only. The canonical binding remains the ser
 `ResumeProfile -> ResumeRevision -> PDF ResumeArtifact -> Site Resume Sync -> SiteResumeBinding -> SubmissionIntent/Application`
 
 Revoked bindings are excluded by the existing list contract; no new mutable synchronization state is duplicated in the Resume domain.
+
+#### A71 — Resume Manager exposes ApplicantProfile gaps required by site-resume creation
+
+A recruiting-site resume upload can succeed while the external resume-creation wizard still requires account-level facts that do not belong inside a role-specific Resume PDF. The canonical ownership stays split: immutable role-targeted content belongs to ResumeProfile/Revision, while gender, birth date, current location and job-search status belong to ApplicantProfile and are reused across ATS/site-resume flows.
+
+`/resumes` now loads the current ApplicantProfile alongside Resume state and derives a localized missing-facts list for those four site-resume prerequisites. The Site Resume Sync panel renders the exact missing fields and links directly to `Settings -> Applicant profile` (`#applicant-profile`). Missing facts do not block publishing or PDF upload: they explain why a recruiting-site resume wizard may still require completion after a successful Artifact upload. When all four are present, the panel explicitly reports the ApplicantProfile base facts as complete.
+
+This avoids copying personal base facts into every Resume Profile or site adapter and keeps unknown/protected values fail-closed instead of inferred from job-search activity, fixtures, names, or PDFs.

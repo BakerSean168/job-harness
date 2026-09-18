@@ -19,11 +19,12 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
   const client = getJobHarnessClient();
   const campaignId = one(searchParams.campaign)?.trim() || undefined;
   const requestedProfile = one(searchParams.profile)?.trim();
-  const [profiles, campaignPage, usage, browserAgents] = await Promise.all([
+  const [profiles, campaignPage, usage, browserAgents, applicantProfile] = await Promise.all([
     client.resume.listProfiles(),
     client.campaigns.list({ limit: 200, offset: 0 }),
     client.workspace.listResumeUsage({ limit: 200, offset: 0, ...(campaignId ? { campaignId } : {}) }),
     getBrowserExtensionAgents(),
+    client.applicant.getProfile(),
   ]);
   const resumeSyncAgents = browserAgents.filter((agent) => agent.online && agent.resumeUpload);
   const selected = profiles.items.find((profile) => profile.id === requestedProfile) ?? profiles.items[0] ?? null;
@@ -38,6 +39,13 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
   const usageByProfile = new Map(usage.items.map((item) => [item.resume.id, item]));
   const selectedUsage = selected ? usageByProfile.get(selected.id) ?? null : null;
   const copy = messages.resumesWorkspace;
+  const applicantCopy = messages.settingsWorkspace.applicant;
+  const siteSyncMissingFacts = [
+    !applicantProfile.profile.gender ? applicantCopy.gender : null,
+    !applicantProfile.profile.birthDate ? applicantCopy.birthDate : null,
+    !applicantProfile.profile.location ? applicantCopy.location : null,
+    !applicantProfile.profile.jobSearchStatus ? applicantCopy.jobSearchStatus : null,
+  ].filter((value): value is string => Boolean(value));
 
   return (
     <div className="workspace-page management-page">
@@ -101,6 +109,7 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
             viewApplicationsLabel={copy.table.viewApplications}
             syncAgents={resumeSyncAgents}
             siteBindings={siteResumeBindings.items}
+            siteSyncMissingFacts={siteSyncMissingFacts}
             copy={copy.builder}
           />
         </div>

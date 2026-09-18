@@ -64,7 +64,7 @@ export function ApplicantDataSettings({
 
   return (
     <>
-      <section className="settings-panel applicant-settings-panel">
+      <section id="applicant-profile" className="settings-panel applicant-settings-panel">
         <div className="management-panel-heading"><h2>{copy.profileTitle}</h2><span>v{profile.version} · rev {profileContext.latestRevision.revisionNumber}</span></div>
         <form action={profileAction} className="campaign-editor-fields">
           <input type="hidden" name="expectedVersion" value={profile.version} />
