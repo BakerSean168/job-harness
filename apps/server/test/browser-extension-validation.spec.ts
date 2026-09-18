@@ -103,7 +103,7 @@ describe('browser-extension validation scope', () => {
     });
     expect(() => registry.create({
       agentId: 'windows-chrome-primary', targetUrl: 'https://www.zhaopin.com/jobdetail/CC1.htm', mode: 'site-staged-readonly',
-    })).toThrow(/requires Browser Bridge >= 0.1.6/);
+    })).toThrow(/Browser Bridge >= 0.1.6/);
     expect(bridge.status('windows-chrome-primary')?.queuedCommands).toBe(0);
     bridge.close();
   });
@@ -137,6 +137,61 @@ describe('browser-extension validation scope', () => {
     ] as const) {
       await expect(registry.invoke(run.id, { sessionRef: 'chrome-tab:44', command, timeoutMs: 5_000 })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
     }
+    bridge.close();
+  });
+
+  it('syncs an integrity-checked PDF into the active same-site resume input while denying application clicks', async () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge);
+    const bytes = new TextEncoder().encode('%PDF-1.7\nsite-resume-sync');
+    const registry = new BrowserExtensionValidationRegistry(bridge, {
+      allowedOrigin: 'https://job-harness.test:20900',
+      readonlySiteFamilies: ['liepin'],
+      resumeArtifacts: {
+        async getContent(id: string) {
+          if (id !== 'artifact-sync') return null;
+          return {
+            artifact: { id, revisionId:'rev-sync', kind:'pdf', mimeType:'application/pdf', storageUri:'memory://sync.pdf', sha256:'a'.repeat(64), byteSize:bytes.byteLength, rendererId:'fixture', rendererVersion:'1', createdAt:'2026-09-18T00:00:00.000Z' },
+            bytes,
+          } as any;
+        },
+      },
+    });
+    const run = registry.create({ agentId:'windows-chrome-primary', targetUrl:'https://www.liepin.com/', mode:'site-resume-sync' });
+    const pending = registry.syncResume(run.id, { artifactId:'artifact-sync', fileName:'卢楼豪-AI-Agent应用开发工程师.pdf' });
+    const pageUrl = 'https://www.liepin.com/resume/import';
+    const controls = [{ controlRef:'[data-job-harness-field-id=\"jh-0\"]', kind:'file', label:'上传简历', name:'resumeFile', description:null, required:false, disabled:false, readOnly:false, options:[], semanticHints:['resume-upload'], accept:'.pdf,.doc,.docx', multiple:false, sectionLabel:'已有简历？一键智能导入' }];
+    const actions = [{ actionRef:'[data-job-harness-action-id=\"jha-0\"]', tag:'button', text:'保存简历', href:null, type:'button', role:null, disabled:false, ariaDisabled:false }];
+    let uploadCommand: any = null;
+    let settled = false;
+    void pending.finally(() => { settled = true; });
+    for (let i=0;i<30 && !settled;i++) {
+      const command = await bridge.poll('windows-chrome-primary', 1_000);
+      if (!command) continue;
+      let result: unknown = null;
+      if (command.command.type === 'session_acquire') result = { sessionRef:'chrome-tab:resume-sync', currentUrl:pageUrl };
+      else if (command.command.type === 'current_url') result = pageUrl;
+      else if (command.command.type === 'scan_controls') result = controls;
+      else if (command.command.type === 'upload') { uploadCommand = command.command; result = null; }
+      else if (command.command.type === 'title') result = '欢迎来到猎聘';
+      else if (command.command.type === 'body_text') result = '欢迎来到猎聘 已有简历？一键智能导入 选择文件';
+      else if (command.command.type === 'scan_actions') result = actions;
+      else if (command.command.type === 'form_state_hash') result = 'f'.repeat(64);
+      bridge.complete('windows-chrome-primary', { commandId:command.commandId, ok:true, result });
+    }
+    const completed = await pending;
+    expect(completed).toMatchObject({
+      run:{ mode:'site-resume-sync', writeCount:1 }, artifactId:'artifact-sync', artifactSha256:'a'.repeat(64),
+      uploadedControl:{ label:'上传简历', name:'resumeFile', accept:'.pdf,.doc,.docx' },
+      evidence:{ currentUrl:pageUrl, title:'欢迎来到猎聘' },
+    });
+    expect(uploadCommand).toMatchObject({
+      type:'upload', payload:{ selector:'[data-job-harness-field-id=\"jh-0\"]', file:{ name:'卢楼豪-AI-Agent应用开发工程师.pdf', mimeType:'application/pdf' } },
+    });
+    expect(uploadCommand.payload.file.bytesBase64).toBe(Buffer.from(bytes).toString('base64'));
+    await expect(registry.invoke(run.id, {
+      sessionRef:'chrome-tab:resume-sync', command:{ type:'click', payload:{ selector:'button.apply', expectedText:'投简历' } }, timeoutMs:5_000,
+    })).rejects.toMatchObject({ code:'VALIDATION_CLICK_DENIED' });
     bridge.close();
   });
 

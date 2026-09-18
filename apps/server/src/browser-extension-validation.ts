@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { z } from 'zod';
+import type { ResumeArtifactRuntimePorts } from '@job-harness/resume-application';
 import {
   BrowserExtensionDriverCommandSchema,
   InvokeBrowserExtensionCommandInputSchema,
@@ -14,7 +15,7 @@ import {
 import { writeCommonRestError, writeInternalRestError, writeRestError } from './http-errors';
 
 const ValidationRunIdSchema = z.string().trim().min(1).max(200);
-const ValidationModeSchema = z.enum(['synthetic-canary', 'site-readonly', 'site-staged-readonly']);
+const ValidationModeSchema = z.enum(['synthetic-canary', 'site-readonly', 'site-staged-readonly', 'site-resume-sync']);
 const ReadonlySiteFamilySchema = z.enum(['zhilian', 'liepin']);
 type ReadonlySiteFamily = z.infer<typeof ReadonlySiteFamilySchema>;
 const CreateValidationRunInputSchema = z.object({
@@ -27,6 +28,10 @@ const InvokeValidationCommandInputSchema = z.object({
   sessionRef: z.string().trim().min(1).max(500).nullable().default(null),
   command: BrowserExtensionDriverCommandSchema,
   timeoutMs: z.number().int().min(1_000).max(60_000).default(30_000),
+}).strict();
+const SyncResumeInputSchema = z.object({
+  artifactId: z.string().trim().min(1).max(200),
+  fileName: z.string().trim().min(1).max(500).regex(/\.pdf$/i),
 }).strict();
 
 const SAFE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
@@ -48,6 +53,10 @@ const SAFE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(
 const READONLY_SITE_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
   'session_acquire', 'current_url', 'title', 'body_text', 'exists', 'text', 'wait', 'scan_controls', 'scan_actions', 'form_state_hash',
 ]);
+const RESUME_SYNC_SITE_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
+  'session_acquire', 'current_url', 'title', 'body_text', 'exists', 'text', 'upload', 'wait', 'scan_controls', 'scan_actions', 'form_state_hash', 'click',
+]);
+const RESUME_SYNC_FORBIDDEN_CLICK_TEXT = /(?:投简历|立即投递|确认投递|投递简历|立即申请|提交申请|申请职位|提交职位申请|聊一聊|发送)/i;
 const WRITE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(['fill', 'select', 'set_checked', 'upload']);
 
 export interface BrowserExtensionCharacterizationEvidence {
@@ -95,16 +104,18 @@ export class BrowserExtensionValidationRegistry {
   private readonly runs = new Map<string, MutableValidationRun>();
   private readonly allowedOrigin: string;
   private readonly now: () => Date;
+  private readonly resumeArtifacts: Pick<ResumeArtifactRuntimePorts, 'getContent'> | null;
   private readonly readonlySiteFamilies: ReadonlySet<ReadonlySiteFamily>;
 
   constructor(
     private readonly bridge: BrowserExtensionBridge,
-    options: { allowedOrigin: string; readonlySiteFamilies?: readonly ReadonlySiteFamily[]; now?: () => Date },
+    options: { allowedOrigin: string; readonlySiteFamilies?: readonly ReadonlySiteFamily[]; resumeArtifacts?: Pick<ResumeArtifactRuntimePorts, 'getContent'> | null; now?: () => Date },
   ) {
     const origin = new URL(options.allowedOrigin).origin;
     if (!/^https?:\/\//i.test(origin)) throw new Error('Browser validation allowed origin must use HTTP(S)');
     this.allowedOrigin = origin;
     this.readonlySiteFamilies = new Set((options.readonlySiteFamilies ?? []).map((value) => ReadonlySiteFamilySchema.parse(value)));
+    this.resumeArtifacts = options.resumeArtifacts ?? null;
     this.now = options.now ?? (() => new Date());
   }
 
@@ -114,8 +125,8 @@ export class BrowserExtensionValidationRegistry {
     const target = this.validateTarget(input.targetUrl, input.mode);
     const agent = this.bridge.status(input.agentId);
     if (!agent?.online) throw new BrowserExtensionBridgeError('AGENT_OFFLINE', `Browser extension agent '${input.agentId}' is offline`, 503);
-    if (input.mode === 'site-staged-readonly' && !versionAtLeast(agent.version, '0.1.6')) {
-      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Staged read-only characterization requires Browser Bridge >= 0.1.6; agent '${input.agentId}' reports '${agent.version}'`, 409);
+    if ((input.mode === 'site-staged-readonly' || input.mode === 'site-resume-sync') && !versionAtLeast(agent.version, '0.1.6')) {
+      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Staged/site-resume operations require Browser Bridge >= 0.1.6; agent '${input.agentId}' reports '${agent.version}'`, 409);
     }
     const createdAt = this.now().toISOString();
     const run: MutableValidationRun = {
@@ -151,25 +162,43 @@ export class BrowserExtensionValidationRegistry {
     this.reap();
     const run = this.requireRun(id);
     const input = InvokeValidationCommandInputSchema.parse(raw);
-    const allowedCommands = run.mode === 'site-readonly' || run.mode === 'site-staged-readonly' ? READONLY_SITE_COMMANDS : SAFE_VALIDATION_COMMANDS;
+    const allowedCommands = run.mode === 'site-resume-sync'
+      ? RESUME_SYNC_SITE_COMMANDS
+      : run.mode === 'site-readonly' || run.mode === 'site-staged-readonly'
+        ? READONLY_SITE_COMMANDS
+        : SAFE_VALIDATION_COMMANDS;
     if (!allowedCommands.has(input.command.type)) {
       throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', `Browser validation mode '${run.mode}' does not allow '${input.command.type}'`, 403);
     }
     if (input.command.type === 'upload') {
       const file = input.command.payload.file;
-      if (input.command.payload.selector !== '#resume' || file.mimeType !== 'application/pdf' || !/\.pdf$/i.test(file.name) || file.bytesBase64.length < 4) {
-        throw new BrowserExtensionBridgeError('VALIDATION_UPLOAD_DENIED', 'Browser validation upload is restricted to one PDF on the synthetic #resume control', 403);
+      if (file.mimeType !== 'application/pdf' || !/\.pdf$/i.test(file.name) || file.bytesBase64.length < 4) {
+        throw new BrowserExtensionBridgeError('VALIDATION_UPLOAD_DENIED', 'Browser upload requires one non-empty PDF', 403);
+      }
+      if (run.mode !== 'site-resume-sync' && input.command.payload.selector !== '#resume') {
+        throw new BrowserExtensionBridgeError('VALIDATION_UPLOAD_DENIED', 'Synthetic browser validation upload is restricted to #resume', 403);
+      }
+    }
+    if (run.mode === 'site-resume-sync' && input.command.type === 'click') {
+      const expected = input.command.payload.expectedText?.trim() ?? '';
+      if (!expected || RESUME_SYNC_FORBIDDEN_CLICK_TEXT.test(expected)) {
+        throw new BrowserExtensionBridgeError('VALIDATION_CLICK_DENIED', 'Site Resume Sync cannot click application, messaging, or submit actions', 403);
       }
     }
 
     if (input.command.type === 'session_acquire') {
       if (run.sessionRef) throw new BrowserExtensionBridgeError('VALIDATION_SESSION_EXISTS', 'Browser validation run already owns a session', 409);
       const preferred = input.command.payload.preferredUrl;
-      if (!preferred || this.validateTarget(preferred, run.mode) !== run.targetUrl) {
+      const sync = run.mode === 'site-resume-sync';
+      if (sync) {
+        if (preferred !== null || input.command.payload.reuseLiveSession !== true || input.command.payload.requireLiveSession !== false) {
+          throw new BrowserExtensionBridgeError('VALIDATION_LIVE_SESSION_REQUIRED', 'Site Resume Sync must reuse the current active recruiting-site tab without navigating it', 403);
+        }
+      } else if (!preferred || this.validateTarget(preferred, run.mode) !== run.targetUrl) {
         throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'Browser validation session must acquire the frozen canary URL', 409);
       }
       const staged = run.mode === 'site-staged-readonly';
-      if (!staged && input.command.payload.reuseLiveSession) {
+      if (!sync && !staged && input.command.payload.reuseLiveSession) {
         throw new BrowserExtensionBridgeError('VALIDATION_REUSE_DENIED', 'This browser validation mode must create an isolated Chrome tab', 403);
       }
       if (staged && (!input.command.payload.reuseLiveSession || input.command.payload.requireLiveSession !== true)) {
@@ -184,8 +213,8 @@ export class BrowserExtensionValidationRegistry {
       const result = requireRecord(output.result, 'session_acquire');
       const sessionRef = requireString(result.sessionRef, 'sessionRef');
       const currentUrl = requireString(result.currentUrl, 'currentUrl');
-      if (!this.sameTarget(currentUrl, run.targetUrl, run.mode)) {
-        throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', staged ? 'Staged characterization requires an already-open tab on this exact job. Open the target job, manually enter its resume-selection/final-confirmation layer, and retry.' : 'Browser validation Chrome tab opened an unexpected job URL', 409);
+      if (!(sync ? this.sameSite(currentUrl, run.targetUrl) : this.sameTarget(currentUrl, run.targetUrl, run.mode))) {
+        throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', staged ? 'Staged characterization requires an already-open tab on this exact job. Open the target job, manually enter its resume-selection/final-confirmation layer, and retry.' : sync ? 'Site Resume Sync must acquire an active tab on the configured recruiting site' : 'Browser validation Chrome tab opened an unexpected job URL', 409);
       }
       run.sessionRef = sessionRef;
       run.commandCount += 1;
@@ -205,8 +234,9 @@ export class BrowserExtensionValidationRegistry {
       command: { type: 'current_url', payload: {} },
       timeoutMs: Math.min(input.timeoutMs, 10_000),
     });
-    if (!this.sameTarget(requireString(current.result, 'current_url'), run.targetUrl, run.mode)) {
-      throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DRIFT', 'Browser validation tab navigated away from the frozen canary URL', 409);
+    const currentUrl = requireString(current.result, 'current_url');
+    if (!(run.mode === 'site-resume-sync' ? this.sameSite(currentUrl, run.targetUrl) : this.sameTarget(currentUrl, run.targetUrl, run.mode))) {
+      throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DRIFT', run.mode === 'site-resume-sync' ? 'Site Resume Sync tab left the configured recruiting site' : 'Browser validation tab navigated away from the frozen canary URL', 409);
     }
 
     const output = await this.bridge.invoke(InvokeBrowserExtensionCommandInputSchema.parse({
@@ -218,6 +248,47 @@ export class BrowserExtensionValidationRegistry {
     run.commandCount += 1;
     if (WRITE_VALIDATION_COMMANDS.has(input.command.type)) run.writeCount += 1;
     return { run: freezeRun(run), commandId: output.commandId, result: output.result };
+  }
+
+  async syncResume(id: string, raw: unknown): Promise<{
+    run: BrowserExtensionValidationRun; artifactId: string; artifactSha256: string; uploadedControl: { label: string; name: string | null; accept: string | null }; evidence: BrowserExtensionCharacterizationEvidence;
+  }> {
+    this.reap();
+    const run = this.requireRun(id);
+    if (run.mode !== 'site-resume-sync') throw new BrowserExtensionBridgeError('VALIDATION_MODE_REQUIRED', 'Resume sync requires a site-resume-sync run', 409);
+    if (!this.resumeArtifacts) throw new BrowserExtensionBridgeError('VALIDATION_DISABLED', 'Resume artifact access is not configured for browser validation', 503);
+    const input = SyncResumeInputSchema.parse(raw);
+    const content = await this.resumeArtifacts.getContent(input.artifactId);
+    if (!content || content.artifact.kind !== 'pdf' || content.artifact.mimeType !== 'application/pdf') {
+      throw new BrowserExtensionBridgeError('VALIDATION_UPLOAD_DENIED', `ResumeArtifact '${input.artifactId}' is missing or is not a PDF`, 409);
+    }
+    if (content.bytes.byteLength > 12_000_000) throw new BrowserExtensionBridgeError('VALIDATION_UPLOAD_DENIED', 'Resume PDF exceeds the bounded site-sync upload size', 413);
+    if (!run.sessionRef) {
+      await this.invoke(id, { sessionRef: null, command: { type: 'session_acquire', payload: { preferredUrl: null, reuseLiveSession: true, requireLiveSession: false } }, timeoutMs: 30_000 });
+    }
+    const sessionRef = run.sessionRef!;
+    const controlsResult = await this.invoke(id, { sessionRef, command: { type: 'scan_controls', payload: {} }, timeoutMs: 15_000 });
+    const uploadControl = selectResumeUploadControl(controlsResult.result);
+    await this.invoke(id, {
+      sessionRef,
+      command: { type: 'upload', payload: { selector: uploadControl.controlRef, file: { name: input.fileName, mimeType: 'application/pdf', bytesBase64: Buffer.from(content.bytes).toString('base64') } } },
+      timeoutMs: 60_000,
+    });
+    await this.invoke(id, { sessionRef, command: { type: 'wait', payload: { milliseconds: 3500 } }, timeoutMs: 10_000 });
+    const current = await this.invoke(id, { sessionRef, command: { type: 'current_url', payload: {} }, timeoutMs: 10_000 });
+    const title = await this.invoke(id, { sessionRef, command: { type: 'title', payload: {} }, timeoutMs: 10_000 });
+    const body = await this.invoke(id, { sessionRef, command: { type: 'body_text', payload: { limit: 50_000 } }, timeoutMs: 15_000 });
+    const actions = await this.invoke(id, { sessionRef, command: { type: 'scan_actions', payload: {} }, timeoutMs: 15_000 });
+    const controls = await this.invoke(id, { sessionRef, command: { type: 'scan_controls', payload: {} }, timeoutMs: 15_000 });
+    const formHash = await this.invoke(id, { sessionRef, command: { type: 'form_state_hash', payload: {} }, timeoutMs: 15_000 });
+    const bodyText = requireString(body.result, 'body_text');
+    const sanitizedActions = sanitizeCharacterizationActions(actions.result);
+    const sanitizedControls = sanitizeCharacterizationControls(controls.result);
+    const evidence: BrowserExtensionCharacterizationEvidence = {
+      observedAt: this.now().toISOString(), currentUrl: requireString(current.result, 'current_url'), title: requireString(title.result, 'title').slice(0, 500), formStateHash: requireString(formHash.result, 'form_state_hash').slice(0, 200), bodyTextLength: bodyText.length, stateSignals: characterizedStateSignals(bodyText, sanitizedControls), actions: sanitizedActions, controls: sanitizedControls,
+    };
+    run.characterization = evidence;
+    return { run: freezeRun(run), artifactId: content.artifact.id, artifactSha256: content.artifact.sha256, uploadedControl: { label: uploadControl.label, name: uploadControl.name, accept: uploadControl.accept }, evidence };
   }
 
   async characterize(id: string): Promise<{ run: BrowserExtensionValidationRun; evidence: BrowserExtensionCharacterizationEvidence }> {
@@ -261,6 +332,14 @@ export class BrowserExtensionValidationRegistry {
 
   private validateTarget(raw: string, mode: z.infer<typeof ValidationModeSchema>): string {
     const url = new URL(raw);
+    if (mode === 'site-resume-sync') {
+      if (url.protocol !== 'https:' || url.username || url.password) throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Site Resume Sync requires an HTTPS recruiting-site URL without credentials', 403);
+      const host = url.hostname.toLowerCase();
+      const allowed = (this.readonlySiteFamilies.has('zhilian') && (host === 'zhaopin.com' || host === 'www.zhaopin.com'))
+        || (this.readonlySiteFamilies.has('liepin') && (host === 'liepin.com' || host === 'www.liepin.com'));
+      if (!allowed) throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Site Resume Sync target is outside configured recruiting sites', 403);
+      return `${url.protocol}//${url.host}/`;
+    }
     if (mode === 'synthetic-canary') {
       if (url.origin !== this.allowedOrigin || url.pathname !== '/labs/apply-canary') {
         throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Browser validation synthetic target must be the configured ATS canary route', 403);
@@ -302,6 +381,13 @@ export class BrowserExtensionValidationRegistry {
     catch { return false; }
   }
 
+  private sameSite(left: string, right: string): boolean {
+    try {
+      const a = new URL(left); const b = new URL(right);
+      return a.protocol === 'https:' && b.protocol === 'https:' && a.hostname.toLowerCase() === b.hostname.toLowerCase() && a.port === b.port;
+    } catch { return false; }
+  }
+
   private requireRun(id: string): MutableValidationRun {
     const run = this.runs.get(ValidationRunIdSchema.parse(id));
     if (!run) throw new BrowserExtensionBridgeError('VALIDATION_RUN_NOT_FOUND', 'Browser validation run was not found or expired', 404);
@@ -336,6 +422,10 @@ export function registerBrowserExtensionValidationApi(
     if (!registry) throw new BrowserExtensionBridgeError('VALIDATION_DISABLED', 'Browser validation is not configured', 503);
     res.json(await registry.invoke(pathId(req.params.runId), req.body));
   }));
+  app.post(`${BROWSER_EXTENSION_BRIDGE_PREFIX}/validation-runs/:runId/sync-resume`, validationRoute(async (req, res) => {
+    if (!registry) throw new BrowserExtensionBridgeError('VALIDATION_DISABLED', 'Browser validation is not configured', 503);
+    res.json(await registry.syncResume(pathId(req.params.runId), req.body));
+  }));
   app.post(`${BROWSER_EXTENSION_BRIDGE_PREFIX}/validation-runs/:runId/characterize`, validationRoute(async (req, res) => {
     if (!registry) throw new BrowserExtensionBridgeError('VALIDATION_DISABLED', 'Browser validation is not configured', 503);
     res.json(await registry.characterize(pathId(req.params.runId)));
@@ -361,6 +451,19 @@ function sendValidationError(res: Response, error: unknown): void {
 function freezeRun(run: MutableValidationRun): BrowserExtensionValidationRun {
   return { ...run };
 }
+function selectResumeUploadControl(raw: unknown): { controlRef: string; label: string; name: string | null; accept: string | null } {
+  const ControlSchema = z.object({ controlRef: z.string().min(1).max(4000), kind: z.string(), label: z.string().default(''), name: z.string().nullable().optional(), accept: z.string().nullable().optional(), disabled: z.boolean().default(false), semanticHints: z.array(z.string()).default([]) }).passthrough();
+  const controls = z.array(ControlSchema).parse(raw).filter((control) => control.kind === 'file' && !control.disabled);
+  const scored = controls.map((control) => {
+    const evidence = [control.label, control.name ?? '', control.accept ?? '', ...control.semanticHints].join(' ').toLowerCase();
+    const score = (/简历|resume|cv/.test(evidence) ? 4 : 0) + (/pdf|doc/.test(evidence) ? 2 : 0) + (/upload|file|附件/.test(evidence) ? 1 : 0);
+    return { control, score };
+  }).sort((a, b) => b.score - a.score);
+  if (!scored.length || scored[0]!.score === 0 || (scored[1] && scored[1].score === scored[0]!.score)) throw new BrowserExtensionBridgeError('VALIDATION_UPLOAD_AMBIGUOUS', 'Site Resume Sync requires one unambiguous resume file input', 409);
+  const selected = scored[0]!.control;
+  return { controlRef: selected.controlRef, label: selected.label, name: selected.name ?? null, accept: selected.accept ?? null };
+}
+
 function characterizedStateSignals(
   bodyText: string,
   controls: BrowserExtensionCharacterizationEvidence['controls'] = [],

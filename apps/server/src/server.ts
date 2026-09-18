@@ -288,6 +288,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     ? new BrowserExtensionValidationRegistry(browserExtensionBridge, {
         allowedOrigin: options.browserExtensionValidationAllowedOrigin,
         readonlySiteFamilies: ['zhilian', 'liepin'],
+        resumeArtifacts,
       })
     : null;
 
