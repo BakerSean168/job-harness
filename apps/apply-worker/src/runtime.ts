@@ -316,8 +316,8 @@ export class ApplyWorker {
         attemptId,
         executorId: this.descriptor.executorId,
         leaseToken,
-        adapterId: this.adapterId,
-        adapterVersion: this.adapterVersion,
+        adapterId: attempt.requiredAdapterId ?? this.adapterId,
+        adapterVersion: attempt.requiredAdapterId === 'readiness-v1' ? '1.0.0' : this.adapterVersion,
         browserBackend: this.backendId,
         checkpoint: 'browser-acquire',
       });

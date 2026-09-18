@@ -159,6 +159,7 @@ describe('ApplyWorker R019-C readiness mode', () => {
       descriptor, backendId: 'fake', attemptHeartbeatIntervalMs: 60_000, logger: { log() {}, warn() {}, error() {} },
     });
     expect(await worker.runOnce()).toEqual({ claimed: true, attemptId: 'attempt-1', outcome: 'completed' });
+    expect(log).toContain('start:readiness-v1:fake');
     const payload = completed[0]!.payload as Record<string, unknown>;
     expect(payload).toMatchObject({ readinessOnly: true, reconciliationOnly: true, reconciliationState: 'submitted_state', reconciliationReasonCode: 'submitted_state_requires_reconciliation' });
     expect(log.some((entry) => /fill|select|click|upload/.test(entry))).toBe(false);

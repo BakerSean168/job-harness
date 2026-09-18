@@ -682,3 +682,9 @@ Two concrete issues were identified:
 2. `needs_manual_review` intents had no safe way to reopen the logged-in job page for reconciliation. The existing `readiness-v1` worker was already read-only, but dispatch/bundle/persistence guards correctly allowed only `planned` intents and the Extension Worker did not advertise readiness capability.
 
 **A43 — fixed.** Known Nowcoder success text (`投递成功` / related canonical submit-success signals) and known existing-relationship actions now classify as `submitted_state` even if stale modal controls remain mounted; generic ATS behavior is unchanged. A dedicated reconciliation-only dispatch contract now permits `needs_manual_review` only when all of these are frozen: `fill_only`, `readiness-v1`, `extension`, `readinessOnly=true`, `reconciliationOnly=true`, and every site-write policy (`allowFormFill`, `allowApplicationEntry`, `submitAllowed`) is false. The Extension Worker advertises `readiness-v1`, and readiness completion records only conservative classification/evidence; it never fills, uploads, or clicks.
+
+### Finding A44 — reconciliation Attempt was dispatched as readiness-v1 but started with the worker default adapter
+
+The first production read-only reconciliation Attempt was safely rejected before browser acquisition because the Extension Worker advertised `readiness-v1` but still called `attempts.start()` with its process-default adapter `generic-ats`. The control plane correctly rejected the mismatch (`requires adapter 'readiness-v1', not 'generic-ats'`), leaving `externalEffectState=not_crossed` and performing no recruiting-site action.
+
+**A44 — fixed.** Readiness execution now starts with the Attempt's frozen `requiredAdapterId` and uses the readiness adapter version `1.0.0`. Regression coverage asserts that a reconciliation-only Attempt starts as `readiness-v1` even when the same worker process also hosts form-fill adapters.
