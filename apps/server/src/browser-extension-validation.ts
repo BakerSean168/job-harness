@@ -336,9 +336,11 @@ export class BrowserExtensionValidationRegistry {
       if (url.protocol !== 'https:' || url.username || url.password) throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Site Resume Sync requires an HTTPS recruiting-site URL without credentials', 403);
       const host = url.hostname.toLowerCase();
       const allowed = (this.readonlySiteFamilies.has('zhilian') && (host === 'zhaopin.com' || host === 'www.zhaopin.com'))
-        || (this.readonlySiteFamilies.has('liepin') && (host === 'liepin.com' || host === 'www.liepin.com'));
+        || (this.readonlySiteFamilies.has('liepin') && (host === 'liepin.com' || host === 'www.liepin.com' || host === 'c.liepin.com'));
       if (!allowed) throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Site Resume Sync target is outside configured recruiting sites', 403);
-      return `${url.protocol}//${url.host}/`;
+      url.search = '';
+      url.hash = '';
+      return url.toString();
     }
     if (mode === 'synthetic-canary') {
       if (url.origin !== this.allowedOrigin || url.pathname !== '/labs/apply-canary') {

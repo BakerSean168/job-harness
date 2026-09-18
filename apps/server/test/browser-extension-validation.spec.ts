@@ -157,9 +157,9 @@ describe('browser-extension validation scope', () => {
         },
       },
     });
-    const run = registry.create({ agentId:'windows-chrome-primary', targetUrl:'https://www.liepin.com/', mode:'site-resume-sync' });
+    const run = registry.create({ agentId:'windows-chrome-primary', targetUrl:'https://c.liepin.com/resume/create?backUrl=https%3A%2F%2Fwww.liepin.com%2Fjob%2F1985379181.shtml', mode:'site-resume-sync' });
     const pending = registry.syncResume(run.id, { artifactId:'artifact-sync', fileName:'卢楼豪-AI-Agent应用开发工程师.pdf' });
-    const pageUrl = 'https://www.liepin.com/resume/import';
+    const pageUrl = 'https://c.liepin.com/resume/create?backUrl=https%3A%2F%2Fwww.liepin.com%2Fjob%2F1985379181.shtml';
     const controls = [{ controlRef:'[data-job-harness-field-id=\"jh-0\"]', kind:'file', label:'上传简历', name:'resumeFile', description:null, required:false, disabled:false, readOnly:false, options:[], semanticHints:['resume-upload'], accept:'.pdf,.doc,.docx', multiple:false, sectionLabel:'已有简历？一键智能导入' }];
     const actions = [{ actionRef:'[data-job-harness-action-id=\"jha-0\"]', tag:'button', text:'保存简历', href:null, type:'button', role:null, disabled:false, ariaDisabled:false }];
     let uploadCommand: any = null;
@@ -170,7 +170,7 @@ describe('browser-extension validation scope', () => {
       if (!command) continue;
       let result: unknown = null;
       if (command.command.type === 'session_acquire') {
-        expect(command.command.payload).toMatchObject({ preferredUrl:'https://www.liepin.com/', reuseLiveSession:true, requireLiveSession:false });
+        expect(command.command.payload).toMatchObject({ preferredUrl:'https://c.liepin.com/resume/create', reuseLiveSession:true, requireLiveSession:false });
         result = { sessionRef:'chrome-tab:resume-sync', currentUrl:pageUrl };
       }
       else if (command.command.type === 'current_url') result = pageUrl;
