@@ -67,7 +67,6 @@ export async function authorizeSubmitAction(formData: FormData): Promise<void> {
     attemptId,
     reviewSnapshotId,
     expiresInSeconds: 300,
-    actor: 'user',
     idempotencyKey: `web-review:${attemptId}:${reviewSnapshotId}:${decisionNonce}`,
   });
   revalidatePath('/executors');

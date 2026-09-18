@@ -639,14 +639,13 @@ export function createApplyControlPlane(
           attemptId: parsed.attemptId,
           reviewSnapshotId: parsed.reviewSnapshotId,
           expiresInSeconds: parsed.expiresInSeconds,
-          actor: parsed.actor,
         }));
         const authorization = SubmitAuthorizationSchema.parse({
           id: idFactory(),
           attemptId: attempt.id,
           reviewSnapshotId: snapshot.id,
           reviewHash: snapshot.reviewHash,
-          actor: parsed.actor,
+          actor: 'user',
           status: 'active',
           issuedAt: timestamp,
           expiresAt: new Date(Date.parse(timestamp) + parsed.expiresInSeconds * 1000).toISOString(),

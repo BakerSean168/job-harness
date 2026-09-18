@@ -76,7 +76,6 @@ export const AuthorizeSubmitInputSchema = z.object({
   reviewSnapshotId: z.string().trim().min(1).max(200),
   expiresInSeconds: z.number().int().min(30).max(900).default(300),
   idempotencyKey: z.string().trim().min(1).max(300),
-  actor: z.enum(['user','system']).default('user'),
 }).strict();
 export const RevokeSubmitAuthorizationInputSchema = z.object({
   attemptId: ExecutionAttemptIdSchema,

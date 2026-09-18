@@ -33538,21 +33538,12 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 300
-                  },
-                  "actor": {
-                    "default": "user",
-                    "type": "string",
-                    "enum": [
-                      "user",
-                      "system"
-                    ]
                   }
                 },
                 "required": [
                   "reviewSnapshotId",
                   "expiresInSeconds",
-                  "idempotencyKey",
-                  "actor"
+                  "idempotencyKey"
                 ],
                 "additionalProperties": false
               }

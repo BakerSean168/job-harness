@@ -533,3 +533,9 @@ The user's unpacked Windows Browser Bridge source directory was also synchronize
 The authorization boundary correctly requires the global/user bearer and rejects the scoped worker bearer, but `AuthorizeSubmitInput` still lets that caller choose `actor: user | system`. The runtime then persists the supplied label into the immutable `SubmitAuthorization` and includes it in the idempotency request hash. A user-authorized HTTP request can therefore claim it was issued by `system`, making the audit trail less trustworthy even though it does not widen execution permission.
 
 **Required change before live-submit promotion:** remove `actor` from the public authorization request and derive `actor = user` inside the user-authorized control-plane path. If a future internal/system authorization workflow is ever introduced, give it a separate authority path rather than reusing a caller-selectable label. Update OpenAPI/client/Web/tests so actor provenance is owned by the server boundary.
+
+### 17.1 Submit-authorization provenance follow-up
+
+**A32 — fixed.** `AuthorizeSubmitInput` no longer exposes an `actor` field. The only current public/user-authorized control-plane path derives and persists `actor = user` server-side; the idempotency request hash likewise excludes any caller-asserted actor label. A future system authorization, if ever required, must use a separate authority path rather than impersonating provenance through the same request contract.
+
+Regression evidence now proves the scoped worker bearer still cannot authorize, a global caller attempting to send `actor: system` is rejected as a strict validation error, and a valid authorization is persisted as `actor: user`. OpenAPI/client/Web were regenerated/updated from the canonical contract. The full repository gate remains green at **87 test files / 195 tests**, with production Web build and synthetic one-submit safety smoke passing.

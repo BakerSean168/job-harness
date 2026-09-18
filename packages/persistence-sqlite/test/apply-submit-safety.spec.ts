@@ -96,10 +96,10 @@ describe('review snapshot and submit authorization safety boundary', () => {
       browserSessionHandoff: { backendId: 'steel', sessionRef: 'steel-session-1', humanControlUrl: 'https://viewer.example.test/ui', retainedAt: t2, expiresAt: '2026-09-17T13:20:00.000Z' },
     });
     const authorization = await f.apply.attempts.authorizeSubmit({
-      attemptId: f.attempt.id, reviewSnapshotId: snapshot.id, expiresInSeconds: 300, idempotencyKey: 'authorize-safety-1', actor: 'user',
+      attemptId: f.attempt.id, reviewSnapshotId: snapshot.id, expiresInSeconds: 300, idempotencyKey: 'authorize-safety-1',
     });
     const retry = await f.apply.attempts.authorizeSubmit({
-      attemptId: f.attempt.id, reviewSnapshotId: snapshot.id, expiresInSeconds: 300, idempotencyKey: 'authorize-safety-1', actor: 'user',
+      attemptId: f.attempt.id, reviewSnapshotId: snapshot.id, expiresInSeconds: 300, idempotencyKey: 'authorize-safety-1',
     });
     expect(retry.id).toBe(authorization.id);
     expect(authorization.status).toBe('active');
@@ -183,7 +183,7 @@ describe('review snapshot and submit authorization safety boundary', () => {
     });
     f.setClock(t2);
     await f.apply.attempts.waiting({ attemptId: f.attempt.id, executorId: 'safety-worker', leaseToken: lease, reasonCode: 'manual_review', summary: 'Blocked' });
-    await expect(f.apply.attempts.authorizeSubmit({ attemptId: f.attempt.id, reviewSnapshotId: snapshot.id, expiresInSeconds: 300, idempotencyKey: 'blocked-auth', actor: 'user' }))
+    await expect(f.apply.attempts.authorizeSubmit({ attemptId: f.attempt.id, reviewSnapshotId: snapshot.id, expiresInSeconds: 300, idempotencyKey: 'blocked-auth' }))
       .rejects.toBeInstanceOf(ApplyConflictError);
     f.applyStore.close(); f.careerStore.close();
   });
@@ -198,7 +198,7 @@ describe('review snapshot and submit authorization safety boundary', () => {
       summary: { fieldCount: 1, bindingCount: 1, filled: 1, failed: 0, manual: 0, requiredPending: 0, prohibitedCount: 0, blockingIssueCodes: [], readyForSubmit: true },
     });
     await f.apply.attempts.waiting({ attemptId: f.attempt.id, executorId: 'safety-worker', leaseToken: lease1, reasonCode: 'review_ready', summary: 'Ready', browserSessionHandoff: { backendId: 'steel', sessionRef: 's1', humanControlUrl: null, retainedAt: t1, expiresAt: '2026-09-17T13:20:00.000Z' } });
-    const auth = await f.apply.attempts.authorizeSubmit({ attemptId: f.attempt.id, reviewSnapshotId: snapshot.id, idempotencyKey: 'uncertain-auth', actor: 'user' });
+    const auth = await f.apply.attempts.authorizeSubmit({ attemptId: f.attempt.id, reviewSnapshotId: snapshot.id, idempotencyKey: 'uncertain-auth' });
     f.setClock(t3);
     await f.apply.attempts.resume({ attemptId: f.attempt.id });
     await f.apply.executors.heartbeat({ executorId: 'safety-worker', status: 'ready' });

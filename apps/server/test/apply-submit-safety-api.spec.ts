@@ -63,10 +63,14 @@ describe('supervised submit-safety REST protocol', () => {
       browserSessionHandoff: { backendId: 'steel', sessionRef: 'protocol-session-1', humanControlUrl: 'https://viewer.example.test/ui', retainedAt: '2026-09-17T14:01:00.000Z', expiresAt: '2099-09-17T15:00:00.000Z' },
     }) });
 
-    const workerCannotAuthorize = await request(`/execution-attempts/${attemptId}/submit-authorizations`, worker, { method: 'POST', body: JSON.stringify({ reviewSnapshotId, expiresInSeconds: 300, idempotencyKey: 'should-not-work', actor: 'user' }) });
+    const workerCannotAuthorize = await request(`/execution-attempts/${attemptId}/submit-authorizations`, worker, { method: 'POST', body: JSON.stringify({ reviewSnapshotId, expiresInSeconds: 300, idempotencyKey: 'should-not-work' }) });
     expect(workerCannotAuthorize.response.status).toBe(401);
-    const authorization = await request(`/execution-attempts/${attemptId}/submit-authorizations`, global, { method: 'POST', body: JSON.stringify({ reviewSnapshotId, expiresInSeconds: 300, idempotencyKey: 'protocol-auth-1', actor: 'user' }) });
+    const forgedActor = await request(`/execution-attempts/${attemptId}/submit-authorizations`, global, { method: 'POST', body: JSON.stringify({ reviewSnapshotId, expiresInSeconds: 300, idempotencyKey: 'forged-actor', actor: 'system' }) });
+    expect(forgedActor.response.status).toBe(400);
+    expect(forgedActor.body).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+    const authorization = await request(`/execution-attempts/${attemptId}/submit-authorizations`, global, { method: 'POST', body: JSON.stringify({ reviewSnapshotId, expiresInSeconds: 300, idempotencyKey: 'protocol-auth-1' }) });
     expect(authorization.response.status).toBe(201);
+    expect(authorization.body.actor).toBe('user');
     const authorizationId = String(authorization.body.id);
 
     await request(`/execution-attempts/${attemptId}/resume`, global, { method: 'POST', body: '{}' });
