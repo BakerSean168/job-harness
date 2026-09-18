@@ -84,21 +84,41 @@ export function createSiteResumeBindingService(
 
       const profile = await resume.getProfileContext(input.profileId);
       if (!profile) throw new SiteResumeBindingError('NOT_FOUND', `ResumeProfile '${input.profileId}' was not found`);
-      const revisions = await resume.listRevisions(input.profileId);
-      const latest = [...revisions.items].sort((left, right) => right.revisionNumber - left.revisionNumber)[0] ?? null;
-      if (!latest) throw new SiteResumeBindingError('CONFLICT', `ResumeProfile '${input.profileId}' has no immutable Revision to bind`);
-      const detail = await resume.getRevisionDetail(latest.id);
-      const pdf = detail?.artifacts
-        .filter((artifact) => artifact.kind === 'pdf' && artifact.mimeType === 'application/pdf')
-        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
-      if (!pdf) throw new SiteResumeBindingError('CONFLICT', `ResumeRevision '${latest.id}' has no immutable PDF Artifact to bind`);
+      let selectedRevisionId: string;
+      let selectedArtifactId: string;
+      if (input.resumeRevisionId && input.resumeArtifactId) {
+        const detail = await resume.getRevisionDetail(input.resumeRevisionId);
+        if (!detail || detail.revision.profileId !== input.profileId) {
+          throw new SiteResumeBindingError('CONFLICT', `ResumeRevision '${input.resumeRevisionId}' does not belong to ResumeProfile '${input.profileId}'`);
+        }
+        const pdf = detail.artifacts.find((artifact) => artifact.id === input.resumeArtifactId
+          && artifact.revisionId === detail.revision.id
+          && artifact.kind === 'pdf'
+          && artifact.mimeType === 'application/pdf') ?? null;
+        if (!pdf) {
+          throw new SiteResumeBindingError('CONFLICT', `ResumeArtifact '${input.resumeArtifactId}' is not the requested immutable PDF for ResumeRevision '${input.resumeRevisionId}'`);
+        }
+        selectedRevisionId = detail.revision.id;
+        selectedArtifactId = pdf.id;
+      } else {
+        const revisions = await resume.listRevisions(input.profileId);
+        const latest = [...revisions.items].sort((left, right) => right.revisionNumber - left.revisionNumber)[0] ?? null;
+        if (!latest) throw new SiteResumeBindingError('CONFLICT', `ResumeProfile '${input.profileId}' has no immutable Revision to bind`);
+        const detail = await resume.getRevisionDetail(latest.id);
+        const pdf = detail?.artifacts
+          .filter((artifact) => artifact.kind === 'pdf' && artifact.mimeType === 'application/pdf')
+          .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
+        if (!pdf) throw new SiteResumeBindingError('CONFLICT', `ResumeRevision '${latest.id}' has no immutable PDF Artifact to bind`);
+        selectedRevisionId = latest.id;
+        selectedArtifactId = pdf.id;
+      }
 
       const requestHash = hash({
         siteFamily: input.siteFamily,
         browserAgentId: input.browserAgentId,
         profileId: input.profileId,
-        resumeRevisionId: latest.id,
-        resumeArtifactId: pdf.id,
+        resumeRevisionId: selectedRevisionId,
+        resumeArtifactId: selectedArtifactId,
         externalResumeLabel: requestedLabel,
         characterizationRunId: run.id,
         characterizationFormStateHash: run.characterization.formStateHash,
@@ -115,8 +135,8 @@ export function createSiteResumeBindingService(
           siteFamily: input.siteFamily,
           browserAgentId: input.browserAgentId,
           profileId: input.profileId,
-          resumeRevisionId: latest.id,
-          resumeArtifactId: pdf.id,
+          resumeRevisionId: selectedRevisionId,
+          resumeArtifactId: selectedArtifactId,
           externalResumeLabel: requestedLabel,
           assurance: 'user-confirmed-label',
           characterizationRunId: run.id,

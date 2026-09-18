@@ -176,18 +176,24 @@ async function acquireSession(payload) {
   const preferredUrl = payload?.preferredUrl ? validateHttpUrl(payload.preferredUrl) : null;
   let tab = null;
   if (payload?.reuseLiveSession && preferredUrl) {
-    const host = new URL(preferredUrl).hostname;
     const tabs = await chrome.tabs.query({});
-    tab = tabs.find((candidate) => {
-      try { return candidate.id != null && candidate.url && new URL(candidate.url).hostname === host; } catch { return false; }
-    }) || null;
+    tab = tabs.find((candidate) => candidate.id != null && candidate.url && sameReusableTarget(candidate.url, preferredUrl)) || null;
+    // Non-staged reuse may fall back to another tab on the same host. A
+    // requireLiveSession request is an exact human-staged handoff and must never
+    // silently bind to another job or to the current active tab.
+    if (!tab && !payload?.requireLiveSession) {
+      const host = new URL(preferredUrl).hostname;
+      tab = tabs.find((candidate) => {
+        try { return candidate.id != null && candidate.url && new URL(candidate.url).hostname === host; } catch { return false; }
+      }) || null;
+    }
   }
-  if (!tab && payload?.reuseLiveSession) {
+  if (!tab && payload?.reuseLiveSession && !payload?.requireLiveSession) {
     const active = await chrome.tabs.query({ active: true, currentWindow: true });
     tab = active.find((candidate) => candidate.id != null) || null;
   }
   if (!tab && payload?.requireLiveSession) {
-    throw new Error('No reusable live Chrome tab matched the requested session');
+    throw new Error('No reusable live Chrome tab matched the exact requested target');
   }
   if (!tab) {
     tab = await chrome.tabs.create({ url: preferredUrl || "about:blank", active: true });
@@ -197,6 +203,17 @@ async function acquireSession(payload) {
   }
   if (tab.id == null) throw new Error("Selected Chrome tab has no id");
   return { sessionRef: `chrome-tab:${tab.id}`, currentUrl: tab.url || "about:blank" };
+}
+
+function sameReusableTarget(candidateUrl, preferredUrl) {
+  try {
+    const candidate = new URL(candidateUrl);
+    const preferred = new URL(preferredUrl);
+    return candidate.protocol === preferred.protocol
+      && candidate.hostname === preferred.hostname
+      && candidate.port === preferred.port
+      && candidate.pathname === preferred.pathname;
+  } catch { return false; }
 }
 
 async function executePageDriver(tabId, command) {

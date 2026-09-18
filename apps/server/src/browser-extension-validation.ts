@@ -114,8 +114,8 @@ export class BrowserExtensionValidationRegistry {
     const target = this.validateTarget(input.targetUrl, input.mode);
     const agent = this.bridge.status(input.agentId);
     if (!agent?.online) throw new BrowserExtensionBridgeError('AGENT_OFFLINE', `Browser extension agent '${input.agentId}' is offline`, 503);
-    if (input.mode === 'site-staged-readonly' && !versionAtLeast(agent.version, '0.1.5')) {
-      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Staged read-only characterization requires Browser Bridge >= 0.1.5; agent '${input.agentId}' reports '${agent.version}'`, 409);
+    if (input.mode === 'site-staged-readonly' && !versionAtLeast(agent.version, '0.1.6')) {
+      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Staged read-only characterization requires Browser Bridge >= 0.1.6; agent '${input.agentId}' reports '${agent.version}'`, 409);
     }
     const createdAt = this.now().toISOString();
     const run: MutableValidationRun = {

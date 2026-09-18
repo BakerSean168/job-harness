@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BrowserExtensionBridge } from '../src/browser-extension-bridge';
 import { BrowserExtensionValidationRegistry } from '../src/browser-extension-validation';
 
-function register(bridge: BrowserExtensionBridge, version = '0.1.5') {
+function register(bridge: BrowserExtensionBridge, version = '0.1.6') {
   bridge.register({
     agentId: 'windows-chrome-primary',
     name: 'Windows Chrome',
@@ -95,15 +95,15 @@ describe('browser-extension validation scope', () => {
     bridge.close();
   });
 
-  it('rejects staged characterization from a pre-0.1.5 Browser Bridge before any command is queued', () => {
+  it('rejects staged characterization from a pre-0.1.6 Browser Bridge before any command is queued', () => {
     const bridge = new BrowserExtensionBridge();
-    register(bridge, '0.1.4');
+    register(bridge, '0.1.5');
     const registry = new BrowserExtensionValidationRegistry(bridge, {
       allowedOrigin: 'https://job-harness.test:20900', readonlySiteFamilies: ['zhilian', 'liepin'],
     });
     expect(() => registry.create({
       agentId: 'windows-chrome-primary', targetUrl: 'https://www.zhaopin.com/jobdetail/CC1.htm', mode: 'site-staged-readonly',
-    })).toThrow(/requires Browser Bridge >= 0.1.5/);
+    })).toThrow(/requires Browser Bridge >= 0.1.6/);
     expect(bridge.status('windows-chrome-primary')?.queuedCommands).toBe(0);
     bridge.close();
   });

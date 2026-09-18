@@ -56,7 +56,7 @@ async function fixture() {
 }
 
 describe('site-managed resume binding', () => {
-  it('accepts Browser Bridge 0.1.5 staged read-only final-confirmation evidence and still rejects non-site/write evidence', async () => {
+  it('accepts staged read-only final-confirmation evidence and still rejects non-site/write evidence', async () => {
     const staged = await fixture();
     try {
       staged.run.mode = 'site-staged-readonly';
@@ -76,6 +76,28 @@ describe('site-managed resume binding', () => {
       wrote.run.writeCount = 1;
       await expect(wrote.service.create({ siteFamily:'zhilian', browserAgentId:'windows-chrome-primary', profileId:wrote.profile.id, externalResumeLabel:'AI Agent简历', characterizationRunId:wrote.run.id, idempotencyKey:'write-bind' })).rejects.toMatchObject({ code:'INVALID_EVIDENCE' });
     } finally { wrote.bindingStore.close(); wrote.resumeStore.close(); }
+  });
+
+  it('binds the exact frozen Revision/PDF requested by a pending Intent even when the Profile has a newer revision', async () => {
+    const f = await fixture();
+    try {
+      const context = await createResumeApplicationService(f.resumeStore, { now: () => '2026-09-18T08:41:00.000Z' }).getProfileContext(f.profile.id);
+      if (!context) throw new Error('missing fixture profile');
+      const app = createResumeApplicationService(f.resumeStore, { now: () => '2026-09-18T08:41:00.000Z' });
+      const saved = await app.saveProfile({ expectedVersion: context.profile.version, profile: { ...context.profile, positioning: zh('newer positioning') } });
+      const newer = await app.publishRevision({ profileId: saved.profile.id, expectedProfileVersion: saved.profile.version, expectedLibraryVersion: saved.library.version });
+      const newerArtifact = ResumeArtifactSchema.parse({
+        id: 'resume-artifact-newer-binding', revisionId: newer.revision.id, kind: 'pdf', mimeType: 'application/pdf', storageUri: 'memory://newer.pdf', sha256: 'e'.repeat(64), byteSize: 1300, rendererId: 'fixture', rendererVersion: '1', createdAt: '2026-09-18T08:41:00.000Z',
+      });
+      await f.resumeStore.transaction((tx) => tx.insertArtifact(newerArtifact));
+      const created = await f.service.create({
+        siteFamily:'zhilian', browserAgentId:'windows-chrome-primary', profileId:f.profile.id,
+        resumeRevisionId:f.revision.id, resumeArtifactId:f.artifact.id,
+        externalResumeLabel:'AI Agent简历', characterizationRunId:f.run.id, idempotencyKey:'frozen-bind',
+      });
+      expect(created).toMatchObject({ resumeRevisionId:f.revision.id, resumeArtifactId:f.artifact.id });
+      expect(created.resumeRevisionId).not.toBe(newer.revision.id);
+    } finally { f.bindingStore.close(); f.resumeStore.close(); }
   });
 
   it('binds only an observed label to the current immutable Resume Revision/PDF and keeps an audit trail', async () => {

@@ -11,6 +11,7 @@ type BackgroundHarness = {
 async function loadBackground(
   sendMessage: (...args: unknown[]) => Promise<unknown>,
   fetchImpl: typeof globalThis.fetch = async () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+  queryTabs: (query: Record<string, unknown>) => Promise<Array<{ id?: number; url?: string; status?: string }>> = async () => [],
 ) {
   const source = await readFile(new URL('../../../integrations/browser-extension/background.js', import.meta.url), 'utf8');
   let sendCount = 0;
@@ -32,7 +33,7 @@ async function loadBackground(
     tabs: {
       get: async () => ({ id: 7, url: 'https://example.test/apply', status: 'complete' }),
       sendMessage: async (...args: unknown[]) => { sendCount += 1; return sendMessage(...args); },
-      query: async () => [],
+      query: async (query: Record<string, unknown>) => queryTabs(query),
       update: async () => ({}),
       create: async () => { createCount += 1; return { id: 7, url: 'https://example.test/apply', status: 'complete' }; },
       onUpdated: { addListener: () => undefined, removeListener: () => undefined },
@@ -77,6 +78,26 @@ describe('MV3 browser command delivery boundary', () => {
     });
     await expect(context.executePageDriver(7, { type: 'scan_controls', payload: {} })).resolves.toBeNull();
     expect(counts()).toMatchObject({ sendCount: 2, injectionCount: 2 });
+  });
+
+  it('selects the exact staged job path among multiple tabs on the same recruiting host and ignores tracking queries', async () => {
+    const target = 'https://www.liepin.com/job/1985379181.shtml';
+    const tabs = [
+      { id: 11, url: 'https://www.liepin.com/job/111111.shtml?from=search', status: 'complete' },
+      { id: 22, url: `${target}?from=search&track=abc`, status: 'complete' },
+    ];
+    const { context, counts } = await loadBackground(async () => null, undefined, async () => tabs);
+    await expect(context.acquireSession({ preferredUrl: `${target}?source=canonical`, reuseLiveSession: true, requireLiveSession: true }))
+      .resolves.toEqual({ sessionRef: 'chrome-tab:22', currentUrl: `${target}?from=search&track=abc` });
+    expect(counts().createCount).toBe(0);
+  });
+
+  it('does not fall back to a different same-host or active tab for an exact staged handoff', async () => {
+    const tabs = [{ id: 11, url: 'https://www.liepin.com/job/111111.shtml', status: 'complete' }];
+    const { context, counts } = await loadBackground(async () => null, undefined, async () => tabs);
+    await expect(context.acquireSession({ preferredUrl: 'https://www.liepin.com/job/1985379181.shtml', reuseLiveSession: true, requireLiveSession: true }))
+      .rejects.toThrow(/exact requested target/);
+    expect(counts().createCount).toBe(0);
   });
 
   it('never creates a tab when a staged characterization requires a reusable live session', async () => {

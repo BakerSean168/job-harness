@@ -16113,6 +16113,16 @@
                     "minLength": 1,
                     "maxLength": 200
                   },
+                  "resumeRevisionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "resumeArtifactId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
                   "externalResumeLabel": {
                     "type": "string",
                     "minLength": 1,

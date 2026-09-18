@@ -177,6 +177,10 @@ export function AtsCharacterizationPanel({
               <input type="hidden" name="siteFamily" value={family} />
               <input type="hidden" name="browserAgentId" value={state.agentId} />
               <input type="hidden" name="characterizationRunId" value={state.runId} />
+              {evidenceTarget ? <>
+                <input type="hidden" name="resumeRevisionId" value={evidenceTarget.resumeRevisionId} />
+                <input type="hidden" name="resumeArtifactId" value={evidenceTarget.resumeArtifactId} />
+              </> : null}
               <label>{copy.siteResumeLabel}
                 <select name="externalResumeLabel" required disabled={bindingPending}>
                   {candidates.map((label) => <option key={label} value={label}>{label}</option>)}

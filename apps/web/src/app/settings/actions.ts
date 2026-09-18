@@ -61,6 +61,8 @@ export async function createSiteResumeBindingAction(_previous: SiteResumeBinding
   const siteFamily = String(formData.get('siteFamily') ?? '').trim();
   const browserAgentId = String(formData.get('browserAgentId') ?? '').trim();
   const profileId = String(formData.get('profileId') ?? '').trim();
+  const resumeRevisionId = String(formData.get('resumeRevisionId') ?? '').trim();
+  const resumeArtifactId = String(formData.get('resumeArtifactId') ?? '').trim();
   const externalResumeLabel = String(formData.get('externalResumeLabel') ?? '').trim();
   const characterizationRunId = String(formData.get('characterizationRunId') ?? '').trim();
   if (!['zhilian','liepin'].includes(siteFamily) || !browserAgentId || !profileId || !externalResumeLabel || !characterizationRunId) {
@@ -71,6 +73,7 @@ export async function createSiteResumeBindingAction(_previous: SiteResumeBinding
       siteFamily: siteFamily as 'zhilian' | 'liepin',
       browserAgentId,
       profileId,
+      ...(resumeRevisionId && resumeArtifactId ? { resumeRevisionId, resumeArtifactId } : {}),
       externalResumeLabel,
       characterizationRunId,
       idempotencyKey: `web:site-resume-binding:${characterizationRunId}:${profileId}:${externalResumeLabel}`,

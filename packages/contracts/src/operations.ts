@@ -311,10 +311,16 @@ export const CreateSiteResumeBindingInputSchema = z.object({
   siteFamily: SiteResumeBindingFamilySchema,
   browserAgentId: EntityIdSchema,
   profileId: EntityIdSchema,
+  resumeRevisionId: EntityIdSchema.optional(),
+  resumeArtifactId: EntityIdSchema.optional(),
   externalResumeLabel: z.string().trim().min(1).max(500),
   characterizationRunId: EntityIdSchema,
   idempotencyKey: IdempotencyKeySchema,
-}).strict();
+}).strict().superRefine((value, ctx) => {
+  if (Boolean(value.resumeRevisionId) !== Boolean(value.resumeArtifactId)) {
+    ctx.addIssue({ code: 'custom', path: ['resumeRevisionId'], message: 'resumeRevisionId and resumeArtifactId must be provided together' });
+  }
+});
 export const RevokeSiteResumeBindingInputSchema = z.object({ idempotencyKey: IdempotencyKeySchema }).strict();
 export const GetSubmissionIntentInputSchema = z.object({ intentId: EntityIdSchema }).strict();
 export const GetSubmissionIntentOutputSchema = SubmissionIntentSchema.nullable();
