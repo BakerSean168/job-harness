@@ -64,6 +64,7 @@ interface SessionState {
   seenUrls: Set<string>;
   completed: boolean;
   timer: NodeJS.Timeout | null;
+  completing: Promise<void> | null;
 }
 
 interface PersistedSessionEvent {
@@ -186,6 +187,7 @@ export class BossDiscoveryCoordinator {
           seenUrls: new Set(event.jobUrl ? [event.jobUrl] : []),
           completed: event.type === 'completed',
           timer: null,
+          completing: null,
         });
       } else if (event.generation === current.generation) {
         current.lastAt = event.occurredAt;
@@ -274,7 +276,7 @@ export class BossDiscoveryCoordinator {
     const state: SessionState = {
       sessionId, generation, runId: run.id, startedAt: occurredAt, lastAt: occurredAt,
       candidateCount: 0, insertedCount: 0, duplicateCount: 0, rejectedCount: 0,
-      seenUrls: new Set(), completed: false, timer: null,
+      seenUrls: new Set(), completed: false, timer: null, completing: null,
     };
     this.sessions.set(sessionId, state);
     await this.persist(state, 'started');
@@ -337,6 +339,12 @@ export class BossDiscoveryCoordinator {
 
   private async complete(state: SessionState): Promise<void> {
     if (state.completed) return;
+    if (state.completing) return state.completing;
+    state.completing = this.completeOnce(state).finally(() => { state.completing = null; });
+    return state.completing;
+  }
+
+  private async completeOnce(state: SessionState): Promise<void> {
     if (state.timer) { clearTimeout(state.timer); state.timer = null; }
     const completedAt = this.now();
     await this.client.discovery.complete({
@@ -347,9 +355,9 @@ export class BossDiscoveryCoordinator {
       duplicateCount: state.duplicateCount,
       rejectedCount: state.rejectedCount,
     });
-    state.completed = true;
     state.lastAt = completedAt;
     await this.persist(state, 'completed');
+    state.completed = true;
   }
 
   private async persist(state: SessionState, type: PersistedSessionEvent['type'], jobUrl?: string, status?: PersistedSessionEvent['status']): Promise<void> {
