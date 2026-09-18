@@ -688,3 +688,24 @@ Two concrete issues were identified:
 The first production read-only reconciliation Attempt was safely rejected before browser acquisition because the Extension Worker advertised `readiness-v1` but still called `attempts.start()` with its process-default adapter `generic-ats`. The control plane correctly rejected the mismatch (`requires adapter 'readiness-v1', not 'generic-ats'`), leaving `externalEffectState=not_crossed` and performing no recruiting-site action.
 
 **A44 — fixed.** Readiness execution now starts with the Attempt's frozen `requiredAdapterId` and uses the readiness adapter version `1.0.0`. Regression coverage asserts that a reconciliation-only Attempt starts as `readiness-v1` even when the same worker process also hosts form-fill adapters.
+
+### A45 — first production supervised Nowcoder submit canary reconciled successfully
+
+The first real supervised Nowcoder application was completed and durably reconciled for:
+
+- Company: 中城交（上海）科技有限公司
+- Role: Agent开发工程师
+- Job: `39a38a5b-86ae-42c5-be7c-c015e120a2e3`
+- Listing: `listing-4f92186322528fb6d02ec4b3c94b3042`
+- SubmissionIntent: `submission-intent-677ebccd-5f15-4d1b-9137-76d7d83fcc85`
+- Original supervised Attempt: `7eaf2081-1a83-45e7-8832-6b597a68c332`
+- SubmitAuthorization: `bf757ee1-3ba9-4bed-8be3-b620c0185d60`
+- Read-only reconciliation Attempt: `43362bea-e2b0-447a-9d8e-a14698742f75`
+
+The frozen `ai-agent-forgeflow` PDF remained bound end-to-end to Resume Revision `resume-rev-import-2e1857f7873ee366781d17ee6ff392ad` and Artifact `resume-artifact-import-5fd6022d9ae400bca13d194fcba004a1` with SHA-256 `97677f49760fb7cffda6f4a9a436b2bbd3295588e3f72f2052826c4f5fd6764c` (593397 bytes).
+
+The authorized submit crossed the durable external boundary once at `2026-09-18T05:25:33.080Z`. Immediate post-submit confirmation was initially uncertain, so no retry and no Application write occurred. A later `readiness-v1@1.0.0` reconciliation reopened the exact listing in the user's signed-in Chrome profile with every site-write capability disabled and classified the page as `submitted_state` (`submitted_state_requires_reconciliation`). That read-only evidence confirmed the original external success at `2026-09-18T05:49:06.744Z`.
+
+Job Harness then reconciled the existing `needs_manual_review` SubmissionIntent through the normal `confirm()` path. The Intent is now `committed`, with Application `7a64f4d3-d169-4f19-ad2a-6f7b7f5de9c9` and ApplicationSubmission `4fbbad1e-708c-47d9-84f0-a7930eb3cd50`. The global Application count moved from 41 to 42. Independent SQLite verification shows exactly one Application and one ApplicationSubmission for this Job, so the uncertain-result recovery path did not duplicate the application.
+
+This validates the complete supervised production chain: exact immutable resume evidence -> deterministic form fill -> parser-settled ReviewSnapshot -> explicit user authorization -> pre-boundary hash revalidation -> one external submit click -> uncertain fail-closed handling -> read-only reconciliation -> idempotent local commit.
