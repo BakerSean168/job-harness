@@ -56,6 +56,28 @@ async function fixture() {
 }
 
 describe('site-managed resume binding', () => {
+  it('accepts Browser Bridge 0.1.5 staged read-only final-confirmation evidence and still rejects non-site/write evidence', async () => {
+    const staged = await fixture();
+    try {
+      staged.run.mode = 'site-staged-readonly';
+      const created = await staged.service.create({ siteFamily:'zhilian', browserAgentId:'windows-chrome-primary', profileId:staged.profile.id, externalResumeLabel:'AI Agent简历', characterizationRunId:staged.run.id, idempotencyKey:'staged-bind' });
+      expect(created).toMatchObject({ profileId:staged.profile.id, externalResumeLabel:'AI Agent简历', characterizationRunId:staged.run.id });
+    } finally { staged.bindingStore.close(); staged.resumeStore.close(); }
+
+    const synthetic = await fixture();
+    try {
+      synthetic.run.mode = 'synthetic-canary';
+      await expect(synthetic.service.create({ siteFamily:'zhilian', browserAgentId:'windows-chrome-primary', profileId:synthetic.profile.id, externalResumeLabel:'AI Agent简历', characterizationRunId:synthetic.run.id, idempotencyKey:'synthetic-bind' })).rejects.toMatchObject({ code:'INVALID_EVIDENCE' });
+    } finally { synthetic.bindingStore.close(); synthetic.resumeStore.close(); }
+
+    const wrote = await fixture();
+    try {
+      wrote.run.mode = 'site-staged-readonly';
+      wrote.run.writeCount = 1;
+      await expect(wrote.service.create({ siteFamily:'zhilian', browserAgentId:'windows-chrome-primary', profileId:wrote.profile.id, externalResumeLabel:'AI Agent简历', characterizationRunId:wrote.run.id, idempotencyKey:'write-bind' })).rejects.toMatchObject({ code:'INVALID_EVIDENCE' });
+    } finally { wrote.bindingStore.close(); wrote.resumeStore.close(); }
+  });
+
   it('binds only an observed label to the current immutable Resume Revision/PDF and keeps an audit trail', async () => {
     const f = await fixture();
     try {

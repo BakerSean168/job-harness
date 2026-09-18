@@ -65,8 +65,9 @@ export function createSiteResumeBindingService(
       const input = CreateSiteResumeBindingInputSchema.parse(raw);
       if (!validation) throw new SiteResumeBindingError('INVALID_EVIDENCE', 'Browser Extension characterization is not configured on this Job Harness server');
       const run = validation.get(input.characterizationRunId);
-      if (!run || run.mode !== 'site-readonly' || !run.characterization) {
-        throw new SiteResumeBindingError('INVALID_EVIDENCE', `CharacterizationRun '${input.characterizationRunId}' is missing, expired, or has no completed site evidence`);
+      const isSiteReadonlyEvidence = run?.mode === 'site-readonly' || run?.mode === 'site-staged-readonly';
+      if (!run || !isSiteReadonlyEvidence || !run.characterization || run.writeCount !== 0) {
+        throw new SiteResumeBindingError('INVALID_EVIDENCE', `CharacterizationRun '${input.characterizationRunId}' is missing, expired, not a read-only site characterization, or has no completed site evidence`);
       }
       if (run.agentId !== input.browserAgentId) {
         throw new SiteResumeBindingError('INVALID_EVIDENCE', `CharacterizationRun '${run.id}' belongs to browser agent '${run.agentId}', not '${input.browserAgentId}'`);
