@@ -243,15 +243,17 @@ export class BrowserExtensionValidationRegistry {
     const controls = await this.invoke(id, { sessionRef, command: { type: 'scan_controls', payload: {} }, timeoutMs: 15_000 });
     const formHash = await this.invoke(id, { sessionRef, command: { type: 'form_state_hash', payload: {} }, timeoutMs: 15_000 });
     const bodyText = requireString(body.result, 'body_text');
+    const sanitizedActions = sanitizeCharacterizationActions(actions.result);
+    const sanitizedControls = sanitizeCharacterizationControls(controls.result);
     const evidence: BrowserExtensionCharacterizationEvidence = {
       observedAt: this.now().toISOString(),
       currentUrl: requireString(current.result, 'current_url'),
       title: requireString(title.result, 'title').slice(0, 500),
       formStateHash: requireString(formHash.result, 'form_state_hash').slice(0, 200),
       bodyTextLength: bodyText.length,
-      stateSignals: characterizedStateSignals(bodyText),
-      actions: sanitizeCharacterizationActions(actions.result),
-      controls: sanitizeCharacterizationControls(controls.result),
+      stateSignals: characterizedStateSignals(bodyText, sanitizedControls),
+      actions: sanitizedActions,
+      controls: sanitizedControls,
     };
     run.characterization = evidence;
     return { run: freezeRun(run), evidence };
@@ -359,12 +361,16 @@ function sendValidationError(res: Response, error: unknown): void {
 function freezeRun(run: MutableValidationRun): BrowserExtensionValidationRun {
   return { ...run };
 }
-function characterizedStateSignals(bodyText: string): string[] {
+function characterizedStateSignals(
+  bodyText: string,
+  controls: BrowserExtensionCharacterizationEvidence['controls'] = [],
+): string[] {
   const signals = ['立即投递','投简历','继续沟通','已投递','已申请','选择简历','我的简历','在线简历','默认简历','附件简历','上传简历','聊一聊'];
   const observed = signals.filter((signal) => bodyText.includes(signal));
+  const controlText = controls.map((control) => [control.label, control.name, control.description, ...control.semanticHints].filter(Boolean).join(' ')).join(' ');
   const loginMarkers = ['手机号','短信验证码','验证码'];
-  const hasLoginForm = bodyText.includes('登录') && loginMarkers.filter((signal) => bodyText.includes(signal)).length >= 2;
-  if (hasLoginForm) observed.unshift('需要登录');
+  const structuralLoginMarkers = loginMarkers.filter((signal) => bodyText.includes(signal) || controlText.includes(signal));
+  if (structuralLoginMarkers.length >= 2) observed.unshift('需要登录');
   return observed;
 }
 function sanitizedHref(value: unknown): string | null {

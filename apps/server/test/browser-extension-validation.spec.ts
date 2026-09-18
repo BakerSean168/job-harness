@@ -166,7 +166,7 @@ describe('browser-extension validation scope', () => {
     const pending = registry.characterize(run.id);
     const results: Record<string, unknown> = {
       session_acquire:{sessionRef:'chrome-tab:login',currentUrl:target}, wait:null, current_url:target, title:'AI Agent - 猎聘',
-      body_text:'投简历 登录 手机号 短信验证码 获取验证码', scan_actions:[], scan_controls:[], form_state_hash:'f'.repeat(64),
+      body_text:'投简历', scan_actions:[], scan_controls:[{ controlRef:'private-phone', kind:'text', label:'手机号', name:null, description:null, required:false, disabled:false, readOnly:false, options:[], semanticHints:[] , accept:null, multiple:false, sectionLabel:null },{ controlRef:'private-code', kind:'text', label:'短信验证码', name:null, description:null, required:true, disabled:false, readOnly:false, options:[], semanticHints:[] , accept:null, multiple:false, sectionLabel:null }], form_state_hash:'f'.repeat(64),
     };
     for (let i=0;i<15;i++) { const cmd=await bridge.poll('windows-chrome-primary',1_000); expect(cmd).not.toBeNull(); bridge.complete('windows-chrome-primary',{commandId:cmd!.commandId,ok:true,result:results[cmd!.command.type] ?? null}); }
     await expect(pending).resolves.toMatchObject({ evidence:{ stateSignals:['需要登录','投简历'] } });
