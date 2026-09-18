@@ -1,8 +1,9 @@
 import { BrowserBackendRegistry, ExtensionBrowserBackend, LocalCdpBrowserBackend, SteelBrowserBackend } from '@job-harness/apply-browser';
 import type { ExecutorDescriptor } from '@job-harness/apply-contracts';
-import { ApplySiteAdapterRegistry, GenericAtsSiteAdapter, MokaSocialRecruitmentAtsSiteAdapter, NowcoderAtsSiteAdapter } from '@job-harness/apply-adapters';
+import { ApplySiteAdapterRegistry, GenericAtsSiteAdapter, LiepinAtsSiteAdapter, MokaSocialRecruitmentAtsSiteAdapter, NowcoderAtsSiteAdapter, ZhilianAtsSiteAdapter } from '@job-harness/apply-adapters';
 import { createJobHarnessRestClient } from '@job-harness/client';
 import { FormFillExecutionEngine } from './form-fill-engine';
+import { SubmitExecutionEngine } from './submit-engine';
 import { ApplyWorker } from './runtime';
 import { readApplyWorkerRuntimeConfig } from './runtime-config';
 
@@ -37,12 +38,15 @@ if (backendId === 'steel') {
 
 const siteAdapters = phase === 'form-fill'
   ? new ApplySiteAdapterRegistry([
+      new ZhilianAtsSiteAdapter(),
+      new LiepinAtsSiteAdapter(),
       new NowcoderAtsSiteAdapter(),
       new MokaSocialRecruitmentAtsSiteAdapter(),
       new GenericAtsSiteAdapter(),
     ])
   : null;
 const formFillEngine = siteAdapters ? new FormFillExecutionEngine({ siteAdapters }) : null;
+const submitEngine = siteAdapters && config.enableSupervisedSubmit ? new SubmitExecutionEngine({ siteAdapters }) : null;
 const adapterId = phase === 'form-fill' ? 'generic-ats' : 'readiness-v1';
 const advertisedAdapterIds = siteAdapters ? siteAdapters.descriptors().map((descriptor) => descriptor.id) : [adapterId];
 
@@ -57,7 +61,7 @@ const descriptor: ExecutorDescriptor = {
   status: 'ready',
   browserBackends: [backendId],
   adapterIds: advertisedAdapterIds,
-  executionModes: ['fill_only'],
+  executionModes: submitEngine ? ['fill_only', 'review_then_submit'] : ['fill_only'],
   capabilities: {
     resumeUpload: backendId === 'extension' ? extensionResumeUpload : true,
     humanControl: true,
@@ -66,7 +70,7 @@ const descriptor: ExecutorDescriptor = {
     semanticMapping: false,
   },
   maxConcurrency: 1,
-  metadata: { phase: phase === 'form-fill' ? 'R019-form-fill' : 'R019-readiness', externalSubmit: false, formFill: phase === 'form-fill', applicantData: phase === 'form-fill' ? 'lease-scoped-frozen-applicant-snapshot' : 'none', siteAdapters: advertisedAdapterIds, userBrowser: backendId === 'extension' },
+  metadata: { phase: phase === 'form-fill' ? 'R019-form-fill' : 'R019-readiness', externalSubmit: Boolean(submitEngine), formFill: phase === 'form-fill', applicantData: phase === 'form-fill' ? 'lease-scoped-frozen-applicant-snapshot' : 'none', siteAdapters: advertisedAdapterIds, userBrowser: backendId === 'extension' },
 };
 
 const client = createJobHarnessRestClient({ baseUrl: apiUrl, authToken: token });
@@ -77,6 +81,7 @@ const worker = new ApplyWorker({
   backendId,
   adapterId,
   ...(formFillEngine ? { formFillEngine } : {}),
+  ...(submitEngine ? { submitEngine } : {}),
   pollIntervalMs: config.pollIntervalMs,
   executorHeartbeatIntervalMs: config.executorHeartbeatIntervalMs,
   attemptHeartbeatIntervalMs: config.attemptHeartbeatIntervalMs,
@@ -93,5 +98,5 @@ function requestStop(signal: string) {
 process.on('SIGINT', () => requestStop('SIGINT'));
 process.on('SIGTERM', () => requestStop('SIGTERM'));
 
-console.log(`Apply Worker ${executorId} starting: Job Harness=${apiUrl} backend=${backendId} phase=${phase} adapter=${adapterId} mode=fill_only sideEffects=false`);
+console.log(`Apply Worker ${executorId} starting: Job Harness=${apiUrl} backend=${backendId} phase=${phase} adapter=${adapterId} mode=${submitEngine ? 'review_then_submit' : 'fill_only'} sideEffects=${Boolean(submitEngine)}`);
 await worker.start();

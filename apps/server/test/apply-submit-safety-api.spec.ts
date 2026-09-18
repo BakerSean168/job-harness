@@ -43,10 +43,10 @@ describe('supervised submit-safety REST protocol', () => {
     const intentId = String(intent.body.id);
 
     await request('/executors/register', worker, { method: 'POST', body: JSON.stringify({
-      executorId: 'protocol-worker', name: 'Protocol Worker', version: '1', status: 'ready', browserBackends: ['steel'], adapterIds: ['generic-ats'], executionModes: ['fill_only'], capabilities: { resumeUpload: true, humanControl: true, persistentSession: true, screenshots: true, semanticMapping: false }, maxConcurrency: 1, metadata: {},
+      executorId: 'protocol-worker', name: 'Protocol Worker', version: '1', status: 'ready', browserBackends: ['steel'], adapterIds: ['generic-ats'], executionModes: ['review_then_submit'], capabilities: { resumeUpload: true, humanControl: true, persistentSession: true, screenshots: true, semanticMapping: false }, maxConcurrency: 1, metadata: {},
     }) });
     const dispatched = await request('/execution-attempts', global, { method: 'POST', body: JSON.stringify({
-      intentId, executionMode: 'fill_only', requiredAdapterId: 'generic-ats', preferredBrowserBackend: 'steel', requiredCapabilities: ['humanControl'], policySnapshot: {}, idempotencyKey: 'protocol-attempt-1',
+      intentId, executionMode: 'review_then_submit', requiredAdapterId: 'generic-ats', preferredBrowserBackend: 'steel', requiredCapabilities: ['humanControl'], policySnapshot: { submitAllowed: true }, idempotencyKey: 'protocol-attempt-1',
     }) });
     const attemptId = String(dispatched.body.id);
     const claim1 = await request('/execution-attempts/claim', worker, { method: 'POST', body: JSON.stringify({ executorId: 'protocol-worker', leaseSeconds: 300 }) });

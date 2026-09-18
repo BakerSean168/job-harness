@@ -35,11 +35,11 @@ export interface ApplyPagePreflightResult {
   };
 }
 
-const APPLY_ACTION = /(?:立即申请|申请职位|立即投递|投递简历|去申请|去投递|apply(?:\s+now)?|submit\s+application)/i;
+const APPLY_ACTION = /(?:立即申请|申请职位|立即投递|投递简历|投简历|去申请|去投递|apply(?:\s+now)?|submit\s+application)/i;
 const SECURITY_SIGNAL = /(?:安全验证|人机验证|请稍候|访问验证|security\s+check|verify\s+you(?:'|’)re\s+human|captcha)/i;
 const LOGIN_SIGNAL = /(?:登录|登入|验证码|手机号登录|sign\s*in|log\s*in|verification\s+code)/i;
 const CLOSED_SIGNAL = /(?:职位已下线|职位已关闭|停止招聘|招聘已结束|已停止接受申请|no\s+longer\s+accepting\s+applications|position\s+closed)/i;
-const SUBMITTED_SIGNAL = /(?:投递成功|申请成功|提交成功|application\s+(?:has\s+been\s+)?submitted|thanks\s+for\s+applying)/i;
+const SUBMITTED_SIGNAL = /(?:投递成功|申请成功|提交成功|已向对方发送简历和打招呼语|application\s+(?:has\s+been\s+)?submitted|thanks\s+for\s+applying)/i;
 const JOB_DETAIL_PATH = /(?:\/jobs?\/detail\/|\/jobdetail\/|\/job_detail\/|#\/job\/|\/jobs?\/[^/]+$)/i;
 
 export async function inspectApplyPagePreflight(browser: BrowserDriverPort): Promise<ApplyPagePreflightResult> {

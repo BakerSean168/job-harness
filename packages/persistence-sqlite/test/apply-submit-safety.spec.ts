@@ -18,7 +18,9 @@ const t5 = '2026-09-17T13:05:00.000Z';
 const t6 = '2026-09-17T13:06:00.000Z';
 const formHash = 'a'.repeat(64);
 
-async function fixture() {
+async function fixture(options: { executionMode?: 'fill_only' | 'review_then_submit'; submitAllowed?: boolean } = {}) {
+  const executionMode = options.executionMode ?? 'review_then_submit';
+  const submitAllowed = options.submitAllowed ?? true;
   const dir = await mkdtemp(join(tmpdir(), 'jh-submit-safety-'));
   dirs.push(dir);
   const databasePath = join(dir, 'career.db');
@@ -54,11 +56,11 @@ async function fixture() {
     { now: () => clock, idFactory: () => `apply-${++applyId}`, leaseTokenFactory: () => `lease-${'x'.repeat(50)}-${applyId}` },
   );
   await apply.executors.register({
-    executorId: 'safety-worker', name: 'Safety Worker', version: '1', status: 'ready', browserBackends: ['steel'], adapterIds: ['generic-ats'], executionModes: ['fill_only'],
+    executorId: 'safety-worker', name: 'Safety Worker', version: '1', status: 'ready', browserBackends: ['steel'], adapterIds: ['generic-ats'], executionModes: [executionMode],
     capabilities: { resumeUpload: true, humanControl: true, persistentSession: true, screenshots: true, semanticMapping: false }, maxConcurrency: 1, metadata: {},
   });
   const attempt = await apply.attempts.dispatch({
-    intentId: intent.id, executionMode: 'fill_only', requiredAdapterId: 'generic-ats', preferredBrowserBackend: 'steel', requiredCapabilities: ['humanControl'], policySnapshot: {}, idempotencyKey: 'dispatch-safety-1',
+    intentId: intent.id, executionMode, requiredAdapterId: 'generic-ats', preferredBrowserBackend: 'steel', requiredCapabilities: ['humanControl'], policySnapshot: { submitAllowed }, idempotencyKey: 'dispatch-safety-1',
   });
   return {
     dir, careerStore, applyStore, apply, attempt, intent, safetyCalls,
@@ -169,6 +171,25 @@ describe('review snapshot and submit authorization safety boundary', () => {
     expect(current?.attempt).toMatchObject({
       state: 'claimed', adapterId: 'generic-ats', adapterVersion: '1.0.0', browserBackend: 'steel',
     });
+    f.applyStore.close(); f.careerStore.close();
+  });
+
+  it('refuses submit authorization for fill-only attempts even when a review snapshot is otherwise ready', async () => {
+    const f = await fixture({ executionMode: 'fill_only', submitAllowed: false });
+    f.setClock(t1);
+    const lease = await claimStart(f);
+    const snapshot = await f.apply.attempts.createReviewSnapshot({
+      attemptId: f.attempt.id, executorId: 'safety-worker', leaseToken: lease, formStateHash: formHash,
+      formVersion: 'form-v1-fixture', catalogVersion: 'fixture-v1', siteAdapterId: 'generic-ats', siteAdapterVersion: '1.0.0',
+      summary: { fieldCount: 1, bindingCount: 1, filled: 1, failed: 0, manual: 0, requiredPending: 0, prohibitedCount: 0, blockingIssueCodes: [], readyForSubmit: true },
+    });
+    await f.apply.attempts.waiting({
+      attemptId: f.attempt.id, executorId: 'safety-worker', leaseToken: lease, reasonCode: 'review_ready', summary: 'Ready',
+    });
+    await expect(f.apply.attempts.authorizeSubmit({
+      attemptId: f.attempt.id, reviewSnapshotId: snapshot.id, expiresInSeconds: 300, idempotencyKey: 'fill-only-auth',
+    })).rejects.toBeInstanceOf(ApplyConflictError);
+    expect(f.safetyCalls).toEqual([]);
     f.applyStore.close(); f.careerStore.close();
   });
 

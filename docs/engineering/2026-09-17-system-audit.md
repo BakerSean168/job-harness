@@ -557,3 +557,36 @@ The URL+form review hash now catches navigation and ordinary field drift, but fi
 **A33 — fixed.** MV3 and Playwright form-state hashing now represents file inputs as selected-file metadata plus a SHA-256 over the exact file bytes. The reviewed hash therefore binds the actual Resume payload rather than only the browser fake path/filename. A cross-backend regression test constructs two PDFs with identical filename, MIME type, size and `lastModified` metadata but different bytes; both backends produce the same hash for the same document and a different hash after the byte-only replacement.
 
 The Browser Bridge release is advanced to 0.1.2 for this client-visible contract change. Full verification remains green at **87 test files / 196 tests**, strict TypeScript, Browser Extension guard, production Web build and the synthetic one-submit safety smoke.
+
+### Finding A34 — submit authorization can be issued outside the supervised-submit policy boundary (P1 authorization correctness)
+
+The generic submit-safety protocol previously bound an authorization to an exact ReviewSnapshot/hash, but the authorization service did not itself require `executionMode = review_then_submit`, `policySnapshot.submitAllowed = true`, or `ReviewSnapshot.summary.readyForSubmit = true`. A fill-only Attempt could therefore hold a syntactically valid ReviewSnapshot and receive a submit authorization even though the execution policy never enabled an external side effect. This had not produced a production submit because every live adapter still advertised `submit: false`, but it was an incorrect control-plane invariant.
+
+**A34 — fixed.** `authorizeSubmit` now requires a supervised-submit Attempt, an explicit frozen `submitAllowed: true` policy, a ready ReviewSnapshot, a pre-submit `waiting_for_user` state, and `externalEffectState = not_crossed`. `beginSubmit` independently re-validates the supervised mode, policy and ready snapshot before moving the business SubmissionIntent into `external_in_progress`. The Web UI only exposes authorization for the same supervised policy boundary, while prepared-intent dispatch defaults to `fill_only` and can select `review_then_submit` only when a compatible executor explicitly advertises that mode. A regression test proves a fill-only Attempt cannot receive authorization even if a forged/otherwise-ready snapshot says `readyForSubmit = true`.
+
+### Finding A35 — adapter/runtime drift is detected after begin-submit instead of before it (P1 side-effect boundary correctness)
+
+The worker already re-checked adapter version, live URL and form-state hash immediately before invoking a site adapter, but that check lived inside `SubmitExecutionEngine.execute()` after the durable `begin-submit` permission call. An adapter version/capability drift could therefore consume the authorization and mark the external-effect boundary crossed before the worker discovered that it must not click.
+
+**A35 — fixed.** `SubmitExecutionEngine.preflight()` now performs the complete read-only submit eligibility check — concrete submit-capable adapter, frozen adapter version, retained live URL family and current form-state hash — before `begin-submit`. Only that verified hash is sent to the control plane. After the durable boundary is crossed, `execute()` repeats the same checks and compares the form-state hash again immediately before the unique site submit action, retaining the existing TOCTOU protection. A worker-level regression test proves adapter version drift fails before `begin-submit` is called.
+
+### 17.4 Real-site adapter promotion boundary
+
+Observed production-site families are now explicit instead of falling through only to the generic ATS adapter:
+
+- `zhilian-ats` recognizes current `zhaopin.com/jobdetail/*.htm` formal-application pages and the `立即投递` action.
+- `liepin-ats` recognizes current `liepin.com/job/<id>.shtml` formal-application pages and distinguishes `投简历` from the separate `聊一聊` action.
+- `boss-outreach` recognizes current BOSS job/company pages but is intentionally registered as `outreach`, not `formal_application`; its immediate-contact flow is not allowed to reuse the formal submit contract.
+
+All three remain `submit: false`. In particular, the public 智联/猎聘 call-to-action may use a site-stored resume rather than exposing an upload of the exact frozen Job Harness PDF. The adapter is not promotable to `submit: true` until a logged-in real-browser canary proves the submitted artifact can be bound to the immutable Resume Artifact (or a separate, equally strong external-resume evidence contract is designed). This preserves the A33 exact-file guarantee instead of weakening it for convenience.
+
+The Apply Worker now contains a dormant supervised-submit runtime switch, `JOB_HARNESS_APPLY_ENABLE_SUPERVISED_SUBMIT=true`. It is honored only in `form-fill` phase and is **off by default**. When off, production executors continue to advertise only `fill_only`; enabling the code in a deployment therefore does not itself enable an external recruiting-site submit path.
+
+Verification after A34/A35 and the site-adapter pass:
+
+- `pnpm check`: **PASS**
+- Vitest: **87 test files / 201 tests PASS**
+- strict TypeScript: **PASS**
+- Browser Extension bridge/static gate: **PASS**
+- OpenAPI no-drift: **PASS**
+- Next.js production build: **PASS**

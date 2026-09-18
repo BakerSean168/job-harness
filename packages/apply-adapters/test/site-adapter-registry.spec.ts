@@ -7,6 +7,9 @@ import {
   PlaybookAtsSiteAdapter,
   NowcoderAtsSiteAdapter,
   MokaSocialRecruitmentAtsSiteAdapter,
+  ZhilianAtsSiteAdapter,
+  LiepinAtsSiteAdapter,
+  BossOutreachSiteAdapter,
 } from '../src';
 
 const form = FormIRSchema.parse({
@@ -68,9 +71,15 @@ describe('ApplySiteAdapter registry and declarative playbooks', () => {
   it('prefers observed site adapters for known live traffic while keeping them submit-disabled', () => {
     const registry = new ApplySiteAdapterRegistry([
       new GenericAtsSiteAdapter(),
+      new ZhilianAtsSiteAdapter(),
+      new LiepinAtsSiteAdapter(),
       new NowcoderAtsSiteAdapter(),
       new MokaSocialRecruitmentAtsSiteAdapter(),
     ]);
+    const zhilian = registry.resolve({ url: 'https://www.zhaopin.com/jobdetail/CC000544460J40841560916.htm', semantics: 'formal_application' });
+    expect(zhilian?.descriptor).toMatchObject({ id: 'zhilian-ats', capabilities: { submit: false } });
+    const liepin = registry.resolve({ url: 'https://www.liepin.com/job/1980814533.shtml', semantics: 'formal_application' });
+    expect(liepin?.descriptor).toMatchObject({ id: 'liepin-ats', capabilities: { submit: false } });
     const nowcoder = registry.resolve({ url: 'https://www.nowcoder.com/jobs/detail/457892', semantics: 'formal_application' });
     expect(nowcoder?.descriptor).toMatchObject({ id: 'nowcoder-ats', capabilities: { submit: false } });
     const moka = registry.resolve({ url: 'https://app.mokahr.com/social-recruitment/high-flyer/140576#/job/abc', semantics: 'formal_application' });
@@ -79,7 +88,9 @@ describe('ApplySiteAdapter registry and declarative playbooks', () => {
 
   it('keeps BOSS greeting/outreach semantics outside formal application submission', () => {
     expect(BOSS_OUTREACH_DESCRIPTOR).toMatchObject({ semantics: 'outreach', capabilities: { submit: false } });
-    expect(BOSS_OUTREACH_DESCRIPTOR.semantics).not.toBe('formal_application');
+    const registry = new ApplySiteAdapterRegistry([new GenericAtsSiteAdapter(), new BossOutreachSiteAdapter()]);
+    expect(registry.resolve({ url: 'https://www.zhipin.com/job_detail/example.html', semantics: 'outreach' })?.descriptor.id).toBe('boss-outreach');
+    expect(registry.resolve({ url: 'https://www.zhipin.com/job_detail/example.html', semantics: 'formal_application' })?.descriptor.id).toBe('generic-ats');
   });
 });
 

@@ -99,6 +99,7 @@ describe('Web prepared-intent safe-fill dispatch action', () => {
     form.set('intentId', intent.id);
     form.set('decisionNonce', 'render-decision-1');
     form.set('browserBackend', 'steel');
+    form.set('executionMode', 'fill_only');
     const { dispatchPreparedIntentAction } = await import('../src/app/executors/actions');
     await dispatchPreparedIntentAction(form);
     await dispatchPreparedIntentAction(form);

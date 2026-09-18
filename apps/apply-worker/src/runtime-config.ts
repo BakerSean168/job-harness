@@ -50,6 +50,7 @@ export interface ApplyWorkerRuntimeConfig {
   readonly extensionCommandTimeoutMs: number;
   readonly extensionResumeUpload: boolean;
   readonly extensionScreenshots: boolean;
+  readonly enableSupervisedSubmit: boolean;
   readonly pollIntervalMs: number;
   readonly executorHeartbeatIntervalMs: number;
   readonly attemptHeartbeatIntervalMs: number;
@@ -100,6 +101,7 @@ export function readApplyWorkerRuntimeConfig(env: NodeJS.ProcessEnv = process.en
     extensionCommandTimeoutMs,
     extensionResumeUpload: backendId === 'extension' && booleanEnv(env, 'JOB_HARNESS_BROWSER_EXTENSION_RESUME_UPLOAD', false),
     extensionScreenshots: backendId === 'extension' && booleanEnv(env, 'JOB_HARNESS_BROWSER_EXTENSION_SCREENSHOTS', false),
+    enableSupervisedSubmit: phase === 'form-fill' && booleanEnv(env, 'JOB_HARNESS_APPLY_ENABLE_SUPERVISED_SUBMIT', false),
     pollIntervalMs: positiveInt(env, 'JOB_HARNESS_APPLY_POLL_INTERVAL_MS', 3_000),
     executorHeartbeatIntervalMs,
     attemptHeartbeatIntervalMs,

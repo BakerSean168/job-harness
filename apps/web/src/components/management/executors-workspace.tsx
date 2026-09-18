@@ -53,14 +53,14 @@ export async function ExecutorsWorkspace() {
                 const listing = intent.listingId ? detail?.job.listings.find((candidate) => candidate.id === intent.listingId) ?? null : null;
                 const targetUrl = intent.externalTargetUrl ?? listing?.url ?? null;
                 const activeAttempt = activeAttemptsByIntent.get(intent.id) ?? null;
-                const compatibleBackends = [...new Set(executors.items
-                  .filter((executor) =>
-                    executor.status === 'ready'
-                    && executor.executionModes.includes('fill_only')
-                    && executor.capabilities.humanControl
-                    && executor.capabilities.persistentSession
-                    && executor.capabilities.resumeUpload)
-                  .flatMap((executor) => executor.browserBackends))].sort();
+                const compatibleExecutors = executors.items.filter((executor) =>
+                  executor.status === 'ready'
+                  && (executor.executionModes.includes('fill_only') || executor.executionModes.includes('review_then_submit'))
+                  && executor.capabilities.humanControl
+                  && executor.capabilities.persistentSession
+                  && executor.capabilities.resumeUpload);
+                const compatibleBackends = [...new Set(compatibleExecutors.flatMap((executor) => executor.browserBackends))].sort();
+                const supervisedSubmitAvailable = compatibleExecutors.some((executor) => executor.executionModes.includes('review_then_submit'));
                 const hasFrozenResume = Boolean(intent.resumeRevisionId && intent.resumeArtifactId);
                 const canDispatch = !activeAttempt && compatibleBackends.length > 0 && Boolean(targetUrl) && hasFrozenResume;
                 const blockedReason = activeAttempt
@@ -97,6 +97,15 @@ export async function ExecutorsWorkspace() {
                       <form action={dispatchPreparedIntentAction} className="executor-dispatch-form">
                         <input type="hidden" name="intentId" value={intent.id} />
                         <input type="hidden" name="decisionNonce" value={randomUUID()} />
+                        {supervisedSubmitAvailable ? (
+                          <label className="executor-backend-select">
+                            <span>{copy.attempts.mode}</span>
+                            <select name="executionMode" defaultValue="fill_only" disabled={!canDispatch}>
+                              <option value="fill_only">{copy.modes.fill_only}</option>
+                              <option value="review_then_submit">{copy.modes.review_then_submit}</option>
+                            </select>
+                          </label>
+                        ) : <input type="hidden" name="executionMode" value="fill_only" />}
                         {compatibleBackends.length === 1 ? (
                           <input type="hidden" name="browserBackend" value={compatibleBackends[0]} />
                         ) : (

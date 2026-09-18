@@ -26,6 +26,8 @@ export default async function ExecutorAttemptDetailPage({ params }: { params: Pr
   const activeAuthorization = authorizations.items.find((item) => item.status === 'active' && Date.parse(item.expiresAt) > now) ?? null;
   const canAuthorize = Boolean(
     latestReview?.summary.readyForSubmit
+    && attempt.executionMode === 'review_then_submit'
+    && attempt.policySnapshot.submitAllowed === true
     && attempt.state === 'waiting_for_user'
     && attempt.externalEffectState === 'not_crossed'
     && !activeAuthorization,

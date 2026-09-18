@@ -414,12 +414,15 @@ export class ApplyWorker {
       attemptHeartbeat.unref();
       session = await backend.resume(attempt.browserSessionHandoff, { executionScope: { attemptId, executorId: this.descriptor.executorId, leaseToken } });
       const driver = session.driver();
-      const currentFormStateHash = await driver.formStateHash();
+      // Perform every read-only submit eligibility check before crossing the
+      // durable external-effect boundary. This rejects adapter version/capability
+      // drift and live URL drift while the attempt is still safely retryable.
+      const preflight = await this.submitEngine!.preflight({ attempt, browser: driver });
+      const currentFormStateHash = preflight.formStateHash;
       if (heartbeatError) throw heartbeatError;
-      // This call is the single permission gate. The server first validates the
-      // exact user-reviewed hash, moves SubmissionIntent to external_in_progress,
-      // consumes the short-lived authorization, and only then returns permission
-      // to perform one site submit action.
+      // This call is the single permission gate. The server validates the exact
+      // reviewed hash, moves SubmissionIntent to external_in_progress, consumes
+      // the short-lived authorization, and only then returns one-click permission.
       const boundary = await this.client.attempts.beginSubmit({
         attemptId,
         executorId: this.descriptor.executorId,

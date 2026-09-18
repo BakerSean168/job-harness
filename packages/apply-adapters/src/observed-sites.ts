@@ -68,6 +68,48 @@ export class NowcoderAtsSiteAdapter extends ObservedPublicAtsAdapter {
   }
 }
 
+export class ZhilianAtsSiteAdapter extends ObservedPublicAtsAdapter {
+  readonly descriptor = {
+    id: 'zhilian-ats',
+    version: '2026-09-18.1',
+    semantics: 'formal_application' as const,
+    priority: 195,
+    capabilities: { inspect: true, enter: false, fill: true, validate: true, submit: false },
+  };
+
+  probe(input: { url: string }) {
+    try {
+      const url = new URL(input.url);
+      const supported = (url.hostname === 'www.zhaopin.com' || url.hostname === 'zhaopin.com')
+        && /^\/jobdetail\/[^/]+\.htm$/i.test(url.pathname);
+      return { supported, score: supported ? 0.995 : 0, reason: supported ? 'zhilian-job-detail-family' : 'zhilian-mismatch' };
+    } catch {
+      return { supported: false, score: 0, reason: 'invalid-url' };
+    }
+  }
+}
+
+export class LiepinAtsSiteAdapter extends ObservedPublicAtsAdapter {
+  readonly descriptor = {
+    id: 'liepin-ats',
+    version: '2026-09-18.1',
+    semantics: 'formal_application' as const,
+    priority: 190,
+    capabilities: { inspect: true, enter: false, fill: true, validate: true, submit: false },
+  };
+
+  probe(input: { url: string }) {
+    try {
+      const url = new URL(input.url);
+      const supported = (url.hostname === 'www.liepin.com' || url.hostname === 'liepin.com')
+        && /^\/job\/\d+\.shtml$/i.test(url.pathname);
+      return { supported, score: supported ? 0.994 : 0, reason: supported ? 'liepin-job-detail-family' : 'liepin-mismatch' };
+    } catch {
+      return { supported: false, score: 0, reason: 'invalid-url' };
+    }
+  }
+}
+
 export class MokaSocialRecruitmentAtsSiteAdapter extends ObservedPublicAtsAdapter {
   readonly descriptor = {
     id: 'moka-social-recruitment',

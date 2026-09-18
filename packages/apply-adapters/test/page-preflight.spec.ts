@@ -29,6 +29,23 @@ describe('apply page preflight classification', () => {
     expect(result.evidence.applyActionTexts).toEqual(['立即申请']);
   });
 
+  it('recognizes current Liepin and Zhilian application CTAs without clicking them', () => {
+    const liepin = classify({ url: 'https://www.liepin.com/job/1980814533.shtml', actions: [action('投简历'), action('聊一聊')] });
+    expect(liepin).toMatchObject({ state: 'job_detail', canInspectForm: false, reasonCode: 'application_entry_required' });
+    expect(liepin.evidence.applyActionTexts).toEqual(['投简历']);
+
+    const zhilian = classify({ url: 'https://www.zhaopin.com/jobdetail/CC000544460J40841560916.htm', actions: [action('立即投递')] });
+    expect(zhilian.evidence.applyActionTexts).toEqual(['立即投递']);
+  });
+
+  it('treats the observed Zhilian post-submit message as reconciliation-only evidence', () => {
+    const result = classify({
+      url: 'https://www.zhaopin.com/jobdetail/CC000544460J40841560916.htm',
+      bodyText: '已向对方发送简历和打招呼语',
+    });
+    expect(result).toMatchObject({ state: 'submitted_state', canInspectForm: false, reasonCode: 'submitted_state_requires_reconciliation' });
+  });
+
   it('classifies phone plus verification-code login surfaces before application-form heuristics', () => {
     const result = classify({
       bodyText: '登录 / 注册',

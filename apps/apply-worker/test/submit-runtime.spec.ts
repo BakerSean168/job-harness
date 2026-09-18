@@ -87,6 +87,20 @@ describe('authorized supervised submit worker', () => {
     expect(log.filter((entry) => entry === 'click:#submit')).toHaveLength(1);
   });
 
+  it('rejects adapter version drift before begin-submit can cross the external-effect boundary', async () => {
+    const log: string[] = [];
+    const attempt = authorizedAttempt();
+    const worker = new ApplyWorker({
+      client: client(attempt, log), backends: new BrowserBackendRegistry([backend(log)]), descriptor, backendId: 'fake',
+      submitEngine: new SubmitExecutionEngine({ siteAdapters: new ApplySiteAdapterRegistry([submitAdapter(log, '2.0.0')]) }), logger: { log() {}, warn() {}, error() {} },
+    });
+    expect(await worker.runOnce()).toEqual({ claimed: true, attemptId: attempt.id, outcome: 'failed' });
+    expect(log).not.toContain('begin-submit');
+    expect(log).not.toContain('adapter-submit');
+    expect(log).not.toContain('click:#submit');
+    expect(log.some((entry) => entry.startsWith('report-'))).toBe(false);
+  });
+
   it('never clicks when the begin-submit response is unavailable, even though the server might have crossed the boundary', async () => {
     const log: string[] = [];
     const attempt = authorizedAttempt();

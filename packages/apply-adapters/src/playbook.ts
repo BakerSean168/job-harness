@@ -94,8 +94,40 @@ export class PlaybookAtsSiteAdapter implements ApplySiteAdapter {
 
 export const BOSS_OUTREACH_DESCRIPTOR = {
   id: 'boss-outreach',
-  version: '1.0.0',
+  version: '2026-09-18.1',
   semantics: 'outreach' as const,
   priority: 200,
   capabilities: { inspect: true, enter: false, fill: false, validate: false, submit: false },
 } as const;
+
+export class BossOutreachSiteAdapter implements ApplySiteAdapter {
+  readonly descriptor = BOSS_OUTREACH_DESCRIPTOR;
+
+  probe(input: { url: string }) {
+    try {
+      const url = new URL(input.url);
+      const supported = (url.hostname === 'www.zhipin.com' || url.hostname === 'zhipin.com')
+        && (/^\/job_detail\//i.test(url.pathname) || /^\/companys\//i.test(url.pathname));
+      return { supported, score: supported ? 0.995 : 0, reason: supported ? 'boss-outreach-family' : 'boss-mismatch' };
+    } catch {
+      return { supported: false, score: 0, reason: 'invalid-url' };
+    }
+  }
+
+  inspect(browser: BrowserDriverPort, input: { url: string; title?: string | null; observedAt: string }) {
+    return inspectGenericForm(browser, { ...input, adapterId: this.descriptor.id, adapterVersion: this.descriptor.version });
+  }
+
+  async validate(): Promise<{ readyForReview: boolean; readyForSubmit: boolean; issues: readonly ApplyValidationIssue[] }> {
+    return {
+      readyForReview: false,
+      readyForSubmit: false,
+      issues: [{
+        code: 'outreach_requires_dedicated_runtime',
+        severity: 'blocking',
+        fieldId: null,
+        summary: 'BOSS immediate-contact actions are outreach, not formal application submit, and require a dedicated outreach execution contract.',
+      }],
+    };
+  }
+}

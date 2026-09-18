@@ -635,6 +635,10 @@ export function createApplyControlPlane(
         if (!attempt) throw new ApplyNotFoundError('ExecutionAttempt', parsed.attemptId);
         const snapshot = await store.getReviewSnapshot(parsed.reviewSnapshotId);
         if (!snapshot || snapshot.attemptId !== attempt.id) throw new ApplyNotFoundError('ReviewSnapshot', parsed.reviewSnapshotId);
+        if (attempt.executionMode !== 'review_then_submit') throw new ApplyConflictError(`ExecutionAttempt '${attempt.id}' is not eligible for supervised submit authorization`);
+        if (attempt.policySnapshot.submitAllowed !== true) throw new ApplyConflictError(`ExecutionAttempt '${attempt.id}' policy does not allow submit`);
+        if (!snapshot.summary.readyForSubmit) throw new ApplyConflictError(`ReviewSnapshot '${snapshot.id}' is not ready for submit`);
+        if (attempt.state !== 'waiting_for_user' || attempt.externalEffectState !== 'not_crossed') throw new ApplyConflictError(`ExecutionAttempt '${attempt.id}' is not waiting at the pre-submit boundary`);
         const requestHash = sha256(stableJson({
           attemptId: parsed.attemptId,
           reviewSnapshotId: parsed.reviewSnapshotId,
@@ -682,6 +686,9 @@ export function createApplyControlPlane(
           formStateHash: parsed.formStateHash,
           now: timestamp,
         });
+        if (validated.attempt.executionMode !== 'review_then_submit') throw new ApplyConflictError(`ExecutionAttempt '${validated.attempt.id}' is not a supervised submit attempt`);
+        if (validated.attempt.policySnapshot.submitAllowed !== true) throw new ApplyConflictError(`ExecutionAttempt '${validated.attempt.id}' policy does not permit submit`);
+        if (!validated.snapshot.summary.readyForSubmit) throw new ApplyConflictError(`ReviewSnapshot '${validated.snapshot.id}' is not ready for submit`);
         try {
           await intentSafety.beginExternal({ intentId: validated.attempt.intentId, occurredAt: parsed.occurredAt });
         } catch (error) {
