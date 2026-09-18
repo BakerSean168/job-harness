@@ -10,7 +10,7 @@ import type {
   DiscoveryRunDetail,
   JobSearchCampaign,
 } from '@job-harness/contracts';
-import { matchesCampaignEducation, matchesCampaignExperience, titleLooksLikeEntryLevelDeveloper } from './qualification-policy';
+import { descriptionMeetsCampaignRequirements, matchesCampaignEducation, matchesCampaignExperience, titleLooksLikeEntryLevelDeveloper } from './qualification-policy';
 
 export interface DiscoveryQualificationClientPort {
   readonly campaigns: { get(campaignId: string): Promise<JobSearchCampaign | null> };
@@ -47,6 +47,7 @@ export interface DiscoveryQualificationResult {
   readonly skippedApplication: number;
   readonly skippedTerminalState: number;
   readonly skippedLowMatch: number;
+  readonly skippedHardRequirement: number;
   readonly skippedNonExecutable: number;
   readonly skippedChannel: number;
   readonly skippedTitleOnlyPrepare: number;
@@ -92,6 +93,7 @@ export class DiscoveryQualificationProcessor {
     let skippedApplication = 0;
     let skippedTerminalState = 0;
     let skippedLowMatch = 0;
+    let skippedHardRequirement = 0;
     let skippedNonExecutable = 0;
     let skippedChannel = 0;
     let skippedTitleOnlyPrepare = 0;
@@ -108,8 +110,12 @@ export class DiscoveryQualificationProcessor {
         ]);
         if (!jobDetail) throw new Error(`Job '${item.jobId}' disappeared during qualification`);
         evaluated += 1;
+        if (!meetsCampaignRequirements(jobDetail, campaign)) {
+          skippedHardRequirement += 1;
+          continue;
+        }
         const top = recommendations.items[0] ?? null;
-        if (!top || !isQualified(jobDetail, top, campaign, this.minScore, this.titleOnlyMinTitleScore)) {
+        if (!top || !isQualified(jobDetail, top, this.minScore, this.titleOnlyMinTitleScore)) {
           skippedLowMatch += 1;
           continue;
         }
@@ -163,6 +169,7 @@ export class DiscoveryQualificationProcessor {
       skippedApplication,
       skippedTerminalState,
       skippedLowMatch,
+      skippedHardRequirement,
       skippedNonExecutable,
       skippedChannel,
       skippedTitleOnlyPrepare,
@@ -174,15 +181,20 @@ export class DiscoveryQualificationProcessor {
   }
 }
 
+
+function meetsCampaignRequirements(detail: JobDetail, campaign: JobSearchCampaign): boolean {
+  const metadata = detail.primaryListing?.metadataSnapshot ?? {};
+  if (!matchesCampaignExperience(metadata.experience, campaign.experience)) return false;
+  if (!matchesCampaignEducation(metadata.education, campaign.education)) return false;
+  return descriptionMeetsCampaignRequirements(detail.job.description, campaign.experience, campaign.education);
+}
+
 function isQualified(
   detail: JobDetail,
   top: RecommendJobResumesOutput['items'][number],
-  campaign: JobSearchCampaign,
   minScore: number,
   titleOnlyMinTitleScore: number,
 ): boolean {
-  if (!matchesCampaignExperience(detail.primaryListing?.metadataSnapshot?.experience, campaign.experience)) return false;
-  if (!matchesCampaignEducation(detail.primaryListing?.metadataSnapshot?.education, campaign.education)) return false;
   const description = detail.job.description?.trim() ?? '';
   if (description) return top.score >= minScore;
   if (top.riskSignals.length > 0 || !titleLooksLikeEntryLevelDeveloper(detail.job.title)) return false;

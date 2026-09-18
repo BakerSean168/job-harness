@@ -32,6 +32,7 @@ export interface ResumeJobMatch {
     readonly detailSupport: readonly KeywordMatch[];
     readonly combos: readonly KeywordMatch[];
     readonly titleBlock: readonly KeywordMatch[];
+    readonly detailBlock: readonly KeywordMatch[];
     readonly detailNegative: readonly KeywordMatch[];
     readonly specialization: readonly KeywordMatch[];
   };
@@ -43,6 +44,7 @@ type ScoringConfig = {
   readonly titleMediumKeywords?: Readonly<Record<string, number>>;
   readonly detailStrongKeywords?: Readonly<Record<string, number>>;
   readonly detailSupportKeywords?: Readonly<Record<string, number>>;
+  readonly detailBlockKeywords?: Readonly<Record<string, number>>;
   readonly detailNegativeKeywords?: Readonly<Record<string, number>>;
   readonly comboBonuses?: readonly { readonly keywords: readonly string[]; readonly score: number }[];
 };
@@ -176,7 +178,7 @@ export function scoreResumeProfileForJob(target: ResumeJobTarget, profile: Resum
       titlePenaltyScore: 0,
       penaltyScore: 0,
       specializationScore: 0,
-      matches: { titleStrong: [], titleMedium: [], detailStrong: [], detailSupport: [], combos: [], titleBlock: [], detailNegative: [], specialization: [] },
+      matches: { titleStrong: [], titleMedium: [], detailStrong: [], detailSupport: [], combos: [], titleBlock: [], detailBlock: [], detailNegative: [], specialization: [] },
     };
   }
 
@@ -185,6 +187,7 @@ export function scoreResumeProfileForJob(target: ResumeJobTarget, profile: Resum
   const titleMedium = findMatches(title, config.titleMediumKeywords);
   const detailStrong = findMatches(detail, config.detailStrongKeywords);
   const detailSupport = findMatches(detail, config.detailSupportKeywords);
+  const detailBlock = findMatches(detail, config.detailBlockKeywords);
   const detailNegative = findMatches(detail, config.detailNegativeKeywords);
   const combos = findComboMatches(combined, config.comboBonuses);
   const specialization = findMatches(combined, SPECIALIZATION[profile.id] ?? {});
@@ -194,11 +197,11 @@ export function scoreResumeProfileForJob(target: ResumeJobTarget, profile: Resum
   const supportScore = Math.min(sum(detailSupport), 20);
   const comboScore = Math.min(sum(combos), 20);
   const titlePenaltyScore = Math.min(sum(titleBlock), 80);
-  const penaltyScore = Math.min(sum(detailNegative), 45);
+  const penaltyScore = Math.min(sum(detailNegative) + sum(detailBlock), 45);
   const specializationCap = profile.id === 'ai-agent-forgeflow' ? 28 : profile.id === 'ai-agent-dongxu' ? 20 : 18;
   const specializationScore = Math.min(sum(specialization), specializationCap);
   let score = titleScore + detailScore + supportScore + comboScore + specializationScore - titlePenaltyScore - penaltyScore;
-  if (titleBlock.length) score = Math.min(score, 45);
+  if (titleBlock.length || detailBlock.length) score = Math.min(score, 45);
   score = clamp(Math.round(score), 0, 100);
 
   return {
@@ -215,7 +218,7 @@ export function scoreResumeProfileForJob(target: ResumeJobTarget, profile: Resum
     titlePenaltyScore,
     penaltyScore,
     specializationScore,
-    matches: { titleStrong, titleMedium, detailStrong, detailSupport, combos, titleBlock, detailNegative, specialization },
+    matches: { titleStrong, titleMedium, detailStrong, detailSupport, combos, titleBlock, detailBlock, detailNegative, specialization },
   };
 }
 

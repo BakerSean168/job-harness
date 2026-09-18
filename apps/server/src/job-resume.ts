@@ -46,7 +46,7 @@ function strongestSignals(match: ResumeJobMatch): JobResumeMatch['positiveSignal
 }
 
 function riskSignals(match: ResumeJobMatch): JobResumeMatch['riskSignals'] {
-  const all = [...match.matches.titleBlock, ...match.matches.detailNegative];
+  const all = [...match.matches.titleBlock, ...match.matches.detailBlock, ...match.matches.detailNegative];
   const best = new Map<string, number>();
   for (const item of all) best.set(item.keyword, Math.max(best.get(item.keyword) ?? Number.NEGATIVE_INFINITY, item.score));
   return [...best.entries()]

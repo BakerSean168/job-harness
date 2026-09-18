@@ -29,3 +29,67 @@ function normalizeRequirement(value: string, removable: readonly string[]): stri
   for (const token of removable) result = result.replaceAll(token, '');
   return result;
 }
+
+
+export function descriptionMeetsCampaignRequirements(
+  description: string | null | undefined,
+  experience: readonly string[],
+  education: readonly string[],
+): boolean {
+  const text = description?.trim() ?? '';
+  if (!text) return true;
+  const minimumYears = inferMinimumExperienceYears(text);
+  const allowedYears = maxAllowedExperienceYears(experience);
+  if (minimumYears !== null && allowedYears !== null && minimumYears > allowedYears) return false;
+  const minimumEducation = inferMinimumEducationRank(text);
+  const allowedEducation = maxAllowedEducationRank(education);
+  if (minimumEducation !== null && allowedEducation !== null && minimumEducation > allowedEducation) return false;
+  return true;
+}
+
+export function inferMinimumExperienceYears(text: string): number | null {
+  const values: number[] = [];
+  const patterns = [
+    /(?:至少|不少于)\s*(\d{1,2})\s*年/gi,
+    /(\d{1,2})\s*年\s*(?:以上|及以上|及其以上)/gi,
+    /(\d{1,2})\s*[-~～至—–]\s*\d{1,2}\s*年(?:[^。；;\n]{0,24})?(?:经验|开发|研发|工作)/gi,
+    /(\d{1,2})\s*年(?:[^。；;\n]{0,24})?(?:工作|开发|研发)?经验/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const years = Number(match[1]);
+      if (Number.isFinite(years) && years >= 0 && years <= 50) values.push(years);
+    }
+  }
+  return values.length ? Math.max(...values) : null;
+}
+
+export function inferMinimumEducationRank(text: string): number | null {
+  const values: number[] = [];
+  for (const [label, rank] of [['博士',4],['硕士',3],['本科',2],['大专',1]] as const) {
+    const pattern = new RegExp(`${label}(?:\\s*)(?:及以上|以上|及其以上|学历)`, 'gi');
+    if (pattern.test(text)) values.push(rank);
+  }
+  return values.length ? Math.max(...values) : null;
+}
+
+function maxAllowedExperienceYears(allowed: readonly string[]): number | null {
+  if (!allowed.length) return null;
+  const values: number[] = [];
+  for (const raw of allowed) {
+    for (const match of raw.matchAll(/(\d{1,2})/g)) values.push(Number(match[1]));
+  }
+  return values.length ? Math.max(...values) : 0;
+}
+
+function maxAllowedEducationRank(allowed: readonly string[]): number | null {
+  if (!allowed.length) return null;
+  let max = 0;
+  for (const raw of allowed) {
+    if (/博士/.test(raw)) max = Math.max(max, 4);
+    else if (/硕士/.test(raw)) max = Math.max(max, 3);
+    else if (/本科/.test(raw)) max = Math.max(max, 2);
+    else if (/大专|专科/.test(raw)) max = Math.max(max, 1);
+  }
+  return max;
+}

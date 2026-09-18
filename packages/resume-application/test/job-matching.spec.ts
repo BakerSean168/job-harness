@@ -34,6 +34,17 @@ describe('legacy-compatible resume matching', () => {
     expect(ranked[0]?.profileId).toBe('ai-frontend');
   });
 
+  it('caps an Agent profile when the JD hard-requires an unsupported Java primary stack', () => {
+    const ranked = rankResumeProfilesForJob({
+      title: 'AI Agent 研发工程师',
+      description: '负责 Agent 架构、RAG、上下文工程；要求 2年以上Java研发经验，熟悉多线程、分布式与数据库。',
+    }, profiles);
+    const agent = ranked.find((item) => item.profileId === 'ai-agent-app')!;
+    expect(agent.matches.detailBlock).toEqual(expect.arrayContaining([expect.objectContaining({ keyword: 'Java研发经验' })]));
+    expect(agent.score).toBeLessThanOrEqual(45);
+    expect(agent.decision).toBe('low-match');
+  });
+
   it('prefers the fullstack profile for mixed backend/frontend application roles', () => {
     const ranked = rankResumeProfilesForJob({ title: 'AI全栈开发工程师', description: 'React TypeScript Node.js Go Python FastAPI PostgreSQL Redis Docker RAG' }, profiles);
     expect(ranked[0]?.profileId).toBe('ai-fullstack');

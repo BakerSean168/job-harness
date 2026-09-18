@@ -44,7 +44,7 @@ describe('DiscoveryQualificationProcessor', () => {
       submissionIntents:{async list(){return {items:[],total:0};}},
     };
     const result=await new DiscoveryQualificationProcessor(client,{dryRun:true}).run('run-exp');
-    expect(result).toMatchObject({evaluated:2,qualified:1,preparable:0,skippedLowMatch:1,skippedTitleOnlyPrepare:1});
+    expect(result).toMatchObject({evaluated:2,qualified:1,preparable:0,skippedHardRequirement:1,skippedTitleOnlyPrepare:1});
   });
 
   it('shortlists, prepares idempotently eligible formal jobs, skips existing intents and isolates per-job failures', async () => {

@@ -74,6 +74,13 @@ export const LEGACY_COPILOT_SCORING = {
       "React": 3,
       "TypeScript": 3
     },
+    "detailBlockKeywords": {
+      "Java研发经验": 80,
+      "Java开发经验": 80,
+      "Java后端": 80,
+      "C++研发经验": 80,
+      "C++开发经验": 80
+    },
     "detailNegativeKeywords": {
       "CUDA": 22,
       "PyTorch训练": 24,
@@ -235,6 +242,13 @@ export const LEGACY_COPILOT_SCORING = {
       "Nx": 4,
       "pnpm": 3,
       "Electron": 3
+    },
+    "detailBlockKeywords": {
+      "Java研发经验": 80,
+      "Java开发经验": 80,
+      "Java后端": 80,
+      "C++研发经验": 80,
+      "C++开发经验": 80
     },
     "detailNegativeKeywords": {
       "CUDA": 18,
