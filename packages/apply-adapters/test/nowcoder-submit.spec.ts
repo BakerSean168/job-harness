@@ -6,7 +6,7 @@ import { NowcoderAtsSiteAdapter } from '../src';
 const resumeForm = FormIRSchema.parse({
   version: 1,
   observedAt: '2026-09-18T03:00:00.000Z',
-  source: { adapterId: 'nowcoder-ats', adapterVersion: '2026-09-18.3', host: 'www.nowcoder.com' },
+  source: { adapterId: 'nowcoder-ats', adapterVersion: '2026-09-18.4', host: 'www.nowcoder.com' },
   pages: [{ id: 'page-1', url: 'https://www.nowcoder.com/jobs/detail/463747', title: 'Agent开发工程师', sectionIds: [], fieldIds: ['resume'] }],
   sections: [],
   fields: [{
@@ -72,6 +72,26 @@ describe('Nowcoder supervised submit contract', () => {
     ]);
     await expect(adapter.validate(resumeForm, plan, filledReport)).resolves.toMatchObject({ readyForReview: true, readyForSubmit: true });
     await expect(adapter.validate(resumeForm, plan, { ...filledReport, results: [], filled: 0 })).resolves.toMatchObject({ readyForSubmit: false });
+  });
+
+  it('binds only Nowcoder primary jsAttachUpload1 resume slot when the live modal exposes two hidden file inputs', () => {
+    const twoFileForm = FormIRSchema.parse({
+      ...resumeForm,
+      pages: [{ ...resumeForm.pages[0]!, fieldIds: ['resume-primary','resume-secondary'] }],
+      fields: [
+        { ...resumeForm.fields[0]!, id: 'resume-primary', controlRef: '#resume-primary', semanticHints: ['jsAttachUpload1_1789703006625_4220'] },
+        { ...resumeForm.fields[0]!, id: 'resume-secondary', controlRef: '#resume-secondary', semanticHints: ['jsAttachUpload2_1789703006628_7169'] },
+      ],
+    });
+    const adapter = new NowcoderAtsSiteAdapter();
+    expect(adapter.explicitBindings(twoFileForm)).toEqual([
+      expect.objectContaining({
+        fieldId: 'resume-primary',
+        applicantKey: 'documents.resume',
+        source: 'playbook',
+        reason: 'nowcoder-primary-resume-upload-slot',
+      }),
+    ]);
   });
 
   it('clicks exactly one final submit action and accepts success only after the characterized continue-contact state appears', async () => {

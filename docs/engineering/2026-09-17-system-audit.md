@@ -647,3 +647,13 @@ The first production `review_then_submit` Nowcoder canary reached the characteri
 **A39 — fixed.** File-only fill plans now skip literal Applicant Data resolution entirely and use the already-frozen plan catalog version with an empty resolved-value set. A dedicated regression proves a resume-only form performs exactly the artifact upload without invoking `resolve()` at all. Mixed/text forms preserve the existing catalog-version guard.
 
 Post-fix verification: `pnpm check` **PASS**, Vitest **89 files / 209 tests PASS**, strict TypeScript/OpenAPI/package boundaries/Browser Bridge checks and Next.js production build all PASS.
+
+### Finding A40 — Nowcoder live modal exposes two hidden upload inputs; resume binding needs a site-specific primary-slot invariant
+
+The second supervised live canary reached Review safely but reported `fieldCount=3`, `bindingCount=0`, `filled=0`, `readyForSubmit=false`. A retained-session control snapshot showed the real Nowcoder modal contains one ordinary search field plus **two** hidden document inputs with equivalent accepted extensions. Their generated semantic hints were `jsAttachUpload1_<dynamic>` and `jsAttachUpload2_<dynamic>`. The previous "unique resume file input" invariant therefore failed closed as designed.
+
+A scoped live probe uploaded the exact frozen ForgeFlow Resume Artifact only to the `jsAttachUpload1_*` control. Nowcoder immediately changed the selected resume label to `卢楼豪-AI Agent应用开发工程师-ForgeFlow版` and started its resume parser (`大模型正在为您解析简历…`). The second input was not touched. This establishes `jsAttachUpload1_*` as the characterized primary resume slot for the observed Nowcoder modal family.
+
+**A40 — fixed.** `nowcoder-ats@2026-09-18.4` now deterministically binds `documents.resume` to exactly one file field whose semantic hint matches `^jsAttachUpload1_`. The older unique-resume-input fallback remains only for structurally simpler Nowcoder variants. When two document inputs exist and no single characterized primary slot can be identified, the adapter still returns no binding and cannot become submit-ready. A regression fixture with both `jsAttachUpload1_*` and `jsAttachUpload2_*` proves only the primary slot is selected.
+
+The manually probed Attempt was cancelled with `externalEffectState=not_crossed` and is explicitly ineligible for reuse as submit evidence. A fresh `2026-09-18.4` Attempt must produce the final ReviewSnapshot from an untouched automated run.

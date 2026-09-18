@@ -33,7 +33,7 @@ abstract class ObservedPublicAtsAdapter implements ApplySiteAdapter {
 export class NowcoderAtsSiteAdapter extends ObservedPublicAtsAdapter {
   readonly descriptor = {
     id: 'nowcoder-ats',
-    version: '2026-09-18.3',
+    version: '2026-09-18.4',
     semantics: 'formal_application' as const,
     priority: 180,
     capabilities: { inspect: true, enter: true, fill: true, validate: true, submit: true },
@@ -86,14 +86,20 @@ export class NowcoderAtsSiteAdapter extends ObservedPublicAtsAdapter {
   }
 
   explicitBindings(form: FormIR): readonly FieldBinding[] {
+    const primaryResumeFields = form.fields.filter((field) => isNowcoderPrimaryResumeField(field));
     const resumeFields = form.fields.filter((field) => isNowcoderResumeField(field));
-    if (resumeFields.length !== 1) return [];
+    const target = primaryResumeFields.length === 1
+      ? primaryResumeFields[0]
+      : resumeFields.length === 1 ? resumeFields[0] : null;
+    if (!target) return [];
     return [{
-      fieldId: resumeFields[0]!.id,
+      fieldId: target.id,
       applicantKey: 'documents.resume',
       confidence: 1,
       source: 'playbook',
-      reason: 'nowcoder-application-modal-single-resume-document-input',
+      reason: primaryResumeFields.length === 1
+        ? 'nowcoder-primary-resume-upload-slot'
+        : 'nowcoder-application-modal-single-resume-document-input',
     }];
   }
 
@@ -173,6 +179,11 @@ function isNowcoderResumeControl(control: { kind: string; label: string; name: s
   if (control.kind !== 'file') return false;
   const evidence = [control.label, control.name ?? '', ...control.semanticHints, control.accept ?? ''].join(' ');
   return /pdf|docx?|resume|cv|upload|file|简历|附件/i.test(evidence);
+}
+
+function isNowcoderPrimaryResumeField(field: FormIR['fields'][number]): boolean {
+  if (field.type !== 'file') return false;
+  return field.semanticHints.some((hint) => /^jsAttachUpload1_/i.test(hint));
 }
 
 function isNowcoderResumeField(field: FormIR['fields'][number]): boolean {
