@@ -551,3 +551,9 @@ Post-promotion verification: server/Web healthy, no runtime Corepack download, b
 The URL+form review hash now catches navigation and ordinary field drift, but file inputs are still represented by `element.value` (normally a browser fake path such as `C:\\fakepath\\resume.pdf`). Replacing the uploaded Resume with different bytes under the same filename can therefore preserve the reviewed hash even though `ApplyBundle` and ApplicationSubmission are intended to prove the exact immutable Resume Artifact that was sent.
 
 **Required change before live-submit promotion:** include every selected file's content SHA-256 plus stable metadata in the browser form-state material for both MV3 and Playwright drivers. Review, begin-submit and the final post-boundary re-check must therefore fail if uploaded bytes change, even when filename/MIME type remain identical. Add cross-backend regression tests that replace a PDF with different bytes under the same filename and require the hash to change.
+
+### 17.3 Uploaded-file evidence follow-up
+
+**A33 — fixed.** MV3 and Playwright form-state hashing now represents file inputs as selected-file metadata plus a SHA-256 over the exact file bytes. The reviewed hash therefore binds the actual Resume payload rather than only the browser fake path/filename. A cross-backend regression test constructs two PDFs with identical filename, MIME type, size and `lastModified` metadata but different bytes; both backends produce the same hash for the same document and a different hash after the byte-only replacement.
+
+The Browser Bridge release is advanced to 0.1.2 for this client-visible contract change. Full verification remains green at **87 test files / 196 tests**, strict TypeScript, Browser Extension guard, production Web build and the synthetic one-submit safety smoke.

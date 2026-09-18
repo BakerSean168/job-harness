@@ -167,4 +167,35 @@ describe('MV3 page driver contract', () => {
     });
   });
 
+
+  it('binds the reviewed form hash to exact uploaded file bytes across MV3 and Playwright backends', async () => {
+    await withDriver(async (page) => {
+      await command(page, 'scan_controls');
+      const playwright = new PlaywrightBrowserDriver(page);
+      const setResumeBytes = async (bytes: number[]) => page.evaluate((payload) => {
+        const input = document.querySelector('#resume');
+        if (!(input instanceof HTMLInputElement)) throw new Error('resume input missing');
+        const file = new File([new Uint8Array(payload)], 'resume.pdf', {
+          type: 'application/pdf',
+          lastModified: 1_700_000_000_000,
+        });
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        input.files = transfer.files;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }, bytes);
+
+      await setResumeBytes([37, 80, 68, 70, 45, 65]); // %PDF-A
+      const mv3First = await command(page, 'form_state_hash');
+      const playwrightFirst = await playwright.formStateHash();
+      expect(playwrightFirst).toBe(mv3First);
+
+      await setResumeBytes([37, 80, 68, 70, 45, 66]); // %PDF-B: same metadata/size, different content
+      const mv3Second = await command(page, 'form_state_hash');
+      const playwrightSecond = await playwright.formStateHash();
+      expect(playwrightSecond).toBe(mv3Second);
+      expect(mv3Second).not.toBe(mv3First);
+    });
+  });
+
 });

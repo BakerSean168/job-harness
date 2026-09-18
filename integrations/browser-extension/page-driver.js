@@ -184,18 +184,31 @@
   }
 
   async function formStateHash() {
+    const sha256Hex = async (bytes) => {
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
+    };
     const controls = [...document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),textarea,select')]
       .filter((node) => node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement || node instanceof HTMLSelectElement);
-    const rows = controls.map((element, index) => {
+    const rows = await Promise.all(controls.map(async (element, index) => {
       const ref = element.getAttribute("data-job-harness-field-id") || element.getAttribute("data-job-harness-radio-group") || element.name || element.id || `control-${index}`;
       let value;
-      if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) value = { checked: element.checked, value: String(element.value || "").replace(/\r\n/g, "\n") };
+      if (element instanceof HTMLInputElement && element.type === "file") {
+        const files = await Promise.all([...(element.files || [])].map(async (file) => ({
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          lastModified: file.lastModified,
+          sha256: await sha256Hex(await file.arrayBuffer()),
+        })));
+        value = { files };
+      } else if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) value = { checked: element.checked, value: String(element.value || "").replace(/\r\n/g, "\n") };
       else if (element instanceof HTMLSelectElement && element.multiple) value = [...element.selectedOptions].map((option) => String(option.value || "").replace(/\r\n/g, "\n")).sort();
       else value = String(element.value || "").replace(/\r\n/g, "\n");
       return [ref, element.tagName.toLowerCase(), element instanceof HTMLInputElement ? element.type : "", value];
-    }).sort((left, right) => JSON.stringify(left.slice(0, 3)).localeCompare(JSON.stringify(right.slice(0, 3))));
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify({ url: location.href, rows })));
-    return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
+    }));
+    rows.sort((left, right) => JSON.stringify(left.slice(0, 3)).localeCompare(JSON.stringify(right.slice(0, 3))));
+    return sha256Hex(new TextEncoder().encode(JSON.stringify({ url: location.href, rows })));
   }
 
   function createStableRefAllocator(elements, attribute, prefix) {
