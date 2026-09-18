@@ -192,6 +192,13 @@ describe('browser-extension validation scope', () => {
       type:'upload', payload:{ selector:'[data-job-harness-field-id=\"jh-0\"]', file:{ name:'卢楼豪-AI-Agent应用开发工程师.pdf', mimeType:'application/pdf' } },
     });
     expect(uploadCommand.payload.file.bytesBase64).toBe(Buffer.from(bytes).toString('base64'));
+    const fillPromise = registry.invoke(run.id, {
+      sessionRef:'chrome-tab:resume-sync', command:{ type:'fill', payload:{ selector:'[data-job-harness-field-id=\"jh-name\"]', value:'Candidate Name' } }, timeoutMs:5_000,
+    });
+    await answerOne(bridge, pageUrl);
+    const fillCommand = await answerOne(bridge, null);
+    expect(fillCommand.command).toMatchObject({ type:'fill', payload:{ value:'Candidate Name' } });
+    await expect(fillPromise).resolves.toMatchObject({ run:{ writeCount:2 } });
     await expect(registry.invoke(run.id, {
       sessionRef:'chrome-tab:resume-sync', command:{ type:'click', payload:{ selector:'button.apply', expectedText:'投简历' } }, timeoutMs:5_000,
     })).rejects.toMatchObject({ code:'VALIDATION_CLICK_DENIED' });

@@ -54,7 +54,8 @@ const READONLY_SITE_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
   'session_acquire', 'current_url', 'title', 'body_text', 'exists', 'text', 'wait', 'scan_controls', 'scan_actions', 'form_state_hash',
 ]);
 const RESUME_SYNC_SITE_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
-  'session_acquire', 'current_url', 'title', 'body_text', 'exists', 'text', 'upload', 'wait', 'scan_controls', 'scan_actions', 'form_state_hash', 'click',
+  'session_acquire', 'current_url', 'title', 'body_text', 'exists', 'text',
+  'fill', 'select', 'set_checked', 'upload', 'click', 'wait', 'scan_controls', 'scan_actions', 'form_state_hash',
 ]);
 const RESUME_SYNC_FORBIDDEN_CLICK_TEXT = /(?:投简历|立即投递|确认投递|投递简历|立即申请|提交申请|申请职位|提交职位申请|聊一聊|发送)/i;
 const WRITE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(['fill', 'select', 'set_checked', 'upload']);
