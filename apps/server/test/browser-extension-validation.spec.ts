@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { BrowserExtensionBridge } from '../src/browser-extension-bridge';
 import { BrowserExtensionValidationRegistry } from '../src/browser-extension-validation';
 
-function register(bridge: BrowserExtensionBridge) {
+function register(bridge: BrowserExtensionBridge, version = '0.1.5') {
   bridge.register({
     agentId: 'windows-chrome-primary',
     name: 'Windows Chrome',
-    version: '0.1.0',
+    version,
     browserName: 'Chrome',
     platform: 'Win32',
     capabilities: {
@@ -92,6 +92,19 @@ describe('browser-extension validation scope', () => {
     ] as const) {
       await expect(registry.invoke(run.id, { sessionRef: 'chrome-tab:31', command, timeoutMs: 5_000 })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
     }
+    bridge.close();
+  });
+
+  it('rejects staged characterization from a pre-0.1.5 Browser Bridge before any command is queued', () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge, '0.1.4');
+    const registry = new BrowserExtensionValidationRegistry(bridge, {
+      allowedOrigin: 'https://job-harness.test:20900', readonlySiteFamilies: ['zhilian', 'liepin'],
+    });
+    expect(() => registry.create({
+      agentId: 'windows-chrome-primary', targetUrl: 'https://www.zhaopin.com/jobdetail/CC1.htm', mode: 'site-staged-readonly',
+    })).toThrow(/requires Browser Bridge >= 0.1.5/);
+    expect(bridge.status('windows-chrome-primary')?.queuedCommands).toBe(0);
     bridge.close();
   });
 

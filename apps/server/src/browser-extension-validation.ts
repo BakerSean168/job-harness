@@ -114,6 +114,9 @@ export class BrowserExtensionValidationRegistry {
     const target = this.validateTarget(input.targetUrl, input.mode);
     const agent = this.bridge.status(input.agentId);
     if (!agent?.online) throw new BrowserExtensionBridgeError('AGENT_OFFLINE', `Browser extension agent '${input.agentId}' is offline`, 503);
+    if (input.mode === 'site-staged-readonly' && !versionAtLeast(agent.version, '0.1.5')) {
+      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Staged read-only characterization requires Browser Bridge >= 0.1.5; agent '${input.agentId}' reports '${agent.version}'`, 409);
+    }
     const createdAt = this.now().toISOString();
     const run: MutableValidationRun = {
       id: randomUUID(),
@@ -408,4 +411,16 @@ function requireRecord(value: unknown, label: string): Record<string, unknown> {
 function requireString(value: unknown, label: string): string {
   if (typeof value !== 'string' || !value.trim()) throw new BrowserExtensionBridgeError('VALIDATION_AGENT_RESULT', `Browser extension ${label} result was invalid`, 502);
   return value;
+}
+
+function versionAtLeast(actual: string, minimum: string): boolean {
+  const parse = (value: string) => value.split('.').slice(0, 3).map((part) => Number.parseInt(part, 10));
+  const left = parse(actual);
+  const right = parse(minimum);
+  if (left.length < 3 || right.length < 3 || left.some((value) => !Number.isFinite(value)) || right.some((value) => !Number.isFinite(value))) return false;
+  for (let index = 0; index < 3; index += 1) {
+    if (left[index]! > right[index]!) return true;
+    if (left[index]! < right[index]!) return false;
+  }
+  return true;
 }
