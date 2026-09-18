@@ -167,6 +167,7 @@ export class LiepinDiscoveryProvider implements DiscoveryProviderPort {
     if (this.detailEnrichment && this.maxDetailCandidates > 0) {
       const eligible = [...byIdentity.values()]
         .filter(({ candidate }) => shouldEnrichDetail(candidate, campaign))
+        .sort(compareDetailPriority)
         .slice(0, this.maxDetailCandidates);
       for (let index = 0; index < eligible.length; index += 1) {
         const entry = eligible[index]!;
@@ -184,7 +185,6 @@ export class LiepinDiscoveryProvider implements DiscoveryProviderPort {
                 metadataSnapshot: {
                   ...listing.metadataSnapshot,
                   detailEnriched: true,
-                  detailFetchedAt: this.now(),
                   detailDatePosted: detail.datePosted,
                 },
               }],
@@ -459,4 +459,22 @@ function htmlToText(value: string): string {
     .replace(/[ \t]+/g, ' ')
     .replace(/\n\s*\n+/g, '\n')
     .trim();
+}
+
+
+function compareDetailPriority(left: MutableCandidate, right: MutableCandidate): number {
+  const leftListing = left.candidate.listings[0];
+  const rightListing = right.candidate.listings[0];
+  const leftDirect = isLiepinDirectHireUrl(leftListing?.url ?? '') ? 1 : 0;
+  const rightDirect = isLiepinDirectHireUrl(rightListing?.url ?? '') ? 1 : 0;
+  if (leftDirect !== rightDirect) return rightDirect - leftDirect;
+  const leftPublished = Date.parse(leftListing?.publishedAt ?? '') || 0;
+  const rightPublished = Date.parse(rightListing?.publishedAt ?? '') || 0;
+  if (leftPublished !== rightPublished) return rightPublished - leftPublished;
+  return (leftListing?.url ?? '').localeCompare(rightListing?.url ?? '');
+}
+
+function isLiepinDirectHireUrl(value: string): boolean {
+  try { return new URL(value).hostname === 'www.liepin.com' && /^\/job\/\d+\.shtml$/i.test(new URL(value).pathname); }
+  catch { return false; }
 }

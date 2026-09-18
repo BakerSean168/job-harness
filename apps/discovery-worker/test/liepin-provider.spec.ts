@@ -88,6 +88,24 @@ describe('LiepinDiscoveryProvider', () => {
     expect(calls.filter((url)=>url.includes('liepin.com/a/'))).toHaveLength(1);
   });
 
+  it('prioritizes direct-hire and newest candidates for bounded detail enrichment', async () => {
+    const detailHtml = `<!doctype html><script type="application/ld+json">${JSON.stringify({ '@type':'JobPosting', description:'Direct hire Agent role' })}</script>`;
+    const detailCalls: string[] = [];
+    const fakeFetch: typeof fetch = async (input, init) => {
+      if (init?.method === 'GET') { detailCalls.push(String(input)); return new Response(detailHtml, { status: 200 }); }
+      return json({ flag:1,data:{data:{jobCardList:[
+        card({job:{...card().job,jobId:'1',jobKind:'1',title:'AI Agent开发工程师',link:'https://www.liepin.com/a/1.shtml',refreshTime:'20260918090000',requireWorkYears:'经验不限',requireEduLevel:'本科'}}),
+        card({job:{...card().job,jobId:'2',jobKind:'2',title:'AI Agent开发工程师',link:'https://www.liepin.com/job/2.shtml',refreshTime:'20260917090000',requireWorkYears:'经验不限',requireEduLevel:'本科'}}),
+      ]}}});
+    };
+    const provider = new LiepinDiscoveryProvider({ fetch:fakeFetch,queryDelayMs:0,maxTerms:1,detailEnrichment:true,detailDelayMs:0,maxDetailCandidates:1,now:()=> '2026-09-18T10:50:00.000Z',traceIdFactory:()=> 'trace' });
+    const result = await provider.discover({ ...campaign, experience:['经验不限'], education:['本科'] });
+    expect(detailCalls).toEqual(['https://www.liepin.com/job/2.shtml']);
+    const direct = result.candidates.find((item)=>item.listings[0]?.url==='https://www.liepin.com/job/2.shtml');
+    expect(direct?.description).toBe('Direct hire Agent role');
+    expect(direct?.listings[0]?.metadataSnapshot.detailFetchedAt).toBeUndefined();
+  });
+
   it('fails closed for campaign cities whose Liepin code has not been verified', () => {
     const provider = new LiepinDiscoveryProvider();
     expect(() => provider.plan({ ...campaign, cities: ['金华'] })).toThrow(/no verified code/);
