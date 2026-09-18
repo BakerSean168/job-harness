@@ -57,7 +57,11 @@ describe('Job Harness BOSS outreach bridge', () => {
       if (!address || typeof address === 'string') throw new Error('missing server address');
       const base = `http://127.0.0.1:${address.port}`;
       const health = await fetch(`${base}/api/health`);
-      expect(await health.json()).toMatchObject({ ok: true, service: 'job-harness-boss-outreach-bridge', mode: 'auto-resume-only-greet' });
+      expect(await health.json()).toMatchObject({ ok: true, service: 'job-harness-boss-outreach-bridge', mode: 'auto-resume-only-greet', discovery: false });
+      const reporter = await fetch(`${base}/boss-discovery-reporter.user.js`);
+      expect(reporter.status).toBe(200);
+      expect(reporter.headers.get('content-type')).toContain('text/javascript');
+      expect(await reporter.text()).toContain('/api/discovery/report');
 
       const score = await fetch(`${base}/p/ai-agent-app/get-job-score`, { method: 'POST', body: JSON.stringify(payload), headers: { 'content-type': 'application/json' } });
       expect(await score.json()).toMatchObject({ profileId: 'ai-agent-forgeflow', resumeIndex: 0 });

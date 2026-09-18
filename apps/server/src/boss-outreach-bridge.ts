@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { rankResumeProfilesForJob, type ResumeJobMatch } from '@job-harness/resume-application';
 import type { ApplicantProfileContext } from '@job-harness/applicant-contracts';
 import type { ListResumeProfilesOutput } from '@job-harness/resume-contracts';
+import { BossDiscoveryReportSchema, parseBossDiscoveryDecision, renderBossDiscoveryReporter, type BossDiscoveryCoordinator } from './boss-discovery';
 
 export interface BossOutreachBridgeClient {
   readonly applicant: { getProfile(): Promise<ApplicantProfileContext> };
@@ -17,6 +18,7 @@ export interface BossOutreachBridgeOptions {
   readonly baseDelayMs?: number;
   readonly delayJitterMs?: number;
   readonly random?: () => number;
+  readonly discovery?: BossDiscoveryCoordinator | null;
 }
 
 export interface ParsedBossJob {
@@ -106,6 +108,13 @@ function sendJson(res: ServerResponse, status: number, value: unknown): void {
   res.setHeader('content-type', 'application/json; charset=utf-8');
   res.setHeader('content-length', Buffer.byteLength(body));
   res.end(body);
+}
+
+function sendText(res: ServerResponse, status: number, contentType: string, value: string): void {
+  res.statusCode = status;
+  res.setHeader('content-type', contentType);
+  res.setHeader('content-length', Buffer.byteLength(value));
+  res.end(value);
 }
 
 function setCommonHeaders(res: ServerResponse): void {
@@ -200,7 +209,15 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
       const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
       if (req.method === 'GET' && url.pathname === '/api/health') {
         const [profiles, applicant] = await Promise.all([options.client.resume.listProfiles(), options.client.applicant.getProfile()]);
-        return sendJson(res, 200, { ok: true, service: 'job-harness-boss-outreach-bridge', mode: 'auto-resume-only-greet', profiles: profiles.items.map((p) => ({ id: p.id, name: p.name })), applicantProfileVersion: applicant.profile.version });
+        return sendJson(res, 200, { ok: true, service: 'job-harness-boss-outreach-bridge', mode: 'auto-resume-only-greet', discovery: Boolean(options.discovery), reporterUrl: `${options.publicBaseUrl.replace(/\/+$/, '')}/boss-discovery-reporter.user.js`, profiles: profiles.items.map((p) => ({ id: p.id, name: p.name })), applicantProfileVersion: applicant.profile.version });
+      }
+      if (req.method === 'GET' && url.pathname === '/boss-discovery-reporter.user.js') {
+        return sendText(res, 200, 'text/javascript; charset=utf-8', renderBossDiscoveryReporter(options.publicBaseUrl));
+      }
+      if (req.method === 'POST' && url.pathname === '/api/discovery/report') {
+        if (!options.discovery) return sendJson(res, 503, { error: 'discovery_not_configured' });
+        const report = BossDiscoveryReportSchema.parse(await readJsonBody(req));
+        return sendJson(res, 200, await options.discovery.report(report));
       }
       if (req.method === 'GET' && url.pathname === '/api/screening-summary') {
         return sendJson(res, 200, screeningSummary(await readEvents(options.logPath)));
@@ -260,6 +277,10 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         const body = safeActionPayload(await readJsonBody(req));
         const title = typeof body.title === 'string' ? body.title : '';
         const decision = title ? recentDecisions.get(title) : null;
+        const discoveryDecision = parseBossDiscoveryDecision(body, decision ? { profileId: decision.profileId, profileLabel: decision.profileLabel } : null);
+        if (discoveryDecision && options.discovery) {
+          await options.discovery.decision(discoveryDecision);
+        }
         await appendEvent(options.logPath, {
           loggedAt: new Date().toISOString(),
           requestedProfileId,

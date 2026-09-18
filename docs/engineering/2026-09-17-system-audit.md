@@ -757,3 +757,13 @@ A separate `@job-harness/email-worker` now implements SMTP delivery through a pr
 The Email review page exposes a five-minute “authorize send” control only when `JOB_HARNESS_EMAIL_SMTP_WORKER_ENABLED=true`; otherwise it explains that SMTP delivery is not configured and the immutable package may still be executed through an explicitly connected provider such as the user's Gmail ChatGPT connector. Email delivery credentials remain outside Job Harness persistence and are supplied only to the worker process.
 
 Verification: `pnpm check` passes with 100 test files / 232 tests, generated OpenAPI matches contracts, production Web build passes, and MCP remains 39 tools / 0 external-side-effect tools.
+
+### A51 — BOSS screening becomes a real Job Harness Discovery executor without rewriting its proven search DOM loop
+
+The BOSS userscript already performs the difficult site-specific work: it iterates search results, opens job details, reads the JD, scores the role, and optionally sends the first greeting. Rebuilding that loop as another crawler would duplicate brittle BOSS DOM knowledge. The remaining gap was ownership: screening results were written only to legacy JSONL logs, so BOSS browsing did not create canonical Job/JobObservation facts in Job Harness.
+
+**A51 — implemented.** A separate read-only `Job Harness BOSS Discovery Reporter` userscript runs only on `https://www.zhipin.com/job_detail/*`. It reads JobPosting JSON-LD when available and bounded DOM fallbacks for title/company/city/salary/JD, then posts sanitized metadata to the existing Tailnet-only BOSS bridge. It contains no click, chat, resume-send, or submit primitive.
+
+The bridge now correlates reporter metadata by canonical BOSS job URL with the existing `job_decision_consumed` event (`screeningSessionId`, score, threshold, selected ResumeProfile). The first correlated job lazily opens one canonical DiscoveryRun under the active JobSearchCampaign with `executor=other` and `contextSnapshot.source=boss-browser`; each role goes through the normal `jobs.upsertJobsBatch` path with a real `boss` Listing and JobObservation. Insert/update/duplicate/reject counts are accumulated and the run is completed after a ten-minute idle window. Session state is append-only JSONL so bridge restarts recover unfinished runs and re-arm completion instead of leaking permanent running runs. Late activity after a completed session creates a new generation rather than mutating completed counts.
+
+The production campaign `2026-grad-agent-fullstack-frontend` was also corrected from the retired `ai-agent` profile reference to the five current profiles: `ai-agent-app`, `ai-agent-dongxu`, `ai-agent-forgeflow`, `ai-frontend`, and `ai-fullstack`.
