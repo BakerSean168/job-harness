@@ -140,6 +140,23 @@ describe('browser-extension validation scope', () => {
     bridge.close();
   });
 
+  it('treats recruiting-site tracking query parameters as the same job during staged read-only reuse', async () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge);
+    const registry = new BrowserExtensionValidationRegistry(bridge, {
+      allowedOrigin: 'https://job-harness.test:20900', readonlySiteFamilies: ['liepin'],
+    });
+    const target = 'https://www.liepin.com/job/1985379181.shtml';
+    const run = registry.create({ agentId: 'windows-chrome-primary', targetUrl: `${target}?source=canonical`, mode: 'site-staged-readonly' });
+    expect(run.targetUrl).toBe(target);
+    const acquirePromise = registry.invoke(run.id, {
+      sessionRef: null, command: { type: 'session_acquire', payload: { preferredUrl: run.targetUrl, reuseLiveSession: true, requireLiveSession: true } }, timeoutMs: 5_000,
+    });
+    await answerOne(bridge, { sessionRef: 'chrome-tab:query', currentUrl: `${target}?from=search&track=abc` });
+    await expect(acquirePromise).resolves.toMatchObject({ run: { sessionRef: 'chrome-tab:query', mode: 'site-staged-readonly', writeCount: 0 } });
+    bridge.close();
+  });
+
   it('orchestrates a complete read-only characterization and persists only redacted structure evidence', async () => {
     const bridge = new BrowserExtensionBridge();
     register(bridge);

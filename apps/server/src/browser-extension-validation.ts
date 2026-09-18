@@ -185,7 +185,7 @@ export class BrowserExtensionValidationRegistry {
       const sessionRef = requireString(result.sessionRef, 'sessionRef');
       const currentUrl = requireString(result.currentUrl, 'currentUrl');
       if (!this.sameTarget(currentUrl, run.targetUrl, run.mode)) {
-        throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'Browser validation Chrome tab opened an unexpected URL', 409);
+        throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', staged ? 'Staged characterization requires an already-open tab on this exact job. Open the target job, manually enter its resume-selection/final-confirmation layer, and retry.' : 'Browser validation Chrome tab opened an unexpected job URL', 409);
       }
       run.sessionRef = sessionRef;
       run.commandCount += 1;
@@ -287,6 +287,10 @@ export class BrowserExtensionValidationRegistry {
     if (!zhilian && !liepin) {
       throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Read-only site validation target is outside the configured characterized recruiting-site families', 403);
     }
+    // Recruiting sites routinely append tracking/query parameters to the same job.
+    // Read-only characterization binds to the stable job identity (host + path),
+    // while synthetic canary mode above keeps its strict query contract.
+    url.search = '';
     url.hash = '';
     return url.toString();
   }
