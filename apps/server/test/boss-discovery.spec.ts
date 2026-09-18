@@ -43,20 +43,20 @@ const decision = parseBossDiscoveryDecision({
 }, { profileId: 'ai-agent-forgeflow', profileLabel: 'ForgeFlow' }, '2026-09-18T08:00:01.000Z')!;
 
 describe('BOSS Discovery coordinator', () => {
-  it('correlates read-only detail telemetry with the existing screening session and writes one canonical observation', async () => {
+  it('records reporter-first discovery immediately and does not duplicate when the screening decision arrives later', async () => {
     dir = await mkdtemp(join(tmpdir(), 'jh-boss-discovery-'));
     const h = harness();
     const coordinator = new BossDiscoveryCoordinator({ client: h.client, campaignId: campaign.id, stateLogPath: join(dir, 'state.jsonl'), now: () => '2026-09-18T08:00:02.000Z' });
     expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: false });
-    expect(await coordinator.decision(decision)).toEqual({ correlated: true });
+    expect(await coordinator.decision(decision)).toEqual({ correlated: false });
     await coordinator.completeAll();
 
     expect(h.began).toHaveLength(1);
-    expect(h.began[0]).toMatchObject({ campaignId: campaign.id, executor: 'other', contextSnapshot: { source: 'boss-browser', screeningSessionId: 'boss-screen-1', generation: 1 } });
+    expect(h.began[0]).toMatchObject({ campaignId: campaign.id, executor: 'other', contextSnapshot: { source: 'boss-browser', screeningSessionId: 'boss-browser-daily-20260918', generation: 1 } });
     expect(h.upserts).toHaveLength(1);
     expect(h.upserts[0]!.jobs[0]).toMatchObject({
       companyName: '示例科技', title: 'Agent开发工程师', city: '杭州', discoveryRunId: 'run-1',
-      listings: [{ sourceKind: 'boss', externalNamespace: 'boss', externalId: 'abc123', identityKind: 'external-id', metadataSnapshot: { score: 92, screeningPassed: true, recommendedProfileId: 'ai-agent-forgeflow', screeningSessionId: 'boss-screen-1' } }],
+      listings: [{ sourceKind: 'boss', externalNamespace: 'boss', externalId: 'abc123', identityKind: 'external-id', metadataSnapshot: { score: null, screeningPassed: null, recommendedProfileId: null, screeningSessionId: 'boss-browser-daily-20260918' } }],
     });
     expect(h.upserts[0]!.jobs[0]!.listings[0]!.url).toBe('https://www.zhipin.com/job_detail/abc123.html?ka=search_list_jname_1');
     expect(h.completed).toEqual([{ runId: 'run-1', completedAt: '2026-09-18T08:00:02.000Z', candidateCount: 1, insertedCount: 1, duplicateCount: 0, rejectedCount: 0 }]);
@@ -74,6 +74,18 @@ describe('BOSS Discovery coordinator', () => {
     expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: true });
     await coordinator.completeAll();
     expect(h.upserts).toHaveLength(1);
+  });
+
+  it('records the already-installed reporter even when the screening script is not running', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-boss-discovery-standalone-'));
+    const h = harness();
+    const coordinator = new BossDiscoveryCoordinator({ client: h.client, campaignId: campaign.id, stateLogPath: join(dir, 'state.jsonl') });
+    expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: false });
+    await coordinator.completeAll();
+    expect(h.began).toHaveLength(1);
+    expect(h.began[0]).toMatchObject({ contextSnapshot: { screeningSessionId: 'boss-browser-daily-20260918' } });
+    expect(h.upserts).toHaveLength(1);
+    expect(h.upserts[0]!.jobs[0]!.listings[0]!.metadataSnapshot).toMatchObject({ score: null, recommendedProfileId: null });
   });
 
   it('rejects non-BOSS URLs and renders a read-only userscript with no click/send primitives', () => {

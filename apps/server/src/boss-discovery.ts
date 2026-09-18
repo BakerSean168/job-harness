@@ -25,6 +25,7 @@ export const BossDiscoveryReportSchema = z.object({
   salary: z.string().trim().min(1).max(120).nullable().optional(),
   description: z.string().trim().min(1).max(50_000),
   observedAt: z.iso.datetime({ offset: true }).optional(),
+  discoverySessionId: z.string().trim().min(1).max(200).regex(/^[A-Za-z0-9._:-]+$/).optional(),
 }).strict();
 export type BossDiscoveryReport = z.infer<typeof BossDiscoveryReportSchema>;
 
@@ -209,8 +210,25 @@ export class BossDiscoveryCoordinator {
     this.reports.set(canonical, normalized);
     this.trimCache(this.reports);
     const decision = this.decisions.get(canonical);
-    if (decision) await this.ingest(normalized, decision);
-    return { accepted: true, correlated: Boolean(decision) };
+    if (decision) {
+      await this.ingest(normalized, decision);
+      return { accepted: true, correlated: true };
+    }
+    const observedAt = normalized.observedAt ?? this.now();
+    const day = observedAt.slice(0, 10).replace(/-/g, '');
+    await this.ingest(normalized, {
+      screeningSessionId: normalized.discoverySessionId ?? `boss-browser-daily-${day}`,
+      jobUrl: normalized.jobUrl,
+      title: normalized.title,
+      salary: normalized.salary ?? null,
+      score: null,
+      threshold: null,
+      screeningPassed: null,
+      recommendedProfileId: null,
+      recommendedProfileLabel: null,
+      observedAt,
+    });
+    return { accepted: true, correlated: false };
   }
 
   async decision(decision: BossDiscoveryDecision): Promise<{ correlated: boolean }> {
