@@ -14,8 +14,8 @@ describe('SQLite v13 email send authorization migration', () => {
     const db = new DatabaseSync(join(dir, 'career.db'));
     try {
       migrateSqliteDatabase(db);
-      expect(SQLITE_SCHEMA_VERSION).toBe(13);
-      expect(Number((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version)).toBe(13);
+      expect(SQLITE_SCHEMA_VERSION).toBeGreaterThanOrEqual(13);
+      expect(Number((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version)).toBe(SQLITE_SCHEMA_VERSION);
       const table = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='email_send_authorizations'").get() as { sql?: string } | undefined;
       expect(String(table?.sql ?? '')).toContain("status TEXT NOT NULL CHECK(status IN ('active','consumed','revoked'))");
       expect(String(table?.sql ?? '')).toContain('request_hash TEXT NOT NULL');

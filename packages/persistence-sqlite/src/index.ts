@@ -7,3 +7,5 @@ export * from './apply-store';
 export * from './applicant-store';
 
 export * from './email-application-store';
+
+export * from './site-resume-binding-store';

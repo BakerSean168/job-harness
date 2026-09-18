@@ -100,6 +100,11 @@ import {
   ListEmailSendAuthorizationsOutputSchema,
   ClaimEmailApplicationSendInputSchema,
   ClaimEmailApplicationSendOutputSchema,
+  ListSiteResumeBindingsInputSchema,
+  ListSiteResumeBindingsOutputSchema,
+  CreateSiteResumeBindingInputSchema,
+  RevokeSiteResumeBindingInputSchema,
+  SiteResumeBindingSchema,
   BeginSubmissionIntentOutputSchema,
   SubmissionIntentCommitOutputSchema,
   FailSubmissionIntentOutputSchema,
@@ -122,6 +127,11 @@ import {
   type ListEmailSendAuthorizationsOutput,
   type ClaimEmailApplicationSendInput,
   type ClaimEmailApplicationSendOutput,
+  type ListSiteResumeBindingsInput,
+  type ListSiteResumeBindingsOutput,
+  type CreateSiteResumeBindingInput,
+  type RevokeSiteResumeBindingInput,
+  type SiteResumeBinding,
   type BeginSubmissionIntentInput,
   type ConfirmSubmissionIntentInput,
   type FailSubmissionIntentInput,
@@ -623,6 +633,26 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
         return EmailApplicationPackageDetailSchema.parse(await request(`/email-applications/${encodeURIComponent(packageId)}/fail`, {
           method: 'POST', body: JSON.stringify(parsed),
         }));
+      },
+    },
+    siteResumeBindings: {
+      async list(input: ListSiteResumeBindingsInput = {}): Promise<ListSiteResumeBindingsOutput> {
+        const parsed = ListSiteResumeBindingsInputSchema.parse(input);
+        const query = new URLSearchParams();
+        if (parsed.siteFamily) query.set('siteFamily', parsed.siteFamily);
+        if (parsed.browserAgentId) query.set('browserAgentId', parsed.browserAgentId);
+        if (parsed.profileId) query.set('profileId', parsed.profileId);
+        if (parsed.includeRevoked) query.set('includeRevoked', 'true');
+        const suffix = query.toString();
+        return ListSiteResumeBindingsOutputSchema.parse(await request(`/site-resume-bindings${suffix ? `?${suffix}` : ''}`));
+      },
+      async create(input: CreateSiteResumeBindingInput): Promise<SiteResumeBinding> {
+        const parsed = CreateSiteResumeBindingInputSchema.parse(input);
+        return SiteResumeBindingSchema.parse(await request('/site-resume-bindings', { method: 'POST', body: JSON.stringify(parsed) }));
+      },
+      async revoke(bindingId: string, input: RevokeSiteResumeBindingInput): Promise<SiteResumeBinding> {
+        const parsed = RevokeSiteResumeBindingInputSchema.parse(input);
+        return SiteResumeBindingSchema.parse(await request(`/site-resume-bindings/${encodeURIComponent(bindingId)}/revoke`, { method: 'POST', body: JSON.stringify(parsed) }));
       },
     },
     applications: {

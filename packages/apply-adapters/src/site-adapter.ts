@@ -3,6 +3,7 @@ import type {
   FillPlan,
   FillReport,
   FormIR,
+  ApplyBundleSiteResumeBinding,
 } from '@job-harness/apply-contracts';
 import type { BrowserDriverPort, BrowserUploadFile } from '@job-harness/apply-browser';
 import type { ApplicantDataProviderPort } from './applicant-data';
@@ -53,6 +54,10 @@ export interface ApplyFillAssets {
   readonly resumeFile?: BrowserUploadFile | null;
 }
 
+export interface ApplySiteBindingContext {
+  readonly siteResumeBinding?: ApplyBundleSiteResumeBinding | null;
+}
+
 
 export interface ApplyApplicationEntryResult {
   readonly action: {
@@ -80,10 +85,10 @@ export interface ApplySiteAdapter {
   preflight?(browser: BrowserDriverPort): Promise<ApplyPagePreflightResult>;
   enterApplication?(browser: BrowserDriverPort, preflight: ApplyPagePreflightResult): Promise<ApplyApplicationEntryResult>;
   inspect(browser: BrowserDriverPort, input: { readonly url: string; readonly title?: string | null; readonly observedAt: string }): Promise<FormIR>;
-  explicitBindings?(form: FormIR): readonly FieldBinding[];
+  explicitBindings?(form: FormIR, context?: ApplySiteBindingContext): readonly FieldBinding[];
   fill?(browser: BrowserDriverPort, form: FormIR, plan: FillPlan, applicant: ApplicantDataProviderPort, assets?: ApplyFillAssets): Promise<FillReport>;
   settleReviewState?(browser: BrowserDriverPort): Promise<void>;
-  validate(form: FormIR, plan: FillPlan, fillReport?: FillReport | null): Promise<ApplyValidationReport>;
+  validate(form: FormIR, plan: FillPlan, fillReport?: FillReport | null, context?: ApplySiteBindingContext): Promise<ApplyValidationReport>;
   submit?(browser: BrowserDriverPort): Promise<ApplySiteSubmitResult>;
 }
 

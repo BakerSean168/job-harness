@@ -18,6 +18,8 @@ import {
   SubmissionIntentSchema,
   EmailApplicationPackageSchema,
   EmailSendAuthorizationSchema,
+  SiteResumeBindingFamilySchema,
+  SiteResumeBindingSchema,
   SubmissionIntentStatusSchema,
 } from './schemas';
 
@@ -297,6 +299,23 @@ export const ClaimEmailApplicationSendOutputSchema = z.object({
   authorization: EmailSendAuthorizationSchema,
   intent: SubmissionIntentSchema,
 }).strict();
+
+export const ListSiteResumeBindingsInputSchema = z.object({
+  siteFamily: SiteResumeBindingFamilySchema.optional(),
+  browserAgentId: EntityIdSchema.optional(),
+  profileId: EntityIdSchema.optional(),
+  includeRevoked: z.boolean().default(false),
+}).strict();
+export const ListSiteResumeBindingsOutputSchema = z.object({ items: z.array(SiteResumeBindingSchema) }).strict();
+export const CreateSiteResumeBindingInputSchema = z.object({
+  siteFamily: SiteResumeBindingFamilySchema,
+  browserAgentId: EntityIdSchema,
+  profileId: EntityIdSchema,
+  externalResumeLabel: z.string().trim().min(1).max(500),
+  characterizationRunId: EntityIdSchema,
+  idempotencyKey: IdempotencyKeySchema,
+}).strict();
+export const RevokeSiteResumeBindingInputSchema = z.object({ idempotencyKey: IdempotencyKeySchema }).strict();
 export const GetSubmissionIntentInputSchema = z.object({ intentId: EntityIdSchema }).strict();
 export const GetSubmissionIntentOutputSchema = SubmissionIntentSchema.nullable();
 
@@ -435,6 +454,10 @@ export type AuthorizeEmailApplicationSendInput = z.input<typeof AuthorizeEmailAp
 export type ListEmailSendAuthorizationsOutput = z.output<typeof ListEmailSendAuthorizationsOutputSchema>;
 export type ClaimEmailApplicationSendInput = z.input<typeof ClaimEmailApplicationSendInputSchema>;
 export type ClaimEmailApplicationSendOutput = z.output<typeof ClaimEmailApplicationSendOutputSchema>;
+export type ListSiteResumeBindingsInput = z.input<typeof ListSiteResumeBindingsInputSchema>;
+export type ListSiteResumeBindingsOutput = z.output<typeof ListSiteResumeBindingsOutputSchema>;
+export type CreateSiteResumeBindingInput = z.input<typeof CreateSiteResumeBindingInputSchema>;
+export type RevokeSiteResumeBindingInput = z.input<typeof RevokeSiteResumeBindingInputSchema>;
 export type BeginSubmissionIntentInput = z.input<typeof BeginSubmissionIntentInputSchema>;
 export type ConfirmSubmissionIntentInput = z.input<typeof ConfirmSubmissionIntentInputSchema>;
 export type FailSubmissionIntentInput = z.input<typeof FailSubmissionIntentInputSchema>;

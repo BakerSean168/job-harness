@@ -303,4 +303,34 @@ export const EmailSendAuthorizationSchema = z.object({
   if (value.status === 'revoked' && !value.revokedAt) ctx.addIssue({ code: 'custom', path: ['revokedAt'], message: 'revoked authorization requires revokedAt' });
 });
 export type EmailSendAuthorization = z.infer<typeof EmailSendAuthorizationSchema>;
+
+export const SITE_RESUME_BINDING_FAMILIES = ['zhilian','liepin'] as const;
+export const SiteResumeBindingFamilySchema = z.enum(SITE_RESUME_BINDING_FAMILIES);
+export const SiteResumeBindingSchema = z.object({
+  id: EntityIdSchema,
+  siteFamily: SiteResumeBindingFamilySchema,
+  browserAgentId: EntityIdSchema,
+  profileId: EntityIdSchema,
+  resumeRevisionId: EntityIdSchema,
+  resumeArtifactId: EntityIdSchema,
+  externalResumeLabel: z.string().trim().min(1).max(500),
+  assurance: z.literal('user-confirmed-label'),
+  characterizationRunId: EntityIdSchema,
+  characterizationFormStateHash: z.string().regex(/^[a-f0-9]{64}$/),
+  characterizationObservedAt: IsoDateTimeSchema,
+  status: z.enum(['active','revoked']),
+  createdAt: IsoDateTimeSchema,
+  updatedAt: IsoDateTimeSchema,
+  revokedAt: NullableIsoDateTimeSchema.default(null),
+  idempotencyKey: IdempotencyKeySchema,
+  requestHash: z.string().regex(/^[a-f0-9]{64}$/),
+  revokeIdempotencyKey: IdempotencyKeySchema.nullable().default(null),
+  revokeRequestHash: z.string().regex(/^[a-f0-9]{64}$/).nullable().default(null),
+}).strict().superRefine((value, ctx) => {
+  if (value.status === 'revoked' && !value.revokedAt) ctx.addIssue({ code: 'custom', path: ['revokedAt'], message: 'revoked binding requires revokedAt' });
+  if (value.status === 'active' && value.revokedAt) ctx.addIssue({ code: 'custom', path: ['revokedAt'], message: 'active binding cannot have revokedAt' });
+  if (value.status === 'revoked' && (!value.revokeIdempotencyKey || !value.revokeRequestHash)) ctx.addIssue({ code: 'custom', path: ['revokeIdempotencyKey'], message: 'revoked binding requires revoke idempotency evidence' });
+  if (value.status === 'active' && (value.revokeIdempotencyKey || value.revokeRequestHash)) ctx.addIssue({ code: 'custom', path: ['revokeIdempotencyKey'], message: 'active binding cannot have revoke idempotency evidence' });
+});
+export type SiteResumeBinding = z.infer<typeof SiteResumeBindingSchema>;
 export type SubmissionIntent = z.infer<typeof SubmissionIntentSchema>;

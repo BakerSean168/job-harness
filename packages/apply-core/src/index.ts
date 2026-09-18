@@ -48,6 +48,13 @@ export function executorCanRunAttempt(executor: ExecutorRegistration, attempt: E
   if (!executor.executionModes.includes(attempt.executionMode)) return false;
   if (attempt.requiredAdapterId && !executor.adapterIds.includes(attempt.requiredAdapterId)) return false;
   if (attempt.preferredBrowserBackend && !executor.browserBackends.includes(attempt.preferredBrowserBackend)) return false;
+  const requiredBrowserAgentId = typeof attempt.policySnapshot.requiredBrowserAgentId === 'string'
+    ? attempt.policySnapshot.requiredBrowserAgentId.trim()
+    : '';
+  if (requiredBrowserAgentId) {
+    const executorBrowserAgentId = typeof executor.metadata.browserAgentId === 'string' ? executor.metadata.browserAgentId.trim() : '';
+    if (executorBrowserAgentId !== requiredBrowserAgentId) return false;
+  }
   for (const capability of attempt.requiredCapabilities) {
     if (!executor.capabilities[capability]) return false;
   }

@@ -10,7 +10,7 @@ import { createCareerApplicationService } from '@job-harness/application';
 import { createResumeApplicationService, createResumeArtifactService } from '@job-harness/resume-application';
 import { createApplicantApplicationService } from '@job-harness/applicant-application';
 import { createJobHarnessMcpRuntime } from '@job-harness/mcp';
-import { SqliteApplicantStore, SqliteApplyStore, SqliteCareerStore, SqliteEmailApplicationPackageStore, SqliteResumeStore } from '@job-harness/persistence-sqlite';
+import { SqliteApplicantStore, SqliteApplyStore, SqliteCareerStore, SqliteEmailApplicationPackageStore, SqliteResumeStore, SqliteSiteResumeBindingStore } from '@job-harness/persistence-sqlite';
 import { generateJobHarnessOpenApiDocument } from '@job-harness/contracts';
 import { createApplyControlPlane } from '@job-harness/apply-runtime';
 import { API_PREFIX, registerJobHarnessApi } from './api';
@@ -29,6 +29,7 @@ import { BROWSER_EXTENSION_BRIDGE_PREFIX, BrowserExtensionBridge, BrowserExtensi
 import { BrowserExtensionAuth } from './browser-extension-auth';
 import { BrowserExtensionValidationRegistry, registerBrowserExtensionValidationApi } from './browser-extension-validation';
 import { browserExtensionClickAuthority } from './browser-extension-click-policy';
+import { createSiteResumeBindingService, registerSiteResumeBindingApi } from './site-resume-binding';
 
 export interface JobHarnessServerOptions {
   readonly databasePath: string;
@@ -113,6 +114,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   const applyStore = new SqliteApplyStore(options.databasePath);
   const applicantStore = new SqliteApplicantStore(options.databasePath);
   const emailApplicationStore = new SqliteEmailApplicationPackageStore(options.databasePath);
+  const siteResumeBindingStore = new SqliteSiteResumeBindingStore(options.databasePath);
   const application = createCareerApplicationService(store, {
     resumeEvidence: {
       async getProfile(profileId) {
@@ -134,7 +136,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   await ensureApplicantDefaultsFromResume(applicant, resume);
   const apply = createApplyControlPlane(
     applyStore,
-    createApplyBundleFactory(application, resumeStore, applicantStore),
+    createApplyBundleFactory(application, resumeStore, applicantStore, siteResumeBindingStore),
     {
       async beginExternal(input) {
         await application.submissionIntents.begin({ intentId: input.intentId, occurredAt: input.occurredAt });
@@ -327,6 +329,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     },
   });
   registerBrowserExtensionValidationApi(app, browserExtensionValidation);
+  registerSiteResumeBindingApi(app, createSiteResumeBindingService(resume, siteResumeBindingStore, browserExtensionValidation), API_PREFIX);
   registerJobHarnessDataAdminApi(app, options.databasePath, API_PREFIX);
   registerJobHarnessApi(app, application);
   registerResumeApi(app, resume, resumeArtifacts, pdfRenderer, API_PREFIX);
@@ -411,6 +414,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
       applyStore.close();
       emailApplicationStore.close();
+      siteResumeBindingStore.close();
       applicantStore.close();
       resumeStore.close();
       store.close();

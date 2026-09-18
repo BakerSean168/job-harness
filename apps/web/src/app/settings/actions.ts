@@ -7,7 +7,7 @@ import {
 } from '@job-harness/applicant-contracts';
 import { JobHarnessRestError } from '@job-harness/client';
 import { characterizeBrowserExtensionSite, createBrowserExtensionPairing, getJobHarnessClient } from '../../lib/job-harness-client';
-import type { AtsCharacterizationActionState } from './characterization-state';
+import type { AtsCharacterizationActionState, SiteResumeBindingActionState } from './characterization-state';
 
 export interface BrowserExtensionPairingActionState {
   readonly ok: boolean;
@@ -45,11 +45,44 @@ export async function saveApplicationAnswerSetAction(_previous: ApplicantSetting
 export async function characterizeAtsSiteAction(_previous: AtsCharacterizationActionState, formData: FormData): Promise<AtsCharacterizationActionState> {
   const agentId = String(formData.get('agentId') ?? '').trim();
   const targetUrl = String(formData.get('targetUrl') ?? '').trim();
-  if (!agentId || !targetUrl) return { ok: false, runId: null, error: 'Agent ID and target URL are required', evidence: null };
+  if (!agentId || !targetUrl) return { ok: false, runId: null, agentId: null, error: 'Agent ID and target URL are required', evidence: null };
   try {
     const result = await characterizeBrowserExtensionSite({ agentId, targetUrl });
-    return { ok: true, runId: result.runId, error: null, evidence: result.evidence };
+    return { ok: true, runId: result.runId, agentId, error: null, evidence: result.evidence };
   } catch (error) {
-    return { ok: false, runId: null, error: error instanceof Error ? error.message : String(error), evidence: null };
+    return { ok: false, runId: null, agentId: null, error: error instanceof Error ? error.message : String(error), evidence: null };
   }
+}
+
+
+export async function createSiteResumeBindingAction(_previous: SiteResumeBindingActionState, formData: FormData): Promise<SiteResumeBindingActionState> {
+  const siteFamily = String(formData.get('siteFamily') ?? '').trim();
+  const browserAgentId = String(formData.get('browserAgentId') ?? '').trim();
+  const profileId = String(formData.get('profileId') ?? '').trim();
+  const externalResumeLabel = String(formData.get('externalResumeLabel') ?? '').trim();
+  const characterizationRunId = String(formData.get('characterizationRunId') ?? '').trim();
+  if (!['zhilian','liepin'].includes(siteFamily) || !browserAgentId || !profileId || !externalResumeLabel || !characterizationRunId) {
+    return { ok: false, bindingId: null, message: 'Site resume binding input is incomplete' };
+  }
+  try {
+    const binding = await getJobHarnessClient().siteResumeBindings.create({
+      siteFamily: siteFamily as 'zhilian' | 'liepin',
+      browserAgentId,
+      profileId,
+      externalResumeLabel,
+      characterizationRunId,
+      idempotencyKey: `web:site-resume-binding:${characterizationRunId}:${profileId}:${externalResumeLabel}`,
+    });
+    revalidatePath('/settings');
+    return { ok: true, bindingId: binding.id, message: binding.externalResumeLabel };
+  } catch (error) {
+    return { ok: false, bindingId: null, message: error instanceof JobHarnessRestError ? error.payload.message : error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function revokeSiteResumeBindingAction(formData: FormData): Promise<void> {
+  const bindingId = String(formData.get('bindingId') ?? '').trim();
+  if (!bindingId) throw new Error('Site resume binding ID is required');
+  await getJobHarnessClient().siteResumeBindings.revoke(bindingId, { idempotencyKey: `web:site-resume-binding-revoke:${bindingId}` });
+  revalidatePath('/settings');
 }

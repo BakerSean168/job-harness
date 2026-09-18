@@ -77,7 +77,15 @@ const descriptor: ExecutorDescriptor = {
     semanticMapping: false,
   },
   maxConcurrency: 1,
-  metadata: { phase: phase === 'form-fill' ? 'R019-form-fill' : 'R019-readiness', externalSubmit: Boolean(submitEngine), formFill: phase === 'form-fill', applicantData: phase === 'form-fill' ? 'lease-scoped-frozen-applicant-snapshot' : 'none', siteAdapters: advertisedAdapterIds, userBrowser: backendId === 'extension' },
+  metadata: {
+    phase: phase === 'form-fill' ? 'R019-form-fill' : 'R019-readiness',
+    externalSubmit: Boolean(submitEngine),
+    formFill: phase === 'form-fill',
+    applicantData: phase === 'form-fill' ? 'lease-scoped-frozen-applicant-snapshot' : 'none',
+    siteAdapters: advertisedAdapterIds,
+    userBrowser: backendId === 'extension',
+    ...(backendId === 'extension' && config.extensionAgentId ? { browserAgentId: config.extensionAgentId } : {}),
+  },
 };
 
 const client = createJobHarnessRestClient({ baseUrl: apiUrl, authToken: token });

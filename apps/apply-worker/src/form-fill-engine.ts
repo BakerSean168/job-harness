@@ -148,16 +148,17 @@ export class FormFillExecutionEngine {
     const applicant = input.applicant ?? this.applicant;
     if (!applicant) throw new Error('No ApplicantDataProvider is available for this execution attempt');
     const baseCatalog = await applicant.catalog();
-    const { catalog, provider } = input.resumeFile
-      ? createResumeArtifactApplicantView(applicant, baseCatalog, input.resumeFile.sha256)
-      : { catalog: baseCatalog, provider: applicant };
+    let catalog = baseCatalog;
+    let provider = applicant;
+    if (input.resumeFile) ({ catalog, provider } = createResumeArtifactApplicantView(provider, catalog, input.resumeFile.sha256));
+    if (input.attempt.bundle.siteResumeBinding) ({ catalog, provider } = createSiteResumeBindingApplicantView(provider, catalog, input.attempt.bundle.siteResumeBinding));
     let proposals: readonly SemanticMappingProposal[] = [];
     if (this.semanticMapper) {
       const mappingView = buildSemanticMappingView(form, catalog);
       proposals = await this.semanticMapper.propose(mappingView);
     }
     const plan = buildFillPlan(form, catalog, {
-      explicitBindings: adapter.explicitBindings?.(form) ?? [],
+      explicitBindings: adapter.explicitBindings?.(form, { siteResumeBinding: input.attempt.bundle.siteResumeBinding }) ?? [],
       semanticProposals: proposals,
       semanticConfidenceThreshold: this.semanticConfidenceThreshold,
     });
@@ -165,7 +166,7 @@ export class FormFillExecutionEngine {
       ? await adapter.fill(input.browser, form, plan, provider, { resumeFile: input.resumeFile ?? null })
       : { results: [], filled: 0, skipped: 0, failed: 0, manual: 0 };
     if (adapter.settleReviewState) await adapter.settleReviewState(input.browser);
-    const validation = await adapter.validate(form, plan, report);
+    const validation = await adapter.validate(form, plan, report, { siteResumeBinding: input.attempt.bundle.siteResumeBinding });
     const formStateHash = await input.browser.formStateHash();
     return summarize(adapter.descriptor.id, adapter.descriptor.version, form.fields.length, plan, report, validation, Boolean(this.semanticMapper), formStateHash);
   }
@@ -267,6 +268,53 @@ function createResumeArtifactApplicantView(
         throw new Error(`Applicant catalog changed during form fill: expected=${baseCatalog.version}, actual=${resolved.catalogVersion}`);
       }
       return ResolvedApplicantValuesSchema.parse({ catalogVersion: version, values: resolved.values });
+    },
+  };
+  return { catalog, provider };
+}
+
+
+function createSiteResumeBindingApplicantView(
+  delegate: ApplicantDataProviderPort,
+  baseCatalog: Awaited<ReturnType<ApplicantDataProviderPort['catalog']>>,
+  binding: NonNullable<ExecutionAttempt['bundle']['siteResumeBinding']>,
+): { catalog: Awaited<ReturnType<ApplicantDataProviderPort['catalog']>>; provider: ApplicantDataProviderPort } {
+  const version = `${baseCatalog.version}|site-resume:${binding.id.slice(-24)}`.slice(0, 240);
+  const entry = ApplicantFieldCatalogSchema.shape.entries.element.parse({
+    key: 'documents.site_resume',
+    label: '站内简历',
+    valueType: 'choice',
+    sensitivity: 'personal',
+    aliases: ['选择简历', '我的简历', '在线简历', '默认简历', 'site resume', 'resume selector'],
+    allowAiMapping: false,
+    requiresLiteral: true,
+    source: `site-resume-binding:${binding.siteFamily}`,
+  });
+  const entries = baseCatalog.entries.some((item) => item.key === entry.key) ? baseCatalog.entries : [...baseCatalog.entries, entry];
+  const catalog = ApplicantFieldCatalogSchema.parse({ version, entries });
+  const provider: ApplicantDataProviderPort = {
+    async catalog() { return catalog; },
+    async resolve(keys) {
+      const wantsSiteResume = keys.includes('documents.site_resume');
+      const delegatedKeys = keys.filter((key) => key !== 'documents.site_resume');
+      const resolved = await delegate.resolve(delegatedKeys);
+      if (resolved.catalogVersion !== baseCatalog.version) {
+        throw new Error(`Applicant catalog changed during site-resume fill: expected=${baseCatalog.version}, actual=${resolved.catalogVersion}`);
+      }
+      return ResolvedApplicantValuesSchema.parse({
+        catalogVersion: version,
+        values: [
+          ...resolved.values,
+          ...(wantsSiteResume ? [{
+            key: 'documents.site_resume',
+            value: binding.externalResumeLabel,
+            valueType: 'choice',
+            sensitivity: 'personal',
+            provenance: `site-resume-binding:${binding.id}`,
+            literal: true,
+          }] : []),
+        ],
+      });
     },
   };
   return { catalog, provider };

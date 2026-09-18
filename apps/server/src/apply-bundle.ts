@@ -2,6 +2,7 @@ import { ApplyBundleSchema } from '@job-harness/apply-contracts';
 import { ApplyConflictError, ApplyNotFoundError, ApplyNotReadyError, type ApplyBundleFactoryPort } from '@job-harness/apply-runtime';
 import type { CareerRuntimePorts } from '@job-harness/application';
 import type { ResumeArtifact, ResumeRevision } from '@job-harness/resume-contracts';
+import type { SiteResumeBinding } from '@job-harness/contracts';
 import type { ApplicantStoreReadPort } from '@job-harness/applicant-application';
 import { applicantSnapshotVersion, answerSetVersion } from './applicant-snapshot';
 
@@ -10,10 +11,15 @@ export interface ResumeApplyEvidenceReader {
   getArtifact(artifactId: string): Promise<ResumeArtifact | null>;
 }
 
+export interface SiteResumeBindingEvidenceReader {
+  get(bindingId: string): Promise<SiteResumeBinding | null>;
+}
+
 export function createApplyBundleFactory(
   career: CareerRuntimePorts,
   resumeStore: ResumeApplyEvidenceReader,
   applicantStore?: ApplicantStoreReadPort | null,
+  siteResumeBindings?: SiteResumeBindingEvidenceReader | null,
 ): ApplyBundleFactoryPort {
   return {
     async create(input) {
@@ -37,6 +43,29 @@ export function createApplyBundleFactory(
         resumeArtifact = { id: artifact.id, revisionId: artifact.revisionId, sha256: artifact.sha256.toLowerCase(), byteSize: artifact.byteSize, mimeType: artifact.mimeType, fileName: pdfFileName(revision.resolvedDocumentSnapshot.output.pdfName ?? revision.resolvedDocumentSnapshot.output.documentTitle) };
       }
 
+      let siteResumeBinding = null;
+      const bindingId = typeof input.policySnapshot.siteResumeBindingId === 'string' ? input.policySnapshot.siteResumeBindingId.trim() : '';
+      const requiredBrowserAgentId = typeof input.policySnapshot.requiredBrowserAgentId === 'string' ? input.policySnapshot.requiredBrowserAgentId.trim() : '';
+      const siteFamily = siteFamilyFromUrl(listingUrl);
+      if (bindingId) {
+        if (!siteResumeBindings) throw new ApplyNotReadyError('Site resume binding evidence is not configured');
+        const binding = await siteResumeBindings.get(bindingId);
+        if (!binding || binding.status !== 'active') throw new ApplyNotReadyError(`SiteResumeBinding '${bindingId}' is missing or revoked`);
+        if (!siteFamily || binding.siteFamily !== siteFamily) throw new ApplyConflictError(`SiteResumeBinding '${binding.id}' belongs to '${binding.siteFamily}', not '${siteFamily ?? 'unsupported'}'`);
+        if (!requiredBrowserAgentId || binding.browserAgentId !== requiredBrowserAgentId) throw new ApplyConflictError(`SiteResumeBinding '${binding.id}' is not bound to required browser agent '${requiredBrowserAgentId || '(missing)'}'`);
+        if (binding.profileId !== intent.resumeProfileId || binding.resumeRevisionId !== intent.resumeRevisionId || binding.resumeArtifactId !== intent.resumeArtifactId) {
+          throw new ApplyConflictError(`SiteResumeBinding '${binding.id}' does not match the SubmissionIntent frozen Resume evidence`);
+        }
+        siteResumeBinding = {
+          id: binding.id, siteFamily: binding.siteFamily, browserAgentId: binding.browserAgentId, profileId: binding.profileId,
+          resumeRevisionId: binding.resumeRevisionId, resumeArtifactId: binding.resumeArtifactId, externalResumeLabel: binding.externalResumeLabel,
+          assurance: binding.assurance, characterizationRunId: binding.characterizationRunId,
+          characterizationFormStateHash: binding.characterizationFormStateHash, characterizationObservedAt: binding.characterizationObservedAt,
+        };
+      } else if (input.policySnapshot.submitAllowed === true && siteFamily) {
+        throw new ApplyNotReadyError(`Supervised submit to '${siteFamily}' requires a frozen SiteResumeBinding`);
+      }
+
       const profileRevision = applicantStore ? await applicantStore.getDefaultProfile().then(async (profile) => profile ? applicantStore.getLatestProfileRevision(profile.id) : null) : null;
       const answerRevision = applicantStore ? await applicantStore.getDefaultAnswerSet().then(async (set) => set ? applicantStore.getLatestAnswerSetRevision(set.id) : null) : null;
       const resumeRevision = intent.resumeRevisionId ? await resumeStore.getRevision(intent.resumeRevisionId) : null;
@@ -49,7 +78,7 @@ export function createApplyBundleFactory(
       return ApplyBundleSchema.parse({
         intentId: intent.id, attemptId: input.attemptId, jobId: job.id, listingId: listing?.id ?? null, listingUrl,
         company: job.companyName, title: job.title, city: job.city,
-        resumeProfileId: intent.resumeProfileId, resumeRevisionId: intent.resumeRevisionId, resumeArtifact,
+        resumeProfileId: intent.resumeProfileId, resumeRevisionId: intent.resumeRevisionId, resumeArtifact, siteResumeBinding,
         applicantCatalogVersion: catalogVersion ?? null,
         applicantProfileRevisionId: profileRevision?.id ?? null,
         applicantProfileHash: profileRevision?.contentHash ?? null,
@@ -65,4 +94,14 @@ export function createApplyBundleFactory(
 function pdfFileName(value: string): string {
   const cleaned = value.replace(/[\/:*?"<>|\x00-\x1f]/g, '-').replace(/\s+/g, ' ').replace(/[. ]+$/g, '').trim().slice(0, 220) || 'resume';
   return cleaned.toLowerCase().endsWith('.pdf') ? cleaned : `${cleaned}.pdf`;
+}
+
+function siteFamilyFromUrl(value: string): 'zhilian' | 'liepin' | null {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    if ((host === 'zhaopin.com' || host === 'www.zhaopin.com') && /^\/jobdetail\/[^/]+\.htm$/i.test(url.pathname)) return 'zhilian';
+    if ((host === 'liepin.com' || host === 'www.liepin.com') && /^\/job\/\d+\.shtml$/i.test(url.pathname)) return 'liepin';
+    return null;
+  } catch { return null; }
 }

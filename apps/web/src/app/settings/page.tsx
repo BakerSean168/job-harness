@@ -8,7 +8,7 @@ import { getBrowserExtensionAgents, getBrowserExtensionPublicBridgeUrl, getJobHa
 
 export default async function SettingsPage() {
   const client = getJobHarnessClient();
-  const [messages, browserExtensionAgents, applicantProfile, applicationAnswerSet] = await Promise.all([getMessages(), getBrowserExtensionAgents(), client.applicant.getProfile(), client.applicant.getAnswerSet()]);
+  const [messages, browserExtensionAgents, applicantProfile, applicationAnswerSet, resumeProfiles, siteResumeBindings] = await Promise.all([getMessages(), getBrowserExtensionAgents(), client.applicant.getProfile(), client.applicant.getAnswerSet(), client.resume.listProfiles(), client.siteResumeBindings.list()]);
   const config = getWebAuthRuntimeConfig();
   const copy = messages.settingsWorkspace;
   const publicBridgeUrl = getBrowserExtensionPublicBridgeUrl();
@@ -36,7 +36,7 @@ export default async function SettingsPage() {
 
         <BrowserExtensionPairing publicBridgeUrl={publicBridgeUrl} agents={browserExtensionAgents} copy={copy.browserExtension} />
 
-        <AtsCharacterizationPanel agents={browserExtensionAgents} copy={copy.characterization} />
+        <AtsCharacterizationPanel agents={browserExtensionAgents} profiles={resumeProfiles.items} bindings={siteResumeBindings.items} copy={copy.characterization} />
 
         <section className="settings-panel">
           <div className="management-panel-heading"><h2>{copy.data}</h2></div>

@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 13;
+export const SQLITE_SCHEMA_VERSION = 14;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -395,6 +395,7 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
   migrateApplicantDataV11(db);
   migrateEmailApplicationPackagesV12(db);
   migrateEmailSendAuthorizationsV13(db);
+  migrateSiteResumeBindingsV14(db);
 }
 
 const PERFORMANCE_INDEXES_SCHEMA_V4 = `
@@ -919,6 +920,55 @@ function migrateEmailSendAuthorizationsV13(db: DatabaseSync): void {
   try {
     db.exec(EMAIL_SEND_AUTHORIZATION_SCHEMA_V13);
     db.exec('PRAGMA user_version = 13');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+
+const SITE_RESUME_BINDING_SCHEMA_V14 = `
+CREATE TABLE IF NOT EXISTS site_resume_bindings (
+  id TEXT PRIMARY KEY,
+  site_family TEXT NOT NULL CHECK(site_family IN ('zhilian','liepin')),
+  browser_agent_id TEXT NOT NULL,
+  profile_id TEXT NOT NULL REFERENCES resume_profiles(id) ON DELETE RESTRICT,
+  resume_revision_id TEXT NOT NULL REFERENCES resume_revisions(id) ON DELETE RESTRICT,
+  resume_artifact_id TEXT NOT NULL REFERENCES resume_artifacts(id) ON DELETE RESTRICT,
+  external_resume_label TEXT NOT NULL,
+  assurance TEXT NOT NULL CHECK(assurance='user-confirmed-label'),
+  characterization_run_id TEXT NOT NULL,
+  characterization_form_state_hash TEXT NOT NULL,
+  characterization_observed_at TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('active','revoked')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  revoked_at TEXT,
+  idempotency_key TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  revoke_idempotency_key TEXT,
+  revoke_request_hash TEXT,
+  UNIQUE(site_family,browser_agent_id,idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS site_resume_bindings_lookup_idx
+  ON site_resume_bindings(site_family,browser_agent_id,profile_id,status,updated_at DESC,id);
+CREATE UNIQUE INDEX IF NOT EXISTS site_resume_bindings_one_active_profile_idx
+  ON site_resume_bindings(site_family,browser_agent_id,profile_id) WHERE status='active';
+CREATE UNIQUE INDEX IF NOT EXISTS site_resume_bindings_one_active_label_idx
+  ON site_resume_bindings(site_family,browser_agent_id,external_resume_label COLLATE NOCASE) WHERE status='active';
+CREATE UNIQUE INDEX IF NOT EXISTS site_resume_bindings_revoke_idempotency_idx
+  ON site_resume_bindings(revoke_idempotency_key) WHERE revoke_idempotency_key IS NOT NULL;
+`;
+
+function migrateSiteResumeBindingsV14(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 14) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(SITE_RESUME_BINDING_SCHEMA_V14);
+    db.exec('PRAGMA user_version = 14');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

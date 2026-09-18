@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createJobHarnessRestClient } from '@job-harness/client';
-import { SqliteResumeStore } from '../../../packages/persistence-sqlite/src/index.ts';
+import { SqliteResumeStore, SqliteSiteResumeBindingStore } from '../../../packages/persistence-sqlite/src/index.ts';
 import { createResumeApplicationService, importResumeCatalog } from '../../../packages/resume-application/src/index.ts';
 import { ResumeArtifactSchema, ResumeLibrarySchema, ResumeProfileSchema } from '../../../packages/resume-contracts/src/index.ts';
 import { startJobHarnessServer, type RunningJobHarnessServer } from '../../server/src';
@@ -101,5 +101,66 @@ describe('Job detail one-click autofill preparation', () => {
     const { redirect } = await import('next/navigation');
     expect(redirect).toHaveBeenCalledWith(`/executors/${attempts.items[0]!.id}`);
     expect((await client.workspace.listApplicationBoard({ limit: 20, offset: 0 })).total).toBe(0);
+  });
+
+
+  it('freezes the unique Zhilian site-resume binding and routes only to its Chrome agent', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-web-auto-zhilian-'));
+    const databasePath = join(dir, 'career.db');
+    const seeded = await seedResume(databasePath);
+    running = await startJobHarnessServer({ databasePath, host: '127.0.0.1', port: 0, authToken: 'secret', submissionReconcileIntervalMs: null });
+    process.env.JOB_HARNESS_API_URL = running.apiUrl;
+    process.env.JOB_HARNESS_AUTH_TOKEN = 'secret';
+    const client = createJobHarnessRestClient({ baseUrl: running.apiUrl, authToken: 'secret' });
+    const jobs = await client.jobs.upsertJobsBatch({ jobs: [{
+      companyName: 'Zhilian Co', title: '前端开发工程师', city: '杭州', description: 'React TypeScript Vue3', observedAt: '2026-09-18T07:10:00.000Z',
+      listings: [{ sourceKind: 'zhilian', url: 'https://www.zhaopin.com/jobdetail/CC123.htm', identityKind: 'url', status: 'active' }],
+    }] });
+    const jobId = jobs.items[0]!.jobId!;
+    const detail = await client.workspace.getJobDetail(jobId);
+    const listingId = detail!.job.listings[0]!.id;
+    await client.apply.executors.register({
+      executorId: 'extension-zhilian-worker', name: 'User Chrome', version: '0.2.0', hostLabel: 'test', status: 'ready', browserBackends: ['extension'], adapterIds: ['zhilian-ats'], executionModes: ['fill_only'],
+      capabilities: { resumeUpload: true, humanControl: true, persistentSession: true, screenshots: false, semanticMapping: false }, maxConcurrency: 1,
+      metadata: { browserAgentId: 'windows-chrome-primary' },
+    });
+    const bindingStore = new SqliteSiteResumeBindingStore(databasePath);
+    try {
+      await bindingStore.insert({
+        id: 'site-resume-binding-zhilian-fixture', siteFamily: 'zhilian', browserAgentId: 'windows-chrome-primary', profileId: seeded.profile.id,
+        resumeRevisionId: seeded.revision.id, resumeArtifactId: seeded.artifact.id, externalResumeLabel: 'AI前端简历', assurance: 'user-confirmed-label',
+        characterizationRunId: 'characterization-fixture', characterizationFormStateHash: 'c'.repeat(64), characterizationObservedAt: '2026-09-18T07:09:00.000Z',
+        status: 'active', createdAt: '2026-09-18T07:09:00.000Z', updatedAt: '2026-09-18T07:09:00.000Z', revokedAt: null,
+        idempotencyKey: 'binding-fixture', requestHash: 'd'.repeat(64), revokeIdempotencyKey: null, revokeRequestHash: null,
+      });
+    } finally { bindingStore.close(); }
+
+    const form = new FormData();
+    form.set('jobId', jobId);
+    form.set('listingId', listingId);
+    form.set('preferredProfileId', seeded.profile.id);
+    form.set('decisionNonce', 'zhilian-render-1');
+    const { prepareRecommendedApplicationAction } = await import('../src/app/jobs/actions');
+    await prepareRecommendedApplicationAction(form);
+
+    const intents = await client.submissionIntents.list({ statuses: ['planned'], limit: 20, offset: 0 });
+    const intent = intents.items.find((item) => item.jobId === jobId)!;
+    const attempts = await client.apply.attempts.list({ intentId: intent.id, limit: 20, offset: 0 });
+    expect(attempts.total).toBe(1);
+    expect(attempts.items[0]).toMatchObject({
+      requiredAdapterId: 'zhilian-ats', preferredBrowserBackend: 'extension',
+      policySnapshot: {
+        allowFormFill: true, allowApplicationEntry: true, submitAllowed: false, initiatedBy: 'user-web-auto-fill',
+        siteResumeBindingId: 'site-resume-binding-zhilian-fixture', requiredBrowserAgentId: 'windows-chrome-primary',
+      },
+      bundle: {
+        resumeProfileId: seeded.profile.id, resumeRevisionId: seeded.revision.id,
+        resumeArtifact: { id: seeded.artifact.id },
+        siteResumeBinding: {
+          id: 'site-resume-binding-zhilian-fixture', siteFamily: 'zhilian', browserAgentId: 'windows-chrome-primary',
+          externalResumeLabel: 'AI前端简历', resumeRevisionId: seeded.revision.id, resumeArtifactId: seeded.artifact.id,
+        },
+      },
+    });
   });
 });

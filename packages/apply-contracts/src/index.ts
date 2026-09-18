@@ -101,6 +101,20 @@ export const ApplyBundleResumeArtifactSchema = z.object({
   fileName: z.string().trim().min(1).max(240).default('resume.pdf'),
 }).strict();
 
+export const ApplyBundleSiteResumeBindingSchema = z.object({
+  id: ApplyEntityIdSchema,
+  siteFamily: z.enum(['zhilian','liepin']),
+  browserAgentId: ApplyEntityIdSchema,
+  profileId: ApplyEntityIdSchema,
+  resumeRevisionId: ApplyEntityIdSchema,
+  resumeArtifactId: ApplyEntityIdSchema,
+  externalResumeLabel: z.string().trim().min(1).max(500),
+  assurance: z.literal('user-confirmed-label'),
+  characterizationRunId: ApplyEntityIdSchema,
+  characterizationFormStateHash: z.string().regex(/^[a-f0-9]{64}$/),
+  characterizationObservedAt: ApplyIsoDateTimeSchema,
+}).strict();
+
 export const ApplyBundleSchema = z.object({
   intentId: ApplyEntityIdSchema,
   attemptId: ApplyEntityIdSchema,
@@ -113,6 +127,7 @@ export const ApplyBundleSchema = z.object({
   resumeProfileId: ApplyEntityIdSchema.nullable(),
   resumeRevisionId: ApplyEntityIdSchema.nullable(),
   resumeArtifact: ApplyBundleResumeArtifactSchema.nullable(),
+  siteResumeBinding: ApplyBundleSiteResumeBindingSchema.nullable().default(null),
   applicantCatalogVersion: z.string().trim().min(1).max(500).nullable().default(null),
   applicantProfileRevisionId: ApplyEntityIdSchema.nullable().default(null),
   applicantProfileHash: z.string().regex(/^[a-f0-9]{64}$/).nullable().default(null),
@@ -127,6 +142,11 @@ export const ApplyBundleSchema = z.object({
   }
   if (value.resumeArtifact && value.resumeRevisionId && value.resumeArtifact.revisionId !== value.resumeRevisionId) {
     ctx.addIssue({ code: 'custom', path: ['resumeArtifact', 'revisionId'], message: 'resumeArtifact revisionId must match resumeRevisionId' });
+  }
+  if (value.siteResumeBinding) {
+    if (value.siteResumeBinding.profileId !== value.resumeProfileId) ctx.addIssue({ code: 'custom', path: ['siteResumeBinding','profileId'], message: 'site resume binding profile must match frozen resumeProfileId' });
+    if (value.siteResumeBinding.resumeRevisionId !== value.resumeRevisionId) ctx.addIssue({ code: 'custom', path: ['siteResumeBinding','resumeRevisionId'], message: 'site resume binding revision must match frozen resumeRevisionId' });
+    if (value.siteResumeBinding.resumeArtifactId !== value.resumeArtifact?.id) ctx.addIssue({ code: 'custom', path: ['siteResumeBinding','resumeArtifactId'], message: 'site resume binding artifact must match frozen resumeArtifact' });
   }
   const hasApplicantRevision = value.applicantProfileRevisionId !== null;
   const hasApplicantHash = value.applicantProfileHash !== null;
@@ -305,6 +325,7 @@ export type ExecutorCapabilities = z.infer<typeof ExecutorCapabilitiesSchema>;
 export type ExecutorDescriptor = z.infer<typeof ExecutorDescriptorSchema>;
 export type ExecutorRegistration = z.infer<typeof ExecutorRegistrationSchema>;
 export type ApplyBundle = z.infer<typeof ApplyBundleSchema>;
+export type ApplyBundleSiteResumeBinding = z.infer<typeof ApplyBundleSiteResumeBindingSchema>;
 export type BrowserSessionHandoff = z.infer<typeof BrowserSessionHandoffSchema>;
 export type ExecutionAttempt = z.infer<typeof ExecutionAttemptSchema>;
 export type ExecutionEvent = z.infer<typeof ExecutionEventSchema>;

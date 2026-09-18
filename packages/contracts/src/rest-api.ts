@@ -53,6 +53,10 @@ import {
   ListEmailSendAuthorizationsOutputSchema,
   ClaimEmailApplicationSendInputSchema,
   ClaimEmailApplicationSendOutputSchema,
+  ListSiteResumeBindingsInputSchema,
+  ListSiteResumeBindingsOutputSchema,
+  CreateSiteResumeBindingInputSchema,
+  RevokeSiteResumeBindingInputSchema,
   BeginSubmissionIntentInputSchema,
   BeginSubmissionIntentOutputSchema,
   ConfirmSubmissionIntentInputSchema,
@@ -120,7 +124,7 @@ import {
   ResumeExecutionAttemptInputSchema,
   StartExecutionAttemptInputSchema,
 } from '@job-harness/apply-contracts';
-import { EmailSendAuthorizationSchema, EntityIdSchema, SubmissionIntentSchema } from './schemas';
+import { EmailSendAuthorizationSchema, EntityIdSchema, SiteResumeBindingSchema, SubmissionIntentSchema } from './schemas';
 import {
   ListResumeProfilesInputSchema as ListResumeBuilderProfilesInputSchema,
   ListResumeProfilesOutputSchema as ListResumeBuilderProfilesOutputSchema,
@@ -174,6 +178,8 @@ export const ConfirmEmailApplicationSendBodySchema = ConfirmEmailApplicationSend
 export const FailEmailApplicationSendBodySchema = FailEmailApplicationSendInputSchema;
 export const AuthorizeEmailApplicationSendBodySchema = AuthorizeEmailApplicationSendInputSchema;
 export const ClaimEmailApplicationSendBodySchema = ClaimEmailApplicationSendInputSchema;
+export const CreateSiteResumeBindingBodySchema = CreateSiteResumeBindingInputSchema;
+export const RevokeSiteResumeBindingBodySchema = RevokeSiteResumeBindingInputSchema;
 export const FailSubmissionIntentBodySchema = FailSubmissionIntentInputSchema.omit({ intentId: true });
 export const ExecutorHeartbeatBodySchema = ExecutorHeartbeatInputSchema.omit({ executorId: true });
 export const StartExecutionAttemptBodySchema = StartExecutionAttemptInputSchema.omit({ attemptId: true });
@@ -225,6 +231,9 @@ export const JOB_HARNESS_REST_V1_ROUTES = {
   authorizeEmailApplicationSend: route({ operationId: 'authorizeEmailApplicationSend', method: 'post', path: '/email-applications/:packageId/send-authorizations', tags: ['Email Applications'], summary: 'Issue a short-lived user authorization bound to one immutable email draft', paramsSchema: IdParam('packageId'), bodySchema: AuthorizeEmailApplicationSendBodySchema, responseSchema: EmailSendAuthorizationSchema, successStatus: 201 }),
   listEmailSendAuthorizations: route({ operationId: 'listEmailSendAuthorizations', method: 'get', path: '/email-send-authorizations', tags: ['Email Applications'], summary: 'List active non-expired email send authorizations for the delivery worker', querySchema: ListEmailSendAuthorizationsInputSchema, responseSchema: ListEmailSendAuthorizationsOutputSchema, successStatus: 200 }),
   claimEmailApplicationSend: route({ operationId: 'claimEmailApplicationSend', method: 'post', path: '/email-applications/:packageId/claim-send', tags: ['Email Applications'], summary: 'Consume one email send authorization and durably cross the external-send boundary', paramsSchema: IdParam('packageId'), bodySchema: ClaimEmailApplicationSendBodySchema, responseSchema: ClaimEmailApplicationSendOutputSchema, successStatus: 200 }),
+  siteResumeBindings: route({ operationId: 'listSiteResumeBindings', method: 'get', path: '/site-resume-bindings', tags: ['Site Resume Bindings'], summary: 'List user-confirmed mappings between site-managed resume labels and immutable Job Harness Resume Artifacts', querySchema: ListSiteResumeBindingsInputSchema, responseSchema: ListSiteResumeBindingsOutputSchema, successStatus: 200 }),
+  createSiteResumeBinding: route({ operationId: 'createSiteResumeBinding', method: 'post', path: '/site-resume-bindings', tags: ['Site Resume Bindings'], summary: 'Confirm one observed site-managed resume label against the current immutable Resume Profile revision/PDF', bodySchema: CreateSiteResumeBindingBodySchema, responseSchema: SiteResumeBindingSchema, successStatus: 201 }),
+  revokeSiteResumeBinding: route({ operationId: 'revokeSiteResumeBinding', method: 'post', path: '/site-resume-bindings/:bindingId/revoke', tags: ['Site Resume Bindings'], summary: 'Revoke a site-managed resume binding without deleting its audit evidence', paramsSchema: IdParam('bindingId'), bodySchema: RevokeSiteResumeBindingBodySchema, responseSchema: SiteResumeBindingSchema, successStatus: 200 }),
   upsertJobsBatch: route({ operationId: 'upsertJobsBatch', method: 'post', path: '/jobs/batch', tags: ['Jobs'], summary: 'Idempotently upsert discovered jobs', bodySchema: UpsertJobsBatchInputSchema, responseSchema: UpsertJobsBatchOutputSchema, successStatus: 200 }),
   setJobState: route({ operationId: 'setJobState', method: 'patch', path: '/jobs/:jobId/state', tags: ['Jobs'], summary: 'Change a job triage state', paramsSchema: IdParam('jobId'), bodySchema: SetJobStateBodySchema, responseSchema: SetJobStateOutputSchema, successStatus: 200 }),
   applications: route({ operationId: 'listApplications', method: 'get', path: '/applications', tags: ['Applications'], summary: 'List application board projections', querySchema: ListApplicationBoardInputSchema, responseSchema: ListApplicationBoardOutputSchema, successStatus: 200 }),

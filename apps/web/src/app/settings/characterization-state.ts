@@ -1,6 +1,7 @@
 export interface AtsCharacterizationActionState {
   readonly ok: boolean;
   readonly runId: string | null;
+  readonly agentId: string | null;
   readonly error: string | null;
   readonly evidence: {
     readonly observedAt: string;
@@ -17,6 +18,14 @@ export interface AtsCharacterizationActionState {
 export const initialAtsCharacterizationActionState: AtsCharacterizationActionState = {
   ok: false,
   runId: null,
+  agentId: null,
   error: null,
   evidence: null,
 };
+
+export interface SiteResumeBindingActionState {
+  readonly ok: boolean;
+  readonly bindingId: string | null;
+  readonly message: string | null;
+}
+export const initialSiteResumeBindingActionState: SiteResumeBindingActionState = { ok: false, bindingId: null, message: null };

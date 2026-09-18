@@ -4,7 +4,7 @@ import { fillGenericForm, inspectGenericForm } from './generic-form';
 import type { ApplicantDataProviderPort } from './applicant-data';
 import { inspectApplyPagePreflight } from './page-preflight';
 import { GenericAtsSiteAdapter } from './generic-site-adapter';
-import type { ApplyApplicationEntryResult, ApplyFillAssets, ApplySiteAdapter, ApplySiteSubmitResult } from './site-adapter';
+import type { ApplyApplicationEntryResult, ApplyFillAssets, ApplySiteAdapter, ApplySiteBindingContext, ApplySiteSubmitResult } from './site-adapter';
 
 abstract class ObservedPublicAtsAdapter implements ApplySiteAdapter {
   abstract readonly descriptor: ApplySiteAdapter['descriptor'];
@@ -213,6 +213,56 @@ function isNowcoderResumeField(field: FormIR['fields'][number]): boolean {
   return /pdf|docx?|resume|cv|upload|file|简历|附件/i.test(evidence);
 }
 
+function managedSiteResumeBindings(
+  form: FormIR,
+  context: ApplySiteBindingContext | undefined,
+  family: 'zhilian' | 'liepin',
+): readonly FieldBinding[] {
+  const binding = context?.siteResumeBinding;
+  if (!binding || binding.siteFamily !== family) return [];
+  const normalizedLabel = binding.externalResumeLabel.replace(/\s+/g, ' ').trim().toLowerCase();
+  const candidates = form.fields.filter((field) => {
+    if (field.type !== 'select' && field.type !== 'radio') return false;
+    const evidence = [field.label, field.name ?? '', field.description ?? '', ...field.semanticHints].join(' ');
+    if (!/简历|resume/i.test(evidence)) return false;
+    return field.options.some((option) => !option.disabled && option.label.replace(/\s+/g, ' ').trim().toLowerCase() === normalizedLabel);
+  });
+  if (candidates.length !== 1) return [];
+  return [{
+    fieldId: candidates[0]!.id,
+    applicantKey: 'documents.site_resume',
+    confidence: 1,
+    source: 'playbook',
+    reason: `${family}-user-confirmed-site-resume-binding`,
+  }];
+}
+
+async function validateManagedSiteResume(
+  base: Awaited<ReturnType<ObservedPublicAtsAdapter['validate']>>,
+  plan: FillPlan,
+  fillReport: FillReport | null | undefined,
+  context: ApplySiteBindingContext | undefined,
+  family: 'zhilian' | 'liepin',
+  submitCapable: boolean,
+) {
+  const binding = context?.siteResumeBinding;
+  if (!binding) return base;
+  const issues = [...base.issues];
+  if (binding.siteFamily !== family) {
+    issues.push({ code: 'site_resume_binding_family_mismatch', severity: 'blocking' as const, fieldId: null, summary: `Frozen site resume binding belongs to '${binding.siteFamily}', not '${family}'` });
+  } else {
+    const bound = plan.bindings.filter((item) => item.applicantKey === 'documents.site_resume');
+    const result = fillReport?.results.filter((item) => item.applicantKey === 'documents.site_resume') ?? [];
+    if (bound.length !== 1) {
+      issues.push({ code: 'site_resume_selector_not_uniquely_bound', severity: 'blocking' as const, fieldId: null, summary: `Exactly one resume selector must expose the frozen label '${binding.externalResumeLabel}'` });
+    } else if (result.length !== 1 || result[0]!.status !== 'filled') {
+      issues.push({ code: 'site_resume_selection_not_confirmed', severity: 'blocking' as const, fieldId: bound[0]!.fieldId, summary: `The frozen site resume label '${binding.externalResumeLabel}' was not deterministically selected` });
+    }
+  }
+  const readyForReview = !issues.some((issue) => issue.severity === 'blocking');
+  return { readyForReview, readyForSubmit: submitCapable && readyForReview, issues };
+}
+
 export class ZhilianAtsSiteAdapter extends ObservedPublicAtsAdapter {
   readonly descriptor = {
     id: 'zhilian-ats',
@@ -231,6 +281,15 @@ export class ZhilianAtsSiteAdapter extends ObservedPublicAtsAdapter {
     } catch {
       return { supported: false, score: 0, reason: 'invalid-url' };
     }
+  }
+
+  explicitBindings(form: FormIR, context?: ApplySiteBindingContext): readonly FieldBinding[] {
+    return managedSiteResumeBindings(form, context, 'zhilian');
+  }
+
+  async validate(form: FormIR, plan: FillPlan, fillReport?: FillReport | null, context?: ApplySiteBindingContext) {
+    const base = await super.validate(form, plan, fillReport);
+    return validateManagedSiteResume(base, plan, fillReport, context, 'zhilian', this.descriptor.capabilities.submit);
   }
 }
 
@@ -252,6 +311,15 @@ export class LiepinAtsSiteAdapter extends ObservedPublicAtsAdapter {
     } catch {
       return { supported: false, score: 0, reason: 'invalid-url' };
     }
+  }
+
+  explicitBindings(form: FormIR, context?: ApplySiteBindingContext): readonly FieldBinding[] {
+    return managedSiteResumeBindings(form, context, 'liepin');
+  }
+
+  async validate(form: FormIR, plan: FillPlan, fillReport?: FillReport | null, context?: ApplySiteBindingContext) {
+    const base = await super.validate(form, plan, fillReport);
+    return validateManagedSiteResume(base, plan, fillReport, context, 'liepin', this.descriptor.capabilities.submit);
   }
 }
 

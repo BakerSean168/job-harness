@@ -103,7 +103,7 @@ export async function prepareRecommendedApplicationAction(formData: FormData): P
   if (!jobId || !preferredProfileId || !decisionNonce) throw new Error('Job, Resume Profile, and decision nonce are required');
   const client = getJobHarnessClient();
   const executors = await client.apply.executors.list({ limit: 100, offset: 0 });
-  const extensionReady = executors.items.some((executor) =>
+  const readyExtensionExecutors = executors.items.filter((executor) =>
     executor.status === 'ready'
     && executor.browserBackends.includes('extension')
     && executor.executionModes.includes('fill_only')
@@ -111,7 +111,7 @@ export async function prepareRecommendedApplicationAction(formData: FormData): P
     && executor.capabilities.persistentSession
     && executor.capabilities.resumeUpload,
   );
-  if (!extensionReady) throw new Error('No ready user-Chrome Apply Executor is available for automatic form fill');
+  if (!readyExtensionExecutors.length) throw new Error('No ready user-Chrome Apply Executor is available for automatic form fill');
 
   const prepared = await client.jobs.prepareRecommendedSubmission(jobId, {
     ...(listingId ? { listingId } : {}),
@@ -120,9 +120,29 @@ export async function prepareRecommendedApplicationAction(formData: FormData): P
     idempotencyKey: `web:auto-resume:${jobId}:${preferredProfileId}:${decisionNonce}`,
     note: 'Prepared from Job detail using deterministic Resume Profile recommendation.',
   });
+  const siteFamily = prepared.intent.channel === 'zhilian' || prepared.intent.channel === 'liepin'
+    ? prepared.intent.channel
+    : null;
+  let siteResumeBindingId: string | null = null;
+  let requiredBrowserAgentId: string | null = null;
+  if (siteFamily) {
+    const bindings = await client.siteResumeBindings.list({ siteFamily, profileId: prepared.intent.resumeProfileId ?? preferredProfileId });
+    const compatible = bindings.items.filter((binding) => readyExtensionExecutors.some((executor) =>
+      typeof executor.metadata.browserAgentId === 'string' && executor.metadata.browserAgentId === binding.browserAgentId,
+    ));
+    if (compatible.length !== 1) {
+      throw new Error(compatible.length === 0
+        ? `No active ${siteFamily} site-resume binding matches this Resume Profile and an online Chrome agent. Characterize the site and confirm the binding in Settings first.`
+        : `Multiple active ${siteFamily} site-resume bindings match online Chrome agents. Revoke the unused binding before automatic fill.`);
+    }
+    siteResumeBindingId = compatible[0]!.id;
+    requiredBrowserAgentId = compatible[0]!.browserAgentId;
+  }
+
   const attempt = await client.apply.attempts.dispatch({
     intentId: prepared.intent.id,
     executionMode: 'fill_only',
+    ...(siteFamily ? { requiredAdapterId: siteFamily === 'zhilian' ? 'zhilian-ats' : 'liepin-ats' } : {}),
     preferredBrowserBackend: 'extension',
     requiredCapabilities: ['humanControl', 'persistentSession', 'resumeUpload'],
     policySnapshot: {
@@ -130,6 +150,8 @@ export async function prepareRecommendedApplicationAction(formData: FormData): P
       allowApplicationEntry: true,
       submitAllowed: false,
       initiatedBy: 'user-web-auto-fill',
+      ...(siteResumeBindingId ? { siteResumeBindingId } : {}),
+      ...(requiredBrowserAgentId ? { requiredBrowserAgentId } : {}),
     },
     idempotencyKey: `web:auto-fill:${prepared.intent.id}:${decisionNonce}`,
   });
