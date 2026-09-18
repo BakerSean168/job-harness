@@ -199,6 +199,16 @@ describe('browser-extension validation scope', () => {
     const fillCommand = await answerOne(bridge, null);
     expect(fillCommand.command).toMatchObject({ type:'fill', payload:{ value:'Candidate Name' } });
     await expect(fillPromise).resolves.toMatchObject({ run:{ writeCount:2 } });
+    const controlClick = registry.invoke(run.id, {
+      sessionRef:'chrome-tab:resume-sync', command:{ type:'click', payload:{ selector:'[data-job-harness-field-id=\"jh-city\"]', expectedText:null } }, timeoutMs:5_000,
+    });
+    await answerOne(bridge, pageUrl);
+    const controlClickCommand = await answerOne(bridge, null);
+    expect(controlClickCommand.command).toMatchObject({ type:'click', payload:{ selector:'[data-job-harness-field-id=\"jh-city\"]', expectedText:null } });
+    await controlClick;
+    await expect(registry.invoke(run.id, {
+      sessionRef:'chrome-tab:resume-sync', command:{ type:'click', payload:{ selector:'.arbitrary', expectedText:null } }, timeoutMs:5_000,
+    })).rejects.toMatchObject({ code:'VALIDATION_CLICK_DENIED' });
     await expect(registry.invoke(run.id, {
       sessionRef:'chrome-tab:resume-sync', command:{ type:'click', payload:{ selector:'button.apply', expectedText:'投简历' } }, timeoutMs:5_000,
     })).rejects.toMatchObject({ code:'VALIDATION_CLICK_DENIED' });

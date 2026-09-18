@@ -182,8 +182,9 @@ export class BrowserExtensionValidationRegistry {
     }
     if (run.mode === 'site-resume-sync' && input.command.type === 'click') {
       const expected = input.command.payload.expectedText?.trim() ?? '';
-      if (!expected || RESUME_SYNC_FORBIDDEN_CLICK_TEXT.test(expected)) {
-        throw new BrowserExtensionBridgeError('VALIDATION_CLICK_DENIED', 'Site Resume Sync cannot click application, messaging, or submit actions', 403);
+      const scannedFieldSelector = /^\[data-job-harness-(?:field-id|radio-group)=\"[A-Za-z0-9._:-]+\"\]$/.test(input.command.payload.selector);
+      if ((!expected && !scannedFieldSelector) || (expected && RESUME_SYNC_FORBIDDEN_CLICK_TEXT.test(expected))) {
+        throw new BrowserExtensionBridgeError('VALIDATION_CLICK_DENIED', 'Site Resume Sync can click scanned form controls or explicit non-application actions only', 403);
       }
     }
 
