@@ -482,3 +482,9 @@ A second deterministic-automation / submit-safety pass was executed after the fi
 - synthetic supervised submit: **PASS**, one submit action, one external reference, legal field left blank, exact PDF filename preserved, review drift detected
 
 No production site adapter advertises `submit: true`; these changes harden the generic control plane and deterministic browser contract without enabling unattended external submission.
+
+### Finding A30 — production image can lazily download pnpm at container startup (P1 deployment reliability)
+
+The hardened image built successfully, but the recreated Web container exposed a deployment flaw that the source/test gates did not catch: its `pnpm ... next start` command entered Corepack's lazy-download path as the non-root runtime user (`Corepack is about to download ... pnpm-10.15.1.tgz`) and the service never reached its health endpoint. The build stage had prepared pnpm, but that does not guarantee the package-manager payload is present in the runtime user's Corepack cache. Production startup therefore depended on outbound npm availability even though the image had already been built.
+
+**Required change:** make the runtime images contain an actual pinned pnpm executable/package available to the non-root user without network access, disable Corepack download prompts/fallback at runtime, and extend deployment-image smoke to prove `pnpm --version` plus service startup succeed with networking disabled. A built image must be self-contained at promotion time.
