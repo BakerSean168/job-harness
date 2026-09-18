@@ -494,3 +494,21 @@ The hardened image built successfully, but the recreated Web container exposed a
 While hardening the runtime image, the deployment smoke itself exposed a stale assertion: the script still requires `PRAGMA user_version === 6` even though the canonical persistence package is at schema v11. That duplicates migration truth outside the persistence owner and lets the deployment lane fail for a historical constant rather than the schema version the code actually supports.
 
 **Required change:** resolve the expected schema version from `@job-harness/persistence-sqlite` inside the built image instead of hard-coding it in Bash/JavaScript. The same deployment smoke should also execute `pnpm --version` for server and renderer images under `--network none`, so runtime package-manager availability is proven independently of npm/network access before Compose startup.
+
+### 16.6 Deployment image self-containment and schema-source cleanup
+
+**A30 — fixed.** Runtime and renderer images now install the pinned `pnpm@10.15.1` package into the image itself rather than relying on Corepack to hydrate pnpm after container start. Runtime download prompts are disabled, and the image build verifies pnpm as the non-root runtime user. Deployment smoke additionally runs both built images with `--network none` and requires `pnpm --version` to succeed before Compose is started. This reproduces and closes the production Web startup failure that originally exposed the flaw.
+
+**A31 — fixed.** Deployment smoke no longer duplicates a historical SQLite schema number. It resolves `SQLITE_SCHEMA_VERSION` from the built `@job-harness/persistence-sqlite` package and compares the durable database `PRAGMA user_version` against that canonical value after restart. The current canonical schema is v11, but the smoke now follows the semantic owner automatically instead of embedding `6` in delivery code.
+
+Validation evidence for the final deployment-image pass:
+
+- `pnpm check:deployment`: **PASS**
+- Bash syntax validation: **PASS**
+- `job-harness:audit` with `--network none` -> `pnpm 10.15.1`: **PASS**
+- `job-harness-renderer:audit` with `--network none` -> `pnpm 10.15.1`: **PASS**
+- full isolated Compose deployment smoke: **PASS**
+- renderer/API/Web health ordering: **PASS**
+- authenticated persistence + PDF materialization/download: **PASS**
+- server restart + durable Saved View/Artifact verification: **PASS**
+- post-restart database schema comparison against canonical `SQLITE_SCHEMA_VERSION`: **PASS**

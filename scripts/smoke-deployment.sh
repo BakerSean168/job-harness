@@ -28,6 +28,12 @@ trap cleanup EXIT
 
 mkdir -p "$JOB_HARNESS_DATA_DIR"
 chmod 0777 "$JOB_HARNESS_DATA_DIR"
+
+# A promoted image must be self-contained. Runtime package-manager startup may
+# never depend on npm/network availability after the image has been built.
+docker run --rm --network none "$JOB_HARNESS_IMAGE" pnpm --version >/dev/null
+docker run --rm --network none "$JOB_HARNESS_RENDERER_IMAGE" pnpm --version >/dev/null
+
 docker compose down --remove-orphans >/dev/null 2>&1 || true
 docker compose up -d --no-build
 
@@ -116,7 +122,10 @@ NODE
 docker compose restart server >/dev/null
 wait_healthy server
 
-docker compose exec -T server node - <<'NODE'
+expected_schema_version=$(docker compose exec -T server pnpm exec tsx -e "import { SQLITE_SCHEMA_VERSION } from '@job-harness/persistence-sqlite'; console.log(SQLITE_SCHEMA_VERSION)" | tail -n 1 | tr -d '\r')
+[[ "$expected_schema_version" =~ ^[0-9]+$ ]]
+
+docker compose exec -T -e JOB_HARNESS_SMOKE_SCHEMA_VERSION="$expected_schema_version" server node - <<'NODE'
 const base = 'http://127.0.0.1:3000';
 const response = await fetch(`${base}/api/v1/saved-views?workspace=jobs`, {
   headers: { authorization: `Bearer ${process.env.JOB_HARNESS_AUTH_TOKEN}` },
@@ -130,7 +139,8 @@ const integrity = db.prepare('PRAGMA integrity_check').get();
 const version = db.prepare('PRAGMA user_version').get();
 const artifact = db.prepare("SELECT id FROM resume_artifacts WHERE kind='pdf' ORDER BY created_at DESC LIMIT 1").get();
 db.close();
-if (integrity.integrity_check !== 'ok' || Number(version.user_version) !== 6) process.exit(1);
+const expectedSchemaVersion = Number(process.env.JOB_HARNESS_SMOKE_SCHEMA_VERSION);
+if (!Number.isInteger(expectedSchemaVersion) || integrity.integrity_check !== 'ok' || Number(version.user_version) !== expectedSchemaVersion) process.exit(1);
 if (!artifact?.id) process.exit(1);
 const downloaded = await fetch(`${base}/api/v1/resume/artifacts/${encodeURIComponent(artifact.id)}/content`, {
   headers: { authorization: `Bearer ${process.env.JOB_HARNESS_AUTH_TOKEN}` },
