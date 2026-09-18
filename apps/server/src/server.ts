@@ -283,7 +283,10 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   });
 
   const browserExtensionValidation = options.browserExtensionValidationAllowedOrigin?.trim()
-    ? new BrowserExtensionValidationRegistry(browserExtensionBridge, { allowedOrigin: options.browserExtensionValidationAllowedOrigin })
+    ? new BrowserExtensionValidationRegistry(browserExtensionBridge, {
+        allowedOrigin: options.browserExtensionValidationAllowedOrigin,
+        readonlySiteFamilies: ['zhilian', 'liepin'],
+      })
     : null;
 
   registerBrowserExtensionBridgeApi(app, browserExtensionBridge, {

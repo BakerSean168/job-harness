@@ -14,9 +14,13 @@ import {
 import { writeCommonRestError, writeInternalRestError, writeRestError } from './http-errors';
 
 const ValidationRunIdSchema = z.string().trim().min(1).max(200);
+const ValidationModeSchema = z.enum(['synthetic-canary', 'site-readonly']);
+const ReadonlySiteFamilySchema = z.enum(['zhilian', 'liepin']);
+type ReadonlySiteFamily = z.infer<typeof ReadonlySiteFamilySchema>;
 const CreateValidationRunInputSchema = z.object({
   agentId: z.string().trim().min(1).max(200),
   targetUrl: z.url(),
+  mode: ValidationModeSchema.default('synthetic-canary'),
   ttlMs: z.number().int().min(30_000).max(10 * 60_000).default(3 * 60_000),
 }).strict();
 const InvokeValidationCommandInputSchema = z.object({
@@ -41,12 +45,16 @@ const SAFE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(
   'scan_actions',
   'form_state_hash',
 ]);
+const READONLY_SITE_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
+  'session_acquire', 'current_url', 'title', 'body_text', 'exists', 'text', 'wait', 'scan_controls', 'scan_actions', 'form_state_hash',
+]);
 const WRITE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(['fill', 'select', 'set_checked', 'upload']);
 
 export interface BrowserExtensionValidationRun {
   readonly id: string;
   readonly agentId: string;
   readonly targetUrl: string;
+  readonly mode: z.infer<typeof ValidationModeSchema>;
   readonly createdAt: string;
   readonly expiresAt: string;
   readonly sessionRef: string | null;
@@ -58,6 +66,7 @@ interface MutableValidationRun {
   id: string;
   agentId: string;
   targetUrl: string;
+  mode: z.infer<typeof ValidationModeSchema>;
   createdAt: string;
   expiresAt: string;
   sessionRef: string | null;
@@ -69,21 +78,23 @@ export class BrowserExtensionValidationRegistry {
   private readonly runs = new Map<string, MutableValidationRun>();
   private readonly allowedOrigin: string;
   private readonly now: () => Date;
+  private readonly readonlySiteFamilies: ReadonlySet<ReadonlySiteFamily>;
 
   constructor(
     private readonly bridge: BrowserExtensionBridge,
-    options: { allowedOrigin: string; now?: () => Date },
+    options: { allowedOrigin: string; readonlySiteFamilies?: readonly ReadonlySiteFamily[]; now?: () => Date },
   ) {
     const origin = new URL(options.allowedOrigin).origin;
     if (!/^https?:\/\//i.test(origin)) throw new Error('Browser validation allowed origin must use HTTP(S)');
     this.allowedOrigin = origin;
+    this.readonlySiteFamilies = new Set((options.readonlySiteFamilies ?? []).map((value) => ReadonlySiteFamilySchema.parse(value)));
     this.now = options.now ?? (() => new Date());
   }
 
   create(raw: unknown): BrowserExtensionValidationRun {
     this.reap();
     const input = CreateValidationRunInputSchema.parse(raw);
-    const target = this.validateTarget(input.targetUrl);
+    const target = this.validateTarget(input.targetUrl, input.mode);
     const agent = this.bridge.status(input.agentId);
     if (!agent?.online) throw new BrowserExtensionBridgeError('AGENT_OFFLINE', `Browser extension agent '${input.agentId}' is offline`, 503);
     const createdAt = this.now().toISOString();
@@ -91,6 +102,7 @@ export class BrowserExtensionValidationRegistry {
       id: randomUUID(),
       agentId: input.agentId,
       targetUrl: target,
+      mode: input.mode,
       createdAt,
       expiresAt: new Date(this.now().getTime() + input.ttlMs).toISOString(),
       sessionRef: null,
@@ -111,8 +123,9 @@ export class BrowserExtensionValidationRegistry {
     this.reap();
     const run = this.requireRun(id);
     const input = InvokeValidationCommandInputSchema.parse(raw);
-    if (!SAFE_VALIDATION_COMMANDS.has(input.command.type)) {
-      throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', `Browser validation does not allow '${input.command.type}'`, 403);
+    const allowedCommands = run.mode === 'site-readonly' ? READONLY_SITE_COMMANDS : SAFE_VALIDATION_COMMANDS;
+    if (!allowedCommands.has(input.command.type)) {
+      throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', `Browser validation mode '${run.mode}' does not allow '${input.command.type}'`, 403);
     }
     if (input.command.type === 'upload') {
       const file = input.command.payload.file;
@@ -124,7 +137,7 @@ export class BrowserExtensionValidationRegistry {
     if (input.command.type === 'session_acquire') {
       if (run.sessionRef) throw new BrowserExtensionBridgeError('VALIDATION_SESSION_EXISTS', 'Browser validation run already owns a session', 409);
       const preferred = input.command.payload.preferredUrl;
-      if (!preferred || this.validateTarget(preferred) !== run.targetUrl) {
+      if (!preferred || this.validateTarget(preferred, run.mode) !== run.targetUrl) {
         throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'Browser validation session must acquire the frozen canary URL', 409);
       }
       if (input.command.payload.reuseLiveSession) {
@@ -139,7 +152,7 @@ export class BrowserExtensionValidationRegistry {
       const result = requireRecord(output.result, 'session_acquire');
       const sessionRef = requireString(result.sessionRef, 'sessionRef');
       const currentUrl = requireString(result.currentUrl, 'currentUrl');
-      if (!this.sameTarget(currentUrl, run.targetUrl)) {
+      if (!this.sameTarget(currentUrl, run.targetUrl, run.mode)) {
         throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'Browser validation Chrome tab opened an unexpected URL', 409);
       }
       run.sessionRef = sessionRef;
@@ -160,7 +173,7 @@ export class BrowserExtensionValidationRegistry {
       command: { type: 'current_url', payload: {} },
       timeoutMs: Math.min(input.timeoutMs, 10_000),
     });
-    if (!this.sameTarget(requireString(current.result, 'current_url'), run.targetUrl)) {
+    if (!this.sameTarget(requireString(current.result, 'current_url'), run.targetUrl, run.mode)) {
       throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DRIFT', 'Browser validation tab navigated away from the frozen canary URL', 409);
     }
 
@@ -175,24 +188,42 @@ export class BrowserExtensionValidationRegistry {
     return { run: freezeRun(run), commandId: output.commandId, result: output.result };
   }
 
-  private validateTarget(raw: string): string {
+  private validateTarget(raw: string, mode: z.infer<typeof ValidationModeSchema>): string {
     const url = new URL(raw);
-    if (url.origin !== this.allowedOrigin || url.pathname !== '/labs/apply-canary') {
-      throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Browser validation target must be the configured synthetic ATS canary route', 403);
+    if (mode === 'synthetic-canary') {
+      if (url.origin !== this.allowedOrigin || url.pathname !== '/labs/apply-canary') {
+        throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Browser validation synthetic target must be the configured ATS canary route', 403);
+      }
+      const runId = url.searchParams.get('run')?.trim() ?? '';
+      if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(runId) || url.searchParams.has('format')) {
+        throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Browser validation target requires one safe canary run id', 403);
+      }
+      if ([...url.searchParams.keys()].some((key) => key !== 'run')) {
+        throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Browser validation target contains unsupported query parameters', 403);
+      }
+      url.hash = '';
+      return url.toString();
     }
-    const runId = url.searchParams.get('run')?.trim() ?? '';
-    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(runId) || url.searchParams.has('format')) {
-      throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Browser validation target requires one safe canary run id', 403);
+
+    if (url.protocol !== 'https:' || url.username || url.password) {
+      throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Read-only site validation requires an HTTPS recruiting-site URL without credentials', 403);
     }
-    if ([...url.searchParams.keys()].some((key) => key !== 'run')) {
-      throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Browser validation target contains unsupported query parameters', 403);
+    const host = url.hostname.toLowerCase();
+    const zhilian = this.readonlySiteFamilies.has('zhilian')
+      && (host === 'zhaopin.com' || host === 'www.zhaopin.com')
+      && /^\/jobdetail\/[^/]+\.htm$/i.test(url.pathname);
+    const liepin = this.readonlySiteFamilies.has('liepin')
+      && (host === 'liepin.com' || host === 'www.liepin.com')
+      && /^\/job\/\d+\.shtml$/i.test(url.pathname);
+    if (!zhilian && !liepin) {
+      throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Read-only site validation target is outside the configured characterized recruiting-site families', 403);
     }
     url.hash = '';
     return url.toString();
   }
 
-  private sameTarget(left: string, right: string): boolean {
-    try { return this.validateTarget(left) === this.validateTarget(right); }
+  private sameTarget(left: string, right: string, mode: z.infer<typeof ValidationModeSchema>): boolean {
+    try { return this.validateTarget(left, mode) === this.validateTarget(right, mode); }
     catch { return false; }
   }
 

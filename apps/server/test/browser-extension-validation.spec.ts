@@ -33,7 +33,7 @@ describe('browser-extension validation scope', () => {
     const registry = new BrowserExtensionValidationRegistry(bridge, { allowedOrigin: 'https://job-harness.test:20900' });
     const run = registry.create({ agentId: 'windows-chrome-primary', targetUrl: 'https://job-harness.test:20900/labs/apply-canary?run=test-1' });
 
-    expect(() => registry.create({ agentId: 'windows-chrome-primary', targetUrl: 'https://jobs.example.test/apply?run=test-1' })).toThrow(/synthetic ATS/);
+    expect(() => registry.create({ agentId: 'windows-chrome-primary', targetUrl: 'https://jobs.example.test/apply?run=test-1' })).toThrow(/synthetic target.*ATS canary/);
 
     const acquirePromise = registry.invoke(run.id, {
       sessionRef: null,
@@ -53,6 +53,45 @@ describe('browser-extension validation scope', () => {
     await expect(registry.invoke(run.id, {
       sessionRef: 'chrome-tab:17', command: { type: 'upload', payload: { selector: '#other', file: { name: 'resume.pdf', mimeType: 'application/pdf', bytesBase64: 'AA==' } } }, timeoutMs: 5_000,
     })).rejects.toMatchObject({ code: 'VALIDATION_UPLOAD_DENIED' });
+    bridge.close();
+  });
+
+  it('allows read-only characterization of configured Zhilian/Liepin job pages while denying every browser write', async () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge);
+    const registry = new BrowserExtensionValidationRegistry(bridge, {
+      allowedOrigin: 'https://job-harness.test:20900',
+      readonlySiteFamilies: ['zhilian', 'liepin'],
+    });
+    const target = 'https://www.zhaopin.com/jobdetail/CC168270920J40838372514.htm';
+    const run = registry.create({ agentId: 'windows-chrome-primary', targetUrl: target, mode: 'site-readonly' });
+    expect(run).toMatchObject({ mode: 'site-readonly', targetUrl: target, writeCount: 0 });
+    expect(() => registry.create({ agentId: 'windows-chrome-primary', targetUrl: 'https://evil.example/jobdetail/CC1.htm', mode: 'site-readonly' })).toThrow(/outside the configured/);
+
+    const acquirePromise = registry.invoke(run.id, {
+      sessionRef: null,
+      command: { type: 'session_acquire', payload: { preferredUrl: target, reuseLiveSession: false } },
+      timeoutMs: 5_000,
+    });
+    await answerOne(bridge, { sessionRef: 'chrome-tab:31', currentUrl: target });
+    await expect(acquirePromise).resolves.toMatchObject({ run: { sessionRef: 'chrome-tab:31', mode: 'site-readonly', writeCount: 0 } });
+
+    const actionsPromise = registry.invoke(run.id, {
+      sessionRef: 'chrome-tab:31', command: { type: 'scan_actions', payload: {} }, timeoutMs: 5_000,
+    });
+    await answerOne(bridge, target);
+    const actionCommand = await answerOne(bridge, [{ actionRef: 'action:1', text: '立即投递', disabled: false, ariaDisabled: false }]);
+    expect(actionCommand.command.type).toBe('scan_actions');
+    await expect(actionsPromise).resolves.toMatchObject({ run: { commandCount: 2, writeCount: 0 } });
+
+    for (const command of [
+      { type: 'fill', payload: { selector: '#name', value: 'x' } },
+      { type: 'upload', payload: { selector: '#resume', file: { name: 'resume.pdf', mimeType: 'application/pdf', bytesBase64: 'AA==' } } },
+      { type: 'click', payload: { selector: '#submit', expectedText: '立即投递' } },
+      { type: 'screenshot', payload: {} },
+    ] as const) {
+      await expect(registry.invoke(run.id, { sessionRef: 'chrome-tab:31', command, timeoutMs: 5_000 })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
+    }
     bridge.close();
   });
 
