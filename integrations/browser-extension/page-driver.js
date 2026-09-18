@@ -194,7 +194,7 @@
       else value = String(element.value || "").replace(/\r\n/g, "\n");
       return [ref, element.tagName.toLowerCase(), element instanceof HTMLInputElement ? element.type : "", value];
     }).sort((left, right) => JSON.stringify(left.slice(0, 3)).localeCompare(JSON.stringify(right.slice(0, 3))));
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(rows)));
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify({ url: location.href, rows })));
     return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
   }
 

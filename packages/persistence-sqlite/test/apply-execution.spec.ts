@@ -214,15 +214,15 @@ describe('Apply Executor control plane', () => {
       attemptId: second.id,
       executorId: 'oracle2-steel',
       leaseToken: secondClaim!.leaseToken,
-      errorCode: 'submit_result_unknown',
-      errorSummary: 'Connection was lost after the external boundary',
-      externalEffectState: 'uncertain',
+      errorCode: 'browser_session_failed',
+      errorSummary: 'Browser session failed before the external-effect boundary',
+      externalEffectState: 'not_crossed',
       payload: { sanitized: true },
     });
-    expect(failed.externalEffectState).toBe('uncertain');
-    expect((await career.submissionIntents.get(intent.id))?.status).toBe('needs_manual_review');
-    await expect(apply.attempts.dispatch({ ...dispatchInput, idempotencyKey: 'dispatch-acme-front-3' }))
-      .rejects.toBeInstanceOf(ApplyConflictError);
+    expect(failed.externalEffectState).toBe('not_crossed');
+    expect((await career.submissionIntents.get(intent.id))?.status).toBe('planned');
+    const retryAttempt = await apply.attempts.dispatch({ ...dispatchInput, idempotencyKey: 'dispatch-acme-front-3' });
+    expect(retryAttempt.state).toBe('queued');
 
     const detail = await apply.attempts.get(attempt.id);
     expect(detail?.events.map((event) => event.sequence)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);

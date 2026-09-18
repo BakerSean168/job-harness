@@ -50,12 +50,21 @@ import {
 } from './errors';
 import type { ApplicantDataGrantPort, AppendExecutionEventInput, ApplyBundleFactoryPort, ApplyControlPlanePort, ApplyStorePort, SubmissionIntentSafetyPort } from './ports';
 
+export interface ApplySafetyPersistenceIncident {
+  readonly operation: 'mark_manual_review';
+  readonly reason: 'lease_expired' | 'submit_boundary_persistence_failed' | 'post_boundary_attempt_failed';
+  readonly attemptId: string;
+  readonly intentId: string;
+  readonly message: string;
+}
+
 export interface ApplyRuntimeOptions {
   readonly now?: () => string;
   readonly idFactory?: () => string;
   readonly leaseTokenFactory?: () => string;
   readonly executorStaleAfterMs?: number;
   readonly applicantData?: ApplicantDataGrantPort | null;
+  readonly onSafetyPersistenceError?: (incident: ApplySafetyPersistenceIncident) => void | Promise<void>;
 }
 
 function sha256(value: string): string {
@@ -88,6 +97,11 @@ export function createApplyControlPlane(
   const leaseTokenFactory = options.leaseTokenFactory ?? (() => randomBytes(32).toString('base64url'));
   const executorStaleAfterMs = options.executorStaleAfterMs ?? 60_000;
   const applicantData = options.applicantData ?? null;
+
+  async function reportSafetyPersistenceError(incident: ApplySafetyPersistenceIncident): Promise<void> {
+    if (!options.onSafetyPersistenceError) return;
+    try { await options.onSafetyPersistenceError(incident); } catch { /* reporting must never change fail-closed behavior */ }
+  }
 
   function effectiveExecutor(executor: ExecutorRegistration, at: string): ExecutorRegistration {
     if (executor.status === 'offline') return executor;
@@ -236,12 +250,19 @@ export function createApplyControlPlane(
         const abandoned = await store.abandonExpiredAttempts({ now: timestamp, limit: 100, eventIdFactory: idFactory });
         for (const expired of abandoned) {
           if (expired.externalEffectState !== 'not_crossed') {
-            await intentSafety.markManualReview({
-              intentId: expired.intentId,
-              occurredAt: timestamp,
-              error: `Execution attempt ${expired.id} lease expired after the external-effect boundary; verify the recruiting site before any new submit`,
-              evidence: { executionAttemptId: expired.id, externalEffectState: expired.externalEffectState, reason: 'lease_expired' },
-            }).catch(() => {});
+            try {
+              await intentSafety.markManualReview({
+                intentId: expired.intentId,
+                occurredAt: timestamp,
+                error: `Execution attempt ${expired.id} lease expired after the external-effect boundary; verify the recruiting site before any new submit`,
+                evidence: { executionAttemptId: expired.id, externalEffectState: expired.externalEffectState, reason: 'lease_expired' },
+              });
+            } catch (error) {
+              await reportSafetyPersistenceError({
+                operation: 'mark_manual_review', reason: 'lease_expired', attemptId: expired.id, intentId: expired.intentId,
+                message: error instanceof Error ? error.message : String(error),
+              });
+            }
           }
         }
         const registered = await store.getExecutor(parsed.executorId);
@@ -295,8 +316,17 @@ export function createApplyControlPlane(
         if (current.requiredAdapterId && current.requiredAdapterId !== parsed.adapterId) {
           throw new ApplyConflictError(`Attempt '${current.id}' requires adapter '${current.requiredAdapterId}', not '${parsed.adapterId}'`);
         }
+        if (current.adapterId && current.adapterId !== parsed.adapterId) {
+          throw new ApplyConflictError(`Attempt '${current.id}' is already bound to adapter '${current.adapterId}', not '${parsed.adapterId}'`);
+        }
+        if (current.adapterVersion && current.adapterVersion !== parsed.adapterVersion) {
+          throw new ApplyConflictError(`Attempt '${current.id}' is already bound to adapter version '${current.adapterVersion}', not '${parsed.adapterVersion}'`);
+        }
         if (current.preferredBrowserBackend && current.preferredBrowserBackend !== parsed.browserBackend) {
           throw new ApplyConflictError(`Attempt '${current.id}' requires browser backend '${current.preferredBrowserBackend}', not '${parsed.browserBackend}'`);
+        }
+        if (current.browserBackend && current.browserBackend !== parsed.browserBackend) {
+          throw new ApplyConflictError(`Attempt '${current.id}' is already bound to browser backend '${current.browserBackend}', not '${parsed.browserBackend}'`);
         }
         return requireLease({
           attemptId: parsed.attemptId,
@@ -411,28 +441,26 @@ export function createApplyControlPlane(
         const current = await store.getAttempt(parsed.attemptId);
         if (!current) throw new ApplyNotFoundError('ExecutionAttempt', parsed.attemptId);
         if (!canTransitionAttempt(current.state, 'failed')) throw new ApplyInvalidTransitionError(current.state, 'failed');
-        if (parsed.externalEffectState !== 'not_crossed') {
-          await intentSafety.markManualReview({
-            intentId: current.intentId,
-            occurredAt: timestamp,
-            error: `Execution attempt ${current.id} ended after the external-effect boundary with state '${parsed.externalEffectState}': ${parsed.errorSummary}`,
-            evidence: {
-              executionAttemptId: current.id,
-              externalEffectState: parsed.externalEffectState,
-              errorCode: parsed.errorCode,
-              checkpoint: parsed.checkpoint ?? current.checkpoint,
-              ...parsed.payload,
-            },
-          });
+        const leaseTokenHash = sha256(parsed.leaseToken);
+        const validLease = await store.hasValidLease({
+          attemptId: parsed.attemptId,
+          executorId: parsed.executorId,
+          leaseTokenHash,
+          now: timestamp,
+          allowedStates: ['claimed', 'running'],
+        });
+        if (!validLease) throw new ApplyLeaseLostError(parsed.attemptId);
+        if (parsed.externalEffectState !== current.externalEffectState) {
+          throw new ApplyConflictError(`Generic failure reporting cannot change externalEffectState from '${current.externalEffectState}' to '${parsed.externalEffectState}'; use the dedicated submit-boundary protocol`);
         }
-        return requireLease({
+        const failed = await requireLease({
           attemptId: parsed.attemptId,
           executorId: parsed.executorId,
           leaseToken: parsed.leaseToken,
           allowedStates: ['claimed', 'running'],
           mutation: {
             state: 'failed',
-            externalEffectState: parsed.externalEffectState,
+            externalEffectState: current.externalEffectState,
             leaseOwner: null,
             leaseTokenHash: null,
             leaseExpiresAt: null,
@@ -445,12 +473,34 @@ export function createApplyControlPlane(
             updatedAt: timestamp,
           },
           event: makeEvent(idFactory, current.id,
-            parsed.externalEffectState === 'uncertain' ? 'external_result_uncertain' : 'attempt_failed',
+            current.externalEffectState === 'uncertain' ? 'external_result_uncertain' : 'attempt_failed',
             timestamp,
             parsed.checkpoint ?? current.checkpoint,
             { errorCode: parsed.errorCode, errorSummary: parsed.errorSummary, ...parsed.payload },
           ),
         });
+        if (current.externalEffectState !== 'not_crossed') {
+          try {
+            await intentSafety.markManualReview({
+              intentId: current.intentId,
+              occurredAt: timestamp,
+              error: `Execution attempt ${current.id} ended after the external-effect boundary with state '${current.externalEffectState}': ${parsed.errorSummary}`,
+              evidence: {
+                executionAttemptId: current.id,
+                externalEffectState: current.externalEffectState,
+                errorCode: parsed.errorCode,
+                checkpoint: parsed.checkpoint ?? current.checkpoint,
+                ...parsed.payload,
+              },
+            });
+          } catch (error) {
+            await reportSafetyPersistenceError({
+              operation: 'mark_manual_review', reason: 'post_boundary_attempt_failed', attemptId: current.id, intentId: current.intentId,
+              message: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+        return failed;
       },
       async cancel(raw) {
         const parsed = CancelExecutionAttemptInputSchema.parse(raw);
@@ -545,6 +595,12 @@ export function createApplyControlPlane(
         if (!attempt) throw new ApplyNotFoundError('ExecutionAttempt', parsed.attemptId);
         if (parsed.summary.readyForSubmit && (parsed.summary.requiredPending > 0 || parsed.summary.failed > 0 || parsed.summary.blockingIssueCodes.length > 0)) {
           throw new ApplyConflictError('ReviewSnapshot cannot be readyForSubmit while blocking/pending/failed fields remain');
+        }
+        if (!attempt.adapterId || !attempt.adapterVersion) {
+          throw new ApplyConflictError(`ExecutionAttempt '${attempt.id}' must bind a concrete adapter id/version before review`);
+        }
+        if (parsed.siteAdapterId !== attempt.adapterId || parsed.siteAdapterVersion !== attempt.adapterVersion) {
+          throw new ApplyConflictError(`ReviewSnapshot adapter '${parsed.siteAdapterId}@${parsed.siteAdapterVersion}' does not match frozen Attempt adapter '${attempt.adapterId}@${attempt.adapterVersion}'`);
         }
         const browserSessionRef = parsed.browserSessionRef ?? attempt.browserSessionHandoff?.sessionRef ?? null;
         const material = {
@@ -648,12 +704,19 @@ export function createApplyControlPlane(
           // The business intent is already external_in_progress but no click permission
           // was returned. Fail closed to manual review rather than issuing another
           // automatic submit attempt.
-          await intentSafety.markManualReview({
-            intentId: validated.attempt.intentId,
-            occurredAt: parsed.occurredAt,
-            error: 'SubmissionIntent entered external_in_progress but the local submit boundary could not be durably recorded',
-            evidence: { executionAttemptId: parsed.attemptId, submitAuthorizationId: parsed.authorizationId },
-          }).catch(() => {});
+          try {
+            await intentSafety.markManualReview({
+              intentId: validated.attempt.intentId,
+              occurredAt: parsed.occurredAt,
+              error: 'SubmissionIntent entered external_in_progress but the local submit boundary could not be durably recorded',
+              evidence: { executionAttemptId: parsed.attemptId, submitAuthorizationId: parsed.authorizationId },
+            });
+          } catch (safetyError) {
+            await reportSafetyPersistenceError({
+              operation: 'mark_manual_review', reason: 'submit_boundary_persistence_failed', attemptId: parsed.attemptId, intentId: validated.attempt.intentId,
+              message: safetyError instanceof Error ? safetyError.message : String(safetyError),
+            });
+          }
           throw error;
         }
         return BeginSubmitOutputSchema.parse({

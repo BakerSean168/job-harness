@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { chmod, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { z } from 'zod';
 import type {
   ResumeArtifactStoragePort,
   ResumePdfRendererDescriptor,
@@ -58,6 +59,12 @@ export function createFileSystemResumeArtifactStorage(baseDirectory: string): Re
   };
 }
 
+const ResumePdfRendererHealthSchema = z.object({
+  ok: z.literal(true),
+  rendererId: z.string().trim().min(1).max(200),
+  rendererVersion: z.string().trim().min(1).max(500),
+}).passthrough();
+
 export interface HttpResumePdfRendererOptions {
   readonly baseUrl: string;
   readonly token?: string | null;
@@ -75,10 +82,7 @@ export function createHttpResumePdfRenderer(options: HttpResumePdfRendererOption
     async describe(): Promise<ResumePdfRendererDescriptor> {
       const response = await fetchImpl(`${baseUrl}/healthz`, { headers: headers(), signal: AbortSignal.timeout(timeoutMs) });
       if (!response.ok) throw new Error(`Resume PDF renderer health failed with ${response.status}`);
-      const payload = await response.json() as Record<string, unknown>;
-      if (payload.ok !== true || typeof payload.rendererId !== 'string' || typeof payload.rendererVersion !== 'string') {
-        throw new Error('Resume PDF renderer health payload is invalid');
-      }
+      const payload = ResumePdfRendererHealthSchema.parse(await response.json());
       return { rendererId: payload.rendererId, rendererVersion: payload.rendererVersion };
     },
     async renderPdf(html: string): Promise<Uint8Array> {

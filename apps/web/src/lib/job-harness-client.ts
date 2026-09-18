@@ -9,6 +9,21 @@ function apiAuthToken(): string | null {
   return process.env.JOB_HARNESS_AUTH_TOKEN?.trim() || null;
 }
 
+
+async function fetchWithHeaderTimeout(input: Parameters<typeof fetch>[0], init: RequestInit = {}, timeoutMs = 15_000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error(`Job Harness upstream response timed out after ${timeoutMs}ms`)), timeoutMs);
+  try {
+    const callerSignal = init.signal ?? null;
+    return await fetch(input, {
+      ...init,
+      signal: callerSignal ? AbortSignal.any([callerSignal, controller.signal]) : controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function getJobHarnessClient() {
   return createJobHarnessRestClient({
     baseUrl: apiBaseUrl(),
@@ -20,7 +35,7 @@ export async function fetchJobHarnessDataDownload(kind: 'export' | 'backup'): Pr
   const headers = new Headers();
   const token = apiAuthToken();
   if (token) headers.set('authorization', `Bearer ${token}`);
-  return fetch(`${apiBaseUrl()}/${kind}`, {
+  return fetchWithHeaderTimeout(`${apiBaseUrl()}/${kind}`, {
     method: 'GET',
     headers,
     cache: 'no-store',
@@ -31,7 +46,7 @@ export async function fetchJobHarnessResumeArtifact(artifactId: string): Promise
   const headers = new Headers();
   const token = apiAuthToken();
   if (token) headers.set('authorization', `Bearer ${token}`);
-  return fetch(`${apiBaseUrl()}/resume/artifacts/${encodeURIComponent(artifactId)}/content`, {
+  return fetchWithHeaderTimeout(`${apiBaseUrl()}/resume/artifacts/${encodeURIComponent(artifactId)}/content`, {
     method: 'GET',
     headers,
     cache: 'no-store',
@@ -64,7 +79,7 @@ export async function getBrowserExtensionAgents(): Promise<BrowserExtensionAgent
   const headers = new Headers({ accept: 'application/json' });
   const token = apiAuthToken();
   if (token) headers.set('authorization', `Bearer ${token}`);
-  const response = await fetch(browserExtensionBridgeUrl('/agents'), { headers, cache: 'no-store' });
+  const response = await fetchWithHeaderTimeout(browserExtensionBridgeUrl('/agents'), { headers, cache: 'no-store' });
   if (!response.ok) return [];
   const body = await response.json().catch(() => null) as unknown;
   const items = body && typeof body === 'object' && Array.isArray((body as { items?: unknown }).items)
@@ -101,7 +116,7 @@ export async function createBrowserExtensionPairing(): Promise<BrowserExtensionP
   const headers = new Headers({ accept: 'application/json' });
   const token = apiAuthToken();
   if (token) headers.set('authorization', `Bearer ${token}`);
-  const response = await fetch(base, { method: 'POST', headers, cache: 'no-store' });
+  const response = await fetchWithHeaderTimeout(base, { method: 'POST', headers, cache: 'no-store' });
   const body = await response.json().catch(() => null) as unknown;
   if (!response.ok) {
     const message = body && typeof body === 'object' && 'error' in body

@@ -106,6 +106,69 @@ describe('Apply Executor REST control plane', () => {
     expect(intentAfter.body.status).toBe('planned');
   });
 
+  it('rejects generic failure reports that lack the current lease or try to self-declare the external-effect boundary', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-apply-fail-authority-'));
+    running = await startJobHarnessServer({ databasePath: join(dir, 'career.db'), host: '127.0.0.1', port: 0 });
+
+    const inserted = await json('/jobs/batch', {
+      method: 'POST', body: JSON.stringify({ jobs: [{
+        companyName: 'Lease Guard Co', title: 'Frontend Engineer', city: '杭州', observedAt: '2026-09-17T09:30:00.000Z',
+        listings: [{ sourceKind: 'official', url: 'https://jobs.example.com/roles/lease-guard', identityKind: 'url', status: 'active' }],
+      }] }),
+    });
+    const jobId = String(inserted.body.items[0].jobId);
+    const detail = await json(`/jobs/${jobId}`);
+    const listingId = String(detail.body.job.listings[0].id);
+    const intent = await json('/submission-intents', {
+      method: 'POST', body: JSON.stringify({
+        jobId, listingId, executor: 'other', externalTargetUrl: 'https://jobs.example.com/roles/lease-guard', idempotencyKey: 'lease-guard-intent',
+      }),
+    });
+    const intentId = String(intent.body.id);
+    await json('/executors/register', {
+      method: 'POST', body: JSON.stringify({
+        executorId: 'lease-guard-worker', name: 'Lease Guard Worker', version: '1', status: 'ready',
+        browserBackends: ['steel'], adapterIds: ['generic-ats'], executionModes: ['fill_only'],
+        capabilities: { resumeUpload: false, humanControl: true, persistentSession: true, screenshots: false, semanticMapping: false },
+        maxConcurrency: 1, metadata: {},
+      }),
+    });
+    const dispatched = await json('/execution-attempts', {
+      method: 'POST', body: JSON.stringify({
+        intentId, executionMode: 'fill_only', requiredAdapterId: 'generic-ats', preferredBrowserBackend: 'steel',
+        requiredCapabilities: ['humanControl'], policySnapshot: {}, idempotencyKey: 'lease-guard-dispatch',
+      }),
+    });
+    const attemptId = String(dispatched.body.id);
+    const claimed = await json('/execution-attempts/claim', {
+      method: 'POST', body: JSON.stringify({ executorId: 'lease-guard-worker', leaseSeconds: 90 }),
+    });
+    const leaseToken = String(claimed.body.leaseToken);
+    await json(`/execution-attempts/${attemptId}/start`, {
+      method: 'POST', body: JSON.stringify({ executorId: 'lease-guard-worker', leaseToken, adapterId: 'generic-ats', adapterVersion: '1', browserBackend: 'steel' }),
+    });
+
+    const wrongLease = await json(`/execution-attempts/${attemptId}/fail`, {
+      method: 'POST', body: JSON.stringify({
+        executorId: 'lease-guard-worker', leaseToken: `wrong-${'x'.repeat(40)}`, errorCode: 'fixture', errorSummary: 'fixture failure', externalEffectState: 'uncertain',
+      }),
+    });
+    expect(wrongLease.response.status).toBe(409);
+    expect(wrongLease.body).toMatchObject({ error: { code: 'LEASE_LOST' } });
+    expect((await json(`/submission-intents/${intentId}`)).body.status).toBe('planned');
+    expect((await json(`/execution-attempts/${attemptId}`)).body.attempt).toMatchObject({ state: 'running', externalEffectState: 'not_crossed' });
+
+    const forgedBoundary = await json(`/execution-attempts/${attemptId}/fail`, {
+      method: 'POST', body: JSON.stringify({
+        executorId: 'lease-guard-worker', leaseToken, errorCode: 'fixture', errorSummary: 'fixture failure', externalEffectState: 'crossed',
+      }),
+    });
+    expect(forgedBoundary.response.status).toBe(409);
+    expect(forgedBoundary.body).toMatchObject({ error: { code: 'CONFLICT' } });
+    expect((await json(`/submission-intents/${intentId}`)).body.status).toBe('planned');
+    expect((await json(`/execution-attempts/${attemptId}`)).body.attempt).toMatchObject({ state: 'running', externalEffectState: 'not_crossed' });
+  });
+
   it('documents the Apply Executor control surface in generated OpenAPI', async () => {
     dir = await mkdtemp(join(tmpdir(), 'jh-apply-openapi-'));
     running = await startJobHarnessServer({ databasePath: join(dir, 'career.db'), host: '127.0.0.1', port: 0 });

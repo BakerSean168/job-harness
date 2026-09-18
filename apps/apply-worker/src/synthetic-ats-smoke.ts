@@ -203,7 +203,7 @@ async function main() {
     await driver.fill('#full-name', 'Synthetic Candidate');
     if (await driver.formStateHash() !== reviewedHash) throw new Error('Restored reviewed form did not return to the exact review hash');
 
-    const submission = await submitEngine.execute({ attempt, browser: driver });
+    const submission = await submitEngine.execute({ attempt, browser: driver, expectedFormStateHash: reviewedHash });
     if (submission.outcome !== 'success') throw new Error(`Synthetic submit was not explicitly verified: ${JSON.stringify(submission)}`);
     if (ats.submitCount() !== 1) throw new Error(`Expected exactly one external submit, got ${ats.submitCount()}`);
     const submitted = ats.lastSubmission();

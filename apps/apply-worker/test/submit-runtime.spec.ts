@@ -26,6 +26,7 @@ function backend(log: string[]): BrowserBackendPort {
   const driver: BrowserDriverPort = {
     async navigate() { throw new Error('authorized resume must not navigate a fresh page'); },
     currentUrl: () => 'https://jobs.example.test/apply',
+    async refreshCurrentUrl() { return 'https://jobs.example.test/apply'; },
     async title() { return 'Apply'; }, async bodyText() { return 'Ready'; }, async exists() { return true; }, async text() { return null; },
     async fill() { throw new Error('authorized submit must not refill'); }, async select() { throw new Error('authorized submit must not reselect'); }, async setChecked() { throw new Error('authorized submit must not recheck'); },
     async click(selector) { log.push(`click:${selector}`); }, async upload() { throw new Error('not used'); }, async wait() {}, async screenshot() { return new Uint8Array(); }, async scanActions() { return []; }, async scanControls() { return []; }, async formStateHash() { log.push('form-hash'); return 'd'.repeat(64); },
@@ -40,9 +41,9 @@ function backend(log: string[]): BrowserBackendPort {
   };
 }
 
-function submitAdapter(log: string[]): ApplySiteAdapter {
+function submitAdapter(log: string[], version = '1.0.0'): ApplySiteAdapter {
   return {
-    descriptor: { id: 'fixture-submit', version: '1.0.0', semantics: 'formal_application', priority: 100, capabilities: { inspect: false, enter: false, fill: false, validate: false, submit: true } },
+    descriptor: { id: 'fixture-submit', version, semantics: 'formal_application', priority: 100, capabilities: { inspect: false, enter: false, fill: false, validate: false, submit: true } },
     probe: ({ url }) => ({ supported: new URL(url).hostname === 'jobs.example.test', score: 1, reason: 'fixture' }),
     async inspect() { throw new Error('not used'); },
     async validate() { return { readyForReview: true, readyForSubmit: true, issues: [] }; },
@@ -99,4 +100,71 @@ describe('authorized supervised submit worker', () => {
     expect(log).not.toContain('click:#submit');
     expect(log.some((entry) => entry.startsWith('report-'))).toBe(false);
   });
+
+  it('refuses submit when the runtime adapter implementation version differs from the frozen reviewed Attempt version', async () => {
+    const log: string[] = [];
+    const attempt = authorizedAttempt();
+    const adapter = submitAdapter(log);
+    const driftedVersion: ApplySiteAdapter = {
+      ...adapter,
+      descriptor: { ...adapter.descriptor, version: '2.0.0' },
+    };
+    const engine = new SubmitExecutionEngine({ siteAdapters: new ApplySiteAdapterRegistry([driftedVersion]) });
+    const sessionBackend = backend(log);
+    const session = await sessionBackend.resume({
+      backendId: 'fake', sessionRef: 'fake-session-1', humanControlUrl: null,
+      retainedAt: '2026-09-17T15:00:00.000Z', expiresAt: '2099-01-01T00:00:00.000Z',
+    });
+    await expect(engine.execute({ attempt, browser: session.driver(), expectedFormStateHash: 'd'.repeat(64) })).rejects.toThrow(/runtime version '2.0.0'.*frozen Attempt version '1.0.0'/);
+    expect(log).not.toContain('adapter-submit');
+    expect(log).not.toContain('click:#submit');
+  });
+
+  it('re-checks the exact URL+form hash after boundary permission and refuses adapter submit on post-authorization drift', async () => {
+    const log: string[] = [];
+    const attempt = authorizedAttempt();
+    const driver: BrowserDriverPort = {
+      async navigate() { throw new Error('not used'); },
+      currentUrl: () => 'https://jobs.example.test/apply',
+      async refreshCurrentUrl() { return 'https://jobs.example.test/apply'; },
+      async title() { return 'Apply'; }, async bodyText() { return ''; }, async exists() { return true; }, async text() { return null; },
+      async fill() {}, async select() {}, async setChecked() {}, async click() { log.push('click'); }, async upload() {}, async wait() {},
+      async screenshot() { return new Uint8Array(); }, async scanActions() { return []; }, async scanControls() { return []; },
+      async formStateHash() { return 'e'.repeat(64); },
+    };
+    const engine = new SubmitExecutionEngine({ siteAdapters: new ApplySiteAdapterRegistry([submitAdapter(log)]) });
+    await expect(engine.execute({ attempt, browser: driver, expectedFormStateHash: 'd'.repeat(64) })).rejects.toThrow(/changed after submit authorization/);
+    expect(log).not.toContain('adapter-submit');
+    expect(log).not.toContain('click');
+  });
+
+  it('refuses to call a submit adapter when the retained live page has drifted outside that adapter family', async () => {
+    const log: string[] = [];
+    const attempt = authorizedAttempt();
+    const drifted: BrowserDriverPort = {
+      async navigate() { throw new Error('not used'); },
+      currentUrl: () => 'https://unexpected.example.test/apply',
+      async refreshCurrentUrl() { return 'https://unexpected.example.test/apply'; },
+      async title() { return 'Unexpected'; }, async bodyText() { return ''; }, async exists() { return true; }, async text() { return null; },
+      async fill() {}, async select() {}, async setChecked() {}, async click() { log.push('click'); }, async upload() {}, async wait() {},
+      async screenshot() { return new Uint8Array(); }, async scanActions() { return []; }, async scanControls() { return []; }, async formStateHash() { return 'd'.repeat(64); },
+    };
+    const engine = new SubmitExecutionEngine({ siteAdapters: new ApplySiteAdapterRegistry([submitAdapter(log)]) });
+    await expect(engine.execute({ attempt, browser: drifted, expectedFormStateHash: 'd'.repeat(64) })).rejects.toThrow(/no longer matches submit adapter/);
+    expect(log).not.toContain('adapter-submit');
+    expect(log).not.toContain('click');
+  });
+
+
+  it('refuses submit when the runtime adapter version differs from the version frozen on the reviewed Attempt', async () => {
+    const log: string[] = [];
+    const attempt = authorizedAttempt();
+    const engine = new SubmitExecutionEngine({ siteAdapters: new ApplySiteAdapterRegistry([submitAdapter(log, '2.0.0')]) });
+    const driver = backend(log);
+    const session = await driver.resume(attempt.browserSessionHandoff!);
+    await expect(engine.execute({ attempt, browser: session.driver(), expectedFormStateHash: 'd'.repeat(64) })).rejects.toThrow(/runtime version '2\.0\.0'.*frozen Attempt version '1\.0\.0'/);
+    expect(log).not.toContain('adapter-submit');
+    expect(log).not.toContain('click:#submit');
+  });
+
 });

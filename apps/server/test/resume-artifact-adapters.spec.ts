@@ -35,4 +35,13 @@ describe('Resume artifact infrastructure adapters', () => {
     expect(calls).toHaveLength(2);
     expect(calls.every((call) => call.authorization === 'Bearer private-renderer-token')).toBe(true);
   });
+
+  it('rejects a malformed renderer health payload at the HTTP adapter boundary', async () => {
+    const renderer = createHttpResumePdfRenderer({
+      baseUrl: 'http://renderer:3002',
+      fetch: async () => new Response(JSON.stringify({ ok: true, rendererId: 123, rendererVersion: null }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    });
+    await expect(renderer.describe()).rejects.toThrow();
+  });
+
 });

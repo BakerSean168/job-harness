@@ -19,6 +19,7 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
   }
 
   currentUrl(): string { return this.page.url(); }
+  async refreshCurrentUrl(): Promise<string> { return this.page.url(); }
   title(): Promise<string> { return this.page.title(); }
 
   async bodyText(limit = 50_000): Promise<string> {
@@ -119,7 +120,7 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
         }
         return [ref, element.tagName.toLowerCase(), element instanceof HTMLInputElement ? element.type : '', value] as const;
       }).sort((left, right) => JSON.stringify(left.slice(0, 3)).localeCompare(JSON.stringify(right.slice(0, 3))));
-      const bytes = new TextEncoder().encode(JSON.stringify(rows));
+      const bytes = new TextEncoder().encode(JSON.stringify({ url: location.href, rows }));
       const digest = await crypto.subtle.digest('SHA-256', bytes);
       return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
     });

@@ -163,7 +163,12 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
         });
       },
     },
-    { applicantData: createResumeRevisionApplicantDataGrant(resumeStore, applicantStore) },
+    {
+      applicantData: createResumeRevisionApplicantDataGrant(resumeStore, applicantStore),
+      onSafetyPersistenceError(incident) {
+        console.error('Job Harness apply safety persistence incident', JSON.stringify(incident));
+      },
+    },
   );
   const artifactDirectory = options.artifactDirectory ?? join(dirname(options.databasePath), 'resume-artifacts');
   const pdfRenderer = options.resumeRendererUrl

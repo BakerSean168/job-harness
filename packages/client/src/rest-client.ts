@@ -206,7 +206,9 @@ function parseErrorPayload(payload: unknown, status: number): JobHarnessRestErro
 }
 
 function normalizedBaseUrl(value: string): string {
-  return value.replace(/\/+$/, '');
+  const parsed = new URL(value);
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error(`Job Harness baseUrl must use HTTP(S), got '${parsed.protocol}'`);
+  return parsed.toString().replace(/\/+$/, '');
 }
 
 function append(query: URLSearchParams, key: string, value: string | number | boolean | undefined): void {

@@ -153,4 +153,18 @@ describe('MV3 page driver contract', () => {
     });
   });
 
+
+  it('binds the reviewed form hash to the exact page URL in both browser backends', async () => {
+    await withDriver(async (page) => {
+      const mv3Before = await command(page, 'form_state_hash');
+      const playwright = new PlaywrightBrowserDriver(page);
+      const pwBefore = await playwright.formStateHash();
+      await page.evaluate(() => history.pushState({}, '', '/different-application?step=review#confirm'));
+      const mv3After = await command(page, 'form_state_hash');
+      const pwAfter = await playwright.formStateHash();
+      expect(mv3After).not.toBe(mv3Before);
+      expect(pwAfter).not.toBe(pwBefore);
+    });
+  });
+
 });

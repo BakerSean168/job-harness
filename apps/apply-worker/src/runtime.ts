@@ -389,6 +389,8 @@ export class ApplyWorker {
     }
     const backend = this.backends.get(this.backendId);
     let session: BrowserSessionPort | null = null;
+    let attemptHeartbeat: NodeJS.Timeout | null = null;
+    let heartbeatError: unknown = null;
     let boundaryCrossed = false;
     try {
       await this.client.attempts.start({
@@ -400,9 +402,20 @@ export class ApplyWorker {
         browserBackend: this.backendId,
         checkpoint: 'submit-review-verify',
       });
+      attemptHeartbeat = setInterval(() => {
+        void this.client.attempts.heartbeat({
+          attemptId,
+          executorId: this.descriptor.executorId,
+          leaseToken,
+          leaseSeconds: this.leaseSeconds,
+          checkpoint: 'submit-review-verify',
+        }).catch((error) => { heartbeatError = error; });
+      }, this.attemptHeartbeatIntervalMs);
+      attemptHeartbeat.unref();
       session = await backend.resume(attempt.browserSessionHandoff, { executionScope: { attemptId, executorId: this.descriptor.executorId, leaseToken } });
       const driver = session.driver();
       const currentFormStateHash = await driver.formStateHash();
+      if (heartbeatError) throw heartbeatError;
       // This call is the single permission gate. The server first validates the
       // exact user-reviewed hash, moves SubmissionIntent to external_in_progress,
       // consumes the short-lived authorization, and only then returns permission
@@ -419,7 +432,7 @@ export class ApplyWorker {
         throw new Error(`Submit boundary returned unexpected state '${boundary.externalEffectState}'`);
       }
       boundaryCrossed = true;
-      const result = await this.submitEngine!.execute({ attempt, browser: driver });
+      const result = await this.submitEngine!.execute({ attempt, browser: driver, expectedFormStateHash: currentFormStateHash });
       if (result.outcome === 'success') {
         await this.client.attempts.reportSubmitSuccess({
           attemptId,
@@ -465,6 +478,7 @@ export class ApplyWorker {
       }
       return { claimed: true, attemptId, outcome: 'failed' };
     } finally {
+      if (attemptHeartbeat) clearInterval(attemptHeartbeat);
       if (session) await session.release().catch((error) => this.logger.warn('Browser session release failed', sanitizeError(error)));
     }
   }

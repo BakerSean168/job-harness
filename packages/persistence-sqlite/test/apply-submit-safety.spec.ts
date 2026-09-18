@@ -140,6 +140,38 @@ describe('review snapshot and submit authorization safety boundary', () => {
     f.applyStore.close(); f.careerStore.close();
   });
 
+  it('freezes adapter id/version/backend across human review and rejects mismatched review provenance', async () => {
+    const f = await fixture();
+    f.setClock(t1);
+    const lease1 = await claimStart(f);
+    await expect(f.apply.attempts.createReviewSnapshot({
+      attemptId: f.attempt.id, executorId: 'safety-worker', leaseToken: lease1, formStateHash: formHash,
+      formVersion: 'form-v1-fixture', catalogVersion: 'fixture-v1', siteAdapterId: 'generic-ats', siteAdapterVersion: '2.0.0',
+      summary: { fieldCount: 1, bindingCount: 1, filled: 1, failed: 0, manual: 0, requiredPending: 0, prohibitedCount: 0, blockingIssueCodes: [], readyForSubmit: true },
+    })).rejects.toBeInstanceOf(ApplyConflictError);
+
+    await f.apply.attempts.waiting({
+      attemptId: f.attempt.id, executorId: 'safety-worker', leaseToken: lease1,
+      reasonCode: 'review_ready', summary: 'Ready for review',
+      browserSessionHandoff: { backendId: 'steel', sessionRef: 'steel-session-provenance', humanControlUrl: null, retainedAt: t1, expiresAt: '2026-09-17T13:20:00.000Z' },
+    });
+    f.setClock(t2);
+    await f.apply.attempts.resume({ attemptId: f.attempt.id });
+    await f.apply.executors.heartbeat({ executorId: 'safety-worker', status: 'ready' });
+    const claim = await f.apply.attempts.claim({ executorId: 'safety-worker', leaseSeconds: 300 });
+    if (!claim) throw new Error('expected resumed claim');
+    await expect(f.apply.attempts.start({
+      attemptId: f.attempt.id, executorId: 'safety-worker', leaseToken: claim.leaseToken,
+      adapterId: 'generic-ats', adapterVersion: '2.0.0', browserBackend: 'steel', checkpoint: 'resume-after-review',
+    })).rejects.toBeInstanceOf(ApplyConflictError);
+
+    const current = await f.apply.attempts.get(f.attempt.id);
+    expect(current?.attempt).toMatchObject({
+      state: 'claimed', adapterId: 'generic-ats', adapterVersion: '1.0.0', browserBackend: 'steel',
+    });
+    f.applyStore.close(); f.careerStore.close();
+  });
+
   it('refuses authorization when the redacted review says required form work is still blocking', async () => {
     const f = await fixture();
     f.setClock(t1);
@@ -162,7 +194,7 @@ describe('review snapshot and submit authorization safety boundary', () => {
     const lease1 = await claimStart(f);
     const snapshot = await f.apply.attempts.createReviewSnapshot({
       attemptId: f.attempt.id, executorId: 'safety-worker', leaseToken: lease1, formStateHash: formHash,
-      formVersion: 'f', catalogVersion: 'c', siteAdapterId: 'generic-ats', siteAdapterVersion: '1', browserSessionRef: 's1',
+      formVersion: 'f', catalogVersion: 'c', siteAdapterId: 'generic-ats', siteAdapterVersion: '1.0.0', browserSessionRef: 's1',
       summary: { fieldCount: 1, bindingCount: 1, filled: 1, failed: 0, manual: 0, requiredPending: 0, prohibitedCount: 0, blockingIssueCodes: [], readyForSubmit: true },
     });
     await f.apply.attempts.waiting({ attemptId: f.attempt.id, executorId: 'safety-worker', leaseToken: lease1, reasonCode: 'review_ready', summary: 'Ready', browserSessionHandoff: { backendId: 'steel', sessionRef: 's1', humanControlUrl: null, retainedAt: t1, expiresAt: '2026-09-17T13:20:00.000Z' } });

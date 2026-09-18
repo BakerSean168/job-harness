@@ -440,3 +440,45 @@ After binding the review hash to page identity, one final timing window remains:
 The post-remediation trust-boundary scan found several smaller bypasses outside the primary REST/Steel path: Local CDP health uses an unbounded raw `fetch`, Resume Renderer health casts `response.json()` instead of decoding it, the shared REST client accepts an unvalidated base URL, and a handful of server-side Web/extension pairing calls use raw fetches without a bounded deadline. These paths are not external recruiting-site submit boundaries, but a half-open dependency or malformed private-service response can still hang UI/worker readiness or fail far from the actual boundary.
 
 **Required change:** validate the shared REST base URL as HTTP(S), put Local CDP health behind a short deadline, runtime-decode the renderer health payload, and give the remaining Web/extension pairing/download bridge calls explicit request deadlines. Keep file-download streaming semantics intact; the timeout should bound connection/response establishment rather than reinterpret payload bytes.
+
+## 16. Second-pass remediation evidence
+
+A second deterministic-automation / submit-safety pass was executed after the first audit closure. Findings A21-A29 are now implemented before any production adapter is allowed to advertise `submit: true`.
+
+### 16.1 Browser action identity and result transport
+
+**A21 — fixed.** MV3 and Playwright drivers no longer derive persistent field/action refs from the current DOM index. They allocate document-scoped unique refs, preserve a ref only while it remains unique, repair collisions, and allocate radio-group refs independently. Live DOM mutation tests insert new controls/actions before previously scanned elements and prove old refs stay stable, every ref remains unique, and subsequent writes still reach the intended element.
+
+**A22 — fixed.** Browser command execution now produces one immutable result record exactly once. Only result acknowledgement is retried after transport uncertainty. The Bridge keeps a bounded completed-result receipt window and idempotently acknowledges duplicate result delivery for the same agent/command id. Tests prove a lost first acknowledgement causes a result retry without re-executing the page action.
+
+### 16.2 External-effect authority and safety observability
+
+**A23 / A25 — fixed.** Generic attempt failure reporting now proves the active lease before any business-side mutation and cannot advance `externalEffectState`. The caller-supplied effect state must equal the already-durable Attempt state; only the dedicated submit-boundary protocol can move `not_crossed -> crossed`, and only dedicated submit outcome reporting can move to `uncertain`. Wrong-lease and forged-boundary REST regression tests prove SubmissionIntent and Attempt truth remain unchanged.
+
+**A24 — fixed.** Best-effort manual-review recovery failures remain fail-closed but are no longer silent. `ApplyRuntimeOptions.onSafetyPersistenceError` emits structured incident metadata (`attemptId`, `intentId`, reason, operation, message); the server logs the incident without letting observability failure authorize or replay a site action. A runtime test proves the incident hook fires while claim behavior stays conservative.
+
+### 16.3 Review provenance and last-moment submit validation
+
+**A26 — fixed.** Both browser backends include the exact current `location.href` in the reviewed form-state hash. The Extension driver refreshes its cached URL when hashing. Before adapter submit, `SubmitExecutionEngine` refreshes the live URL and requires the frozen adapter to still support that page family. URL drift with unchanged form values now changes the review hash in both backends.
+
+**A27 — fixed.** Adapter id/version/backend become immutable once an Attempt binds them. Human-review resume cannot silently switch adapter implementation or backend. `ReviewSnapshot.siteAdapterId/siteAdapterVersion` must exactly match the bound Attempt, and submit execution refuses a runtime adapter version different from the frozen reviewed version. Regression tests cover review mismatch, resume-time version drift and runtime submit-adapter drift.
+
+**A28 — fixed.** The hash accepted by `begin-submit` is carried into the submit engine and re-computed immediately before the site adapter is called. Same-family page/form drift after permission therefore fails closed without invoking submit. The authorized-submit worker path now keeps the Attempt lease alive with the same bounded heartbeat discipline used by readiness/form-fill, and surfaces heartbeat failure before crossing the boundary whenever possible.
+
+### 16.4 Remaining secondary HTTP/runtime boundaries
+
+**A29 — fixed.** The shared REST client validates an HTTP(S) base URL up front. Local CDP health has a bounded request deadline. Resume Renderer health is runtime-decoded through a schema rather than statically cast. Raw server-side Web download/Bridge calls now bound response establishment without aborting a returned download stream later, and Browser Extension pairing has an explicit timeout. New tests cover invalid REST schemes, half-open Local CDP health and malformed renderer health payloads.
+
+### 16.5 Final repository verification for this pass
+
+- `pnpm check`: **PASS**
+- Vitest: **87 test files / 195 tests PASS**
+- TypeScript strict build: **PASS**
+- package dependency guard: **PASS**
+- Browser Extension authority/static gate: **PASS**
+- OpenAPI no-drift: **PASS**
+- Next.js production build: **PASS**
+- ChatGPT integration: **32 tools / 18 required workflow tools / 0 external-side-effect tools**
+- synthetic supervised submit: **PASS**, one submit action, one external reference, legal field left blank, exact PDF filename preserved, review drift detected
+
+No production site adapter advertises `submit: true`; these changes harden the generic control plane and deterministic browser contract without enabling unattended external submission.

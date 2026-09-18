@@ -168,6 +168,10 @@ class ExtensionBrowserDriver implements BrowserDriverPort {
     await this.refreshUrl();
   }
   currentUrl(): string { return this.currentUrlValue; }
+  async refreshCurrentUrl(): Promise<string> {
+    await this.refreshUrl();
+    return this.currentUrlValue;
+  }
   async title(): Promise<string> { return stringResult(await this.backend.invoke(this.scope, this.sessionRef, { type: 'title', payload: {} }), 'title'); }
   async bodyText(limit = 50_000): Promise<string> { return stringResult(await this.backend.invoke(this.scope, this.sessionRef, { type: 'body_text', payload: { limit } }), 'body_text'); }
   async exists(selector: string): Promise<boolean> { return booleanResult(await this.backend.invoke(this.scope, this.sessionRef, { type: 'exists', payload: { selector } }), 'exists'); }
@@ -203,6 +207,7 @@ class ExtensionBrowserDriver implements BrowserDriverPort {
   }
   async formStateHash(): Promise<string> {
     const hash = stringResult(await this.backend.invoke(this.scope, this.sessionRef, { type: 'form_state_hash', payload: {} }), 'form_state_hash');
+    await this.refreshUrl();
     if (!/^[a-f0-9]{64}$/i.test(hash)) throw new Error('Browser extension returned an invalid form-state hash');
     return hash.toLowerCase();
   }

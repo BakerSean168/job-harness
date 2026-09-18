@@ -38,26 +38,34 @@ async function save() {
 
 async function exchangePairing(value, pairingCode) {
   const base = normalizedBridgeUrl(value.bridgeUrl);
-  const response = await fetch(`${base}/pair`, {
-    method: "POST",
-    cache: "no-store",
-    headers: { "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify({
-      pairingCode,
-      agentId: value.agentId,
-      name: value.agentName || "Windows Chrome",
-      version: chrome.runtime.getManifest().version,
-      browserName: "Chrome",
-      platform: navigator.platform || null,
-      capabilities: {
-        humanControl: true,
-        persistentSession: true,
-        resumeUpload: Boolean(value.resumeUpload),
-        screenshots: Boolean(value.screenshots),
-        driverCommands: [...baseDriverCommands, ...(value.resumeUpload ? ["upload"] : []), ...(value.screenshots ? ["screenshot"] : [])],
-      },
-    }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error("配对请求超时")), 15000);
+  let response;
+  try {
+    response = await fetch(`${base}/pair`, {
+      method: "POST",
+      cache: "no-store",
+      signal: controller.signal,
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        pairingCode,
+        agentId: value.agentId,
+        name: value.agentName || "Windows Chrome",
+        version: chrome.runtime.getManifest().version,
+        browserName: "Chrome",
+        platform: navigator.platform || null,
+        capabilities: {
+          humanControl: true,
+          persistentSession: true,
+          resumeUpload: Boolean(value.resumeUpload),
+          screenshots: Boolean(value.screenshots),
+          driverCommands: [...baseDriverCommands, ...(value.resumeUpload ? ["upload"] : []), ...(value.screenshots ? ["screenshot"] : [])],
+        },
+      }),
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   const body = await response.json().catch(() => null);
   if (!response.ok) throw new Error(body?.error?.message || `配对失败：HTTP ${response.status}`);
   if (!body?.agentToken) throw new Error("配对响应缺少 Agent Token");

@@ -66,6 +66,7 @@ export interface BrowserClickExpectation {
 export interface BrowserDriverPort {
   navigate(url: string): Promise<void>;
   currentUrl(): string;
+  refreshCurrentUrl(): Promise<string>;
   title(): Promise<string>;
   bodyText(limit?: number): Promise<string>;
   exists(selector: string): Promise<boolean>;

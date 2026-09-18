@@ -11,14 +11,18 @@ import type {
 
 export interface LocalCdpBrowserBackendOptions {
   readonly endpoint?: string;
+  readonly requestTimeoutMs?: number;
 }
 
 export class LocalCdpBrowserBackend implements BrowserBackendPort {
   readonly id = 'local-cdp';
   private readonly endpoint: string;
+  private readonly requestTimeoutMs: number;
 
   constructor(options: LocalCdpBrowserBackendOptions = {}) {
     this.endpoint = options.endpoint ?? 'http://127.0.0.1:9222';
+    this.requestTimeoutMs = options.requestTimeoutMs ?? 5_000;
+    if (!Number.isFinite(this.requestTimeoutMs) || this.requestTimeoutMs <= 0) throw new Error('Local CDP requestTimeoutMs must be a positive finite number');
   }
 
   describe(): BrowserBackendDescriptor {
@@ -27,7 +31,7 @@ export class LocalCdpBrowserBackend implements BrowserBackendPort {
 
   async health(): Promise<{ ok: boolean; detail: string | null }> {
     try {
-      const response = await fetch(`${this.endpoint.replace(/\/+$/, '')}/json/version`);
+      const response = await fetch(`${this.endpoint.replace(/\/+$/, '')}/json/version`, { signal: AbortSignal.timeout(this.requestTimeoutMs) });
       return response.ok ? { ok: true, detail: null } : { ok: false, detail: `CDP HTTP ${response.status}` };
     } catch (error) {
       return { ok: false, detail: error instanceof Error ? error.message : String(error) };

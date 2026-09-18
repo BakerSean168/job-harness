@@ -10,6 +10,12 @@ function response(body: unknown, status = 200): Response {
   });
 }
 
+describe('Job Harness REST client configuration', () => {
+  it('rejects non-HTTP base URLs before issuing a request', () => {
+    expect(() => createJobHarnessRestClient({ baseUrl: 'file:///tmp/job-harness' })).toThrow(/HTTP\(S\)/);
+  });
+});
+
 describe('Job Harness REST client', () => {
   it('encodes list filters, injects bearer auth and validates a Jobs workspace response', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
