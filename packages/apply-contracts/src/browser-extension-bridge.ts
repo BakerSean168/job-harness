@@ -56,7 +56,7 @@ export const BrowserExtensionAgentStatusSchema = BrowserExtensionAgentRegistrati
 
 const SessionAcquireCommandSchema = z.object({
   type: z.literal('session_acquire'),
-  payload: z.object({ preferredUrl: z.url().nullable().default(null), reuseLiveSession: z.boolean().default(false) }).strict(),
+  payload: z.object({ preferredUrl: z.url().nullable().default(null), reuseLiveSession: z.boolean().default(false), requireLiveSession: z.boolean().default(false) }).strict(),
 }).strict();
 const NavigateCommandSchema = z.object({ type: z.literal('navigate'), payload: z.object({ url: z.url() }).strict() }).strict();
 const CurrentUrlCommandSchema = z.object({ type: z.literal('current_url'), payload: z.object({}).strict() }).strict();

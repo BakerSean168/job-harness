@@ -45,9 +45,11 @@ export async function saveApplicationAnswerSetAction(_previous: ApplicantSetting
 export async function characterizeAtsSiteAction(_previous: AtsCharacterizationActionState, formData: FormData): Promise<AtsCharacterizationActionState> {
   const agentId = String(formData.get('agentId') ?? '').trim();
   const targetUrl = String(formData.get('targetUrl') ?? '').trim();
+  const requestedMode = String(formData.get('mode') ?? 'site-readonly').trim();
+  const mode = requestedMode === 'site-staged-readonly' ? 'site-staged-readonly' as const : 'site-readonly' as const;
   if (!agentId || !targetUrl) return { ok: false, runId: null, agentId: null, error: 'Agent ID and target URL are required', evidence: null };
   try {
-    const result = await characterizeBrowserExtensionSite({ agentId, targetUrl });
+    const result = await characterizeBrowserExtensionSite({ agentId, targetUrl, mode });
     return { ok: true, runId: result.runId, agentId, error: null, evidence: result.evidence };
   } catch (error) {
     return { ok: false, runId: null, agentId: null, error: error instanceof Error ? error.message : String(error), evidence: null };

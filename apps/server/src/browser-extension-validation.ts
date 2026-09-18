@@ -14,7 +14,7 @@ import {
 import { writeCommonRestError, writeInternalRestError, writeRestError } from './http-errors';
 
 const ValidationRunIdSchema = z.string().trim().min(1).max(200);
-const ValidationModeSchema = z.enum(['synthetic-canary', 'site-readonly']);
+const ValidationModeSchema = z.enum(['synthetic-canary', 'site-readonly', 'site-staged-readonly']);
 const ReadonlySiteFamilySchema = z.enum(['zhilian', 'liepin']);
 type ReadonlySiteFamily = z.infer<typeof ReadonlySiteFamilySchema>;
 const CreateValidationRunInputSchema = z.object({
@@ -148,7 +148,7 @@ export class BrowserExtensionValidationRegistry {
     this.reap();
     const run = this.requireRun(id);
     const input = InvokeValidationCommandInputSchema.parse(raw);
-    const allowedCommands = run.mode === 'site-readonly' ? READONLY_SITE_COMMANDS : SAFE_VALIDATION_COMMANDS;
+    const allowedCommands = run.mode === 'site-readonly' || run.mode === 'site-staged-readonly' ? READONLY_SITE_COMMANDS : SAFE_VALIDATION_COMMANDS;
     if (!allowedCommands.has(input.command.type)) {
       throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', `Browser validation mode '${run.mode}' does not allow '${input.command.type}'`, 403);
     }
@@ -165,8 +165,12 @@ export class BrowserExtensionValidationRegistry {
       if (!preferred || this.validateTarget(preferred, run.mode) !== run.targetUrl) {
         throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'Browser validation session must acquire the frozen canary URL', 409);
       }
-      if (input.command.payload.reuseLiveSession) {
-        throw new BrowserExtensionBridgeError('VALIDATION_REUSE_DENIED', 'Browser validation must create an isolated Chrome tab', 403);
+      const staged = run.mode === 'site-staged-readonly';
+      if (!staged && input.command.payload.reuseLiveSession) {
+        throw new BrowserExtensionBridgeError('VALIDATION_REUSE_DENIED', 'This browser validation mode must create an isolated Chrome tab', 403);
+      }
+      if (staged && (!input.command.payload.reuseLiveSession || input.command.payload.requireLiveSession !== true)) {
+        throw new BrowserExtensionBridgeError('VALIDATION_LIVE_SESSION_REQUIRED', 'Staged read-only characterization must reuse an already-open Chrome tab and may not create or navigate one', 403);
       }
       const output = await this.bridge.invoke(InvokeBrowserExtensionCommandInputSchema.parse({
         agentId: run.agentId,
@@ -216,13 +220,14 @@ export class BrowserExtensionValidationRegistry {
   async characterize(id: string): Promise<{ run: BrowserExtensionValidationRun; evidence: BrowserExtensionCharacterizationEvidence }> {
     this.reap();
     const run = this.requireRun(id);
-    if (run.mode !== 'site-readonly') {
-      throw new BrowserExtensionBridgeError('VALIDATION_MODE_REQUIRED', 'Characterization requires a site-readonly validation run', 409);
+    if (run.mode !== 'site-readonly' && run.mode !== 'site-staged-readonly') {
+      throw new BrowserExtensionBridgeError('VALIDATION_MODE_REQUIRED', 'Characterization requires a read-only site validation run', 409);
     }
     if (!run.sessionRef) {
+      const staged = run.mode === 'site-staged-readonly';
       await this.invoke(id, {
         sessionRef: null,
-        command: { type: 'session_acquire', payload: { preferredUrl: run.targetUrl, reuseLiveSession: false } },
+        command: { type: 'session_acquire', payload: { preferredUrl: run.targetUrl, reuseLiveSession: staged, requireLiveSession: staged } },
         timeoutMs: 30_000,
       });
     }

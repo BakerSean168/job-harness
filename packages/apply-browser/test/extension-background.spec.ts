@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 type BackgroundHarness = {
   executePageDriver(tabId: number, command: unknown): Promise<unknown>;
   executeEnvelope(config: Record<string, unknown>, envelope: Record<string, unknown>): Promise<void>;
+  acquireSession(payload: Record<string, unknown>): Promise<unknown>;
 };
 
 async function loadBackground(
@@ -14,6 +15,7 @@ async function loadBackground(
   const source = await readFile(new URL('../../../integrations/browser-extension/background.js', import.meta.url), 'utf8');
   let sendCount = 0;
   let injectionCount = 0;
+  let createCount = 0;
   const noopListener = { addListener: () => undefined };
   const chrome = {
     runtime: {
@@ -32,7 +34,7 @@ async function loadBackground(
       sendMessage: async (...args: unknown[]) => { sendCount += 1; return sendMessage(...args); },
       query: async () => [],
       update: async () => ({}),
-      create: async () => ({ id: 7, url: 'https://example.test/apply', status: 'complete' }),
+      create: async () => { createCount += 1; return { id: 7, url: 'https://example.test/apply', status: 'complete' }; },
       onUpdated: { addListener: () => undefined, removeListener: () => undefined },
       captureVisibleTab: async () => 'data:image/png;base64,',
     },
@@ -56,14 +58,14 @@ async function loadBackground(
   }) as vm.Context & BackgroundHarness;
   vm.runInContext(source, context, { filename: 'background.js' });
   await Promise.resolve();
-  return { context, counts: () => ({ sendCount, injectionCount }) };
+  return { context, counts: () => ({ sendCount, injectionCount, createCount }) };
 }
 
 describe('MV3 browser command delivery boundary', () => {
   it('does not replay a page action when the page driver accepted the command and returned an application error', async () => {
     const { context, counts } = await loadBackground(async () => ({ __jobHarnessDriverError: 'write failed after acceptance' }));
     await expect(context.executePageDriver(7, { type: 'fill', payload: { selector: '#name', value: 'A' } })).rejects.toThrow(/write failed after acceptance/);
-    expect(counts()).toEqual({ sendCount: 1, injectionCount: 1 });
+    expect(counts()).toMatchObject({ sendCount: 1, injectionCount: 1 });
   });
 
   it('retries delivery once when sendMessage itself cannot reach the replaced content-script world', async () => {
@@ -74,7 +76,14 @@ describe('MV3 browser command delivery boundary', () => {
       return null;
     });
     await expect(context.executePageDriver(7, { type: 'scan_controls', payload: {} })).resolves.toBeNull();
-    expect(counts()).toEqual({ sendCount: 2, injectionCount: 2 });
+    expect(counts()).toMatchObject({ sendCount: 2, injectionCount: 2 });
+  });
+
+  it('never creates a tab when a staged characterization requires a reusable live session', async () => {
+    const { context, counts } = await loadBackground(async () => null);
+    await expect(context.acquireSession({ preferredUrl: 'https://www.zhaopin.com/jobdetail/CC1.htm', reuseLiveSession: true, requireLiveSession: true }))
+      .rejects.toThrow(/No reusable live Chrome tab/);
+    expect(counts().createCount).toBe(0);
   });
 
   it('retries only idempotent result acknowledgement when the first result response is lost', async () => {

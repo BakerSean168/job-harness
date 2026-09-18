@@ -20,6 +20,10 @@ export interface AtsCharacterizationCopy {
   readonly agent: string;
   readonly targetUrl: string;
   readonly targetHint: string;
+  readonly mode: string;
+  readonly isolatedMode: string;
+  readonly stagedMode: string;
+  readonly stagedHint: string;
   readonly run: string;
   readonly running: string;
   readonly error: string;
@@ -99,7 +103,14 @@ export function AtsCharacterizationPanel({
         <label>{copy.targetUrl}
           <input name="targetUrl" type="url" required placeholder="https://www.zhaopin.com/jobdetail/...htm" disabled={!online.length || pending} />
         </label>
+        <label>{copy.mode}
+          <select name="mode" defaultValue="site-readonly" disabled={!online.length || pending}>
+            <option value="site-readonly">{copy.isolatedMode}</option>
+            <option value="site-staged-readonly">{copy.stagedMode}</option>
+          </select>
+        </label>
         <p className="settings-note">{copy.targetHint}</p>
+        <p className="settings-note">{copy.stagedHint}</p>
         <button className="action-button" type="submit" disabled={!online.length || pending}>{pending ? copy.running : copy.run}</button>
       </form>
       {!state.ok && state.error ? <p className="form-error" role="alert">{copy.error}: {state.error}</p> : null}

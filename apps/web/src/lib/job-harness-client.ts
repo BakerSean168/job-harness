@@ -167,11 +167,11 @@ function upstreamMessage(body: unknown, status: number): string {
   return `HTTP ${status}`;
 }
 
-export async function characterizeBrowserExtensionSite(input: { agentId: string; targetUrl: string }): Promise<AtsCharacterizationResult> {
+export async function characterizeBrowserExtensionSite(input: { agentId: string; targetUrl: string; mode?: 'site-readonly' | 'site-staged-readonly' }): Promise<AtsCharacterizationResult> {
   const headers = browserExtensionHeaders();
   const createResponse = await fetchWithHeaderTimeout(browserExtensionBridgeUrl('/validation-runs'), {
     method: 'POST', headers, cache: 'no-store',
-    body: JSON.stringify({ agentId: input.agentId, targetUrl: input.targetUrl, mode: 'site-readonly', ttlMs: 600_000 }),
+    body: JSON.stringify({ agentId: input.agentId, targetUrl: input.targetUrl, mode: input.mode ?? 'site-readonly', ttlMs: 600_000 }),
   }, 30_000);
   const created = await createResponse.json().catch(() => null) as unknown;
   if (!createResponse.ok) throw new Error(`ATS characterization start failed: ${upstreamMessage(created, createResponse.status)}`);

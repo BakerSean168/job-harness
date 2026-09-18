@@ -95,6 +95,38 @@ describe('browser-extension validation scope', () => {
     bridge.close();
   });
 
+  it('staged read-only characterization requires an existing live tab and still denies every browser write', async () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge);
+    const registry = new BrowserExtensionValidationRegistry(bridge, {
+      allowedOrigin: 'https://job-harness.test:20900', readonlySiteFamilies: ['zhilian', 'liepin'],
+    });
+    const target = 'https://www.zhaopin.com/jobdetail/CC168270920J40838372514.htm';
+    const run = registry.create({ agentId: 'windows-chrome-primary', targetUrl: target, mode: 'site-staged-readonly' });
+
+    await expect(registry.invoke(run.id, {
+      sessionRef: null, command: { type: 'session_acquire', payload: { preferredUrl: target, reuseLiveSession: false, requireLiveSession: false } }, timeoutMs: 5_000,
+    })).rejects.toMatchObject({ code: 'VALIDATION_LIVE_SESSION_REQUIRED' });
+
+    const acquirePromise = registry.invoke(run.id, {
+      sessionRef: null, command: { type: 'session_acquire', payload: { preferredUrl: target, reuseLiveSession: true, requireLiveSession: true } }, timeoutMs: 5_000,
+    });
+    const acquire = await answerOne(bridge, { sessionRef: 'chrome-tab:44', currentUrl: target });
+    expect(acquire.command).toMatchObject({ type: 'session_acquire', payload: { reuseLiveSession: true, requireLiveSession: true } });
+    await expect(acquirePromise).resolves.toMatchObject({ run: { sessionRef: 'chrome-tab:44', mode: 'site-staged-readonly', writeCount: 0 } });
+
+    for (const command of [
+      { type: 'fill', payload: { selector: '#name', value: 'x' } },
+      { type: 'select', payload: { selector: '#resume', value: 'AI Agent简历' } },
+      { type: 'upload', payload: { selector: '#resume-file', file: { name: 'resume.pdf', mimeType: 'application/pdf', bytesBase64: 'AA==' } } },
+      { type: 'click', payload: { selector: '#submit', expectedText: '确认投递' } },
+      { type: 'screenshot', payload: {} },
+    ] as const) {
+      await expect(registry.invoke(run.id, { sessionRef: 'chrome-tab:44', command, timeoutMs: 5_000 })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
+    }
+    bridge.close();
+  });
+
   it('orchestrates a complete read-only characterization and persists only redacted structure evidence', async () => {
     const bridge = new BrowserExtensionBridge();
     register(bridge);

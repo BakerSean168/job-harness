@@ -186,6 +186,9 @@ async function acquireSession(payload) {
     const active = await chrome.tabs.query({ active: true, currentWindow: true });
     tab = active.find((candidate) => candidate.id != null) || null;
   }
+  if (!tab && payload?.requireLiveSession) {
+    throw new Error('No reusable live Chrome tab matched the requested session');
+  }
   if (!tab) {
     tab = await chrome.tabs.create({ url: preferredUrl || "about:blank", active: true });
     if (tab.id == null) throw new Error("Chrome did not return a tab id");

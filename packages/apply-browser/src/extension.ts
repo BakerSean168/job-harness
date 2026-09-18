@@ -68,7 +68,7 @@ export class ExtensionBrowserBackend implements BrowserBackendPort {
     const scope = requireExecutionScope(request);
     const result = await this.invoke(scope, null, {
       type: 'session_acquire',
-      payload: { preferredUrl: request.preferredUrl ?? null, reuseLiveSession: request.reuseLiveSession ?? false },
+      payload: { preferredUrl: request.preferredUrl ?? null, reuseLiveSession: request.reuseLiveSession ?? false, requireLiveSession: false },
     });
     const record = objectResult(result, 'session_acquire');
     const sessionRef = stringField(record, 'sessionRef');
