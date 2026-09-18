@@ -297,7 +297,16 @@ export class SqliteApplyStore implements ApplyStorePort {
       const db = session.db;
       const intent = db.prepare('SELECT status FROM submission_intents WHERE id = ?').get(attempt.intentId) as Row | undefined;
       if (!intent) throw new ApplyNotFoundError('SubmissionIntent', attempt.intentId);
-      if (String(intent.status) !== 'planned') throw new ApplyConflictError(`SubmissionIntent '${attempt.intentId}' is '${String(intent.status)}' and cannot be dispatched`);
+      const reconciliationOnly = attempt.policySnapshot.reconciliationOnly === true
+        && attempt.policySnapshot.readinessOnly === true
+        && attempt.policySnapshot.allowFormFill !== true
+        && attempt.policySnapshot.allowApplicationEntry !== true
+        && attempt.policySnapshot.submitAllowed !== true
+        && attempt.executionMode === 'fill_only'
+        && attempt.requiredAdapterId === 'readiness-v1'
+        && attempt.preferredBrowserBackend === 'extension';
+      const dispatchable = String(intent.status) === 'planned' || (String(intent.status) === 'needs_manual_review' && reconciliationOnly);
+      if (!dispatchable) throw new ApplyConflictError(`SubmissionIntent '${attempt.intentId}' is '${String(intent.status)}' and cannot be dispatched`);
       db.prepare(`INSERT INTO execution_attempts(
         id,intent_id,executor_id,required_adapter_id,adapter_id,adapter_version,preferred_browser_backend,browser_backend,browser_session_handoff_json,
         execution_mode,state,lease_owner,lease_token_hash,lease_expires_at,last_heartbeat_at,checkpoint,external_effect_state,

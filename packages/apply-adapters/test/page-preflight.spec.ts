@@ -57,6 +57,19 @@ describe('apply page preflight classification', () => {
     expect(generic).toMatchObject({ state: 'job_detail', canInspectForm: false, reasonCode: 'application_entry_required' });
   });
 
+  it('treats Nowcoder submit-success text as authoritative even while stale modal controls remain mounted', () => {
+    const result = classify({
+      url: 'https://www.nowcoder.com/jobs/detail/463747',
+      bodyText: '简历投递成功',
+      controls: [
+        control({ controlRef: '#question', kind: 'text', label: '题库' }),
+        control({ controlRef: '#resume1', kind: 'file', label: '简历', semanticHints: ['jsAttachUpload1_1'] }),
+        control({ controlRef: '#resume2', kind: 'file', label: '附件', semanticHints: ['jsAttachUpload2_1'] }),
+      ],
+    });
+    expect(result).toMatchObject({ state: 'submitted_state', canInspectForm: false, reasonCode: 'submitted_state_requires_reconciliation' });
+  });
+
   it('treats Nowcoder continue-contact as an existing application relation and success signal', () => {
     const result = classify({
       url: 'https://www.nowcoder.com/jobs/detail/456372',

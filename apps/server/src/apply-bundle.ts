@@ -19,7 +19,9 @@ export function createApplyBundleFactory(
     async create(input) {
       const intent = await career.submissionIntents.get(input.intentId);
       if (!intent) throw new ApplyNotFoundError('SubmissionIntent', input.intentId);
-      if (intent.status !== 'planned') throw new ApplyConflictError(`SubmissionIntent '${intent.id}' is '${intent.status}' and cannot be dispatched`);
+      const reconciliationOnly = input.policySnapshot.reconciliationOnly === true;
+      const dispatchable = intent.status === 'planned' || (intent.status === 'needs_manual_review' && reconciliationOnly);
+      if (!dispatchable) throw new ApplyConflictError(`SubmissionIntent '${intent.id}' is '${intent.status}' and cannot be dispatched`);
       const job = await career.jobs.getJob(intent.jobId); if (!job) throw new ApplyNotFoundError('Job', intent.jobId);
       const listing = intent.listingId == null ? null : job.listings.find((candidate) => candidate.id === intent.listingId) ?? null;
       if (intent.listingId && !listing) throw new ApplyNotFoundError('JobListing', intent.listingId);

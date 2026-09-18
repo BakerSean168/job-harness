@@ -10,7 +10,7 @@ import type {
   ResumeArtifactGrantOutput,
 } from '@job-harness/apply-contracts';
 import type { BrowserBackendRegistry, BrowserSessionPort } from '@job-harness/apply-browser';
-import type { ApplicantDataProviderPort } from '@job-harness/apply-adapters';
+import { inspectApplyPagePreflight, type ApplicantDataProviderPort } from '@job-harness/apply-adapters';
 import type { FormFillExecutionEngine } from './form-fill-engine';
 import type { SubmitExecutionEngine } from './submit-engine';
 
@@ -345,6 +345,9 @@ export class ApplyWorker {
       if (heartbeatError) throw heartbeatError;
       const title = sanitizeText(await driver.title(), 240);
       const body = await driver.bodyText(50_000);
+      const reconciliation = attempt.policySnapshot.reconciliationOnly === true
+        ? await inspectApplyPagePreflight(driver)
+        : null;
       const currentUrl = driver.currentUrl();
       const current = new URL(currentUrl);
       const target = new URL(targetUrl);
@@ -363,6 +366,12 @@ export class ApplyWorker {
           observedPath: current.pathname.slice(0, 500),
           title,
           bodyTextLength: body.length,
+          ...(reconciliation ? {
+            reconciliationOnly: true,
+            reconciliationState: reconciliation.state,
+            reconciliationReasonCode: reconciliation.reasonCode,
+            reconciliationEvidence: reconciliation.evidence,
+          } : {}),
         },
       });
       return { claimed: true, attemptId, outcome: 'completed' };

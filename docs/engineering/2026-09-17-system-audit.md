@@ -671,3 +671,14 @@ Inspection of the live behavior showed the ReviewSnapshot had been created immed
 The same live canary exposed a control-plane cleanup issue: a known 409 `Current form state no longer matches the authorized ReviewSnapshot` was logged by the Worker but left the Attempt `running` until its lease expired. This was safe but operationally noisy, and the abandoned Attempt retained an active authorization record until manually revoked.
 
 **A42 — fixed.** The Worker now recognizes only that exact typed 409 conflict as a known pre-boundary stale-review result and reports `submit_review_stale` immediately. Ambiguous network/lost-response failures retain the existing conservative lease-expiry behavior because the durable boundary might have crossed without the response arriving. Separately, generic terminal failure handling now revokes any still-active SubmitAuthorization while `externalEffectState=not_crossed` before marking the Attempt failed, preventing stale authorization residue.
+
+### Finding A43 — post-submit uncertainty needs an explicit read-only reconciliation path
+
+The first real Nowcoder submit click crossed the durable external-effect boundary and consumed its user authorization exactly once, but the adapter reported `uncertain` because post-submit preflight still classified the retained modal as `application_form`. No Application/ApplicationSubmission was committed and automatic retry remained blocked.
+
+Two concrete issues were identified:
+
+1. Known-site success evidence was too conservative. `classifyApplyPage` required fewer than two controls even when Nowcoder showed an authoritative submit-success text or known existing-relationship action. Nowcoder may leave stale modal/file controls mounted after submission, so those controls must not override strong site-scoped success evidence.
+2. `needs_manual_review` intents had no safe way to reopen the logged-in job page for reconciliation. The existing `readiness-v1` worker was already read-only, but dispatch/bundle/persistence guards correctly allowed only `planned` intents and the Extension Worker did not advertise readiness capability.
+
+**A43 — fixed.** Known Nowcoder success text (`投递成功` / related canonical submit-success signals) and known existing-relationship actions now classify as `submitted_state` even if stale modal controls remain mounted; generic ATS behavior is unchanged. A dedicated reconciliation-only dispatch contract now permits `needs_manual_review` only when all of these are frozen: `fill_only`, `readiness-v1`, `extension`, `readinessOnly=true`, `reconciliationOnly=true`, and every site-write policy (`allowFormFill`, `allowApplicationEntry`, `submitAllowed`) is false. The Extension Worker advertises `readiness-v1`, and readiness completion records only conservative classification/evidence; it never fills, uploads, or clicks.

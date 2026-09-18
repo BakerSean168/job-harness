@@ -48,7 +48,9 @@ const siteAdapters = phase === 'form-fill'
 const formFillEngine = siteAdapters ? new FormFillExecutionEngine({ siteAdapters }) : null;
 const submitEngine = siteAdapters && config.enableSupervisedSubmit ? new SubmitExecutionEngine({ siteAdapters }) : null;
 const adapterId = phase === 'form-fill' ? 'generic-ats' : 'readiness-v1';
-const advertisedAdapterIds = siteAdapters ? siteAdapters.descriptors().map((descriptor) => descriptor.id) : [adapterId];
+const advertisedAdapterIds = siteAdapters
+  ? ['readiness-v1', ...siteAdapters.descriptors().map((descriptor) => descriptor.id)]
+  : [adapterId];
 
 const extensionResumeUpload = config.extensionResumeUpload;
 const extensionScreenshots = config.extensionScreenshots;

@@ -91,7 +91,11 @@ export function classifyApplyPage(input: ApplyPageObservation): ApplyPagePreflig
     if (action.disabled || action.ariaDisabled) return false;
     return NOWCODER_EXISTING_RELATION_ACTION.test(action.text.replace(/\s+/g, ' ').trim());
   });
-  if ((SUBMITTED_SIGNAL.test(text) || zhilianExistingRelation || nowcoderExistingRelation) && input.controls.length < 2) {
+  const submittedText = SUBMITTED_SIGNAL.test(text);
+  const knownSiteSubmitted = zhilianExistingRelation
+    || nowcoderExistingRelation
+    || (isNowcoderHost(url.hostname) && submittedText);
+  if (knownSiteSubmitted || (submittedText && input.controls.length < 2)) {
     return result('submitted_state', false, 'submitted_state_requires_reconciliation', 'The page resembles a post-submit/existing-application state; browser evidence requires reconciliation before Job Harness records or retries an application.', evidence);
   }
   if (looksLikeLogin(url, text, input.controls)) {

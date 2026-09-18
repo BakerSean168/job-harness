@@ -197,6 +197,19 @@ export function createApplyControlPlane(
         if (active) {
           throw new ApplyConflictError(`SubmissionIntent '${parsed.intentId}' already has active ExecutionAttempt '${active.id}'`);
         }
+        const reconciliationOnly = parsed.policySnapshot.reconciliationOnly === true;
+        if (reconciliationOnly) {
+          const dangerous = parsed.executionMode !== 'fill_only'
+            || parsed.requiredAdapterId !== 'readiness-v1'
+            || parsed.preferredBrowserBackend !== 'extension'
+            || parsed.policySnapshot.readinessOnly !== true
+            || parsed.policySnapshot.allowFormFill === true
+            || parsed.policySnapshot.allowApplicationEntry === true
+            || parsed.policySnapshot.submitAllowed === true;
+          if (dangerous) {
+            throw new ApplyConflictError('Reconciliation-only dispatch requires fill_only + readiness-v1 + extension with all site-write capabilities disabled');
+          }
+        }
         const timestamp = now();
         const id = idFactory();
         const bundle = await bundleFactory.create({

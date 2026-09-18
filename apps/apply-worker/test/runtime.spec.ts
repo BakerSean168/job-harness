@@ -68,12 +68,12 @@ function attempt(policySnapshot: Record<string, unknown>): ExecutionAttempt {
   });
 }
 
-function fakeBackend(log: string[], options: { healthy?: boolean; failNavigate?: boolean } = {}): BrowserBackendPort {
+function fakeBackend(log: string[], options: { healthy?: boolean; failNavigate?: boolean; url?: string; bodyText?: string; actions?: any[]; controls?: any[] } = {}): BrowserBackendPort {
   const driver: BrowserDriverPort = {
     async navigate(url) { log.push(`navigate:${url}`); if (options.failNavigate) throw new Error('navigation exploded'); },
-    currentUrl: () => 'https://example.com/apply?step=1',
+    currentUrl: () => options.url ?? 'https://example.com/apply?step=1',
     async title() { return 'Example Application'; },
-    async bodyText() { return 'Application form'; },
+    async bodyText() { return options.bodyText ?? 'Application form'; },
     async exists() { return false; },
     async text() { return null; },
     async fill() { throw new Error('readiness worker must not fill'); },
@@ -83,7 +83,7 @@ function fakeBackend(log: string[], options: { healthy?: boolean; failNavigate?:
     async upload() { throw new Error('readiness worker must not upload'); },
     async wait() {},
     async screenshot() { return new Uint8Array(); },
-    async scanActions() { return []; }, async scanControls() { return []; },
+    async scanActions() { return options.actions ?? []; }, async scanControls() { return options.controls ?? []; },
     async formStateHash() { return 'a'.repeat(64); },
   };
   const session: BrowserSessionPort = {
@@ -102,7 +102,7 @@ function fakeBackend(log: string[], options: { healthy?: boolean; failNavigate?:
   };
 }
 
-function fakeClient(claimed: ExecutionAttempt | null, log: string[]): ApplyWorkerClientPort {
+function fakeClient(claimed: ExecutionAttempt | null, log: string[], completed: Array<Record<string, unknown>> = []): ApplyWorkerClientPort {
   return {
     executors: {
       async register(input) { log.push(`register:${input.executorId}`); return {}; },
@@ -117,7 +117,7 @@ function fakeClient(claimed: ExecutionAttempt | null, log: string[]): ApplyWorke
       async reportSubmitSuccess() { throw new Error('not used'); },
       async reportSubmitFailure() { throw new Error('not used'); },
       async waiting(input) { log.push(`waiting:${input.reasonCode}`); return { ...claimed!, state: 'waiting_for_user' }; },
-      async complete(input) { log.push(`complete:${String(input.payload?.readinessOnly)}`); return { ...claimed!, state: 'completed' }; },
+      async complete(input) { completed.push(input as unknown as Record<string, unknown>); log.push(`complete:${String(input.payload?.readinessOnly)}`); return { ...claimed!, state: 'completed' }; },
       async fail(input) { log.push(`fail:${input.errorCode}:${input.externalEffectState}`); return { ...claimed!, state: 'failed' }; },
     },
   };
@@ -141,6 +141,27 @@ describe('ApplyWorker R019-C readiness mode', () => {
     expect(log).toContain('release');
     expect(log).toContain('complete:true');
     expect(log.some((entry) => entry.startsWith('fail:'))).toBe(false);
+  });
+
+  it('reports conservative reconciliation evidence without invoking any mutating browser primitive', async () => {
+    const log: string[] = [];
+    const completed: Array<Record<string, unknown>> = [];
+    const reconcileAttempt = attempt({
+      readinessOnly: true, reconciliationOnly: true, allowFormFill: false, allowApplicationEntry: false, submitAllowed: false,
+    });
+    const worker = new ApplyWorker({
+      client: fakeClient(reconcileAttempt, log, completed),
+      backends: new BrowserBackendRegistry([fakeBackend(log, {
+        url: 'https://www.nowcoder.com/jobs/detail/463747',
+        bodyText: '职位详情 简历投递成功',
+        actions: [], controls: [],
+      })]),
+      descriptor, backendId: 'fake', attemptHeartbeatIntervalMs: 60_000, logger: { log() {}, warn() {}, error() {} },
+    });
+    expect(await worker.runOnce()).toEqual({ claimed: true, attemptId: 'attempt-1', outcome: 'completed' });
+    const payload = completed[0]!.payload as Record<string, unknown>;
+    expect(payload).toMatchObject({ readinessOnly: true, reconciliationOnly: true, reconciliationState: 'submitted_state', reconciliationReasonCode: 'submitted_state_requires_reconciliation' });
+    expect(log.some((entry) => /fill|select|click|upload/.test(entry))).toBe(false);
   });
 
   it('fails closed into human waiting when readinessOnly policy was not explicitly frozen', async () => {
