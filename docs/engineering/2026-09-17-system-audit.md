@@ -545,3 +545,9 @@ Regression evidence now proves the scoped worker bearer still cannot authorize, 
 The A32 authority-derived actor change was built into `job-harness:a32`, passed the same isolated Compose deployment smoke and offline-pnpm runtime check, then promoted as the production server/Web image without rebuilding. Production server/Web now run image `sha256:209a896ce397d72c3eec932d1d95831376aa484a367777fab45e6c044eeef672`, representing runtime source revision `389ca71`; the renderer remains on the previously accepted image because A32 does not touch renderer code.
 
 Post-promotion verification: server/Web healthy, no runtime Corepack download, both Apply executors `ready` and `fill_only`, MCP 32 tools / all required tools present / 0 SubmissionIntents, SQLite v11 integrity OK with 133 Jobs / 41 Applications / 41 ApplicationSubmissions / 0 SubmissionIntents / 0 ExecutionAttempts, and the dedicated ChatGPT tunnel verifier passed.
+
+### Finding A33 — reviewed form hash does not bind uploaded file bytes (P1 immutable-evidence correctness)
+
+The URL+form review hash now catches navigation and ordinary field drift, but file inputs are still represented by `element.value` (normally a browser fake path such as `C:\\fakepath\\resume.pdf`). Replacing the uploaded Resume with different bytes under the same filename can therefore preserve the reviewed hash even though `ApplyBundle` and ApplicationSubmission are intended to prove the exact immutable Resume Artifact that was sent.
+
+**Required change before live-submit promotion:** include every selected file's content SHA-256 plus stable metadata in the browser form-state material for both MV3 and Playwright drivers. Review, begin-submit and the final post-boundary re-check must therefore fail if uploaded bytes change, even when filename/MIME type remain identical. Add cross-backend regression tests that replace a PDF with different bytes under the same filename and require the hash to change.
