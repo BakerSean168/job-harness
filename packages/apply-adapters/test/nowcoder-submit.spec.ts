@@ -6,7 +6,7 @@ import { NowcoderAtsSiteAdapter } from '../src';
 const resumeForm = FormIRSchema.parse({
   version: 1,
   observedAt: '2026-09-18T03:00:00.000Z',
-  source: { adapterId: 'nowcoder-ats', adapterVersion: '2026-09-18.4', host: 'www.nowcoder.com' },
+  source: { adapterId: 'nowcoder-ats', adapterVersion: '2026-09-18.5', host: 'www.nowcoder.com' },
   pages: [{ id: 'page-1', url: 'https://www.nowcoder.com/jobs/detail/463747', title: 'Agent开发工程师', sectionIds: [], fieldIds: ['resume'] }],
   sections: [],
   fields: [{
@@ -92,6 +92,33 @@ describe('Nowcoder supervised submit contract', () => {
         reason: 'nowcoder-primary-resume-upload-slot',
       }),
     ]);
+  });
+
+  it('waits for Nowcoder resume parsing to finish before freezing the ReviewSnapshot form state', async () => {
+    const adapter = new NowcoderAtsSiteAdapter();
+    const samples = [
+      '选择投递简历 大模型正在为您解析简历…',
+      '选择投递简历 大模型正在为您解析简历…',
+      '选择投递简历 卢楼豪-AI Agent应用开发工程师-ForgeFlow版 投递简历',
+      '选择投递简历 卢楼豪-AI Agent应用开发工程师-ForgeFlow版 投递简历',
+    ];
+    let bodyReads = 0;
+    let waits = 0;
+    const browser: BrowserDriverPort = {
+      ...submitBrowser(false, []),
+      async bodyText() {
+        const value = samples[Math.min(bodyReads, samples.length - 1)]!;
+        bodyReads += 1;
+        return value;
+      },
+      async wait(milliseconds) {
+        expect(milliseconds).toBe(500);
+        waits += 1;
+      },
+    };
+    await adapter.settleReviewState(browser);
+    expect(bodyReads).toBe(4);
+    expect(waits).toBe(4);
   });
 
   it('clicks exactly one final submit action and accepts success only after the characterized continue-contact state appears', async () => {

@@ -164,6 +164,7 @@ export class FormFillExecutionEngine {
     const report = adapter.fill
       ? await adapter.fill(input.browser, form, plan, provider, { resumeFile: input.resumeFile ?? null })
       : { results: [], filled: 0, skipped: 0, failed: 0, manual: 0 };
+    if (adapter.settleReviewState) await adapter.settleReviewState(input.browser);
     const validation = await adapter.validate(form, plan, report);
     const formStateHash = await input.browser.formStateHash();
     return summarize(adapter.descriptor.id, adapter.descriptor.version, form.fields.length, plan, report, validation, Boolean(this.semanticMapper), formStateHash);

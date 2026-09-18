@@ -82,6 +82,7 @@ export interface ApplySiteAdapter {
   inspect(browser: BrowserDriverPort, input: { readonly url: string; readonly title?: string | null; readonly observedAt: string }): Promise<FormIR>;
   explicitBindings?(form: FormIR): readonly FieldBinding[];
   fill?(browser: BrowserDriverPort, form: FormIR, plan: FillPlan, applicant: ApplicantDataProviderPort, assets?: ApplyFillAssets): Promise<FillReport>;
+  settleReviewState?(browser: BrowserDriverPort): Promise<void>;
   validate(form: FormIR, plan: FillPlan, fillReport?: FillReport | null): Promise<ApplyValidationReport>;
   submit?(browser: BrowserDriverPort): Promise<ApplySiteSubmitResult>;
 }

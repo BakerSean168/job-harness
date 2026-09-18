@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { JobHarnessRestError } from '@job-harness/client';
 import type {
   ApplicantFieldCatalog,
   ApplicantFieldKey,
@@ -461,9 +462,16 @@ export class ApplyWorker {
     } catch (error) {
       this.logger.error('Apply worker authorized submit failed', sanitizeError(error));
       if (!boundaryCrossed) {
-        // Do not convert a failed/lost begin-submit response into another site
-        // action. If the server crossed the boundary but the response was lost,
-        // the lease will expire into manual review instead of a duplicate click.
+        if (isKnownReviewStateConflict(error)) {
+          try {
+            await this.failPreSubmit(attempt, leaseToken, 'submit_review_stale', sanitizeError(error));
+          } catch (failError) {
+            this.logger.error('Apply worker could not persist stale submit review failure', sanitizeError(failError));
+          }
+        }
+        // Do not convert an ambiguous failed/lost begin-submit response into
+        // another site action. If the server crossed the boundary but the
+        // response was lost, the lease still expires into manual review.
         return { claimed: true, attemptId, outcome: 'failed' };
       }
       try {
@@ -651,6 +659,12 @@ export class ApplyWorker {
   }
 }
 
+
+function isKnownReviewStateConflict(error: unknown): boolean {
+  return error instanceof JobHarnessRestError
+    && error.status === 409
+    && error.payload.message === 'Current form state no longer matches the authorized ReviewSnapshot';
+}
 function sanitizeError(error: unknown): string {
   return sanitizeText(error instanceof Error ? error.message : String(error), 900);
 }

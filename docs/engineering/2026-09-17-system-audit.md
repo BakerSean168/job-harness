@@ -657,3 +657,17 @@ A scoped live probe uploaded the exact frozen ForgeFlow Resume Artifact only to 
 **A40 — fixed.** `nowcoder-ats@2026-09-18.4` now deterministically binds `documents.resume` to exactly one file field whose semantic hint matches `^jsAttachUpload1_`. The older unique-resume-input fallback remains only for structurally simpler Nowcoder variants. When two document inputs exist and no single characterized primary slot can be identified, the adapter still returns no binding and cannot become submit-ready. A regression fixture with both `jsAttachUpload1_*` and `jsAttachUpload2_*` proves only the primary slot is selected.
 
 The manually probed Attempt was cancelled with `externalEffectState=not_crossed` and is explicitly ineligible for reuse as submit evidence. A fresh `2026-09-18.4` Attempt must produce the final ReviewSnapshot from an untouched automated run.
+
+### Finding A41 — Nowcoder ReviewSnapshot was frozen before asynchronous resume parsing settled
+
+The first user-authorized live Nowcoder submit canary failed closed during `submit-review-verify`: the retained page's current `formStateHash` no longer matched the authorized ReviewSnapshot, so `beginSubmit` returned a conflict before the external-effect boundary and **no final site click occurred**. The Attempt remained `externalEffectState=not_crossed`; the application ledger stayed unchanged.
+
+Inspection of the live behavior showed the ReviewSnapshot had been created immediately after the exact Resume Artifact upload while Nowcoder was still displaying `大模型正在为您解析简历…`. Nowcoder asynchronously uploads/parses the selected resume and may rebuild its hidden file input afterwards. The generic hash correctly detected that DOM/FileList change, but the review was frozen too early.
+
+**A41 — fixed in `nowcoder-ats@2026-09-18.5`.** The Nowcoder adapter now has a site-scoped `settleReviewState` hook. After deterministic resume upload, it waits for the parser signal to disappear and remain absent across consecutive samples before validation and ReviewSnapshot hashing. No global form-hash semantics were relaxed, and other ATS adapters do not inherit this hook.
+
+### Finding A42 — known pre-boundary submit-review conflicts should terminate immediately and revoke stale authorization
+
+The same live canary exposed a control-plane cleanup issue: a known 409 `Current form state no longer matches the authorized ReviewSnapshot` was logged by the Worker but left the Attempt `running` until its lease expired. This was safe but operationally noisy, and the abandoned Attempt retained an active authorization record until manually revoked.
+
+**A42 — fixed.** The Worker now recognizes only that exact typed 409 conflict as a known pre-boundary stale-review result and reports `submit_review_stale` immediately. Ambiguous network/lost-response failures retain the existing conservative lease-expiry behavior because the durable boundary might have crossed without the response arriving. Separately, generic terminal failure handling now revokes any still-active SubmitAuthorization while `externalEffectState=not_crossed` before marking the Attempt failed, preventing stale authorization residue.

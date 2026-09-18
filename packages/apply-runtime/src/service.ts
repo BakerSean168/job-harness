@@ -453,6 +453,16 @@ export function createApplyControlPlane(
         if (parsed.externalEffectState !== current.externalEffectState) {
           throw new ApplyConflictError(`Generic failure reporting cannot change externalEffectState from '${current.externalEffectState}' to '${parsed.externalEffectState}'; use the dedicated submit-boundary protocol`);
         }
+        if (current.externalEffectState === 'not_crossed' && current.submitAuthorizationId) {
+          const authorization = await store.getSubmitAuthorization(current.submitAuthorizationId);
+          if (authorization?.status === 'active') {
+            await store.revokeSubmitAuthorization({
+              attemptId: current.id,
+              authorizationId: authorization.id,
+              now: timestamp,
+            });
+          }
+        }
         const failed = await requireLease({
           attemptId: parsed.attemptId,
           executorId: parsed.executorId,

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BrowserBackendRegistry, type BrowserBackendPort, type BrowserDriverPort, type BrowserSessionPort } from '@job-harness/apply-browser';
 import { ExecutionAttemptSchema, type ExecutionAttempt, type ExecutorDescriptor } from '@job-harness/apply-contracts';
 import { ApplySiteAdapterRegistry, type ApplySiteAdapter } from '@job-harness/apply-adapters';
+import { JobHarnessRestError } from '@job-harness/client';
 import { ApplyWorker, type ApplyWorkerClientPort } from '../src/runtime';
 import { SubmitExecutionEngine } from '../src/submit-engine';
 
@@ -55,7 +56,7 @@ function submitAdapter(log: string[], version = '1.0.0'): ApplySiteAdapter {
   };
 }
 
-function client(attempt: ExecutionAttempt, log: string[], beginFails = false): ApplyWorkerClientPort {
+function client(attempt: ExecutionAttempt, log: string[], beginFailure: 'none' | 'lost' | 'stale' = 'none'): ApplyWorkerClientPort {
   let claimed = false;
   return {
     executors: { async register() {}, async heartbeat(input) { log.push(`executor:${input.status}`); } },
@@ -64,10 +65,16 @@ function client(attempt: ExecutionAttempt, log: string[], beginFails = false): A
       async start() { log.push('start'); return { ...attempt, state: 'running' }; },
       async heartbeat() { return attempt; },
       async createReviewSnapshot() { throw new Error('not used'); },
-      async beginSubmit() { log.push('begin-submit'); if (beginFails) throw new Error('lost begin response'); return { attemptId: attempt.id, state: 'running', externalEffectState: 'crossed' }; },
+      async beginSubmit() {
+        log.push('begin-submit');
+        if (beginFailure === 'lost') throw new Error('lost begin response');
+        if (beginFailure === 'stale') throw new JobHarnessRestError(409, { code: 'APPLY_CONFLICT', message: 'Current form state no longer matches the authorized ReviewSnapshot' });
+        return { attemptId: attempt.id, state: 'running', externalEffectState: 'crossed' };
+      },
       async reportSubmitSuccess() { log.push('report-success'); return { ...attempt, state: 'completed', externalEffectState: 'crossed' }; },
       async reportSubmitFailure(input) { log.push(`report-failure:${input.outcome}`); return { ...attempt, state: 'failed', externalEffectState: input.outcome === 'uncertain' ? 'uncertain' : 'crossed' }; },
-      async waiting() { throw new Error('not used'); }, async complete() { throw new Error('not used'); }, async fail() { throw new Error('not used'); },
+      async waiting() { throw new Error('not used'); }, async complete() { throw new Error('not used'); },
+      async fail(input) { log.push(`fail:${input.errorCode}`); return { ...attempt, state: 'failed', externalEffectState: 'not_crossed' }; },
     },
   };
 }
@@ -101,11 +108,26 @@ describe('authorized supervised submit worker', () => {
     expect(log.some((entry) => entry.startsWith('report-'))).toBe(false);
   });
 
+  it('fails closed immediately on a known pre-boundary ReviewSnapshot form-state conflict', async () => {
+    const log: string[] = [];
+    const attempt = authorizedAttempt();
+    const worker = new ApplyWorker({
+      client: client(attempt, log, 'stale'), backends: new BrowserBackendRegistry([backend(log)]), descriptor, backendId: 'fake',
+      submitEngine: new SubmitExecutionEngine({ siteAdapters: new ApplySiteAdapterRegistry([submitAdapter(log)]) }), logger: { log() {}, warn() {}, error() {} },
+    });
+    expect(await worker.runOnce()).toEqual({ claimed: true, attemptId: attempt.id, outcome: 'failed' });
+    expect(log).toContain('begin-submit');
+    expect(log).toContain('fail:submit_review_stale');
+    expect(log).not.toContain('adapter-submit');
+    expect(log).not.toContain('click:#submit');
+    expect(log.some((entry) => entry.startsWith('report-'))).toBe(false);
+  });
+
   it('never clicks when the begin-submit response is unavailable, even though the server might have crossed the boundary', async () => {
     const log: string[] = [];
     const attempt = authorizedAttempt();
     const worker = new ApplyWorker({
-      client: client(attempt, log, true), backends: new BrowserBackendRegistry([backend(log)]), descriptor, backendId: 'fake',
+      client: client(attempt, log, 'lost'), backends: new BrowserBackendRegistry([backend(log)]), descriptor, backendId: 'fake',
       submitEngine: new SubmitExecutionEngine({ siteAdapters: new ApplySiteAdapterRegistry([submitAdapter(log)]) }), logger: { log() {}, warn() {}, error() {} },
     });
     expect(await worker.runOnce()).toEqual({ claimed: true, attemptId: attempt.id, outcome: 'failed' });

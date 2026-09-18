@@ -33,7 +33,7 @@ abstract class ObservedPublicAtsAdapter implements ApplySiteAdapter {
 export class NowcoderAtsSiteAdapter extends ObservedPublicAtsAdapter {
   readonly descriptor = {
     id: 'nowcoder-ats',
-    version: '2026-09-18.4',
+    version: '2026-09-18.5',
     semantics: 'formal_application' as const,
     priority: 180,
     capabilities: { inspect: true, enter: true, fill: true, validate: true, submit: true },
@@ -83,6 +83,27 @@ export class NowcoderAtsSiteAdapter extends ObservedPublicAtsAdapter {
       after,
       navigationActionCount: 1,
     };
+  }
+
+  async settleReviewState(browser: BrowserDriverPort): Promise<void> {
+    // Nowcoder uploads/parses the selected resume asynchronously and may rebuild
+    // its hidden file inputs while the parser is active. ReviewSnapshot must bind
+    // the post-parser stable form state, not that transient DOM/FileList.
+    let parserSeen = false;
+    let stableAbsentSamples = 0;
+    for (let sample = 0; sample < 30; sample += 1) {
+      await browser.wait(500);
+      const body = await browser.bodyText();
+      const parsing = /大模型正在为您解析简历/.test(body);
+      if (parsing) {
+        parserSeen = true;
+        stableAbsentSamples = 0;
+        continue;
+      }
+      stableAbsentSamples += 1;
+      if (stableAbsentSamples >= (parserSeen ? 2 : 4)) return;
+    }
+    throw new Error('Nowcoder resume parser did not reach a stable post-upload state before review');
   }
 
   explicitBindings(form: FormIR): readonly FieldBinding[] {
