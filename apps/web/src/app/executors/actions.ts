@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { getJobHarnessClient } from '../../lib/job-harness-client';
 
 
@@ -88,4 +89,50 @@ export async function resumeExecutionAttemptAction(formData: FormData): Promise<
   await getJobHarnessClient().apply.attempts.resume({ attemptId });
   revalidatePath('/executors');
   revalidatePath(`/executors/${attemptId}`);
+}
+
+
+export async function reconcileUncertainAttemptAction(formData: FormData): Promise<void> {
+  const sourceAttemptId = required(formData, 'attemptId');
+  const decisionNonce = required(formData, 'decisionNonce');
+  const client = getJobHarnessClient();
+  const detail = await client.apply.attempts.get(sourceAttemptId);
+  if (!detail) throw new Error(`ExecutionAttempt '${sourceAttemptId}' was not found`);
+  const source = detail.attempt;
+  if (source.state !== 'failed' || source.externalEffectState !== 'uncertain') {
+    throw new Error(`ExecutionAttempt '${sourceAttemptId}' is not an uncertain terminal submit attempt`);
+  }
+  const intent = await client.submissionIntents.get(source.intentId);
+  if (!intent || intent.status !== 'needs_manual_review') {
+    throw new Error(`SubmissionIntent '${source.intentId}' is not awaiting manual reconciliation`);
+  }
+  const executors = await client.apply.executors.list({ limit: 100, offset: 0 });
+  const ready = executors.items.some((executor) =>
+    executor.status === 'ready'
+    && executor.browserBackends.includes('extension')
+    && executor.adapterIds.includes('readiness-v1')
+    && executor.executionModes.includes('fill_only')
+    && executor.capabilities.humanControl
+    && executor.capabilities.persistentSession,
+  );
+  if (!ready) throw new Error('No ready user-Chrome reconciliation executor is available');
+  const attempt = await client.apply.attempts.dispatch({
+    intentId: intent.id,
+    executionMode: 'fill_only',
+    requiredAdapterId: 'readiness-v1',
+    preferredBrowserBackend: 'extension',
+    requiredCapabilities: ['humanControl', 'persistentSession'],
+    policySnapshot: {
+      reconciliationOnly: true,
+      readinessOnly: true,
+      allowFormFill: false,
+      allowApplicationEntry: false,
+      submitAllowed: false,
+      initiatedBy: 'user-web-reconciliation',
+    },
+    idempotencyKey: `web-reconcile:${sourceAttemptId}:${decisionNonce}`,
+  });
+  revalidatePath('/executors');
+  revalidatePath(`/executors/${sourceAttemptId}`);
+  redirect(`/executors/${attempt.id}`);
 }

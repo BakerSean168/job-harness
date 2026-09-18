@@ -5,7 +5,7 @@ import { WorkspaceHeader } from '@/components/shell/workspace-header';
 import { getLocale, getMessages } from '@/i18n/server';
 import { getJobHarnessClient } from '@/lib/job-harness-client';
 import { formatDateTime } from '@/lib/format';
-import { authorizeSubmitAction, resumeExecutionAttemptAction, revokeSubmitAuthorizationAction } from '../actions';
+import { authorizeSubmitAction, reconcileUncertainAttemptAction, resumeExecutionAttemptAction, revokeSubmitAuthorizationAction } from '../actions';
 
 export default async function ExecutorAttemptDetailPage({ params }: { params: Promise<{ attemptId: string }> }) {
   const { attemptId } = await params;
@@ -55,6 +55,7 @@ export default async function ExecutorAttemptDetailPage({ params }: { params: Pr
     && attempt.errorCode
     && humanEntryReasons.has(attempt.errorCode),
   );
+  const canReconcileUncertain = attempt.state === 'failed' && attempt.externalEffectState === 'uncertain';
   const decisionNonce = randomUUID();
 
   return (
@@ -109,6 +110,19 @@ export default async function ExecutorAttemptDetailPage({ params }: { params: Pr
                 <button className="filter-submit" type="submit">{copy.detail.continueAfterHuman}</button>
               </form>
             ) : null}
+          </section>
+        ) : null}
+
+        {canReconcileUncertain ? (
+          <section className="management-panel executor-review-card executor-human-action-card">
+            <h2>{copy.detail.reconciliationTitle}</h2>
+            <p>{copy.detail.reconciliationDescription}</p>
+            <p className="executor-boundary-note">{copy.detail.reconciliationBoundary}</p>
+            <form action={reconcileUncertainAttemptAction}>
+              <input type="hidden" name="attemptId" value={attempt.id} />
+              <input type="hidden" name="decisionNonce" value={decisionNonce} />
+              <button className="filter-submit" type="submit">{copy.detail.reconcileReadOnly}</button>
+            </form>
           </section>
         ) : null}
 
