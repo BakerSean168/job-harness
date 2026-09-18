@@ -539,3 +539,9 @@ The authorization boundary correctly requires the global/user bearer and rejects
 **A32 — fixed.** `AuthorizeSubmitInput` no longer exposes an `actor` field. The only current public/user-authorized control-plane path derives and persists `actor = user` server-side; the idempotency request hash likewise excludes any caller-asserted actor label. A future system authorization, if ever required, must use a separate authority path rather than impersonating provenance through the same request contract.
 
 Regression evidence now proves the scoped worker bearer still cannot authorize, a global caller attempting to send `actor: system` is rejected as a strict validation error, and a valid authorization is persisted as `actor: user`. OpenAPI/client/Web were regenerated/updated from the canonical contract. The full repository gate remains green at **87 test files / 195 tests**, with production Web build and synthetic one-submit safety smoke passing.
+
+### 17.2 A32 production promotion
+
+The A32 authority-derived actor change was built into `job-harness:a32`, passed the same isolated Compose deployment smoke and offline-pnpm runtime check, then promoted as the production server/Web image without rebuilding. Production server/Web now run image `sha256:209a896ce397d72c3eec932d1d95831376aa484a367777fab45e6c044eeef672`, representing runtime source revision `389ca71`; the renderer remains on the previously accepted image because A32 does not touch renderer code.
+
+Post-promotion verification: server/Web healthy, no runtime Corepack download, both Apply executors `ready` and `fill_only`, MCP 32 tools / all required tools present / 0 SubmissionIntents, SQLite v11 integrity OK with 133 Jobs / 41 Applications / 41 ApplicationSubmissions / 0 SubmissionIntents / 0 ExecutionAttempts, and the dedicated ChatGPT tunnel verifier passed.
