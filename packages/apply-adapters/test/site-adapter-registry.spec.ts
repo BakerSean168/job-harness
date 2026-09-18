@@ -68,7 +68,7 @@ describe('ApplySiteAdapter registry and declarative playbooks', () => {
 
 
 
-  it('prefers observed site adapters for known live traffic while keeping them submit-disabled', () => {
+  it('prefers observed site adapters and only promotes the characterized Nowcoder submit contract', () => {
     const registry = new ApplySiteAdapterRegistry([
       new GenericAtsSiteAdapter(),
       new ZhilianAtsSiteAdapter(),
@@ -81,7 +81,7 @@ describe('ApplySiteAdapter registry and declarative playbooks', () => {
     const liepin = registry.resolve({ url: 'https://www.liepin.com/job/1980814533.shtml', semantics: 'formal_application' });
     expect(liepin?.descriptor).toMatchObject({ id: 'liepin-ats', capabilities: { submit: false } });
     const nowcoder = registry.resolve({ url: 'https://www.nowcoder.com/jobs/detail/457892', semantics: 'formal_application' });
-    expect(nowcoder?.descriptor).toMatchObject({ id: 'nowcoder-ats', capabilities: { submit: false } });
+    expect(nowcoder?.descriptor).toMatchObject({ id: 'nowcoder-ats', capabilities: { submit: true } });
     const moka = registry.resolve({ url: 'https://app.mokahr.com/social-recruitment/high-flyer/140576#/job/abc', semantics: 'formal_application' });
     expect(moka?.descriptor).toMatchObject({ id: 'moka-social-recruitment', capabilities: { submit: false } });
   });

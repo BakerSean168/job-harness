@@ -40,6 +40,8 @@ const SECURITY_SIGNAL = /(?:安全验证|人机验证|请稍候|访问验证|sec
 const LOGIN_SIGNAL = /(?:登录|登入|验证码|手机号登录|sign\s*in|log\s*in|verification\s+code)/i;
 const CLOSED_SIGNAL = /(?:职位已下线|职位已关闭|停止招聘|招聘已结束|已停止接受申请|no\s+longer\s+accepting\s+applications|position\s+closed)/i;
 const SUBMITTED_SIGNAL = /(?:投递成功|申请成功|提交成功|已向对方发送简历和打招呼语|application\s+(?:has\s+been\s+)?submitted|thanks\s+for\s+applying)/i;
+const ZHILIAN_EXISTING_RELATION_ACTION = /^(?:继续沟通|已投递)$/;
+const NOWCODER_EXISTING_RELATION_ACTION = /^(?:继续沟通|已投递|已申请)$/;
 const JOB_DETAIL_PATH = /(?:\/jobs?\/detail\/|\/jobdetail\/|\/job_detail\/|#\/job\/|\/jobs?\/[^/]+$)/i;
 
 export async function inspectApplyPagePreflight(browser: BrowserDriverPort): Promise<ApplyPagePreflightResult> {
@@ -81,8 +83,16 @@ export function classifyApplyPage(input: ApplyPageObservation): ApplyPagePreflig
   if (CLOSED_SIGNAL.test(text)) {
     return result('listing_closed', false, 'listing_closed', 'The listing appears closed or no longer accepting applications.', evidence);
   }
-  if (SUBMITTED_SIGNAL.test(text) && input.controls.length < 2) {
-    return result('submitted_state', false, 'submitted_state_requires_reconciliation', 'The page resembles a post-submit state; generic page text is not sufficient success evidence and requires reconciliation.', evidence);
+  const zhilianExistingRelation = isZhilianHost(url.hostname) && input.actions.some((action) => {
+    if (action.disabled || action.ariaDisabled) return false;
+    return ZHILIAN_EXISTING_RELATION_ACTION.test(action.text.replace(/\s+/g, ' ').trim());
+  });
+  const nowcoderExistingRelation = isNowcoderHost(url.hostname) && input.actions.some((action) => {
+    if (action.disabled || action.ariaDisabled) return false;
+    return NOWCODER_EXISTING_RELATION_ACTION.test(action.text.replace(/\s+/g, ' ').trim());
+  });
+  if ((SUBMITTED_SIGNAL.test(text) || zhilianExistingRelation || nowcoderExistingRelation) && input.controls.length < 2) {
+    return result('submitted_state', false, 'submitted_state_requires_reconciliation', 'The page resembles a post-submit/existing-application state; browser evidence requires reconciliation before Job Harness records or retries an application.', evidence);
   }
   if (looksLikeLogin(url, text, input.controls)) {
     return result('login_required', false, 'login_required', 'Authentication or verification is required before the application form can be inspected.', evidence);
@@ -104,6 +114,14 @@ function result(
   evidence: ApplyPagePreflightResult['evidence'],
 ): ApplyPagePreflightResult {
   return { state, canInspectForm, reasonCode, summary, evidence };
+}
+
+function isZhilianHost(hostname: string): boolean {
+  return hostname === 'zhaopin.com' || hostname.endsWith('.zhaopin.com');
+}
+
+function isNowcoderHost(hostname: string): boolean {
+  return hostname === 'nowcoder.com' || hostname.endsWith('.nowcoder.com');
 }
 
 function looksLikeLogin(url: URL, text: string, controls: readonly BrowserControlSnapshot[]): boolean {

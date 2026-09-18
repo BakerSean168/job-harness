@@ -276,9 +276,16 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
         if (['text','email','tel','url','number','date','radio','checkbox','file'].includes(type)) return type as Snapshot['kind'];
         return 'unknown';
       };
+      const isResumeFileInput = (element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement) => {
+        if (!(element instanceof HTMLInputElement) || element.type !== 'file' || element.disabled) return false;
+        const evidence = [element.accept, element.name, element.id, typeof element.className === 'string' ? element.className : '', element.getAttribute('aria-label') ?? '']
+          .join(' ')
+          .toLowerCase();
+        return /pdf|docx?|resume|cv|upload|file|简历|附件/.test(evidence);
+      };
       const all = [...document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]), textarea, select')]
         .filter((node): node is HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement => node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement || node instanceof HTMLSelectElement)
-        .filter(visible);
+        .filter((element) => visible(element) || isResumeFileInput(element));
       const existingFieldIds = all.map((element) => element.getAttribute('data-job-harness-field-id')).filter((value): value is string => Boolean(value));
       const fieldIdCounts = new Map<string, number>();
       for (const value of existingFieldIds) fieldIdCounts.set(value, (fieldIdCounts.get(value) ?? 0) + 1);

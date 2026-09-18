@@ -132,7 +132,7 @@
 
   function scanControls() {
     const all = [...document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),textarea,select')]
-      .filter((element) => (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) && visible(element));
+      .filter((element) => (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) && (visible(element) || isResumeFileInput(element)));
     const result = [];
     const radios = new Map();
     const allocateFieldRef = createStableRefAllocator(all, "data-job-harness-field-id", "jh");
@@ -177,6 +177,14 @@
       });
     }
     return result;
+  }
+
+  function isResumeFileInput(element) {
+    if (!(element instanceof HTMLInputElement) || element.type !== "file" || element.disabled) return false;
+    const evidence = [element.accept, element.name, element.id, typeof element.className === "string" ? element.className : "", element.getAttribute("aria-label") || ""]
+      .join(" ")
+      .toLowerCase();
+    return /pdf|docx?|resume|cv|upload|file|简历|附件/.test(evidence);
   }
 
   function controlSnapshot(element, controlRef) {

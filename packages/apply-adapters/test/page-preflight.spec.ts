@@ -46,6 +46,25 @@ describe('apply page preflight classification', () => {
     expect(result).toMatchObject({ state: 'submitted_state', canInspectForm: false, reasonCode: 'submitted_state_requires_reconciliation' });
   });
 
+  it('treats Zhilian continue-contact as an existing application relation without generalizing it to other ATS sites', () => {
+    const zhilian = classify({
+      url: 'https://www.zhaopin.com/jobdetail/CC697082780J40877053810.htm',
+      actions: [action('继续沟通')],
+    });
+    expect(zhilian).toMatchObject({ state: 'submitted_state', canInspectForm: false, reasonCode: 'submitted_state_requires_reconciliation' });
+
+    const generic = classify({ actions: [action('继续沟通')] });
+    expect(generic).toMatchObject({ state: 'job_detail', canInspectForm: false, reasonCode: 'application_entry_required' });
+  });
+
+  it('treats Nowcoder continue-contact as an existing application relation and success signal', () => {
+    const result = classify({
+      url: 'https://www.nowcoder.com/jobs/detail/456372',
+      actions: [action('继续沟通')],
+    });
+    expect(result).toMatchObject({ state: 'submitted_state', canInspectForm: false, reasonCode: 'submitted_state_requires_reconciliation' });
+  });
+
   it('classifies phone plus verification-code login surfaces before application-form heuristics', () => {
     const result = classify({
       bodyText: '登录 / 注册',

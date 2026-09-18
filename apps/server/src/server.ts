@@ -26,6 +26,7 @@ import { getResumeRendererFingerprint, renderResumePreviewHtml } from '@job-harn
 import { BROWSER_EXTENSION_BRIDGE_PREFIX, BrowserExtensionBridge, BrowserExtensionBridgeError, registerBrowserExtensionBridgeApi } from './browser-extension-bridge';
 import { BrowserExtensionAuth } from './browser-extension-auth';
 import { BrowserExtensionValidationRegistry, registerBrowserExtensionValidationApi } from './browser-extension-validation';
+import { browserExtensionClickAuthority } from './browser-extension-click-policy';
 
 export interface JobHarnessServerOptions {
   readonly databasePath: string;
@@ -312,17 +313,8 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
       if (input.command.type === 'upload' && !attempt.bundle.resumeArtifact) {
         throw new BrowserExtensionBridgeError('POLICY_DENIED', 'Resume upload requires a frozen Resume Artifact in the ApplyBundle', 403);
       }
-      if (input.command.type === 'click') {
-        const adapterId = attempt.adapterId ?? attempt.requiredAdapterId;
-        const exactText = input.command.payload.expectedText?.replace(/\s+/g, ' ').trim() ?? null;
-        if (
-          attempt.externalEffectState !== 'not_crossed'
-          || attempt.policySnapshot.allowApplicationEntry !== true
-          || adapterId !== 'nowcoder-ats'
-          || exactText !== '立即申请'
-        ) {
-          throw new BrowserExtensionBridgeError('POLICY_DENIED', 'Extension click is restricted to the characterized Nowcoder pre-submit application-entry action', 403);
-        }
+      if (input.command.type === 'click' && !browserExtensionClickAuthority(attempt, input.command.payload.expectedText)) {
+        throw new BrowserExtensionBridgeError('POLICY_DENIED', 'Extension click is restricted to characterized Nowcoder entry or durably authorized submit actions', 403);
       }
     },
   });

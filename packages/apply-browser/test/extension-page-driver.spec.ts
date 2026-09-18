@@ -13,7 +13,7 @@ async function withDriver<T>(run: (page: import('playwright').Page) => Promise<T
         <label>姓名 <input id="name" name="name" required></label>
         <label>邮箱 <input id="email" type="email" name="email" required></label>
         <label>学历 <select id="degree" name="degree" required><option value="">请选择</option><option value="bachelor">本科</option></select></label>
-        <label>简历 <input id="resume" type="file" name="resume" accept="application/pdf,.pdf" required></label>
+        <label>简历 <input id="resume" type="file" name="resume" accept="application/pdf,.pdf" required style="display:none"></label>
       </fieldset><button id="next" type="button">继续</button><div id="custom-apply" class="job-apply-trigger">立即投递</div></form>`;
   const server = createServer((_req, res) => { res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(html); });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

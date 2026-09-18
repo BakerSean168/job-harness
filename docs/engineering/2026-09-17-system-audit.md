@@ -607,3 +607,35 @@ Verification after A36:
 - Browser Extension bridge/static gate: **PASS**
 - OpenAPI no-drift: **PASS**
 - Next.js production build: **PASS**
+
+### Finding A37 — Zhaopin existing application relation is not reconciled from the live CTA (P1 duplicate-application safety)
+
+After Browser Bridge 0.1.3 widened read-only action discovery, the logged-in 深度制耀 `AI全栈工程师` canary exposed a standard enabled `button` whose exact text is `继续沟通`. Job Harness had no local `Application` for that Job, so the previous generic preflight treated the page as a normal `job_detail` and could later retry a role that Zhaopin already considered applied/contacted. This is a cross-system ledger gap: local absence of an Application is not proof that the recruiting site has no existing application relation.
+
+**A37 — fixed.** Preflight now treats an enabled exact `继续沟通` or `已投递` action as `submitted_state` **only on `zhaopin.com` hosts**, returning `submitted_state_requires_reconciliation` before any application-entry or submit path. The signal is intentionally not generalized to other ATS sites, where a chat action may have unrelated semantics. `zhilian-ats` is advanced to `2026-09-18.2`. Regression coverage proves the same `继续沟通` action remains an ordinary job-detail signal on a generic non-Zhaopin host.
+
+This finding also establishes a product requirement for future source-of-truth convergence: Browser-observed existing-application evidence should be reconciled into the durable Job/Application ledger instead of silently retrying or merely stopping forever. Until that reconciliation write path is implemented, duplicate prevention takes priority and the attempt stops without external side effects.
+
+### Finding A38 — hidden resume inputs and Nowcoder final-submit semantics block exact-artifact automation (P1 live-submit readiness)
+
+The first logged-in Nowcoder canary for 中城交（上海）科技有限公司 / `Agent开发工程师` proved that `立即申请` is a reversible application-entry action rather than the final side effect. The resulting modal exposes `选择投递简历`, the currently selected site resume, and a distinct final `投递简历` button. The modal also contains a hidden PDF file input that the old control scanner excluded because it required every form control to be visibly rendered.
+
+A read-only/write-safe canary injected the exact frozen ForgeFlow Resume Artifact (`SHA-256 97677f49760fb7cffda6f4a9a436b2bbd3295588e3f72f2052826c4f5fd6764c`) into that hidden PDF input without clicking final submit. Nowcoder accepted the file and started its resume parser. The browser `formStateHash` remained stable at `843d43d5adde809599af76792cb03e40c69dca8a8efdae558f2583b8418e1f96` while binding the exact uploaded bytes, directly validating the A33 evidence model on a real recruiting site.
+
+**A38 — fixed/promoted for supervised Nowcoder submit.** MV3 and Playwright control discovery now allow an otherwise-hidden file input only when it is enabled and carries document/resume evidence such as PDF/DOC, resume/CV/upload/file or 简历/附件 semantics; ordinary hidden controls remain excluded. `nowcoder-ats` deterministically binds the unique resume-document input to `documents.resume`, marks a review submit-ready only when that exact field was filled from the frozen Resume Artifact, and is promoted to `submit: true` at adapter version `2026-09-18.3`.
+
+The characterized final action is exact enabled text `投递简历`. The Browser Extension server policy still denies that click before the durable external-effect boundary. It becomes legal only when the Attempt is `review_then_submit`, frozen policy has `submitAllowed=true`, a submit authorization is attached, and `beginSubmit` has already durably moved `externalEffectState` to `crossed`. This remains separate from the pre-submit `立即申请` entry permission.
+
+A previously applied Nowcoder job was then sampled read-only and exposes exact button text `继续沟通`. Preflight now treats that signal as an existing/submitted application state only on Nowcoder hosts. The Nowcoder submit adapter clicks `投递简历` exactly once and records success only if the characterized post-submit `继续沟通` / `已投递` / `已申请` state is observed. If the confirmation state is absent, it returns `uncertain` rather than inventing success or retrying the click.
+
+Browser Bridge is advanced to **0.1.4** for hidden resume-input discovery. Production's supervised-submit environment switch remains **off by default**; this code promotion alone therefore cannot trigger recruiting-site final submission.
+
+Verification after A37/A38:
+
+- `pnpm check`: **PASS**
+- Vitest: **89 test files / 208 tests PASS**
+- strict TypeScript: **PASS**
+- architecture/package boundaries: **PASS**
+- Browser Extension bridge/static gate: **PASS**
+- OpenAPI no-drift: **PASS**
+- Next.js production build: **PASS**
