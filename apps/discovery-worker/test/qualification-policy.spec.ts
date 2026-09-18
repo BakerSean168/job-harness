@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { descriptionMeetsCampaignRequirements, inferMinimumEducationRank, inferMinimumExperienceYears, matchesCampaignEducation, matchesCampaignExperience, titleLooksLikeEntryLevelDeveloper } from '../src/qualification-policy';
+import { descriptionMeetsCampaignRequirements, inferMinimumEducationRank, inferMinimumExperienceYears, matchesCampaignEducation, matchesCampaignExperience, titleLooksLikeEntryLevelDeveloper, titleMatchesCampaignTargetRole } from '../src/qualification-policy';
 
 describe('discovery qualification policy', () => {
   it('keeps entry-level developer titles and rejects senior/non-engineering title traps', () => {
@@ -9,6 +9,20 @@ describe('discovery qualification policy', () => {
     expect(titleLooksLikeEntryLevelDeveloper('Senior AI Agent Engineer')).toBe(false);
     expect(titleLooksLikeEntryLevelDeveloper('AI Agent产品经理')).toBe(false);
   });
+  it('matches only campaign target-role families for automatic qualification', () => {
+    const roles = ['AI Agent / Agent 应用开发', '全栈开发', '前端开发'];
+    expect(titleMatchesCampaignTargetRole('AI Agent开发工程师', roles)).toBe(true);
+    expect(titleMatchesCampaignTargetRole('大模型应用开发工程师', roles)).toBe(true);
+    expect(titleMatchesCampaignTargetRole('AI Native 智能体工程师', roles)).toBe(true);
+    expect(titleMatchesCampaignTargetRole('AI全栈工程师', roles)).toBe(true);
+    expect(titleMatchesCampaignTargetRole('AI Native 产品工程师', roles)).toBe(true);
+    expect(titleMatchesCampaignTargetRole('Web前端开发工程师', roles)).toBe(true);
+    expect(titleMatchesCampaignTargetRole('Agent 评测产品经理', roles)).toBe(false);
+    expect(titleMatchesCampaignTargetRole('后端运维开发工程师-AI', roles)).toBe(false);
+    expect(titleMatchesCampaignTargetRole('R&D Software Engineer', roles)).toBe(false);
+    expect(titleMatchesCampaignTargetRole('python开发工程师', roles)).toBe(false);
+  });
+
   it('matches normalized Campaign experience and education constraints', () => {
     const experience = ['经验不限','1-3年'];
     expect(matchesCampaignExperience('经验不限', experience)).toBe(true);

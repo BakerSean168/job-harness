@@ -14,7 +14,7 @@ describe('DiscoveryQualificationProcessor', () => {
     const jobs = [item('agent-card','AI Agent开发工程师'), item('frontend-card','前端开发工程师'), item('product-card','AI Agent产品经理'), item('boss-card','AI Agent开发工程师','boss')];
     const states: any[] = []; const prepares: any[] = [];
     const client: any = {
-      campaigns: { async get() { return { id: 'campaign-1', name: 'AI jobs', targetRoles: [], cities: ['杭州'], graduationYears: [2026], experience: ['经验不限','1-3年'], education: ['本科','学历不限'], keywords: [], exclusions: [], sources: ['zhilian'], resumeProfileIds: [], status: 'active', createdAt: '2026-09-18T00:00:00.000Z', updatedAt: '2026-09-18T00:00:00.000Z' }; } },
+      campaigns: { async get() { return { id: 'campaign-1', name: 'AI jobs', targetRoles: ['AI Agent / Agent 应用开发','全栈开发','前端开发'], cities: ['杭州'], graduationYears: [2026], experience: ['经验不限','1-3年'], education: ['本科','学历不限'], keywords: [], exclusions: [], sources: ['zhilian'], resumeProfileIds: [], status: 'active', createdAt: '2026-09-18T00:00:00.000Z', updatedAt: '2026-09-18T00:00:00.000Z' }; } },
       workspace: {
         async getDiscoveryRunDetail() { return { run: { id: 'run-1', campaignId: 'campaign-1' }, campaign: { id: 'campaign-1', name: 'AI jobs' }, affectedJobs: jobs, observationCount: 4 }; },
         async getJobDetail(id: string) { const i=jobs.find((x:any)=>x.jobId===id); return { job: { id, title:i.title, description: null, listings:[i.primaryListing] }, primaryListing:{...i.primaryListing,metadataSnapshot:{experience:'经验不限',education:'本科'}}, application:null, observations:[], campaigns:[] }; },
@@ -27,7 +27,7 @@ describe('DiscoveryQualificationProcessor', () => {
       submissionIntents: { async list() { return { items: [], total: 0 }; } },
     };
     const result = await new DiscoveryQualificationProcessor(client, { dryRun: true, minScore: 58, titleOnlyMinTitleScore: 28 }).run('run-1');
-    expect(result).toMatchObject({ evaluated: 4, qualified: 3, preparable: 0, stateChanges: 0, prepared: 0, skippedLowMatch: 1, skippedChannel: 0, skippedTitleOnlyPrepare: 3, dryRun: true });
+    expect(result).toMatchObject({ evaluated: 4, qualified: 3, preparable: 0, stateChanges: 0, prepared: 0, skippedLowMatch: 0, skippedRoleMismatch: 1, skippedChannel: 0, skippedTitleOnlyPrepare: 3, dryRun: true });
     expect(result.qualifiedSamples).toEqual(expect.arrayContaining([expect.objectContaining({ jobId: 'agent-card', profileId: 'ai-agent-app', score: 42, titleOnly: true })]));
     expect(states).toEqual([]); expect(prepares).toEqual([]);
   });
@@ -35,7 +35,7 @@ describe('DiscoveryQualificationProcessor', () => {
   it('honors Campaign experience constraints using provider listing metadata', async () => {
     const jobs=[item('junior','AI Agent开发工程师'),item('senior','AI Agent开发工程师')];
     const client:any={
-      campaigns:{async get(){return {id:'campaign-1',name:'AI jobs',targetRoles:[],cities:['杭州'],graduationYears:[2026],experience:['经验不限','1-3年'],education:['本科','学历不限'],keywords:[],exclusions:[],sources:['liepin'],resumeProfileIds:[],status:'active',createdAt:'2026-09-18T00:00:00.000Z',updatedAt:'2026-09-18T00:00:00.000Z'};}},
+      campaigns:{async get(){return {id:'campaign-1',name:'AI jobs',targetRoles:['AI Agent / Agent 应用开发','全栈开发','前端开发'],cities:['杭州'],graduationYears:[2026],experience:['经验不限','1-3年'],education:['本科','学历不限'],keywords:[],exclusions:[],sources:['liepin'],resumeProfileIds:[],status:'active',createdAt:'2026-09-18T00:00:00.000Z',updatedAt:'2026-09-18T00:00:00.000Z'};}},
       workspace:{
         async getDiscoveryRunDetail(){return {run:{id:'run-exp',campaignId:'campaign-1'},campaign:{id:'campaign-1',name:'AI jobs'},affectedJobs:jobs,observationCount:2};},
         async getJobDetail(id:string){const i=jobs.find((x:any)=>x.jobId===id);return {job:{id,title:i.title,description:null,listings:[i.primaryListing]},primaryListing:{...i.primaryListing,metadataSnapshot:{experience:id==='junior'?'1-3年':'3-5年',education:'本科'}},application:null,observations:[],campaigns:[]};},
@@ -47,11 +47,28 @@ describe('DiscoveryQualificationProcessor', () => {
     expect(result).toMatchObject({evaluated:2,qualified:1,preparable:0,skippedHardRequirement:1,skippedTitleOnlyPrepare:1});
   });
 
+  it('can restrict post-processing to inserted/updated job ids from the current discovery upsert', async () => {
+    const jobs=[item('changed','AI Agent开发工程师'),item('duplicate','AI Agent开发工程师')];
+    let detailReads=0;
+    const client:any={
+      campaigns:{async get(){return {id:'campaign-1',name:'AI jobs',targetRoles:['AI Agent / Agent 应用开发'],cities:['杭州'],graduationYears:[2026],experience:['经验不限'],education:['本科'],keywords:[],exclusions:[],sources:['zhilian'],resumeProfileIds:[],status:'active',createdAt:'2026-09-18T00:00:00.000Z',updatedAt:'2026-09-18T00:00:00.000Z'};}},
+      workspace:{
+        async getDiscoveryRunDetail(){return {run:{id:'run-changed',campaignId:'campaign-1'},campaign:{id:'campaign-1',name:'AI jobs'},affectedJobs:jobs,observationCount:2};},
+        async getJobDetail(id:string){detailReads+=1;const i=jobs.find((x:any)=>x.jobId===id);return {job:{id,title:i.title,description:'负责 Agent RAG 工具调用',listings:[i.primaryListing]},primaryListing:{...i.primaryListing,metadataSnapshot:{experience:'经验不限',education:'本科'}},application:null,observations:[],campaigns:[]};},
+      },
+      jobs:{async recommendResumes(){return recommendation(80,42);},async setJobState(){return{};},async prepareRecommendedSubmission(){return{};}},
+      submissionIntents:{async list(){return {items:[],total:0};}},
+    };
+    const result=await new DiscoveryQualificationProcessor(client,{dryRun:true}).run('run-changed',{jobIds:['changed']});
+    expect(result).toMatchObject({evaluated:1,qualified:1,preparable:1,truncated:0});
+    expect(detailReads).toBe(1);
+  });
+
   it('shortlists, prepares idempotently eligible formal jobs, skips existing intents and isolates per-job failures', async () => {
     const jobs = [item('new','AI Agent开发工程师'), item('existing','AI Agent开发工程师','liepin','shortlisted'), item('bad','AI Agent开发工程师')];
     const states: any[]=[]; const prepares:any[]=[];
     const client:any={
-      campaigns:{async get(){return {id:'campaign-1',name:'AI jobs',targetRoles:[],cities:['杭州'],graduationYears:[2026],experience:['经验不限','1-3年'],education:['本科','学历不限'],keywords:[],exclusions:[],sources:['zhilian'],resumeProfileIds:[],status:'active',createdAt:'2026-09-18T00:00:00.000Z',updatedAt:'2026-09-18T00:00:00.000Z'};}},
+      campaigns:{async get(){return {id:'campaign-1',name:'AI jobs',targetRoles:['AI Agent / Agent 应用开发','全栈开发','前端开发'],cities:['杭州'],graduationYears:[2026],experience:['经验不限','1-3年'],education:['本科','学历不限'],keywords:[],exclusions:[],sources:['zhilian'],resumeProfileIds:[],status:'active',createdAt:'2026-09-18T00:00:00.000Z',updatedAt:'2026-09-18T00:00:00.000Z'};}},
       workspace:{
         async getDiscoveryRunDetail(){return {run:{id:'run-2',campaignId:'campaign-1'},campaign:{id:'campaign-1',name:'AI jobs'},affectedJobs:jobs,observationCount:3};},
         async getJobDetail(id:string){const i=jobs.find((x:any)=>x.jobId===id); return {job:{id,title:i.title,description:'负责 Agent MCP RAG',listings:[i.primaryListing]},primaryListing:{...i.primaryListing,metadataSnapshot:{experience:'1-3年',education:'本科'}},application:null,observations:[],campaigns:[]};},
@@ -64,7 +81,7 @@ describe('DiscoveryQualificationProcessor', () => {
       submissionIntents:{async list(input:any){return input.jobId==='existing'?{items:[{id:'intent-1'}],total:1}:{items:[],total:0};}},
     };
     const result=await new DiscoveryQualificationProcessor(client,{dryRun:false,autoPrepare:true}).run('run-2');
-    expect(result).toMatchObject({evaluated:2,qualified:2,stateChanges:1,preparable:1,prepared:1,existingIntents:1});
+    expect(result).toMatchObject({evaluated:3,qualified:2,stateChanges:1,preparable:1,prepared:1,existingIntents:1});
     expect(result.failures).toEqual([{jobId:'bad',error:'fixture failure'}]);
     expect(states[0]).toMatchObject({jobId:'new',state:'shortlisted',idempotencyKey:'qualification:new:shortlist'});
     expect(prepares[0]).toMatchObject({id:'new',input:{preferredProfileId:'ai-agent-app',executor:'browser-extension',idempotencyKey:'qualification:new:ai-agent-app:prepare'}});

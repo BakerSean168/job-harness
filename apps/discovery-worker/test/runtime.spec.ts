@@ -24,7 +24,7 @@ describe('DiscoveryWorker', () => {
         async upsertJobsBatch(input: { jobs: UpsertJobCandidate[] }) {
           events.push(`upsert:${input.jobs.length}`);
           expect(input.jobs.every((job) => job.discoveryRunId === 'run-1')).toBe(true);
-          return { items: input.jobs.map((_, index) => ({ status: index === 0 ? 'inserted' as const : 'updated' as const })) };
+          return { items: input.jobs.map((_, index) => ({ index, status: index === 0 ? 'inserted' as const : 'updated' as const, jobId: `job-${index + 1}`, reason: null })) };
         },
       },
     };
@@ -34,7 +34,7 @@ describe('DiscoveryWorker', () => {
     };
     let tick = 0;
     const worker = new DiscoveryWorker({ client, provider, campaignId: campaign.id, idFactory: () => 'nonce-1', now: () => `2026-09-18T10:00:0${tick++}.000Z`, logger: { info() {}, warn() {}, error() {} } });
-    await expect(worker.runOnce()).resolves.toEqual({ runId: 'run-1', providerId: 'fixture-provider', candidateCount: 2, insertedCount: 1, duplicateCount: 1, rejectedCount: 0, queryCount: 3, failedQueryCount: 1 });
+    await expect(worker.runOnce()).resolves.toEqual({ runId: 'run-1', providerId: 'fixture-provider', candidateCount: 2, insertedCount: 1, duplicateCount: 1, rejectedCount: 0, queryCount: 3, failedQueryCount: 1, changedJobIds: ['job-1','job-2'] });
     expect(events).toEqual(['campaign','begin','discover','upsert:2','complete']);
     expect(completed).toEqual({ runId: 'run-1', completedAt: '2026-09-18T10:00:01.000Z', candidateCount: 2, insertedCount: 1, duplicateCount: 1, rejectedCount: 0 });
   });
@@ -54,6 +54,7 @@ describe('DiscoveryWorker', () => {
 
   it('chunks complete JDs by serialized body budget instead of the 100-item contract maximum', async () => {
     const payloadSizes: number[] = [];
+    let nextJobId = 0;
     const large = Array.from({ length: 4 }, (_, index) => ({ ...candidate(`CC-LARGE-${index}`), description: 'x'.repeat(40_000) }));
     const client = {
       campaigns: { async get() { return campaign; } },
@@ -61,7 +62,7 @@ describe('DiscoveryWorker', () => {
       jobs: {
         async upsertJobsBatch(input: { jobs: UpsertJobCandidate[] }) {
           payloadSizes.push(Buffer.byteLength(JSON.stringify(input)));
-          return { items: input.jobs.map(() => ({ status: 'inserted' as const })) };
+          return { items: input.jobs.map((_, index) => ({ index, status: 'inserted' as const, jobId: `job-large-${nextJobId++}`, reason: null })) };
         },
       },
     };
@@ -69,6 +70,7 @@ describe('DiscoveryWorker', () => {
     const worker = new DiscoveryWorker({ client, provider, campaignId: campaign.id, idFactory: () => 'nonce-large', now: () => '2026-09-18T10:00:00.000Z', logger: { info() {}, warn() {}, error() {} } });
     const result = await worker.runOnce();
     expect(result.insertedCount).toBe(4);
+    expect(result.changedJobIds).toHaveLength(4);
     expect(payloadSizes.length).toBeGreaterThan(1);
     expect(payloadSizes.every((size) => size < 100 * 1024)).toBe(true);
   });

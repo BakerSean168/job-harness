@@ -10,7 +10,7 @@ import type {
   DiscoveryRunDetail,
   JobSearchCampaign,
 } from '@job-harness/contracts';
-import { descriptionMeetsCampaignRequirements, matchesCampaignEducation, matchesCampaignExperience, titleLooksLikeEntryLevelDeveloper } from './qualification-policy';
+import { descriptionMeetsCampaignRequirements, matchesCampaignEducation, matchesCampaignExperience, titleMatchesCampaignTargetRole } from './qualification-policy';
 
 export interface DiscoveryQualificationClientPort {
   readonly campaigns: { get(campaignId: string): Promise<JobSearchCampaign | null> };
@@ -48,6 +48,7 @@ export interface DiscoveryQualificationResult {
   readonly skippedTerminalState: number;
   readonly skippedLowMatch: number;
   readonly skippedHardRequirement: number;
+  readonly skippedRoleMismatch: number;
   readonly skippedNonExecutable: number;
   readonly skippedChannel: number;
   readonly skippedTitleOnlyPrepare: number;
@@ -77,13 +78,15 @@ export class DiscoveryQualificationProcessor {
     this.dryRun = policy.dryRun ?? false;
   }
 
-  async run(runId: string): Promise<DiscoveryQualificationResult> {
+  async run(runId: string, input: { readonly jobIds?: readonly string[] } = {}): Promise<DiscoveryQualificationResult> {
     const discovery = await this.client.workspace.getDiscoveryRunDetail(runId);
     if (!discovery) throw new Error(`DiscoveryRun '${runId}' was not found`);
     const campaignId = discovery.campaign?.id ?? discovery.run.campaignId;
     const campaign = campaignId ? await this.client.campaigns.get(campaignId) : null;
     if (!campaign) throw new Error(`DiscoveryRun '${runId}' has no resolvable Campaign`);
-    const jobs = discovery.affectedJobs.slice(0, this.maxJobs);
+    const selectedIds = input.jobIds ? new Set(input.jobIds) : null;
+    const affectedJobs = selectedIds ? discovery.affectedJobs.filter((item) => selectedIds.has(item.jobId)) : discovery.affectedJobs;
+    const jobs = affectedJobs.slice(0, this.maxJobs);
     let evaluated = 0;
     let qualified = 0;
     let stateChanges = 0;
@@ -94,6 +97,7 @@ export class DiscoveryQualificationProcessor {
     let skippedTerminalState = 0;
     let skippedLowMatch = 0;
     let skippedHardRequirement = 0;
+    let skippedRoleMismatch = 0;
     let skippedNonExecutable = 0;
     let skippedChannel = 0;
     let skippedTitleOnlyPrepare = 0;
@@ -104,16 +108,18 @@ export class DiscoveryQualificationProcessor {
       if (item.application) { skippedApplication += 1; continue; }
       if (!['discovered', 'shortlisted'].includes(item.state)) { skippedTerminalState += 1; continue; }
       try {
-        const [jobDetail, recommendations] = await Promise.all([
-          this.client.workspace.getJobDetail(item.jobId),
-          this.client.jobs.recommendResumes(item.jobId),
-        ]);
+        const jobDetail = await this.client.workspace.getJobDetail(item.jobId);
         if (!jobDetail) throw new Error(`Job '${item.jobId}' disappeared during qualification`);
         evaluated += 1;
         if (!meetsCampaignRequirements(jobDetail, campaign)) {
           skippedHardRequirement += 1;
           continue;
         }
+        if (!titleMatchesCampaignTargetRole(jobDetail.job.title, campaign.targetRoles)) {
+          skippedRoleMismatch += 1;
+          continue;
+        }
+        const recommendations = await this.client.jobs.recommendResumes(item.jobId);
         const top = recommendations.items[0] ?? null;
         if (!top || !isQualified(jobDetail, top, this.minScore, this.titleOnlyMinTitleScore)) {
           skippedLowMatch += 1;
@@ -170,10 +176,11 @@ export class DiscoveryQualificationProcessor {
       skippedTerminalState,
       skippedLowMatch,
       skippedHardRequirement,
+      skippedRoleMismatch,
       skippedNonExecutable,
       skippedChannel,
       skippedTitleOnlyPrepare,
-      truncated: Math.max(0, discovery.affectedJobs.length - jobs.length),
+      truncated: Math.max(0, affectedJobs.length - jobs.length),
       dryRun: this.dryRun,
       qualifiedSamples,
       failures: failures.slice(0, 50),
@@ -197,7 +204,7 @@ function isQualified(
 ): boolean {
   const description = detail.job.description?.trim() ?? '';
   if (description) return top.score >= minScore;
-  if (top.riskSignals.length > 0 || !titleLooksLikeEntryLevelDeveloper(detail.job.title)) return false;
+  if (top.riskSignals.length > 0) return false;
   return top.breakdown.titleScore >= titleOnlyMinTitleScore;
 }
 

@@ -1,6 +1,21 @@
-export const TITLE_ONLY_NEGATIVE = /(?:负责人|架构师|专家|\bexpert\b|\barchitect\b|\bsenior\b|\blead\b|\bprincipal\b|\bdirector\b|\bstaff\b|资深|高级|主管|产品经理|产品专家|产品运营|测试|\bqa\b|投资|pmo|项目经理|需求分析|业务分析|\bba\b|售前|销售|运营|规划)/i;
+export const TITLE_ONLY_NEGATIVE = /(?:负责人|架构师|专家|\bexpert\b|\barchitect\b|\bsenior\b|\blead\b|\bprincipal\b|\bdirector\b|\bstaff\b|资深|高级|主管|产品经理|产品专家|产品运营|测试|\bqa\b|投资|pmo|项目经理|需求分析|业务分析|\bba\b|售前|销售|运营|运维|规划)/i;
 export const TITLE_ONLY_DEVELOPER_SIGNAL = /(?:开发|研发|工程师|\bdeveloper\b|\bengineer\b|全栈|前端|后端)/i;
 
+
+
+export function titleMatchesCampaignTargetRole(title: string, targetRoles: readonly string[]): boolean {
+  if (!title || TITLE_ONLY_NEGATIVE.test(title)) return false;
+  const normalized = title.toLowerCase().replace(/\s+/g, ' ').trim();
+  const roleText = targetRoles.join(' ').toLowerCase();
+  const wantsAgent = /agent|智能体|大模型|ai\s*应用|ai应用/.test(roleText);
+  const wantsFullstack = /全栈|full\s*stack|fullstack/.test(roleText);
+  const wantsFrontend = /前端|frontend|web\s*front/.test(roleText);
+
+  if (wantsAgent && /(?:\bagent\b|智能体|大模型应用|ai\s*应用|ai应用|ai\s*native|智能应用)/i.test(normalized)) return true;
+  if (wantsFullstack && /(?:全栈|full\s*stack|fullstack|product\s*engineer|产品工程师)/i.test(normalized)) return true;
+  if (wantsFrontend && /(?:前端|frontend|web\s*前端|react\s*(?:开发|工程师)|vue\s*(?:开发|工程师))/i.test(normalized)) return true;
+  return false;
+}
 export function titleLooksLikeEntryLevelDeveloper(title: string): boolean {
   return TITLE_ONLY_DEVELOPER_SIGNAL.test(title) && !TITLE_ONLY_NEGATIVE.test(title);
 }

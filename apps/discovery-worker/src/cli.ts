@@ -11,6 +11,6 @@ const provider = config.provider === 'liepin' ? new LiepinDiscoveryProvider(conf
 const worker = new DiscoveryWorker({ client, provider, campaignId: config.campaignId });
 const result = await worker.runOnce();
 const qualification = config.qualification.enabled
-  ? await new DiscoveryQualificationProcessor(client, config.qualification).run(result.runId)
+  ? await new DiscoveryQualificationProcessor(client, config.qualification).run(result.runId, { jobIds: result.changedJobIds })
   : null;
 console.log(JSON.stringify({ ...result, ...(qualification ? { qualification } : {}) }));
