@@ -14,7 +14,7 @@ function register(bridge: BrowserExtensionBridge) {
       persistentSession: true,
       resumeUpload: true,
       screenshots: true,
-      driverCommands: ['session_acquire','current_url','title','body_text','fill','select','set_checked','click','upload','screenshot','scan_controls','scan_actions','form_state_hash'],
+      driverCommands: ['session_acquire','current_url','title','body_text','wait','fill','select','set_checked','click','upload','screenshot','scan_controls','scan_actions','form_state_hash'],
     },
   });
 }
@@ -92,6 +92,48 @@ describe('browser-extension validation scope', () => {
     ] as const) {
       await expect(registry.invoke(run.id, { sessionRef: 'chrome-tab:31', command, timeoutMs: 5_000 })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
     }
+    bridge.close();
+  });
+
+  it('orchestrates a complete read-only characterization and persists only redacted structure evidence', async () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge);
+    const registry = new BrowserExtensionValidationRegistry(bridge, {
+      allowedOrigin: 'https://job-harness.test:20900', readonlySiteFamilies: ['zhilian', 'liepin'],
+    });
+    const target = 'https://www.liepin.com/job/123456789.shtml';
+    const run = registry.create({ agentId: 'windows-chrome-primary', targetUrl: target, mode: 'site-readonly' });
+    const pending = registry.characterize(run.id);
+    const results: Record<string, unknown> = {
+      session_acquire: { sessionRef: 'chrome-tab:88', currentUrl: target },
+      current_url: target, wait: null, title: 'AI Agent 工程师 - 猎聘',
+      body_text: '职位详情 投简历 聊一聊 我的简历 默认简历 some-private-page-copy',
+      scan_actions: [
+        { actionRef: 'private-action-ref', tag: 'button', text: '投简历', href: 'https://www.liepin.com/job/123456789.shtml?tracking=secret#x', type: 'button', role: null, disabled: false, ariaDisabled: false },
+      ],
+      scan_controls: [
+        { controlRef: 'private-control-ref', kind: 'select', label: '选择简历', name: 'resume', description: '选择一份简历', required: true, disabled: false, readOnly: false, options: [{ value: 'private-resume-id', label: 'AI Agent 简历', disabled: false }], semanticHints: ['resume-select'], accept: null, multiple: false, sectionLabel: '我的简历' },
+      ],
+      form_state_hash: 'f'.repeat(64),
+    };
+    for (let index = 0; index < 15; index += 1) {
+      const command = await bridge.poll('windows-chrome-primary', 1_000);
+      expect(command).not.toBeNull();
+      bridge.complete('windows-chrome-primary', { commandId: command!.commandId, ok: true, result: results[command!.command.type] ?? null });
+    }
+    const completed = await pending;
+    expect(completed.run.characterization).toEqual(completed.evidence);
+    expect(completed.evidence).toMatchObject({
+      currentUrl: target, title: 'AI Agent 工程师 - 猎聘', formStateHash: 'f'.repeat(64),
+      stateSignals: ['投简历','我的简历','默认简历','聊一聊'],
+      actions: [{ tag: 'button', text: '投简历', href: 'https://www.liepin.com/job/123456789.shtml', disabled: false }],
+      controls: [{ kind: 'select', label: '选择简历', name: 'resume', optionLabels: ['AI Agent 简历'], semanticHints: ['resume-select'] }],
+    });
+    expect(JSON.stringify(completed.evidence)).not.toContain('private-action-ref');
+    expect(JSON.stringify(completed.evidence)).not.toContain('private-control-ref');
+    expect(JSON.stringify(completed.evidence)).not.toContain('private-resume-id');
+    expect(JSON.stringify(completed.evidence)).not.toContain('some-private-page-copy');
+    expect(JSON.stringify(completed.evidence)).not.toContain('tracking=secret');
     bridge.close();
   });
 

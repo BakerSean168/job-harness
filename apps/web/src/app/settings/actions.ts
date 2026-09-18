@@ -6,7 +6,8 @@ import {
   SaveApplicationAnswerSetInputSchema,
 } from '@job-harness/applicant-contracts';
 import { JobHarnessRestError } from '@job-harness/client';
-import { createBrowserExtensionPairing, getJobHarnessClient } from '../../lib/job-harness-client';
+import { characterizeBrowserExtensionSite, createBrowserExtensionPairing, getJobHarnessClient } from '../../lib/job-harness-client';
+import type { AtsCharacterizationActionState } from './characterization-state';
 
 export interface BrowserExtensionPairingActionState {
   readonly ok: boolean;
@@ -38,4 +39,17 @@ export async function saveApplicationAnswerSetAction(_previous: ApplicantSetting
     const input = SaveApplicationAnswerSetInputSchema.parse({ expectedVersion: number(formData, 'expectedVersion'), answerSet: json(formData, 'answerSetJson') });
     await getJobHarnessClient().applicant.saveAnswerSet(input); revalidatePath('/settings'); return { ok: true, message: null };
   } catch (error) { return failure(error); }
+}
+
+
+export async function characterizeAtsSiteAction(_previous: AtsCharacterizationActionState, formData: FormData): Promise<AtsCharacterizationActionState> {
+  const agentId = String(formData.get('agentId') ?? '').trim();
+  const targetUrl = String(formData.get('targetUrl') ?? '').trim();
+  if (!agentId || !targetUrl) return { ok: false, runId: null, error: 'Agent ID and target URL are required', evidence: null };
+  try {
+    const result = await characterizeBrowserExtensionSite({ agentId, targetUrl });
+    return { ok: true, runId: result.runId, error: null, evidence: result.evidence };
+  } catch (error) {
+    return { ok: false, runId: null, error: error instanceof Error ? error.message : String(error), evidence: null };
+  }
 }

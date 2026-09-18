@@ -138,3 +138,50 @@ export function getBrowserExtensionPublicBridgeUrl(): string | null {
     return url.protocol === 'https:' || (url.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(url.hostname)) ? url.toString().replace(/\/$/, '') : null;
   } catch { return null; }
 }
+
+
+export interface AtsCharacterizationEvidence {
+  readonly observedAt: string;
+  readonly currentUrl: string;
+  readonly title: string;
+  readonly formStateHash: string;
+  readonly bodyTextLength: number;
+  readonly stateSignals: readonly string[];
+  readonly actions: readonly { readonly tag: string; readonly text: string; readonly href: string | null; readonly type: string | null; readonly role: string | null; readonly disabled: boolean; readonly ariaDisabled: boolean }[];
+  readonly controls: readonly { readonly kind: string; readonly label: string; readonly name: string | null; readonly description: string | null; readonly required: boolean; readonly disabled: boolean; readonly readOnly: boolean; readonly optionLabels: readonly string[]; readonly semanticHints: readonly string[]; readonly accept: string | null; readonly multiple: boolean; readonly sectionLabel: string | null }[];
+}
+export interface AtsCharacterizationResult { readonly runId: string; readonly evidence: AtsCharacterizationEvidence; }
+
+function browserExtensionHeaders(): Headers {
+  const headers = new Headers({ accept: 'application/json', 'content-type': 'application/json' });
+  const token = apiAuthToken();
+  if (token) headers.set('authorization', `Bearer ${token}`);
+  return headers;
+}
+function upstreamMessage(body: unknown, status: number): string {
+  if (body && typeof body === 'object' && 'error' in body) {
+    const value = (body as { error?: unknown }).error;
+    if (value && typeof value === 'object' && 'message' in value) return String((value as { message?: unknown }).message ?? `HTTP ${status}`);
+    if (typeof value === 'string') return value;
+  }
+  return `HTTP ${status}`;
+}
+
+export async function characterizeBrowserExtensionSite(input: { agentId: string; targetUrl: string }): Promise<AtsCharacterizationResult> {
+  const headers = browserExtensionHeaders();
+  const createResponse = await fetchWithHeaderTimeout(browserExtensionBridgeUrl('/validation-runs'), {
+    method: 'POST', headers, cache: 'no-store',
+    body: JSON.stringify({ agentId: input.agentId, targetUrl: input.targetUrl, mode: 'site-readonly', ttlMs: 600_000 }),
+  }, 30_000);
+  const created = await createResponse.json().catch(() => null) as unknown;
+  if (!createResponse.ok) throw new Error(`ATS characterization start failed: ${upstreamMessage(created, createResponse.status)}`);
+  if (!created || typeof created !== 'object' || typeof (created as { id?: unknown }).id !== 'string') throw new Error('ATS characterization start returned an invalid run');
+  const runId = (created as { id: string }).id;
+  const characterizeResponse = await fetchWithHeaderTimeout(browserExtensionBridgeUrl(`/validation-runs/${encodeURIComponent(runId)}/characterize`), {
+    method: 'POST', headers, cache: 'no-store', body: '{}',
+  }, 90_000);
+  const characterized = await characterizeResponse.json().catch(() => null) as unknown;
+  if (!characterizeResponse.ok) throw new Error(`ATS characterization failed: ${upstreamMessage(characterized, characterizeResponse.status)}`);
+  if (!characterized || typeof characterized !== 'object' || !('evidence' in characterized)) throw new Error('ATS characterization returned no evidence');
+  return { runId, evidence: (characterized as { evidence: AtsCharacterizationEvidence }).evidence };
+}

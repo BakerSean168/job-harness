@@ -3,6 +3,7 @@ import { getWebAuthRuntimeConfig } from '@/auth/session';
 import { getMessages } from '@/i18n/server';
 import { BrowserExtensionPairing } from '@/components/management/browser-extension-pairing';
 import { ApplicantDataSettings } from '@/components/management/applicant-data-settings';
+import { AtsCharacterizationPanel } from '@/components/management/ats-characterization-panel';
 import { getBrowserExtensionAgents, getBrowserExtensionPublicBridgeUrl, getJobHarnessClient } from '@/lib/job-harness-client';
 
 export default async function SettingsPage() {
@@ -34,6 +35,8 @@ export default async function SettingsPage() {
         <ApplicantDataSettings profileContext={applicantProfile} answerSetContext={applicationAnswerSet} copy={copy.applicant} />
 
         <BrowserExtensionPairing publicBridgeUrl={publicBridgeUrl} agents={browserExtensionAgents} copy={copy.browserExtension} />
+
+        <AtsCharacterizationPanel agents={browserExtensionAgents} copy={copy.characterization} />
 
         <section className="settings-panel">
           <div className="management-panel-heading"><h2>{copy.data}</h2></div>

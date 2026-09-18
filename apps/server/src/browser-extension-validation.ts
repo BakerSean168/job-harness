@@ -50,6 +50,21 @@ const READONLY_SITE_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
 ]);
 const WRITE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(['fill', 'select', 'set_checked', 'upload']);
 
+export interface BrowserExtensionCharacterizationEvidence {
+  readonly observedAt: string;
+  readonly currentUrl: string;
+  readonly title: string;
+  readonly formStateHash: string;
+  readonly bodyTextLength: number;
+  readonly stateSignals: readonly string[];
+  readonly actions: readonly {
+    readonly tag: string; readonly text: string; readonly href: string | null; readonly type: string | null; readonly role: string | null; readonly disabled: boolean; readonly ariaDisabled: boolean;
+  }[];
+  readonly controls: readonly {
+    readonly kind: string; readonly label: string; readonly name: string | null; readonly description: string | null; readonly required: boolean; readonly disabled: boolean; readonly readOnly: boolean; readonly optionLabels: readonly string[]; readonly semanticHints: readonly string[]; readonly accept: string | null; readonly multiple: boolean; readonly sectionLabel: string | null;
+  }[];
+}
+
 export interface BrowserExtensionValidationRun {
   readonly id: string;
   readonly agentId: string;
@@ -60,6 +75,7 @@ export interface BrowserExtensionValidationRun {
   readonly sessionRef: string | null;
   readonly commandCount: number;
   readonly writeCount: number;
+  readonly characterization: BrowserExtensionCharacterizationEvidence | null;
 }
 
 interface MutableValidationRun {
@@ -72,6 +88,7 @@ interface MutableValidationRun {
   sessionRef: string | null;
   commandCount: number;
   writeCount: number;
+  characterization: BrowserExtensionCharacterizationEvidence | null;
 }
 
 export class BrowserExtensionValidationRegistry {
@@ -108,6 +125,7 @@ export class BrowserExtensionValidationRegistry {
       sessionRef: null,
       commandCount: 0,
       writeCount: 0,
+      characterization: null,
     };
     this.runs.set(run.id, run);
     return freezeRun(run);
@@ -117,6 +135,13 @@ export class BrowserExtensionValidationRegistry {
     this.reap();
     const run = this.runs.get(ValidationRunIdSchema.parse(id));
     return run ? freezeRun(run) : null;
+  }
+
+  list(): BrowserExtensionValidationRun[] {
+    this.reap();
+    return [...this.runs.values()]
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id))
+      .map(freezeRun);
   }
 
   async invoke(id: string, raw: unknown): Promise<{ run: BrowserExtensionValidationRun; commandId: string; result: unknown }> {
@@ -188,6 +213,42 @@ export class BrowserExtensionValidationRegistry {
     return { run: freezeRun(run), commandId: output.commandId, result: output.result };
   }
 
+  async characterize(id: string): Promise<{ run: BrowserExtensionValidationRun; evidence: BrowserExtensionCharacterizationEvidence }> {
+    this.reap();
+    const run = this.requireRun(id);
+    if (run.mode !== 'site-readonly') {
+      throw new BrowserExtensionBridgeError('VALIDATION_MODE_REQUIRED', 'Characterization requires a site-readonly validation run', 409);
+    }
+    if (!run.sessionRef) {
+      await this.invoke(id, {
+        sessionRef: null,
+        command: { type: 'session_acquire', payload: { preferredUrl: run.targetUrl, reuseLiveSession: false } },
+        timeoutMs: 30_000,
+      });
+    }
+    const sessionRef = run.sessionRef!;
+    await this.invoke(id, { sessionRef, command: { type: 'wait', payload: { milliseconds: 1200 } }, timeoutMs: 10_000 });
+    const current = await this.invoke(id, { sessionRef, command: { type: 'current_url', payload: {} }, timeoutMs: 10_000 });
+    const title = await this.invoke(id, { sessionRef, command: { type: 'title', payload: {} }, timeoutMs: 10_000 });
+    const body = await this.invoke(id, { sessionRef, command: { type: 'body_text', payload: { limit: 50_000 } }, timeoutMs: 15_000 });
+    const actions = await this.invoke(id, { sessionRef, command: { type: 'scan_actions', payload: {} }, timeoutMs: 15_000 });
+    const controls = await this.invoke(id, { sessionRef, command: { type: 'scan_controls', payload: {} }, timeoutMs: 15_000 });
+    const formHash = await this.invoke(id, { sessionRef, command: { type: 'form_state_hash', payload: {} }, timeoutMs: 15_000 });
+    const bodyText = requireString(body.result, 'body_text');
+    const evidence: BrowserExtensionCharacterizationEvidence = {
+      observedAt: this.now().toISOString(),
+      currentUrl: requireString(current.result, 'current_url'),
+      title: requireString(title.result, 'title').slice(0, 500),
+      formStateHash: requireString(formHash.result, 'form_state_hash').slice(0, 200),
+      bodyTextLength: bodyText.length,
+      stateSignals: characterizedStateSignals(bodyText),
+      actions: sanitizeCharacterizationActions(actions.result),
+      controls: sanitizeCharacterizationControls(controls.result),
+    };
+    run.characterization = evidence;
+    return { run: freezeRun(run), evidence };
+  }
+
   private validateTarget(raw: string, mode: z.infer<typeof ValidationModeSchema>): string {
     const url = new URL(raw);
     if (mode === 'synthetic-canary') {
@@ -247,6 +308,10 @@ export function registerBrowserExtensionValidationApi(
     if (!registry) throw new BrowserExtensionBridgeError('VALIDATION_DISABLED', 'Browser validation is not configured', 503);
     res.status(201).json(registry.create(req.body));
   }));
+  app.get(`${BROWSER_EXTENSION_BRIDGE_PREFIX}/validation-runs`, validationRoute(async (_req, res) => {
+    if (!registry) throw new BrowserExtensionBridgeError('VALIDATION_DISABLED', 'Browser validation is not configured', 503);
+    res.json({ items: registry.list() });
+  }));
   app.get(`${BROWSER_EXTENSION_BRIDGE_PREFIX}/validation-runs/:runId`, validationRoute(async (req, res) => {
     if (!registry) throw new BrowserExtensionBridgeError('VALIDATION_DISABLED', 'Browser validation is not configured', 503);
     const run = registry.get(pathId(req.params.runId));
@@ -256,6 +321,10 @@ export function registerBrowserExtensionValidationApi(
   app.post(`${BROWSER_EXTENSION_BRIDGE_PREFIX}/validation-runs/:runId/invoke`, validationRoute(async (req, res) => {
     if (!registry) throw new BrowserExtensionBridgeError('VALIDATION_DISABLED', 'Browser validation is not configured', 503);
     res.json(await registry.invoke(pathId(req.params.runId), req.body));
+  }));
+  app.post(`${BROWSER_EXTENSION_BRIDGE_PREFIX}/validation-runs/:runId/characterize`, validationRoute(async (req, res) => {
+    if (!registry) throw new BrowserExtensionBridgeError('VALIDATION_DISABLED', 'Browser validation is not configured', 503);
+    res.json(await registry.characterize(pathId(req.params.runId)));
   }));
 }
 
@@ -278,6 +347,55 @@ function sendValidationError(res: Response, error: unknown): void {
 function freezeRun(run: MutableValidationRun): BrowserExtensionValidationRun {
   return { ...run };
 }
+function characterizedStateSignals(bodyText: string): string[] {
+  const signals = ['立即投递','投简历','继续沟通','已投递','已申请','选择简历','我的简历','在线简历','默认简历','附件简历','上传简历','聊一聊'];
+  return signals.filter((signal) => bodyText.includes(signal));
+}
+function sanitizedHref(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try { const url = new URL(value); return `${url.origin}${url.pathname}`.slice(0, 1000); } catch { return null; }
+}
+function sanitizeCharacterizationActions(value: unknown): BrowserExtensionCharacterizationEvidence['actions'] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 250).flatMap((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+    const record = item as Record<string, unknown>;
+    return [{
+      tag: typeof record.tag === 'string' ? record.tag.slice(0, 30) : 'other',
+      text: typeof record.text === 'string' ? record.text.replace(/\s+/g, ' ').trim().slice(0, 300) : '',
+      href: sanitizedHref(record.href),
+      type: typeof record.type === 'string' ? record.type.slice(0, 80) : null,
+      role: typeof record.role === 'string' ? record.role.slice(0, 80) : null,
+      disabled: record.disabled === true,
+      ariaDisabled: record.ariaDisabled === true,
+    }];
+  });
+}
+function sanitizeCharacterizationControls(value: unknown): BrowserExtensionCharacterizationEvidence['controls'] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 250).flatMap((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+    const record = item as Record<string, unknown>;
+    const optionLabels = Array.isArray(record.options) ? record.options.slice(0, 50).flatMap((option) => {
+      if (!option || typeof option !== 'object' || Array.isArray(option)) return [];
+      const label = (option as Record<string, unknown>).label;
+      return typeof label === 'string' && label.trim() ? [label.replace(/\s+/g, ' ').trim().slice(0, 200)] : [];
+    }) : [];
+    return [{
+      kind: typeof record.kind === 'string' ? record.kind.slice(0, 50) : 'unknown',
+      label: typeof record.label === 'string' ? record.label.replace(/\s+/g, ' ').trim().slice(0, 300) : '',
+      name: typeof record.name === 'string' ? record.name.slice(0, 200) : null,
+      description: typeof record.description === 'string' ? record.description.replace(/\s+/g, ' ').trim().slice(0, 500) : null,
+      required: record.required === true, disabled: record.disabled === true, readOnly: record.readOnly === true,
+      optionLabels,
+      semanticHints: Array.isArray(record.semanticHints) ? record.semanticHints.filter((hint): hint is string => typeof hint === 'string').slice(0, 20).map((hint) => hint.slice(0, 200)) : [],
+      accept: typeof record.accept === 'string' ? record.accept.slice(0, 300) : null,
+      multiple: record.multiple === true,
+      sectionLabel: typeof record.sectionLabel === 'string' ? record.sectionLabel.replace(/\s+/g, ' ').trim().slice(0, 300) : null,
+    }];
+  });
+}
+
 function requireRecord(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new BrowserExtensionBridgeError('VALIDATION_AGENT_RESULT', `Browser extension ${label} result was invalid`, 502);
   return value as Record<string, unknown>;
