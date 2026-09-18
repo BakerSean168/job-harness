@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
-import { createApplicantApplicationService } from '@job-harness/applicant-application';
+import { createApplicantApplicationService, hashApplicantDocument } from '@job-harness/applicant-application';
 import { ApplicantProfileSchema, ApplicationAnswerSetSchema } from '@job-harness/applicant-contracts';
 import { SqliteApplicantStore } from '../src/applicant-store';
 
@@ -22,6 +22,16 @@ describe('SqliteApplicantStore', () => {
     expect(saved.latestRevision.revisionNumber).toBe(2);
     expect(saved.latestRevision.snapshot.location).toBe('深圳');
     expect((await store.getProfileRevision(boot.profile.latestRevision.id))?.snapshot.location).toBe('杭州');
+    const legacy = new DatabaseSync(databasePath);
+    try {
+      const row = legacy.prepare('SELECT snapshot_json FROM applicant_profile_revisions WHERE id = ?').get(boot.profile.latestRevision.id) as { snapshot_json: string };
+      const snapshot = JSON.parse(row.snapshot_json) as any;
+      delete snapshot.education?.[0]?.institutionTag;
+      legacy.prepare('UPDATE applicant_profile_revisions SET snapshot_json = ?, content_hash = ? WHERE id = ?').run(
+        JSON.stringify(snapshot), hashApplicantDocument(snapshot), boot.profile.latestRevision.id,
+      );
+    } finally { legacy.close(); }
+    expect((await store.getProfileRevision(boot.profile.latestRevision.id))?.snapshot.education[0]?.institutionTag).toBeNull();
     const tamper = new DatabaseSync(databasePath);
     try {
       const row = tamper.prepare('SELECT snapshot_json FROM applicant_profile_revisions WHERE id = ?').get(boot.profile.latestRevision.id) as { snapshot_json: string };

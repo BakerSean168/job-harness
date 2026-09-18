@@ -42,9 +42,10 @@ class SqliteApplicantSession implements ApplicantStoreTransactionPort {
   async getProfileRevision(revisionId: string): Promise<ApplicantProfileRevision | null> {
     const row = this.db.prepare('SELECT * FROM applicant_profile_revisions WHERE id = ?').get(revisionId) as Row | undefined;
     if (!row) return null;
-    const revision = ApplicantProfileRevisionSchema.parse({ id: row.id, profileId: row.profile_id, revisionNumber: Number(row.revision_number), profileVersion: Number(row.profile_version), snapshot: parseJson(row.snapshot_json), contentHash: row.content_hash, createdAt: row.created_at, createdBy: row.created_by });
-    if (hashApplicantDocument(revision.snapshot) !== revision.contentHash) throw new Error(`ApplicantProfileRevision '${revision.id}' failed content-hash verification`);
-    return revision;
+    const rawSnapshot = parseJson(row.snapshot_json);
+    const contentHash = String(row.content_hash);
+    if (hashApplicantDocument(rawSnapshot) !== contentHash) throw new Error(`ApplicantProfileRevision '${String(row.id)}' failed content-hash verification`);
+    return ApplicantProfileRevisionSchema.parse({ id: row.id, profileId: row.profile_id, revisionNumber: Number(row.revision_number), profileVersion: Number(row.profile_version), snapshot: rawSnapshot, contentHash, createdAt: row.created_at, createdBy: row.created_by });
   }
   async getLatestProfileRevision(profileId: string): Promise<ApplicantProfileRevision | null> {
     const row = this.db.prepare('SELECT * FROM applicant_profile_revisions WHERE profile_id = ? ORDER BY revision_number DESC LIMIT 1').get(profileId) as Row | undefined;
@@ -61,9 +62,10 @@ class SqliteApplicantSession implements ApplicantStoreTransactionPort {
   async getAnswerSetRevision(revisionId: string): Promise<ApplicationAnswerSetRevision | null> {
     const row = this.db.prepare('SELECT * FROM application_answer_set_revisions WHERE id = ?').get(revisionId) as Row | undefined;
     if (!row) return null;
-    const revision = ApplicationAnswerSetRevisionSchema.parse({ id: row.id, answerSetId: row.answer_set_id, revisionNumber: Number(row.revision_number), answerSetVersion: Number(row.answer_set_version), snapshot: parseJson(row.snapshot_json), contentHash: row.content_hash, createdAt: row.created_at, createdBy: row.created_by });
-    if (hashApplicantDocument(revision.snapshot) !== revision.contentHash) throw new Error(`ApplicationAnswerSetRevision '${revision.id}' failed content-hash verification`);
-    return revision;
+    const rawSnapshot = parseJson(row.snapshot_json);
+    const contentHash = String(row.content_hash);
+    if (hashApplicantDocument(rawSnapshot) !== contentHash) throw new Error(`ApplicationAnswerSetRevision '${String(row.id)}' failed content-hash verification`);
+    return ApplicationAnswerSetRevisionSchema.parse({ id: row.id, answerSetId: row.answer_set_id, revisionNumber: Number(row.revision_number), answerSetVersion: Number(row.answer_set_version), snapshot: rawSnapshot, contentHash, createdAt: row.created_at, createdBy: row.created_by });
   }
   async getLatestAnswerSetRevision(answerSetId: string): Promise<ApplicationAnswerSetRevision | null> {
     const row = this.db.prepare('SELECT * FROM application_answer_set_revisions WHERE answer_set_id = ? ORDER BY revision_number DESC LIMIT 1').get(answerSetId) as Row | undefined;
