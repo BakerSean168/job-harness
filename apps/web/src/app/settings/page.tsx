@@ -5,10 +5,27 @@ import { BrowserExtensionPairing } from '@/components/management/browser-extensi
 import { ApplicantDataSettings } from '@/components/management/applicant-data-settings';
 import { AtsCharacterizationPanel } from '@/components/management/ats-characterization-panel';
 import { getBrowserExtensionAgents, getBrowserExtensionPublicBridgeUrl, getJobHarnessClient } from '@/lib/job-harness-client';
+import { exactSiteResumeBindingExists, makeAtsBindingTarget, managedSiteIntentRoute } from '@/lib/ats-binding-targets';
 
 export default async function SettingsPage() {
   const client = getJobHarnessClient();
-  const [messages, browserExtensionAgents, applicantProfile, applicationAnswerSet, resumeProfiles, siteResumeBindings] = await Promise.all([getMessages(), getBrowserExtensionAgents(), client.applicant.getProfile(), client.applicant.getAnswerSet(), client.resume.listProfiles(), client.siteResumeBindings.list()]);
+  const [messages, browserExtensionAgents, applicantProfile, applicationAnswerSet, resumeProfiles, siteResumeBindings, plannedIntents] = await Promise.all([
+    getMessages(), getBrowserExtensionAgents(), client.applicant.getProfile(), client.applicant.getAnswerSet(),
+    client.resume.listProfiles(), client.siteResumeBindings.list(),
+    client.submissionIntents.list({ statuses: ['planned'], limit: 100, offset: 0, order: 'oldest' }),
+  ]);
+  const bindingCandidates = plannedIntents.items.filter((intent) => {
+    const route = managedSiteIntentRoute(intent);
+    return Boolean(route
+      && intent.resumeProfileId && intent.resumeRevisionId && intent.resumeArtifactId
+      && !exactSiteResumeBindingExists(intent, route!, siteResumeBindings.items));
+  });
+  const bindingTargets = (await Promise.all(bindingCandidates.map(async (intent) => {
+    const attempts = await client.apply.attempts.list({ intentId: intent.id, limit: 1, offset: 0 });
+    if (attempts.total > 0) return null;
+    const detail = await client.workspace.getJobDetail(intent.jobId);
+    return detail ? makeAtsBindingTarget(intent, detail) : null;
+  }))).filter((target) => target !== null);
   const config = getWebAuthRuntimeConfig();
   const copy = messages.settingsWorkspace;
   const publicBridgeUrl = getBrowserExtensionPublicBridgeUrl();
@@ -36,7 +53,7 @@ export default async function SettingsPage() {
 
         <BrowserExtensionPairing publicBridgeUrl={publicBridgeUrl} agents={browserExtensionAgents} copy={copy.browserExtension} />
 
-        <AtsCharacterizationPanel agents={browserExtensionAgents} profiles={resumeProfiles.items} bindings={siteResumeBindings.items} copy={copy.characterization} />
+        <AtsCharacterizationPanel agents={browserExtensionAgents} profiles={resumeProfiles.items} bindings={siteResumeBindings.items} bindingTargets={bindingTargets} copy={copy.characterization} />
 
         <section className="settings-panel">
           <div className="management-panel-heading"><h2>{copy.data}</h2></div>

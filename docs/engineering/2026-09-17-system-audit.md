@@ -924,3 +924,19 @@ The evidence gate now accepts both `site-readonly` and `site-staged-readonly`, w
 The first live `site-staged-readonly` probe for Liepin Job `1985379181` failed safely with `VALIDATION_TARGET_MISMATCH`. Inspection showed that read-only target equality still compared the full recruiting-site URL, including volatile tracking query parameters commonly appended when a user opens a job from search. For read-only Zhilian/Liepin characterization, the stable external identity is host + characterized job path; tracking query/hash is not part of the Job identity and should not prevent reuse of the same user-staged tab.
 
 `validateTarget` now strips search and hash only for `site-readonly` / `site-staged-readonly` recruiting targets. Synthetic canary mode keeps its strict one-query-parameter contract. A regression test proves a staged Liepin run frozen from one tracking query accepts a live tab on the same `/job/<id>.shtml` path with a different tracking query while retaining `writeCount=0`.
+
+#### A63 — Settings projects the real SiteResumeBinding backlog from planned Intents
+
+The remaining Zhilian/Liepin automation gate is intentionally human-owned: a user must manually stage the signed-in recruiting-site tab at the resume-selection/final-confirmation layer before read-only evidence can establish a user-confirmed SiteResumeBinding. Requiring operators to copy a URL and guess which Job Harness Resume belongs to the pending application adds unnecessary friction and invites mismatched bindings.
+
+Settings now derives a small `AtsBindingTarget` projection from real `planned` SubmissionIntents. It includes only characterized Zhilian/Liepin direct-hire routes with complete frozen Resume evidence, no historical ExecutionAttempt, and no existing active binding matching the exact Profile/Revision/Artifact. The panel shows the Company/Job/site, expected Resume Profile, and an explicit user-clicked `Open target job` link; selecting a target fills the canonical host/path URL and defaults characterization to `site-staged-readonly`. After evidence is captured, the binding Profile defaults to the frozen Intent Profile while remaining user-confirmed. Tracking query parameters are normalized consistently with the staged server validator.
+
+This UI projection creates no browser action by itself, does not create a binding, and cannot submit. The user still manually enters the final-confirmation layer and explicitly confirms an observed site-managed Resume label.
+
+#### A63 — Settings projects the real SiteResumeBinding backlog from planned Intents
+
+The remaining Zhilian/Liepin automation gate is intentionally human-owned: a user must manually stage the signed-in recruiting-site tab at the resume-selection/final-confirmation layer before read-only evidence can establish a user-confirmed SiteResumeBinding. Requiring operators to copy a URL and guess which Job Harness Resume belongs to the pending application adds unnecessary friction and invites mismatched bindings.
+
+Settings now derives a small `AtsBindingTarget` projection from real `planned` SubmissionIntents. It includes only characterized Zhilian/Liepin direct-hire routes with complete frozen Resume evidence, no historical ExecutionAttempt, and no existing active binding matching the exact Profile/Revision/Artifact. The panel shows the Company/Job/site, expected Resume Profile, and an explicit user-clicked `Open target job` link; selecting a target fills the canonical host/path URL and defaults characterization to `site-staged-readonly`. After evidence is captured, the binding Profile defaults to the frozen Intent Profile while remaining user-confirmed. Tracking query parameters are normalized consistently with the staged server validator.
+
+This UI projection creates no browser action by itself, does not create a binding, and cannot submit. The user still manually enters the final-confirmation layer and explicitly confirms an observed site-managed Resume label.

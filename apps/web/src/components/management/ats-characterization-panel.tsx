@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useMemo, useState } from 'react';
 import type { SiteResumeBinding } from '@job-harness/contracts';
 import type { ResumeProfile } from '@job-harness/resume-contracts';
 import {
@@ -13,12 +13,18 @@ import {
   initialSiteResumeBindingActionState,
 } from '@/app/settings/characterization-state';
 import type { BrowserExtensionAgentView } from '@/lib/job-harness-client';
+import { sameManagedJob, type AtsBindingTarget } from '@/lib/ats-binding-targets';
 
 export interface AtsCharacterizationCopy {
   readonly title: string;
   readonly description: string;
   readonly agent: string;
   readonly targetUrl: string;
+  readonly pendingBindings: string;
+  readonly pendingDescription: string;
+  readonly pendingNone: string;
+  readonly openTarget: string;
+  readonly expectedResume: string;
   readonly targetHint: string;
   readonly mode: string;
   readonly isolatedMode: string;
@@ -78,22 +84,57 @@ export function AtsCharacterizationPanel({
   agents,
   profiles,
   bindings,
+  bindingTargets,
   copy,
 }: {
   agents: readonly BrowserExtensionAgentView[];
   profiles: readonly ResumeProfile[];
   bindings: readonly SiteResumeBinding[];
+  bindingTargets: readonly AtsBindingTarget[];
   copy: AtsCharacterizationCopy;
 }) {
   const online = agents.filter((agent) => agent.online);
+  const initialTarget = bindingTargets[0] ?? null;
+  const [selectedTargetId, setSelectedTargetId] = useState(initialTarget?.intentId ?? '');
+  const selectedTarget = useMemo(() => bindingTargets.find((target) => target.intentId === selectedTargetId) ?? null, [bindingTargets, selectedTargetId]);
+  const [targetUrl, setTargetUrl] = useState(initialTarget?.targetUrl ?? '');
+  const [mode, setMode] = useState<'site-readonly' | 'site-staged-readonly'>(initialTarget ? 'site-staged-readonly' : 'site-readonly');
   const [state, action, pending] = useActionState(characterizeAtsSiteAction, initialAtsCharacterizationActionState);
   const [bindingState, bindingAction, bindingPending] = useActionState(createSiteResumeBindingAction, initialSiteResumeBindingActionState);
   const family = state.evidence ? siteFamily(state.evidence.currentUrl) : null;
   const candidates = state.evidence ? resumeCandidates(state.evidence) : [];
+  const evidenceTarget = state.evidence ? bindingTargets.find((target) => sameManagedJob(target.targetUrl, state.evidence!.currentUrl)) ?? selectedTarget : selectedTarget;
+  const expectedProfileId = evidenceTarget?.profileId ?? profiles[0]?.id ?? '';
   return (
     <section className="settings-panel">
       <div className="management-panel-heading"><h2>{copy.title}</h2></div>
       <p className="settings-note">{copy.description}</p>
+      <div className="settings-row">
+        <div>
+          <strong>{copy.pendingBindings}</strong>
+          <p>{copy.pendingDescription}</p>
+        </div>
+      </div>
+      {bindingTargets.length ? (
+        <div className="settings-pairing-form">
+          <label>{copy.pendingBindings}
+            <select value={selectedTargetId} onChange={(event) => {
+              const nextId = event.target.value;
+              const next = bindingTargets.find((target) => target.intentId === nextId) ?? null;
+              setSelectedTargetId(nextId);
+              if (next) { setTargetUrl(next.targetUrl); setMode('site-staged-readonly'); }
+            }}>
+              {bindingTargets.map((target) => <option key={target.intentId} value={target.intentId}>{target.companyName} · {target.title} · {target.siteFamily}</option>)}
+            </select>
+          </label>
+          {selectedTarget ? (
+            <div className="settings-row settings-download-row">
+              <div><strong>{selectedTarget.companyName} · {selectedTarget.title}</strong><p>{copy.expectedResume}: <code>{selectedTarget.profileId}</code></p></div>
+              <a className="action-button" href={selectedTarget.targetUrl} target="_blank" rel="noreferrer">{copy.openTarget}</a>
+            </div>
+          ) : null}
+        </div>
+      ) : <p className="settings-note">{copy.pendingNone}</p>}
       <form action={action} className="settings-pairing-form">
         <label>{copy.agent}
           <select name="agentId" required defaultValue={online[0]?.agentId ?? ''} disabled={!online.length || pending}>
@@ -101,10 +142,10 @@ export function AtsCharacterizationPanel({
           </select>
         </label>
         <label>{copy.targetUrl}
-          <input name="targetUrl" type="url" required placeholder="https://www.zhaopin.com/jobdetail/...htm" disabled={!online.length || pending} />
+          <input name="targetUrl" type="url" required value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} placeholder="https://www.zhaopin.com/jobdetail/...htm" disabled={!online.length || pending} />
         </label>
         <label>{copy.mode}
-          <select name="mode" defaultValue="site-readonly" disabled={!online.length || pending}>
+          <select name="mode" value={mode} onChange={(event) => setMode(event.target.value === 'site-staged-readonly' ? 'site-staged-readonly' : 'site-readonly')} disabled={!online.length || pending}>
             <option value="site-readonly">{copy.isolatedMode}</option>
             <option value="site-staged-readonly">{copy.stagedMode}</option>
           </select>
@@ -142,7 +183,7 @@ export function AtsCharacterizationPanel({
                 </select>
               </label>
               <label>{copy.profile}
-                <select name="profileId" required disabled={bindingPending}>
+                <select key={`${state.runId ?? 'none'}:${expectedProfileId}`} name="profileId" required defaultValue={expectedProfileId} disabled={bindingPending}>
                   {profiles.map((profile) => <option key={profile.id} value={profile.id}>{localized(profile.name)} · {profile.id}</option>)}
                 </select>
               </label>
