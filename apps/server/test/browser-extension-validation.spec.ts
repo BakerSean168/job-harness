@@ -169,7 +169,10 @@ describe('browser-extension validation scope', () => {
       const command = await bridge.poll('windows-chrome-primary', 1_000);
       if (!command) continue;
       let result: unknown = null;
-      if (command.command.type === 'session_acquire') result = { sessionRef:'chrome-tab:resume-sync', currentUrl:pageUrl };
+      if (command.command.type === 'session_acquire') {
+        expect(command.command.payload).toMatchObject({ preferredUrl:'https://www.liepin.com/', reuseLiveSession:true, requireLiveSession:false });
+        result = { sessionRef:'chrome-tab:resume-sync', currentUrl:pageUrl };
+      }
       else if (command.command.type === 'current_url') result = pageUrl;
       else if (command.command.type === 'scan_controls') result = controls;
       else if (command.command.type === 'upload') { uploadCommand = command.command; result = null; }

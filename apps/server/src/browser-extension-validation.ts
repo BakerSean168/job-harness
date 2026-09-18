@@ -191,8 +191,8 @@ export class BrowserExtensionValidationRegistry {
       const preferred = input.command.payload.preferredUrl;
       const sync = run.mode === 'site-resume-sync';
       if (sync) {
-        if (preferred !== null || input.command.payload.reuseLiveSession !== true || input.command.payload.requireLiveSession !== false) {
-          throw new BrowserExtensionBridgeError('VALIDATION_LIVE_SESSION_REQUIRED', 'Site Resume Sync must reuse the current active recruiting-site tab without navigating it', 403);
+        if (!preferred || this.validateTarget(preferred, run.mode) !== run.targetUrl || input.command.payload.reuseLiveSession !== true || input.command.payload.requireLiveSession !== false) {
+          throw new BrowserExtensionBridgeError('VALIDATION_LIVE_SESSION_REQUIRED', 'Site Resume Sync must reuse an existing tab on the configured recruiting site without navigating it', 403);
         }
       } else if (!preferred || this.validateTarget(preferred, run.mode) !== run.targetUrl) {
         throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'Browser validation session must acquire the frozen canary URL', 409);
@@ -264,7 +264,7 @@ export class BrowserExtensionValidationRegistry {
     }
     if (content.bytes.byteLength > 12_000_000) throw new BrowserExtensionBridgeError('VALIDATION_UPLOAD_DENIED', 'Resume PDF exceeds the bounded site-sync upload size', 413);
     if (!run.sessionRef) {
-      await this.invoke(id, { sessionRef: null, command: { type: 'session_acquire', payload: { preferredUrl: null, reuseLiveSession: true, requireLiveSession: false } }, timeoutMs: 30_000 });
+      await this.invoke(id, { sessionRef: null, command: { type: 'session_acquire', payload: { preferredUrl: run.targetUrl, reuseLiveSession: true, requireLiveSession: false } }, timeoutMs: 30_000 });
     }
     const sessionRef = run.sessionRef!;
     const controlsResult = await this.invoke(id, { sessionRef, command: { type: 'scan_controls', payload: {} }, timeoutMs: 15_000 });
