@@ -34,7 +34,7 @@ describe('DiscoveryWorker', () => {
     };
     let tick = 0;
     const worker = new DiscoveryWorker({ client, provider, campaignId: campaign.id, idFactory: () => 'nonce-1', now: () => `2026-09-18T10:00:0${tick++}.000Z`, logger: { info() {}, warn() {}, error() {} } });
-    await expect(worker.runOnce()).resolves.toEqual({ runId: 'run-1', providerId: 'fixture-provider', candidateCount: 2, insertedCount: 1, duplicateCount: 1, rejectedCount: 0, queryCount: 3, failedQueryCount: 1, changedJobIds: ['job-1','job-2'] });
+    await expect(worker.runOnce()).resolves.toEqual({ runId: 'run-1', providerId: 'fixture-provider', candidateCount: 2, insertedCount: 1, duplicateCount: 1, rejectedCount: 0, queryCount: 3, failedQueryCount: 1, qualificationJobIds: ['job-1'] });
     expect(events).toEqual(['campaign','begin','discover','upsert:2','complete']);
     expect(completed).toEqual({ runId: 'run-1', completedAt: '2026-09-18T10:00:01.000Z', candidateCount: 2, insertedCount: 1, duplicateCount: 1, rejectedCount: 0 });
   });
@@ -70,7 +70,7 @@ describe('DiscoveryWorker', () => {
     const worker = new DiscoveryWorker({ client, provider, campaignId: campaign.id, idFactory: () => 'nonce-large', now: () => '2026-09-18T10:00:00.000Z', logger: { info() {}, warn() {}, error() {} } });
     const result = await worker.runOnce();
     expect(result.insertedCount).toBe(4);
-    expect(result.changedJobIds).toHaveLength(4);
+    expect(result.qualificationJobIds).toHaveLength(4);
     expect(payloadSizes.length).toBeGreaterThan(1);
     expect(payloadSizes.every((size) => size < 100 * 1024)).toBe(true);
   });

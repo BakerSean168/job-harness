@@ -35,7 +35,7 @@ export interface DiscoveryWorkerRunResult {
   readonly rejectedCount: number;
   readonly queryCount: number;
   readonly failedQueryCount: number;
-  readonly changedJobIds: readonly string[];
+  readonly qualificationJobIds: readonly string[];
 }
 
 export interface DiscoveryWorkerOptions {
@@ -86,7 +86,7 @@ export class DiscoveryWorker {
     let rejectedCount = 0;
     let queryCount = 0;
     let failedQueryCount = 0;
-    const changedJobIds = new Set<string>();
+    const qualificationJobIds = new Set<string>();
     try {
       const result = await this.options.provider.discover(campaign);
       candidateCount = result.candidates.length;
@@ -101,7 +101,7 @@ export class DiscoveryWorker {
           if (item.status === 'inserted') insertedCount += 1;
           else if (item.status === 'rejected') rejectedCount += 1;
           else duplicateCount += 1;
-          if ((item.status === 'inserted' || item.status === 'updated') && item.jobId) changedJobIds.add(item.jobId);
+          if (item.status === 'inserted' && item.jobId) qualificationJobIds.add(item.jobId);
         }
       }
       this.logger.info('Discovery provider completed', JSON.stringify({ provider: this.options.provider.id, runId: run.id, candidateCount, insertedCount, duplicateCount, rejectedCount, queryCount, failedQueryCount }));
@@ -120,7 +120,7 @@ export class DiscoveryWorker {
       }).catch((error) => this.logger.error('DiscoveryRun completion failed', error instanceof Error ? error.message : String(error)));
     }
 
-    return { runId: run.id, providerId: this.options.provider.id, candidateCount, insertedCount, duplicateCount, rejectedCount, queryCount, failedQueryCount, changedJobIds: [...changedJobIds] };
+    return { runId: run.id, providerId: this.options.provider.id, candidateCount, insertedCount, duplicateCount, rejectedCount, queryCount, failedQueryCount, qualificationJobIds: [...qualificationJobIds] };
   }
 }
 
