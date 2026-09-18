@@ -69,7 +69,8 @@ describe('immutable email application package', () => {
         storage: { async write() { throw new Error('should reuse existing pdf'); }, async read() { return new Uint8Array(); }, async remove() {} },
       });
       const jobResume = createJobResumePreparationService(career, resume, artifacts);
-      const email = createEmailApplicationService(career, resume, applicant, jobResume, emailStore, { now: () => at, idFactory: () => 'package-fixture' });
+      let generatedId = 0;
+      const email = createEmailApplicationService(career, resume, applicant, jobResume, emailStore, { now: () => at, idFactory: () => `fixture-${++generatedId}` });
 
       const jobs = await career.jobs.upsertJobsBatch({ jobs: [{
         companyName: 'Email Co', title: 'Agent开发工程师', city: '杭州', description: 'Agent Harness MCP Orchestration Tool Calling', observedAt: at,
@@ -88,9 +89,19 @@ describe('immutable email application package', () => {
       expect(prepared.intent).toMatchObject({ status: 'planned', channel: 'email', externalTargetUrl: null, executor: 'chatgpt-web' });
       expect((await email.prepare(jobId, { idempotencyKey: 'email-package-idempotency-1' })).package.id).toBe(prepared.package.id);
 
-      await expect(email.beginSend(prepared.package.id, { draftHash: '0'.repeat(64), occurredAt: at })).rejects.toBeInstanceOf(CareerConflictError);
-      const begun = await email.beginSend(prepared.package.id, { draftHash: prepared.package.draftHash, occurredAt: '2026-09-18T07:21:00.000Z' });
-      expect(begun.status).toBe('external_in_progress');
+      await expect(email.authorizeSend(prepared.package.id, { draftHash: '0'.repeat(64), idempotencyKey: 'email-auth-wrong' })).rejects.toBeInstanceOf(CareerConflictError);
+      const expiring = await email.authorizeSend(prepared.package.id, { draftHash: prepared.package.draftHash, expiresInSeconds: 30, idempotencyKey: 'email-auth-expiring' });
+      expect(expiring).toMatchObject({ packageId: prepared.package.id, status: 'active', draftHash: prepared.package.draftHash });
+      expect((await email.listSendAuthorizations()).items).toContainEqual(expect.objectContaining({ id: expiring.id, status: 'active' }));
+      await expect(email.claimSend(prepared.package.id, { authorizationId: expiring.id, draftHash: prepared.package.draftHash, occurredAt: '2026-09-18T07:21:00.000Z' })).rejects.toBeInstanceOf(CareerConflictError);
+      expect((await career.submissionIntents.get(prepared.intent.id))?.status).toBe('planned');
+
+      const authorization = await email.authorizeSend(prepared.package.id, { draftHash: prepared.package.draftHash, expiresInSeconds: 300, idempotencyKey: 'email-auth-live' });
+      await expect(email.authorizeSend(prepared.package.id, { draftHash: prepared.package.draftHash, expiresInSeconds: 300, idempotencyKey: 'email-auth-second-active' })).rejects.toBeInstanceOf(CareerConflictError);
+      const claimed = await email.claimSend(prepared.package.id, { authorizationId: authorization.id, draftHash: prepared.package.draftHash, occurredAt: '2026-09-18T07:21:00.000Z' });
+      expect(claimed.authorization.status).toBe('consumed');
+      expect(claimed.intent.status).toBe('external_in_progress');
+      expect((await email.listSendAuthorizations()).items).toHaveLength(0);
 
       const confirmed = await email.confirm(prepared.package.id, {
         draftHash: prepared.package.draftHash, provider: 'gmail', messageId: '<msg-1@example.test>', threadId: 'thread-1', sentAt: '2026-09-18T07:22:00.000Z',

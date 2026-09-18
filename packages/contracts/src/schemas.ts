@@ -284,4 +284,23 @@ export const EmailApplicationPackageSchema = z.object({
 }).strict();
 
 export type EmailApplicationPackage = z.infer<typeof EmailApplicationPackageSchema>;
+
+export const EMAIL_SEND_AUTHORIZATION_STATUSES = ['active','consumed','revoked'] as const;
+export const EmailSendAuthorizationSchema = z.object({
+  id: EntityIdSchema,
+  packageId: EntityIdSchema,
+  draftHash: z.string().regex(/^[a-f0-9]{64}$/),
+  status: z.enum(EMAIL_SEND_AUTHORIZATION_STATUSES),
+  issuedAt: IsoDateTimeSchema,
+  expiresAt: IsoDateTimeSchema,
+  consumedAt: IsoDateTimeSchema.nullable(),
+  revokedAt: IsoDateTimeSchema.nullable(),
+  idempotencyKey: IdempotencyKeySchema,
+  requestHash: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict().superRefine((value, ctx) => {
+  if (Date.parse(value.expiresAt) <= Date.parse(value.issuedAt)) ctx.addIssue({ code: 'custom', path: ['expiresAt'], message: 'authorization must expire after issuance' });
+  if (value.status === 'consumed' && !value.consumedAt) ctx.addIssue({ code: 'custom', path: ['consumedAt'], message: 'consumed authorization requires consumedAt' });
+  if (value.status === 'revoked' && !value.revokedAt) ctx.addIssue({ code: 'custom', path: ['revokedAt'], message: 'revoked authorization requires revokedAt' });
+});
+export type EmailSendAuthorization = z.infer<typeof EmailSendAuthorizationSchema>;
 export type SubmissionIntent = z.infer<typeof SubmissionIntentSchema>;

@@ -17,6 +17,7 @@ import {
   SubmissionIntentExecutorSchema,
   SubmissionIntentSchema,
   EmailApplicationPackageSchema,
+  EmailSendAuthorizationSchema,
   SubmissionIntentStatusSchema,
 } from './schemas';
 
@@ -277,6 +278,25 @@ export const ConfirmEmailApplicationSendOutputSchema = z.object({
   application: ApplicationDetailSchema.nullable(),
   persistenceCommitted: z.boolean(),
 }).strict();
+
+export const AuthorizeEmailApplicationSendInputSchema = z.object({
+  draftHash: z.string().regex(/^[a-f0-9]{64}$/),
+  expiresInSeconds: z.number().int().min(30).max(900).default(300),
+  idempotencyKey: IdempotencyKeySchema,
+}).strict();
+export const ListEmailSendAuthorizationsInputSchema = z.object({
+  limit: z.number().int().min(1).max(100).default(20),
+}).strict();
+export const ListEmailSendAuthorizationsOutputSchema = z.object({ items: z.array(EmailSendAuthorizationSchema) }).strict();
+export const ClaimEmailApplicationSendInputSchema = z.object({
+  authorizationId: EntityIdSchema,
+  draftHash: z.string().regex(/^[a-f0-9]{64}$/),
+  occurredAt: IsoDateTimeSchema,
+}).strict();
+export const ClaimEmailApplicationSendOutputSchema = z.object({
+  authorization: EmailSendAuthorizationSchema,
+  intent: SubmissionIntentSchema,
+}).strict();
 export const GetSubmissionIntentInputSchema = z.object({ intentId: EntityIdSchema }).strict();
 export const GetSubmissionIntentOutputSchema = SubmissionIntentSchema.nullable();
 
@@ -411,6 +431,10 @@ export type BeginEmailApplicationSendInput = z.input<typeof BeginEmailApplicatio
 export type ConfirmEmailApplicationSendInput = z.input<typeof ConfirmEmailApplicationSendInputSchema>;
 export type FailEmailApplicationSendInput = z.input<typeof FailEmailApplicationSendInputSchema>;
 export type ConfirmEmailApplicationSendOutput = z.output<typeof ConfirmEmailApplicationSendOutputSchema>;
+export type AuthorizeEmailApplicationSendInput = z.input<typeof AuthorizeEmailApplicationSendInputSchema>;
+export type ListEmailSendAuthorizationsOutput = z.output<typeof ListEmailSendAuthorizationsOutputSchema>;
+export type ClaimEmailApplicationSendInput = z.input<typeof ClaimEmailApplicationSendInputSchema>;
+export type ClaimEmailApplicationSendOutput = z.output<typeof ClaimEmailApplicationSendOutputSchema>;
 export type BeginSubmissionIntentInput = z.input<typeof BeginSubmissionIntentInputSchema>;
 export type ConfirmSubmissionIntentInput = z.input<typeof ConfirmSubmissionIntentInputSchema>;
 export type FailSubmissionIntentInput = z.input<typeof FailSubmissionIntentInputSchema>;

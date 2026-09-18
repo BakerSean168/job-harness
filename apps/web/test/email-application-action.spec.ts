@@ -89,6 +89,18 @@ describe('Email application Web action', () => {
     expect(pkg.package.recipient).toBe('recruit@example.test');
     expect(pkg.package.draftHash).toMatch(/^[a-f0-9]{64}$/);
     expect(pkg.intent.status).toBe('planned');
+
+    const authForm = new FormData();
+    authForm.set('packageId', pkg.package.id);
+    authForm.set('draftHash', pkg.package.draftHash);
+    authForm.set('decisionNonce', 'email-send-render-1');
+    const { authorizeEmailApplicationSendAction } = await import('../src/app/jobs/actions');
+    await authorizeEmailApplicationSendAction(authForm);
+    const authorizations = await client.emailApplications.listSendAuthorizations(20);
+    expect(authorizations.items).toHaveLength(1);
+    expect(authorizations.items[0]).toMatchObject({ packageId: pkg.package.id, draftHash: pkg.package.draftHash, status: 'active' });
+    expect((await client.submissionIntents.get(intent.id))?.status).toBe('planned');
+
     const { redirect } = await import('next/navigation');
     expect(redirect).toHaveBeenCalledWith(`/email-applications/${pkg.package.id}`);
     expect((await client.workspace.listApplicationBoard({ limit: 20, offset: 0 })).total).toBe(0);

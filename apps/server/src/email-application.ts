@@ -9,6 +9,12 @@ import {
   CareerNotFoundError,
 } from '@job-harness/application';
 import {
+  AuthorizeEmailApplicationSendInputSchema,
+  ClaimEmailApplicationSendInputSchema,
+  ClaimEmailApplicationSendOutputSchema,
+  EmailSendAuthorizationSchema,
+  ListEmailSendAuthorizationsInputSchema,
+  ListEmailSendAuthorizationsOutputSchema,
   BeginEmailApplicationSendInputSchema,
   ConfirmEmailApplicationSendInputSchema,
   ConfirmEmailApplicationSendOutputSchema,
@@ -17,6 +23,10 @@ import {
   FailEmailApplicationSendInputSchema,
   JOB_HARNESS_REST_V1_ROUTES,
   PrepareEmailApplicationInputSchema,
+  type AuthorizeEmailApplicationSendInput,
+  type ClaimEmailApplicationSendInput,
+  type ClaimEmailApplicationSendOutput,
+  type EmailSendAuthorization,
   type BeginEmailApplicationSendInput,
   type ConfirmEmailApplicationSendInput,
   type ConfirmEmailApplicationSendOutput,
@@ -93,6 +103,9 @@ function buildEmailCopy(input: {
 export interface EmailApplicationService {
   prepare(jobId: string, input: PrepareEmailApplicationInput): Promise<EmailApplicationPackageDetail>;
   get(packageId: string): Promise<EmailApplicationPackageDetail>;
+  authorizeSend(packageId: string, input: AuthorizeEmailApplicationSendInput): Promise<EmailSendAuthorization>;
+  listSendAuthorizations(limit?: number): Promise<{ items: EmailSendAuthorization[] }>;
+  claimSend(packageId: string, input: ClaimEmailApplicationSendInput): Promise<ClaimEmailApplicationSendOutput>;
   beginSend(packageId: string, input: BeginEmailApplicationSendInput): Promise<SubmissionIntent>;
   confirm(packageId: string, input: ConfirmEmailApplicationSendInput): Promise<ConfirmEmailApplicationSendOutput>;
   fail(packageId: string, input: FailEmailApplicationSendInput): Promise<EmailApplicationPackageDetail>;
@@ -211,6 +224,55 @@ export function createEmailApplicationService(
 
     async get(packageId) { return detail(await load(packageId)); },
 
+    async authorizeSend(packageId, raw) {
+      const input = AuthorizeEmailApplicationSendInputSchema.parse(raw);
+      const value = await load(packageId);
+      requireDraftHash(value, input.draftHash);
+      const intent = await career.submissionIntents.get(value.intentId);
+      if (!intent) throw new CareerNotFoundError('SubmissionIntent', value.intentId);
+      if (intent.status !== 'planned') throw new CareerConflictError(`Email SubmissionIntent '${intent.id}' is '${intent.status}', expected 'planned'`);
+      const issuedAt = now();
+      const requestHash = sha256({ packageId, draftHash: input.draftHash, expiresInSeconds: input.expiresInSeconds });
+      try {
+        return EmailSendAuthorizationSchema.parse(await store.issueAuthorization({
+          id: `email-send-auth-${idFactory()}`,
+          packageId,
+          draftHash: value.draftHash,
+          status: 'active',
+          issuedAt,
+          expiresAt: new Date(Date.parse(issuedAt) + input.expiresInSeconds * 1000).toISOString(),
+          consumedAt: null,
+          revokedAt: null,
+          idempotencyKey: input.idempotencyKey,
+          requestHash,
+        }));
+      } catch (error) {
+        throw new CareerConflictError(error instanceof Error ? error.message : String(error));
+      }
+    },
+
+    async listSendAuthorizations(limit = 20) {
+      const parsed = ListEmailSendAuthorizationsInputSchema.parse({ limit });
+      return ListEmailSendAuthorizationsOutputSchema.parse({ items: await store.listActiveAuthorizations(now(), parsed.limit) });
+    },
+
+    async claimSend(packageId, raw) {
+      const input = ClaimEmailApplicationSendInputSchema.parse(raw);
+      const value = await load(packageId);
+      requireDraftHash(value, input.draftHash);
+      const current = await career.submissionIntents.get(value.intentId);
+      if (!current) throw new CareerNotFoundError('SubmissionIntent', value.intentId);
+      if (current.status !== 'planned') throw new CareerConflictError(`Email SubmissionIntent '${current.id}' is '${current.status}', expected 'planned'`);
+      let authorization: EmailSendAuthorization;
+      try {
+        authorization = await store.consumeAuthorization({ packageId, authorizationId: input.authorizationId, draftHash: input.draftHash, now: input.occurredAt });
+      } catch (error) {
+        throw new CareerConflictError(error instanceof Error ? error.message : String(error));
+      }
+      const intent = await career.submissionIntents.begin({ intentId: value.intentId, occurredAt: input.occurredAt });
+      return ClaimEmailApplicationSendOutputSchema.parse({ authorization, intent });
+    },
+
     async beginSend(packageId, raw) {
       const input = BeginEmailApplicationSendInputSchema.parse(raw);
       const value = await load(packageId);
@@ -292,6 +354,16 @@ export function registerEmailApplicationApi(app: Express, service: EmailApplicat
   }));
   registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.getEmailApplication, route(async (req, res) => {
     res.json(await service.get(String(req.params.packageId ?? '').trim()));
+  }));
+  registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.authorizeEmailApplicationSend, route(async (req, res) => {
+    res.status(201).json(await service.authorizeSend(String(req.params.packageId ?? '').trim(), AuthorizeEmailApplicationSendInputSchema.parse(req.body ?? {})));
+  }));
+  registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.listEmailSendAuthorizations, route(async (req, res) => {
+    const input = ListEmailSendAuthorizationsInputSchema.parse({ limit: Number(req.query.limit ?? 20) });
+    res.json(await service.listSendAuthorizations(input.limit));
+  }));
+  registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.claimEmailApplicationSend, route(async (req, res) => {
+    res.json(await service.claimSend(String(req.params.packageId ?? '').trim(), ClaimEmailApplicationSendInputSchema.parse(req.body ?? {})));
   }));
   registerRestV1Route(app, apiPrefix, JOB_HARNESS_REST_V1_ROUTES.beginEmailApplicationSend, route(async (req, res) => {
     res.json(await service.beginSend(String(req.params.packageId ?? '').trim(), BeginEmailApplicationSendInputSchema.parse(req.body ?? {})));

@@ -155,3 +155,18 @@ export async function prepareEmailApplicationAction(formData: FormData): Promise
   revalidatePath(`/jobs/${jobId}`);
   redirect(`/email-applications/${prepared.package.id}`);
 }
+
+
+export async function authorizeEmailApplicationSendAction(formData: FormData): Promise<void> {
+  const packageId = formString(formData, 'packageId');
+  const draftHash = formString(formData, 'draftHash');
+  const decisionNonce = formString(formData, 'decisionNonce');
+  if (!packageId || !draftHash || !decisionNonce) throw new Error('Email package, draft hash, and decision nonce are required');
+  await getJobHarnessClient().emailApplications.authorizeSend(packageId, {
+    draftHash,
+    expiresInSeconds: 300,
+    idempotencyKey: `web:email-send-auth:${packageId}:${decisionNonce}`,
+  });
+  revalidatePath(`/email-applications/${packageId}`);
+  redirect(`/email-applications/${packageId}`);
+}

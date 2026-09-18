@@ -52,6 +52,28 @@ importers:
         specifier: ^4.20.5
         version: 4.23.13
 
+  apps/email-worker:
+    dependencies:
+      '@job-harness/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+      '@job-harness/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@job-harness/resume-contracts':
+        specifier: workspace:*
+        version: link:../../packages/resume-contracts
+      nodemailer:
+        specifier: ^7.0.6
+        version: 7.0.13
+    devDependencies:
+      '@types/nodemailer':
+        specifier: ^7.0.1
+        version: 7.0.12
+      tsx:
+        specifier: ^4.20.5
+        version: 4.23.13
+
   apps/resume-renderer-service:
     dependencies:
       playwright-core:
@@ -1025,6 +1047,9 @@ packages:
   '@types/node@24.13.5':
     resolution: {integrity: sha512-TXyindR+lBr22aJIdMQzCFHPHR6cR4js838mRDCSz5hOKWZvZwsXSSiXDmjRj4iJmgl+sR9O+1mkoVBSMadNug==}
 
+  '@types/nodemailer@7.0.12':
+    resolution: {integrity: sha512-80vKwiIsVSyFA1rRovH59jNPLBOuc6dRZIHEu40gXTkBkZnQv8vog1xSGEb9j5q/tdMAs5ivvDR2pLTU0hGHXA==}
+
   '@types/nunjucks@3.2.6':
     resolution: {integrity: sha512-pHiGtf83na1nCzliuAdq8GowYiXvH5l931xZ0YEHaLMNFgynpEqx+IPStlu7UaDkehfvl01e4x/9Tpwhy7Ue3w==}
 
@@ -1517,6 +1542,10 @@ packages:
         optional: true
       sass:
         optional: true
+
+  nodemailer@7.0.13:
+    resolution: {integrity: sha512-PNDFSJdP+KFgdsG3ZzMXCgquO7I6McjY2vlqILjtJd0hy8wEvtugS9xKRF2NWlPNGxvLCXlTNIae4serI7dinw==}
+    engines: {node: '>=6.0.0'}
 
   nunjucks@3.2.4:
     resolution: {integrity: sha512-26XRV6BhkgK0VOxfbU5cQI+ICFUtMLixv1noZn1tGU38kQH5A5nmmbk/O45xdyBhD1esk47nKrY0mvQpZIhRjQ==}
@@ -2396,6 +2425,10 @@ snapshots:
     dependencies:
       undici-types: 7.18.2
 
+  '@types/nodemailer@7.0.12':
+    dependencies:
+      '@types/node': 24.13.5
+
   '@types/nunjucks@3.2.6': {}
 
   '@types/qs@6.15.1': {}
@@ -2917,6 +2950,8 @@ snapshots:
       - '@babel/core'
       - '@types/node'
       - babel-plugin-macros
+
+  nodemailer@7.0.13: {}
 
   nunjucks@3.2.4:
     dependencies:

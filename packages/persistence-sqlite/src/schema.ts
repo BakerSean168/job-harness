@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 12;
+export const SQLITE_SCHEMA_VERSION = 13;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -394,6 +394,7 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
   migrateApplySubmitSafetyV10(db);
   migrateApplicantDataV11(db);
   migrateEmailApplicationPackagesV12(db);
+  migrateEmailSendAuthorizationsV13(db);
 }
 
 const PERFORMANCE_INDEXES_SCHEMA_V4 = `
@@ -882,6 +883,42 @@ function migrateEmailApplicationPackagesV12(db: DatabaseSync): void {
   try {
     db.exec(EMAIL_APPLICATION_PACKAGE_SCHEMA_V12);
     db.exec('PRAGMA user_version = 12');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+
+const EMAIL_SEND_AUTHORIZATION_SCHEMA_V13 = `
+CREATE TABLE IF NOT EXISTS email_send_authorizations (
+  id TEXT PRIMARY KEY,
+  package_id TEXT NOT NULL REFERENCES email_application_packages(id) ON DELETE CASCADE,
+  draft_hash TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('active','consumed','revoked')),
+  issued_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT,
+  revoked_at TEXT,
+  idempotency_key TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  UNIQUE(package_id,idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS email_send_authorizations_status_expiry_idx
+  ON email_send_authorizations(status,expires_at,issued_at,id);
+CREATE UNIQUE INDEX IF NOT EXISTS email_send_authorizations_one_active_per_package_idx
+  ON email_send_authorizations(package_id) WHERE status='active';
+`;
+
+function migrateEmailSendAuthorizationsV13(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 13) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(EMAIL_SEND_AUTHORIZATION_SCHEMA_V13);
+    db.exec('PRAGMA user_version = 13');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

@@ -1,21 +1,27 @@
+import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { WorkspaceHeader } from '@/components/shell/workspace-header';
 import { getLocale, getMessages } from '@/i18n/server';
 import { getJobHarnessClient } from '@/lib/job-harness-client';
 import { formatDateTime } from '@/lib/format';
+import { authorizeEmailApplicationSendAction } from '@/app/jobs/actions';
 
 export default async function EmailApplicationPage({ params }: { params: Promise<{ packageId: string }> }) {
   const { packageId } = await params;
   const client = getJobHarnessClient();
-  const [messages, locale, detail] = await Promise.all([
+  const [messages, locale, detail, authorizations] = await Promise.all([
     getMessages(),
     getLocale(),
     client.emailApplications.get(packageId),
+    client.emailApplications.listSendAuthorizations(100),
   ]);
   if (!detail) notFound();
   const copy = messages.jobsWorkspace.emailApplication;
   const pkg = detail.package;
+  const workerEnabled = process.env.JOB_HARNESS_EMAIL_SMTP_WORKER_ENABLED?.trim().toLowerCase() === 'true';
+  const activeAuthorization = authorizations.items.find((item) => item.packageId === pkg.id) ?? null;
+  const decisionNonce = randomUUID();
   return (
     <div className="workspace-page management-page">
       <WorkspaceHeader
@@ -52,6 +58,19 @@ export default async function EmailApplicationPage({ params }: { params: Promise
         </section>
         <section className="management-panel executor-review-card executor-human-action-card">
           <p className="executor-boundary-note">{copy.providerBoundary}</p>
+          {detail.intent.status === 'planned' && workerEnabled ? (
+            activeAuthorization ? (
+              <p><strong>{copy.authorized}</strong> {formatDateTime(locale, activeAuthorization.expiresAt)}</p>
+            ) : (
+              <form action={authorizeEmailApplicationSendAction}>
+                <input type="hidden" name="packageId" value={pkg.id} />
+                <input type="hidden" name="draftHash" value={pkg.draftHash} />
+                <input type="hidden" name="decisionNonce" value={decisionNonce} />
+                <button className="filter-submit" type="submit">{copy.authorizeSend}</button>
+              </form>
+            )
+          ) : null}
+          {detail.intent.status === 'planned' && !workerEnabled ? <p className="muted-copy">{copy.workerNotConfigured}</p> : null}
         </section>
       </div>
     </div>

@@ -95,6 +95,11 @@ import {
   ConfirmEmailApplicationSendInputSchema,
   FailEmailApplicationSendInputSchema,
   ConfirmEmailApplicationSendOutputSchema,
+  AuthorizeEmailApplicationSendInputSchema,
+  EmailSendAuthorizationSchema,
+  ListEmailSendAuthorizationsOutputSchema,
+  ClaimEmailApplicationSendInputSchema,
+  ClaimEmailApplicationSendOutputSchema,
   BeginSubmissionIntentOutputSchema,
   SubmissionIntentCommitOutputSchema,
   FailSubmissionIntentOutputSchema,
@@ -112,6 +117,11 @@ import {
   type ConfirmEmailApplicationSendInput,
   type FailEmailApplicationSendInput,
   type ConfirmEmailApplicationSendOutput,
+  type AuthorizeEmailApplicationSendInput,
+  type EmailSendAuthorization,
+  type ListEmailSendAuthorizationsOutput,
+  type ClaimEmailApplicationSendInput,
+  type ClaimEmailApplicationSendOutput,
   type BeginSubmissionIntentInput,
   type ConfirmSubmissionIntentInput,
   type FailSubmissionIntentInput,
@@ -492,6 +502,9 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
           body: JSON.stringify({ kind: parsed.kind }),
         }));
       },
+      async downloadArtifact(artifactId: string): Promise<Uint8Array> {
+        return requestBytes(`/resume/artifacts/${encodeURIComponent(artifactId)}/content`);
+      },
     },
     analytics: {
       async getPipelineStats(input: PipelineStatsInput = {}): Promise<PipelineStatsOutput> {
@@ -577,6 +590,21 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
       },
       async get(packageId: string): Promise<EmailApplicationPackageDetail | null> {
         return nullable(async () => EmailApplicationPackageDetailSchema.parse(await request(`/email-applications/${encodeURIComponent(packageId)}`)));
+      },
+      async authorizeSend(packageId: string, input: AuthorizeEmailApplicationSendInput): Promise<EmailSendAuthorization> {
+        const parsed = AuthorizeEmailApplicationSendInputSchema.parse(input);
+        return EmailSendAuthorizationSchema.parse(await request(`/email-applications/${encodeURIComponent(packageId)}/send-authorizations`, {
+          method: 'POST', body: JSON.stringify(parsed),
+        }));
+      },
+      async listSendAuthorizations(limit = 20): Promise<ListEmailSendAuthorizationsOutput> {
+        return ListEmailSendAuthorizationsOutputSchema.parse(await request(`/email-send-authorizations?limit=${encodeURIComponent(String(limit))}`));
+      },
+      async claimSend(packageId: string, input: ClaimEmailApplicationSendInput): Promise<ClaimEmailApplicationSendOutput> {
+        const parsed = ClaimEmailApplicationSendInputSchema.parse(input);
+        return ClaimEmailApplicationSendOutputSchema.parse(await request(`/email-applications/${encodeURIComponent(packageId)}/claim-send`, {
+          method: 'POST', body: JSON.stringify(parsed),
+        }));
       },
       async beginSend(packageId: string, input: BeginEmailApplicationSendInput): Promise<SubmissionIntent> {
         const parsed = BeginEmailApplicationSendInputSchema.parse(input);

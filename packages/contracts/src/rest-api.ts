@@ -48,6 +48,11 @@ import {
   ConfirmEmailApplicationSendInputSchema,
   FailEmailApplicationSendInputSchema,
   ConfirmEmailApplicationSendOutputSchema,
+  AuthorizeEmailApplicationSendInputSchema,
+  ListEmailSendAuthorizationsInputSchema,
+  ListEmailSendAuthorizationsOutputSchema,
+  ClaimEmailApplicationSendInputSchema,
+  ClaimEmailApplicationSendOutputSchema,
   BeginSubmissionIntentInputSchema,
   BeginSubmissionIntentOutputSchema,
   ConfirmSubmissionIntentInputSchema,
@@ -115,7 +120,7 @@ import {
   ResumeExecutionAttemptInputSchema,
   StartExecutionAttemptInputSchema,
 } from '@job-harness/apply-contracts';
-import { EntityIdSchema, SubmissionIntentSchema } from './schemas';
+import { EmailSendAuthorizationSchema, EntityIdSchema, SubmissionIntentSchema } from './schemas';
 import {
   ListResumeProfilesInputSchema as ListResumeBuilderProfilesInputSchema,
   ListResumeProfilesOutputSchema as ListResumeBuilderProfilesOutputSchema,
@@ -167,6 +172,8 @@ export const PrepareEmailApplicationBodySchema = PrepareEmailApplicationInputSch
 export const BeginEmailApplicationSendBodySchema = BeginEmailApplicationSendInputSchema;
 export const ConfirmEmailApplicationSendBodySchema = ConfirmEmailApplicationSendInputSchema;
 export const FailEmailApplicationSendBodySchema = FailEmailApplicationSendInputSchema;
+export const AuthorizeEmailApplicationSendBodySchema = AuthorizeEmailApplicationSendInputSchema;
+export const ClaimEmailApplicationSendBodySchema = ClaimEmailApplicationSendInputSchema;
 export const FailSubmissionIntentBodySchema = FailSubmissionIntentInputSchema.omit({ intentId: true });
 export const ExecutorHeartbeatBodySchema = ExecutorHeartbeatInputSchema.omit({ executorId: true });
 export const StartExecutionAttemptBodySchema = StartExecutionAttemptInputSchema.omit({ attemptId: true });
@@ -215,6 +222,9 @@ export const JOB_HARNESS_REST_V1_ROUTES = {
   beginEmailApplicationSend: route({ operationId: 'beginEmailApplicationSend', method: 'post', path: '/email-applications/:packageId/begin-send', tags: ['Email Applications'], summary: 'Verify the frozen draft hash and durably cross into external_in_progress before an email provider send', paramsSchema: IdParam('packageId'), bodySchema: BeginEmailApplicationSendBodySchema, responseSchema: SubmissionIntentSchema, successStatus: 200 }),
   confirmEmailApplicationSend: route({ operationId: 'confirmEmailApplicationSend', method: 'post', path: '/email-applications/:packageId/confirm', tags: ['Email Applications'], summary: 'Persist provider Message-ID evidence and reconcile the email send into ApplicationSubmission state', paramsSchema: IdParam('packageId'), bodySchema: ConfirmEmailApplicationSendBodySchema, responseSchema: ConfirmEmailApplicationSendOutputSchema, successStatus: 200 }),
   failEmailApplicationSend: route({ operationId: 'failEmailApplicationSend', method: 'post', path: '/email-applications/:packageId/fail', tags: ['Email Applications'], summary: 'Record a known failed or uncertain email-send result without fabricating success', paramsSchema: IdParam('packageId'), bodySchema: FailEmailApplicationSendBodySchema, responseSchema: EmailApplicationPackageDetailSchema, successStatus: 200 }),
+  authorizeEmailApplicationSend: route({ operationId: 'authorizeEmailApplicationSend', method: 'post', path: '/email-applications/:packageId/send-authorizations', tags: ['Email Applications'], summary: 'Issue a short-lived user authorization bound to one immutable email draft', paramsSchema: IdParam('packageId'), bodySchema: AuthorizeEmailApplicationSendBodySchema, responseSchema: EmailSendAuthorizationSchema, successStatus: 201 }),
+  listEmailSendAuthorizations: route({ operationId: 'listEmailSendAuthorizations', method: 'get', path: '/email-send-authorizations', tags: ['Email Applications'], summary: 'List active non-expired email send authorizations for the delivery worker', querySchema: ListEmailSendAuthorizationsInputSchema, responseSchema: ListEmailSendAuthorizationsOutputSchema, successStatus: 200 }),
+  claimEmailApplicationSend: route({ operationId: 'claimEmailApplicationSend', method: 'post', path: '/email-applications/:packageId/claim-send', tags: ['Email Applications'], summary: 'Consume one email send authorization and durably cross the external-send boundary', paramsSchema: IdParam('packageId'), bodySchema: ClaimEmailApplicationSendBodySchema, responseSchema: ClaimEmailApplicationSendOutputSchema, successStatus: 200 }),
   upsertJobsBatch: route({ operationId: 'upsertJobsBatch', method: 'post', path: '/jobs/batch', tags: ['Jobs'], summary: 'Idempotently upsert discovered jobs', bodySchema: UpsertJobsBatchInputSchema, responseSchema: UpsertJobsBatchOutputSchema, successStatus: 200 }),
   setJobState: route({ operationId: 'setJobState', method: 'patch', path: '/jobs/:jobId/state', tags: ['Jobs'], summary: 'Change a job triage state', paramsSchema: IdParam('jobId'), bodySchema: SetJobStateBodySchema, responseSchema: SetJobStateOutputSchema, successStatus: 200 }),
   applications: route({ operationId: 'listApplications', method: 'get', path: '/applications', tags: ['Applications'], summary: 'List application board projections', querySchema: ListApplicationBoardInputSchema, responseSchema: ListApplicationBoardOutputSchema, successStatus: 200 }),
