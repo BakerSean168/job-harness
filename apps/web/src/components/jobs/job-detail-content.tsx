@@ -108,6 +108,7 @@ export function JobDetailContent({
           listingId={detail.primaryListing?.id ?? null}
           recommendations={resumeRecommendations}
           messages={messages}
+          sourceKind={detail.primaryListing?.sourceKind ?? null}
         />
       ) : null}
 

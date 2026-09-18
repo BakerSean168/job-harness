@@ -133,7 +133,11 @@ export function createJobResumePreparationService(
       expectedLibraryVersion: context.library.version,
       note: `Auto-frozen for Job Harness application preparation: ${detail.job.companyName} / ${detail.job.title}`,
     });
-    const pdf = await artifacts.materialize({ revisionId: published.revision.id, kind: 'pdf' });
+    const publishedDetail = await resume.getRevisionDetail(published.revision.id);
+    const existingPdf = publishedDetail?.artifacts
+      .filter((artifact) => artifact.kind === 'pdf' && artifact.mimeType === 'application/pdf')
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
+    const pdfArtifact = existingPdf ?? (await artifacts.materialize({ revisionId: published.revision.id, kind: 'pdf' })).artifact;
 
     const listing = parsed.listingId
       ? detail.job.listings.find((candidate) => candidate.id === parsed.listingId) ?? null
@@ -148,7 +152,7 @@ export function createJobResumePreparationService(
       channel: parsed.channel ?? listing.sourceKind,
       resumeProfileId: context.profile.id,
       resumeRevisionId: published.revision.id,
-      resumeArtifactId: pdf.artifact.id,
+      resumeArtifactId: pdfArtifact.id,
       executor: parsed.executor,
       ...(parsed.executorSessionId !== undefined ? { executorSessionId: parsed.executorSessionId } : {}),
       externalTargetUrl,
@@ -159,7 +163,7 @@ export function createJobResumePreparationService(
     const selection = JobResumeMatchSchema.parse({
       ...selected,
       latestRevisionId: published.revision.id,
-      latestPdfArtifactId: pdf.artifact.id,
+      latestPdfArtifactId: pdfArtifact.id,
       executable: true,
     });
     return PrepareRecommendedSubmissionIntentOutputSchema.parse({ selection, intent });

@@ -99,15 +99,41 @@ export async function prepareRecommendedApplicationAction(formData: FormData): P
   const jobId = formString(formData, 'jobId');
   const listingId = formString(formData, 'listingId');
   const preferredProfileId = formString(formData, 'preferredProfileId');
-  if (!jobId || !preferredProfileId) throw new Error('Job and Resume Profile are required');
-  await getJobHarnessClient().jobs.prepareRecommendedSubmission(jobId, {
+  const decisionNonce = formString(formData, 'decisionNonce');
+  if (!jobId || !preferredProfileId || !decisionNonce) throw new Error('Job, Resume Profile, and decision nonce are required');
+  const client = getJobHarnessClient();
+  const executors = await client.apply.executors.list({ limit: 100, offset: 0 });
+  const extensionReady = executors.items.some((executor) =>
+    executor.status === 'ready'
+    && executor.browserBackends.includes('extension')
+    && executor.executionModes.includes('fill_only')
+    && executor.capabilities.humanControl
+    && executor.capabilities.persistentSession
+    && executor.capabilities.resumeUpload,
+  );
+  if (!extensionReady) throw new Error('No ready user-Chrome Apply Executor is available for automatic form fill');
+
+  const prepared = await client.jobs.prepareRecommendedSubmission(jobId, {
     ...(listingId ? { listingId } : {}),
     preferredProfileId,
     executor: 'browser-extension',
-    idempotencyKey: `web:auto-resume:${jobId}:${randomUUID()}`,
+    idempotencyKey: `web:auto-resume:${jobId}:${preferredProfileId}:${decisionNonce}`,
     note: 'Prepared from Job detail using deterministic Resume Profile recommendation.',
+  });
+  const attempt = await client.apply.attempts.dispatch({
+    intentId: prepared.intent.id,
+    executionMode: 'fill_only',
+    preferredBrowserBackend: 'extension',
+    requiredCapabilities: ['humanControl', 'persistentSession', 'resumeUpload'],
+    policySnapshot: {
+      allowFormFill: true,
+      allowApplicationEntry: true,
+      submitAllowed: false,
+      initiatedBy: 'user-web-auto-fill',
+    },
+    idempotencyKey: `web:auto-fill:${prepared.intent.id}:${decisionNonce}`,
   });
   revalidatePath(`/jobs/${jobId}`);
   revalidatePath('/executors');
-  redirect('/executors');
+  redirect(`/executors/${attempt.id}`);
 }

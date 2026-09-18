@@ -1,4 +1,5 @@
-import type { RecommendJobResumesOutput } from '@job-harness/contracts';
+import { randomUUID } from 'node:crypto';
+import type { JobDetail, RecommendJobResumesOutput } from '@job-harness/contracts';
 import type { MessageCatalog } from '@/i18n';
 import { prepareRecommendedApplicationAction } from '@/app/jobs/actions';
 
@@ -7,14 +8,18 @@ export function ResumeRecommendations({
   listingId,
   recommendations,
   messages,
+  sourceKind,
 }: {
   jobId: string;
   listingId: string | null;
   recommendations: RecommendJobResumesOutput;
   messages: MessageCatalog;
+  sourceKind: JobDetail['job']['listings'][number]['sourceKind'] | null;
 }) {
   const copy = messages.jobsWorkspace.recommendation;
   if (!recommendations.items.length) return null;
+  const formalFillSupported = sourceKind !== 'boss' && sourceKind !== 'email';
+  const decisionNonce = randomUUID();
   return (
     <section className="detail-section resume-recommendations">
       <div className="section-title-row">
@@ -24,6 +29,7 @@ export function ResumeRecommendations({
       <p className="muted-copy">{copy.hint}</p>
       <form action={prepareRecommendedApplicationAction}>
         <input type="hidden" name="jobId" value={jobId} />
+        <input type="hidden" name="decisionNonce" value={decisionNonce} />
         {listingId ? <input type="hidden" name="listingId" value={listingId} /> : null}
         <div className="listing-list">
           {recommendations.items.map((item, index) => {
@@ -44,7 +50,11 @@ export function ResumeRecommendations({
           })}
         </div>
         <p className="muted-copy">{copy.delta.replace('{delta}', String(recommendations.recommendationDelta))}</p>
-        <button className="filter-submit" type="submit">{copy.prepare}</button>
+        {formalFillSupported ? (
+          <button className="filter-submit" type="submit">{copy.prepare}</button>
+        ) : (
+          <p className="executor-boundary-note">{sourceKind === 'boss' ? copy.bossOutreach : copy.emailExecutor}</p>
+        )}
       </form>
     </section>
   );
