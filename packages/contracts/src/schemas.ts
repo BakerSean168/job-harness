@@ -191,6 +191,7 @@ export const JobSearchCampaignSchema = z
     cities: z.array(z.string().trim().min(1).max(200)).default([]),
     graduationYears: z.array(z.number().int().min(2000).max(2200)).default([]),
     experience: z.array(z.string().trim().min(1).max(100)).default([]),
+    education: z.array(z.string().trim().min(1).max(100)).default([]),
     keywords: z.array(z.string().trim().min(1).max(200)).default([]),
     exclusions: z.array(z.string().trim().min(1).max(200)).default([]),
     sources: z.array(JobSourceKindSchema).default([]),

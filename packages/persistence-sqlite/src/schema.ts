@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 14;
+export const SQLITE_SCHEMA_VERSION = 15;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -396,6 +396,7 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
   migrateEmailApplicationPackagesV12(db);
   migrateEmailSendAuthorizationsV13(db);
   migrateSiteResumeBindingsV14(db);
+  migrateCampaignEducationV15(db);
 }
 
 const PERFORMANCE_INDEXES_SCHEMA_V4 = `
@@ -969,6 +970,24 @@ function migrateSiteResumeBindingsV14(db: DatabaseSync): void {
   try {
     db.exec(SITE_RESUME_BINDING_SCHEMA_V14);
     db.exec('PRAGMA user_version = 14');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+
+function migrateCampaignEducationV15(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 15) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (hasTable(db, 'campaigns') && !hasColumn(db, 'campaigns', 'education_json')) {
+      db.exec("ALTER TABLE campaigns ADD COLUMN education_json TEXT NOT NULL DEFAULT '[]'");
+    }
+    db.exec('PRAGMA user_version = 15');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

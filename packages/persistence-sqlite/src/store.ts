@@ -587,7 +587,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     return JobSearchCampaignSchema.parse({
       id: row.id, name: row.name,
       targetRoles: json(row.target_roles_json), cities: json(row.cities_json), graduationYears: json(row.graduation_years_json),
-      experience: json(row.experience_json), keywords: json(row.keywords_json), exclusions: json(row.exclusions_json),
+      experience: json(row.experience_json), education: json(row.education_json ?? '[]'), keywords: json(row.keywords_json), exclusions: json(row.exclusions_json),
       sources: json(row.sources_json), resumeProfileIds: json(row.resume_profile_ids_json), status: row.status,
       createdAt: row.created_at, updatedAt: row.updated_at,
     });
@@ -1660,9 +1660,9 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
   }
 
   async upsertCampaign(campaign: JobSearchCampaign): Promise<JobSearchCampaign> {
-    this.db.prepare(`INSERT INTO campaigns(id,name,target_roles_json,cities_json,graduation_years_json,experience_json,keywords_json,exclusions_json,sources_json,resume_profile_ids_json,status,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,target_roles_json=excluded.target_roles_json,cities_json=excluded.cities_json,graduation_years_json=excluded.graduation_years_json,experience_json=excluded.experience_json,keywords_json=excluded.keywords_json,exclusions_json=excluded.exclusions_json,sources_json=excluded.sources_json,resume_profile_ids_json=excluded.resume_profile_ids_json,status=excluded.status,updated_at=excluded.updated_at`).run(
-      campaign.id, campaign.name, JSON.stringify(campaign.targetRoles), JSON.stringify(campaign.cities), JSON.stringify(campaign.graduationYears), JSON.stringify(campaign.experience), JSON.stringify(campaign.keywords), JSON.stringify(campaign.exclusions), JSON.stringify(campaign.sources), JSON.stringify(campaign.resumeProfileIds), campaign.status, campaign.createdAt, campaign.updatedAt,
+    this.db.prepare(`INSERT INTO campaigns(id,name,target_roles_json,cities_json,graduation_years_json,experience_json,education_json,keywords_json,exclusions_json,sources_json,resume_profile_ids_json,status,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,target_roles_json=excluded.target_roles_json,cities_json=excluded.cities_json,graduation_years_json=excluded.graduation_years_json,experience_json=excluded.experience_json,education_json=excluded.education_json,keywords_json=excluded.keywords_json,exclusions_json=excluded.exclusions_json,sources_json=excluded.sources_json,resume_profile_ids_json=excluded.resume_profile_ids_json,status=excluded.status,updated_at=excluded.updated_at`).run(
+      campaign.id, campaign.name, JSON.stringify(campaign.targetRoles), JSON.stringify(campaign.cities), JSON.stringify(campaign.graduationYears), JSON.stringify(campaign.experience), JSON.stringify(campaign.education), JSON.stringify(campaign.keywords), JSON.stringify(campaign.exclusions), JSON.stringify(campaign.sources), JSON.stringify(campaign.resumeProfileIds), campaign.status, campaign.createdAt, campaign.updatedAt,
     );
     return (await this.getCampaign(campaign.id))!;
   }

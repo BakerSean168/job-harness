@@ -70,7 +70,7 @@ export interface MessageCatalog {
   };
   campaignsWorkspace: {
     list: { title: string; empty: string; create: string; updated: string; roles: string; cities: string; resumes: string; };
-    form: { titleNew: string; titleEdit: string; name: string; targetRoles: string; targetRolesHint: string; cities: string; graduationYears: string; experience: string; keywords: string; exclusions: string; sources: string; resumes: string; status: string; save: string; saving: string; saved: string; failed: string; required: string; };
+    form: { titleNew: string; titleEdit: string; name: string; targetRoles: string; targetRolesHint: string; cities: string; graduationYears: string; experience: string; education: string; keywords: string; exclusions: string; sources: string; resumes: string; status: string; save: string; saving: string; saved: string; failed: string; required: string; };
     status: Record<'active' | 'paused' | 'completed' | 'archived', string>;
     links: { jobs: string; applications: string; dashboard: string; };
   };
@@ -100,7 +100,7 @@ export interface MessageCatalog {
     note: string;
   };
   dashboardWorkspace: {
-    campaign: { label: string; all: string; active: string; noActive: string; roles: string; cities: string; graduation: string; experience: string; };
+    campaign: { label: string; all: string; active: string; noActive: string; roles: string; cities: string; graduation: string; experience: string; education: string; };
     kpis: { knownJobs: string; inbox: string; shortlisted: string; applications: string; activePipeline: string; interviews: string; };
     funnel: { title: string; discovered: string; shortlisted: string; applied: string; screening: string; assessment: string; interview: string; offer: string; };
     attention: {

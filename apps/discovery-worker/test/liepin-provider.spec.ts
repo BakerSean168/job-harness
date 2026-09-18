@@ -3,7 +3,7 @@ import type { JobSearchCampaign } from '@job-harness/contracts';
 import { LiepinDiscoveryProvider } from '../src/liepin-provider';
 
 const campaign: JobSearchCampaign = {
-  id: 'campaign-1', name: 'AI jobs', targetRoles: ['AI Agent / Agent 应用开发'], cities: ['杭州'], graduationYears: [2026], experience: [],
+  id: 'campaign-1', name: 'AI jobs', targetRoles: ['AI Agent / Agent 应用开发'], cities: ['杭州'], graduationYears: [2026], experience: [], education: [],
   keywords: ['Agent'], exclusions: [], sources: ['liepin'], resumeProfileIds: ['ai-agent-forgeflow'], status: 'active',
   createdAt: '2026-09-18T00:00:00.000Z', updatedAt: '2026-09-18T00:00:00.000Z',
 };
@@ -24,7 +24,7 @@ describe('LiepinDiscoveryProvider', () => {
       calls.push({ url: String(input), body: JSON.parse(String(init?.body)), headers: new Headers(init?.headers) });
       return json({ flag: 1, data: { data: { jobCardList: [card()] }, pagination: {} } });
     };
-    const provider = new LiepinDiscoveryProvider({ fetch: fakeFetch, queryDelayMs: 0, maxTerms: 3, pagesPerQuery: 1, pageSize: 40, traceIdFactory: () => 'trace-fixture', now: () => '2026-09-18T10:50:00.000Z' });
+    const provider = new LiepinDiscoveryProvider({ fetch: fakeFetch, queryDelayMs: 0, maxTerms: 3, pagesPerQuery: 1, pageSize: 40, detailEnrichment: false, traceIdFactory: () => 'trace-fixture', now: () => '2026-09-18T10:50:00.000Z' });
     const result = await provider.discover(campaign);
     expect(result.queryCount).toBe(3);
     expect(result.failedQueryCount).toBe(0);
@@ -50,7 +50,7 @@ describe('LiepinDiscoveryProvider', () => {
       if (calls === 2) return json({ error: 'temporary' }, 503);
       return json({ flag: 1, data: { data: { jobCardList: [card({ job: { ...card().job, jobId: '12345', jobKind: '2', link: 'not-a-url' } })] } } });
     };
-    const provider = new LiepinDiscoveryProvider({ fetch: fakeFetch, queryDelayMs: 0, maxTerms: 2, pagesPerQuery: 1, traceIdFactory: () => 'trace' });
+    const provider = new LiepinDiscoveryProvider({ fetch: fakeFetch, queryDelayMs: 0, maxTerms: 2, pagesPerQuery: 1, detailEnrichment: false, traceIdFactory: () => 'trace' });
     const result = await provider.discover(campaign);
     expect(result.failedQueryCount).toBe(1);
     expect(result.candidates).toHaveLength(1);
@@ -64,11 +64,28 @@ describe('LiepinDiscoveryProvider', () => {
       card({ job: { ...card().job, jobId: '3', link: 'https://www.liepin.com/job/3.shtml', jobKind: '2', title: '财务专员' } }),
       card({ job: { ...card().job, jobId: '4', link: 'https://www.liepin.com/job/4.shtml', jobKind: '2', refreshTime: '20240101000000' } }),
     ] } } });
-    const provider = new LiepinDiscoveryProvider({ fetch: fakeFetch, queryDelayMs: 0, maxTerms: 1, maxAgeDays: 60, now: () => '2026-09-18T10:50:00.000Z', traceIdFactory: () => 'trace' });
+    const provider = new LiepinDiscoveryProvider({ fetch: fakeFetch, queryDelayMs: 0, maxTerms: 1, maxAgeDays: 60, detailEnrichment: false, now: () => '2026-09-18T10:50:00.000Z', traceIdFactory: () => 'trace' });
     const result = await provider.discover(campaign);
     expect(result.candidates).toHaveLength(1);
     expect(result.candidates[0]!.title).toBe('AI Agent');
     expect(result.diagnostics).toMatchObject({ filteredCityCount: 1, filteredIntentCount: 1, filteredStaleCount: 1 });
+  });
+
+  it('enriches only high-potential entry-level cards from bounded JobPosting JSON-LD details', async () => {
+    const detailHtml = `<!doctype html><script type="application/ld+json">${JSON.stringify({ '@context':'https://schema.org','@type':'JobPosting',title:'AI Agent开发工程师',datePosted:'2026-09-17',description:'<p>负责 Agent Harness、MCP、RAG。</p><p>要求 TypeScript / Python。</p>' })}</script>`;
+    const calls: string[] = [];
+    const fakeFetch: typeof fetch = async (input, init) => {
+      calls.push(String(input));
+      if (init?.method === 'GET') return new Response(detailHtml, { status: 200, headers: { 'content-type':'text/html' } });
+      return json({ flag:1,data:{data:{jobCardList:[card({job:{...card().job,title:'AI Agent开发工程师',requireWorkYears:'经验不限',requireEduLevel:'本科'}})]}}});
+    };
+    const provider = new LiepinDiscoveryProvider({ fetch: fakeFetch, queryDelayMs:0, maxTerms:1, detailEnrichment:true, detailDelayMs:0, maxDetailCandidates:2, now:()=> '2026-09-18T10:50:00.000Z', traceIdFactory:()=> 'trace' });
+    const result = await provider.discover({ ...campaign, experience:['经验不限'], education:['本科','学历不限'] });
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]!.description).toContain('Agent Harness、MCP、RAG');
+    expect(result.candidates[0]!.listings[0]!.metadataSnapshot).toMatchObject({ detailEnriched:true, detailDatePosted:'2026-09-17' });
+    expect(result.diagnostics).toMatchObject({ detailAttemptCount:1, detailSuccessCount:1, detailFailedCount:0 });
+    expect(calls.filter((url)=>url.includes('liepin.com/a/'))).toHaveLength(1);
   });
 
   it('fails closed for campaign cities whose Liepin code has not been verified', () => {

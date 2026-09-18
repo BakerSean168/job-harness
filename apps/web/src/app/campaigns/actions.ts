@@ -38,6 +38,7 @@ export async function saveCampaignAction(
     cities: list(text(formData, 'cities')),
     graduationYears,
     experience: list(text(formData, 'experience')),
+    education: list(text(formData, 'education')),
     keywords: list(text(formData, 'keywords')),
     exclusions: list(text(formData, 'exclusions')),
     sources: formData.getAll('sources').filter((value): value is string => typeof value === 'string'),

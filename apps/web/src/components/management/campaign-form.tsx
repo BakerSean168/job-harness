@@ -52,6 +52,7 @@ export function CampaignForm({
           <label className="management-field"><span>{copy.form.graduationYears}</span><input name="graduationYears" defaultValue={joined(campaign?.graduationYears ?? [])} /></label>
         </div>
         <label className="management-field"><span>{copy.form.experience}</span><input name="experience" defaultValue={joined(campaign?.experience ?? [])} /></label>
+        <label className="management-field"><span>{copy.form.education}</span><input name="education" defaultValue={joined(campaign?.education ?? [])} /></label>
         <label className="management-field"><span>{copy.form.keywords}</span><textarea name="keywords" rows={2} defaultValue={joined(campaign?.keywords ?? [])} /></label>
         <label className="management-field"><span>{copy.form.exclusions}</span><textarea name="exclusions" rows={2} defaultValue={joined(campaign?.exclusions ?? [])} /></label>
 

@@ -14,8 +14,8 @@ describe('SQLite v14 site resume binding migration', () => {
     const db = new DatabaseSync(join(dir, 'career.db'));
     try {
       migrateSqliteDatabase(db);
-      expect(SQLITE_SCHEMA_VERSION).toBe(14);
-      expect(Number((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version)).toBe(14);
+      expect(SQLITE_SCHEMA_VERSION).toBe(15);
+      expect(Number((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version)).toBe(SQLITE_SCHEMA_VERSION);
       const table = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='site_resume_bindings'").get() as { sql?: string } | undefined;
       expect(String(table?.sql ?? '')).toContain("site_family TEXT NOT NULL CHECK(site_family IN ('zhilian','liepin'))");
       expect(String(table?.sql ?? '')).toContain("assurance TEXT NOT NULL CHECK(assurance='user-confirmed-label')");

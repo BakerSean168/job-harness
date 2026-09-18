@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { JobSearchCampaign, UpsertJobCandidate } from '@job-harness/contracts';
 import type { DiscoveryProviderPort, DiscoveryProviderResult } from './runtime';
+import { matchesCampaignEducation, matchesCampaignExperience, titleLooksLikeEntryLevelDeveloper } from './qualification-policy';
 
 const CITY_CODES: Readonly<Record<string, string>> = {
   北京: '010', 上海: '020', 天津: '030', 广州: '050020', 深圳: '050090',
@@ -52,6 +53,9 @@ export interface LiepinDiscoveryProviderOptions {
   readonly queryDelayMs?: number;
   readonly maxTerms?: number;
   readonly maxAgeDays?: number;
+  readonly detailEnrichment?: boolean;
+  readonly detailDelayMs?: number;
+  readonly maxDetailCandidates?: number;
   readonly userAgent?: string;
   readonly sleep?: (ms: number) => Promise<void>;
   readonly now?: () => string;
@@ -73,6 +77,9 @@ export class LiepinDiscoveryProvider implements DiscoveryProviderPort {
   private readonly queryDelayMs: number;
   private readonly maxTerms: number;
   private readonly maxAgeDays: number;
+  private readonly detailEnrichment: boolean;
+  private readonly detailDelayMs: number;
+  private readonly maxDetailCandidates: number;
   private readonly userAgent: string;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => string;
@@ -85,6 +92,9 @@ export class LiepinDiscoveryProvider implements DiscoveryProviderPort {
     this.queryDelayMs = clampInt(options.queryDelayMs ?? 2500, 0, 30_000);
     this.maxTerms = clampInt(options.maxTerms ?? 8, 1, 20);
     this.maxAgeDays = clampInt(options.maxAgeDays ?? 60, 1, 365);
+    this.detailEnrichment = options.detailEnrichment ?? true;
+    this.detailDelayMs = clampInt(options.detailDelayMs ?? 1200, 0, 30_000);
+    this.maxDetailCandidates = clampInt(options.maxDetailCandidates ?? 24, 0, 100);
     this.userAgent = options.userAgent ?? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36';
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.now = options.now ?? (() => new Date().toISOString());
@@ -101,7 +111,9 @@ export class LiepinDiscoveryProvider implements DiscoveryProviderPort {
       pagesPerQuery: this.pagesPerQuery,
       queryDelayMs: this.queryDelayMs,
       anonymous: true,
-      detailFetch: false,
+      detailFetch: this.detailEnrichment,
+      detailDelayMs: this.detailDelayMs,
+      maxDetailCandidates: this.maxDetailCandidates,
       maxAgeDays: this.maxAgeDays,
       filters: ['query-city-match', 'campaign-title-signal', 'refresh-time-window'],
     };
@@ -117,6 +129,10 @@ export class LiepinDiscoveryProvider implements DiscoveryProviderPort {
     let filteredCityCount = 0;
     let filteredIntentCount = 0;
     let filteredStaleCount = 0;
+    let detailAttemptCount = 0;
+    let detailSuccessCount = 0;
+    let detailFailedCount = 0;
+    const detailFailures: Array<{ url: string; error: string }> = [];
 
     for (const city of cities) {
       const code = cityCode(city);
@@ -148,6 +164,44 @@ export class LiepinDiscoveryProvider implements DiscoveryProviderPort {
       }
     }
 
+    if (this.detailEnrichment && this.maxDetailCandidates > 0) {
+      const eligible = [...byIdentity.values()]
+        .filter(({ candidate }) => shouldEnrichDetail(candidate, campaign))
+        .slice(0, this.maxDetailCandidates);
+      for (let index = 0; index < eligible.length; index += 1) {
+        const entry = eligible[index]!;
+        const listing = entry.candidate.listings[0]!;
+        if (!listing.url) continue;
+        detailAttemptCount += 1;
+        try {
+          const detail = await this.fetchDetail(listing.url);
+          if (detail.description) {
+            entry.candidate = {
+              ...entry.candidate,
+              description: detail.description,
+              listings: [{
+                ...listing,
+                metadataSnapshot: {
+                  ...listing.metadataSnapshot,
+                  detailEnriched: true,
+                  detailFetchedAt: this.now(),
+                  detailDatePosted: detail.datePosted,
+                },
+              }],
+            };
+            detailSuccessCount += 1;
+          } else {
+            detailFailedCount += 1;
+            detailFailures.push({ url: listing.url, error: 'JobPosting JSON-LD had no description' });
+          }
+        } catch (error) {
+          detailFailedCount += 1;
+          detailFailures.push({ url: listing.url, error: sanitizeError(error) });
+        }
+        if (this.detailDelayMs > 0 && index < eligible.length - 1) await this.sleep(this.detailDelayMs);
+      }
+    }
+
     const candidates = [...byIdentity.values()].map(({ candidate, searchTerms: hits, queryCities }) => {
       const listing = candidate.listings[0]!;
       return {
@@ -159,7 +213,7 @@ export class LiepinDiscoveryProvider implements DiscoveryProviderPort {
       candidates,
       queryCount,
       failedQueryCount,
-      diagnostics: { cityCodes: Object.fromEntries(cities.map((city) => [city, cityCode(city)])), filteredCityCount, filteredIntentCount, filteredStaleCount, failures: failures.slice(0, 50) },
+      diagnostics: { cityCodes: Object.fromEntries(cities.map((city) => [city, cityCode(city)])), filteredCityCount, filteredIntentCount, filteredStaleCount, detailAttemptCount, detailSuccessCount, detailFailedCount, detailFailures: detailFailures.slice(0, 25), failures: failures.slice(0, 50) },
     };
   }
 
@@ -192,6 +246,17 @@ export class LiepinDiscoveryProvider implements DiscoveryProviderPort {
     const parsed = LiepinSearchResponseSchema.parse(await response.json());
     if (parsed.flag !== 1) throw new Error(`Liepin search '${term}' city=${city || '全国'} page=${page} returned flag ${parsed.flag}`);
     return parsed.data.data.jobCardList;
+  }
+
+  private async fetchDetail(url: string): Promise<{ description: string | null; datePosted: string | null }> {
+    const response = await this.fetchImpl(url, {
+      method: 'GET',
+      headers: { accept: 'text/html,application/xhtml+xml', referer: 'https://www.liepin.com/', 'user-agent': this.userAgent },
+    });
+    if (!response.ok) throw new Error(`Liepin detail '${new URL(url).pathname}' returned HTTP ${response.status}`);
+    const html = await response.text();
+    if (html.length > 2_000_000) throw new Error(`Liepin detail '${new URL(url).pathname}' exceeded bounded HTML size`);
+    return extractJobPostingJsonLd(html);
   }
 }
 
@@ -337,4 +402,61 @@ function isFresh(value: unknown, observedAt: string, maxAgeDays: number): boolea
   const publishedMs = Date.parse(publishedAt);
   if (Number.isNaN(observedMs) || Number.isNaN(publishedMs)) return true;
   return observedMs - publishedMs <= maxAgeDays * 24 * 60 * 60 * 1000;
+}
+
+
+function shouldEnrichDetail(candidate: UpsertJobCandidate, campaign: JobSearchCampaign): boolean {
+  const listing = candidate.listings[0];
+  if (!listing?.url || !titleLooksLikeEntryLevelDeveloper(candidate.title)) return false;
+  const metadata = listing.metadataSnapshot ?? {};
+  if (!matchesCampaignExperience(metadata.experience, campaign.experience)) return false;
+  if (!matchesCampaignEducation(metadata.education, campaign.education)) return false;
+  return true;
+}
+
+function extractJobPostingJsonLd(html: string): { description: string | null; datePosted: string | null } {
+  const scripts = html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  for (const match of scripts) {
+    const raw = match[1]?.trim();
+    if (!raw) continue;
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch { continue; }
+    const job = findJobPosting(parsed);
+    if (!job) continue;
+    const description = typeof job.description === 'string' ? htmlToText(job.description).slice(0, 50_000) : '';
+    const datePosted = typeof job.datePosted === 'string' && job.datePosted.trim() ? job.datePosted.trim().slice(0, 100) : null;
+    return { description: description || null, datePosted };
+  }
+  return { description: null, datePosted: null };
+}
+
+function findJobPosting(value: unknown): Record<string, unknown> | null {
+  const queue: unknown[] = Array.isArray(value) ? [...value] : [value];
+  while (queue.length) {
+    const candidate = queue.shift();
+    if (!candidate || typeof candidate !== 'object') continue;
+    if (Array.isArray(candidate)) { queue.push(...candidate); continue; }
+    const record = candidate as Record<string, unknown>;
+    const type = record['@type'];
+    if (type === 'JobPosting' || (Array.isArray(type) && type.includes('JobPosting'))) return record;
+    if (record['@graph']) queue.push(record['@graph']);
+  }
+  return null;
+}
+
+function htmlToText(value: string): string {
+  return value
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/\r/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n+/g, '\n')
+    .trim();
 }

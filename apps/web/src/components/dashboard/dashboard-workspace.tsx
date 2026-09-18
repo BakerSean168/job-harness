@@ -41,6 +41,7 @@ function campaignSummary(campaign: JobSearchCampaign | null, messages: MessageCa
     campaign.cities.length ? [copy.cities, campaign.cities.join(' > ')] : null,
     campaign.graduationYears.length ? [copy.graduation, campaign.graduationYears.join(' / ')] : null,
     campaign.experience.length ? [copy.experience, campaign.experience.join(' / ')] : null,
+    campaign.education.length ? [copy.education, campaign.education.join(' / ')] : null,
   ].filter((row): row is string[] => Boolean(row));
   return rows;
 }

@@ -66,7 +66,7 @@ export const zhCN: MessageCatalog = {
   },
   campaignsWorkspace: {
     list: { title: '求职目标', empty: '还没有求职目标。创建一个 Campaign 来固定岗位、城市、届次和简历方向。', create: '新建目标', updated: '更新于', roles: '岗位', cities: '城市', resumes: '简历方向' },
-    form: { titleNew: '新建求职目标', titleEdit: '编辑求职目标', name: '名称', targetRoles: '目标岗位', targetRolesHint: '逗号或换行分隔，至少一个', cities: '城市', graduationYears: '毕业届次', experience: '经验范围', keywords: '关键词', exclusions: '排除词', sources: '发现来源', resumes: '简历方向', status: '状态', save: '保存', saving: '正在保存…', saved: '已保存', failed: '保存失败', required: '请至少填写名称和一个目标岗位。' },
+    form: { titleNew: '新建求职目标', titleEdit: '编辑求职目标', name: '名称', targetRoles: '目标岗位', targetRolesHint: '逗号或换行分隔，至少一个', cities: '城市', graduationYears: '毕业届次', experience: '经验范围', education: '学历范围', keywords: '关键词', exclusions: '排除词', sources: '发现来源', resumes: '简历方向', status: '状态', save: '保存', saving: '正在保存…', saved: '已保存', failed: '保存失败', required: '请至少填写名称和一个目标岗位。' },
     status: { active: '活跃', paused: '暂停', completed: '完成', archived: '归档' },
     links: { jobs: '查看岗位', applications: '查看投递', dashboard: '查看概览' },
   },
@@ -96,7 +96,7 @@ export const zhCN: MessageCatalog = {
     note: 'Job Harness 只管理持久化意图、租约和执行证据；真实招聘网站操作由独立 Apply Worker 执行。ChatGPT MCP 不包含外部投递副作用工具。',
   },
   dashboardWorkspace: {
-    campaign: { label: '求职目标', all: '全部求职目标', active: '当前目标', noActive: '当前没有活跃的求职目标，以下展示全局数据。', roles: '目标岗位', cities: '城市', graduation: '毕业届次', experience: '经验范围' },
+    campaign: { label: '求职目标', all: '全部求职目标', active: '当前目标', noActive: '当前没有活跃的求职目标，以下展示全局数据。', roles: '目标岗位', cities: '城市', graduation: '毕业届次', experience: '经验范围', education: '学历范围' },
     kpis: { knownJobs: '已知岗位', inbox: '待分流', shortlisted: '候选岗位', applications: '已投递', activePipeline: '活跃 Pipeline', interviews: '面试阶段' },
     funnel: { title: '招聘漏斗', discovered: '发现', shortlisted: '候选', applied: '已投递', screening: '筛选', assessment: '测评', interview: '面试', offer: 'Offer' },
     attention: {

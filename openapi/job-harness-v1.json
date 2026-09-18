@@ -44982,6 +44982,15 @@
                               "maxLength": 100
                             }
                           },
+                          "education": {
+                            "default": [],
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 100
+                            }
+                          },
                           "keywords": {
                             "default": [],
                             "type": "array",
@@ -45056,6 +45065,7 @@
                           "cities",
                           "graduationYears",
                           "experience",
+                          "education",
                           "keywords",
                           "exclusions",
                           "sources",
@@ -45361,6 +45371,15 @@
                         "maxLength": 100
                       }
                     },
+                    "education": {
+                      "default": [],
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      }
+                    },
                     "keywords": {
                       "default": [],
                       "type": "array",
@@ -45435,6 +45454,7 @@
                     "cities",
                     "graduationYears",
                     "experience",
+                    "education",
                     "keywords",
                     "exclusions",
                     "sources",
@@ -45725,6 +45745,15 @@
                         "maxLength": 100
                       }
                     },
+                    "education": {
+                      "default": [],
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      }
+                    },
                     "keywords": {
                       "default": [],
                       "type": "array",
@@ -45799,6 +45828,7 @@
                     "cities",
                     "graduationYears",
                     "experience",
+                    "education",
                     "keywords",
                     "exclusions",
                     "sources",
@@ -46059,6 +46089,15 @@
                       "maxLength": 100
                     }
                   },
+                  "education": {
+                    "default": [],
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    }
+                  },
                   "keywords": {
                     "default": [],
                     "type": "array",
@@ -46122,6 +46161,7 @@
                   "cities",
                   "graduationYears",
                   "experience",
+                  "education",
                   "keywords",
                   "exclusions",
                   "sources",
@@ -68068,6 +68108,15 @@
                               "maxLength": 100
                             }
                           },
+                          "education": {
+                            "default": [],
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 100
+                            }
+                          },
                           "keywords": {
                             "default": [],
                             "type": "array",
@@ -68142,6 +68191,7 @@
                           "cities",
                           "graduationYears",
                           "experience",
+                          "education",
                           "keywords",
                           "exclusions",
                           "sources",

@@ -66,7 +66,7 @@ export const en: MessageCatalog = {
   },
   campaignsWorkspace: {
     list: { title: 'Campaigns', empty: 'No campaigns yet. Create one to pin target roles, cities, graduation years, and resume lanes.', create: 'New campaign', updated: 'Updated', roles: 'Roles', cities: 'Cities', resumes: 'Resume lanes' },
-    form: { titleNew: 'New campaign', titleEdit: 'Edit campaign', name: 'Name', targetRoles: 'Target roles', targetRolesHint: 'Comma or newline separated; at least one', cities: 'Cities', graduationYears: 'Graduation years', experience: 'Experience', keywords: 'Keywords', exclusions: 'Exclusions', sources: 'Discovery sources', resumes: 'Resume lanes', status: 'Status', save: 'Save', saving: 'Saving…', saved: 'Saved', failed: 'Could not save campaign', required: 'Enter a name and at least one target role.' },
+    form: { titleNew: 'New campaign', titleEdit: 'Edit campaign', name: 'Name', targetRoles: 'Target roles', targetRolesHint: 'Comma or newline separated; at least one', cities: 'Cities', graduationYears: 'Graduation years', experience: 'Experience', education: 'Education', keywords: 'Keywords', exclusions: 'Exclusions', sources: 'Discovery sources', resumes: 'Resume lanes', status: 'Status', save: 'Save', saving: 'Saving…', saved: 'Saved', failed: 'Could not save campaign', required: 'Enter a name and at least one target role.' },
     status: { active: 'Active', paused: 'Paused', completed: 'Completed', archived: 'Archived' },
     links: { jobs: 'View jobs', applications: 'View applications', dashboard: 'View overview' },
   },
@@ -96,7 +96,7 @@ export const en: MessageCatalog = {
     note: 'Job Harness owns durable intent, leases and evidence. A separate Apply Worker performs recruiting-site interactions. ChatGPT MCP still exposes no external-application side-effect tool.',
   },
   dashboardWorkspace: {
-    campaign: { label: 'Campaign', all: 'All campaigns', active: 'Active target', noActive: 'No active campaign is configured; global data is shown below.', roles: 'Target roles', cities: 'Cities', graduation: 'Graduation', experience: 'Experience' },
+    campaign: { label: 'Campaign', all: 'All campaigns', active: 'Active target', noActive: 'No active campaign is configured; global data is shown below.', roles: 'Target roles', cities: 'Cities', graduation: 'Graduation', experience: 'Experience', education: 'Education' },
     kpis: { knownJobs: 'Known jobs', inbox: 'Inbox', shortlisted: 'Shortlisted', applications: 'Applications', activePipeline: 'Active pipeline', interviews: 'Interview stage' },
     funnel: { title: 'Hiring funnel', discovered: 'Discovered', shortlisted: 'Shortlisted', applied: 'Applied', screening: 'Screening', assessment: 'Assessment', interview: 'Interview', offer: 'Offer' },
     attention: {
