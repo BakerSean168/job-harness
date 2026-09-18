@@ -512,3 +512,18 @@ Validation evidence for the final deployment-image pass:
 - authenticated persistence + PDF materialization/download: **PASS**
 - server restart + durable Saved View/Artifact verification: **PASS**
 - post-restart database schema comparison against canonical `SQLITE_SCHEMA_VERSION`: **PASS**
+
+## 17. Oracle2 production rollout evidence — 2026-09-18
+
+The hardened runtime was promoted from the exact images that passed the isolated deployment smoke rather than rebuilt after acceptance:
+
+- Job Harness server/Web image: `sha256:bf3565ba96970fdadda6c9c336613f9e59c5c8c0323fc1535e9a23c79791cf5f`
+- Resume Renderer image: `sha256:bd0564e59233b940ae6166664995199967ced921100f87a3f28a6d003fa63e61`
+- runtime source revision represented by those images: `af034c6`
+- Browser Bridge source release after hardening: `0.1.1` (`4f6dd55`)
+
+Production renderer, API and Web all returned healthy after forced recreation. Their startup logs contain no Corepack runtime-download prompt. Both form-fill executors were restarted from the hardened source and returned `ready`; both remain `fill_only` with no submit capability. ChatGPT MCP smoke returned 32 tools, all 18 required workflow tools present, 0 SubmissionIntents and 5 Resume Profiles. The dedicated ChatGPT tunnel verifier also passed its control-plane poll and `/readyz` check.
+
+The production database remained at schema v11 with `PRAGMA integrity_check = ok` and no foreign-key violations. Applications / ApplicationSubmissions / SubmissionIntents / ExecutionAttempts remained `41 / 41 / 0 / 0`. The Job count changed from the pre-rollout backup's 115 to 133 during the rollout window; inspection showed an independent `chatgpt-web` daily DiscoveryRun (`f75646ef-eecb-4cd0-9d7e-4dfc85d305d1`) started at `2026-09-18T00:44:40Z` and durably inserted exactly 18 discovered jobs. Those concurrent Career writes were preserved and were not rolled back as deployment noise.
+
+The user's unpacked Windows Browser Bridge source directory was also synchronized byte-for-byte for the hardened `background.js`, `page-driver.js` and `options.js`, with `manifest.json` advanced to 0.1.1. The currently running Chrome extension agent still advertised 0.1.0 at the immediate post-sync check, so a Chrome extension reload remains an explicit rollout gate before relying on the client-side A21/A22/A29 hardening in a real-browser canary. This does not expose a live final-submit path: production site adapters remain `submit: false`.
