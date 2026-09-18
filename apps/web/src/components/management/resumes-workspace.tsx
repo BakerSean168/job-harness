@@ -3,7 +3,7 @@ import type { ResumeProfile } from '@job-harness/resume-contracts';
 import { WorkspaceHeader } from '@/components/shell/workspace-header';
 import { ResumeEditor } from './resume-editor';
 import { getMessages } from '@/i18n/server';
-import { getJobHarnessClient } from '@/lib/job-harness-client';
+import { getBrowserExtensionAgents, getJobHarnessClient } from '@/lib/job-harness-client';
 import type { ManagementSearchParams } from './campaigns-workspace';
 
 function one(value: string | string[] | undefined): string | undefined {
@@ -19,11 +19,13 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
   const client = getJobHarnessClient();
   const campaignId = one(searchParams.campaign)?.trim() || undefined;
   const requestedProfile = one(searchParams.profile)?.trim();
-  const [profiles, campaignPage, usage] = await Promise.all([
+  const [profiles, campaignPage, usage, browserAgents] = await Promise.all([
     client.resume.listProfiles(),
     client.campaigns.list({ limit: 200, offset: 0 }),
     client.workspace.listResumeUsage({ limit: 200, offset: 0, ...(campaignId ? { campaignId } : {}) }),
+    getBrowserExtensionAgents(),
   ]);
+  const resumeSyncAgents = browserAgents.filter((agent) => agent.online && agent.resumeUpload);
   const selected = profiles.items.find((profile) => profile.id === requestedProfile) ?? profiles.items[0] ?? null;
   const context = selected ? await client.resume.getProfileContext(selected.id) : null;
   const [preview, revisions] = context
@@ -96,6 +98,7 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
             }}
             applicationsHref={`/applications?resume=${encodeURIComponent(selected.id)}${campaignId ? `&campaign=${encodeURIComponent(campaignId)}` : ''}`}
             viewApplicationsLabel={copy.table.viewApplications}
+            syncAgents={resumeSyncAgents}
             copy={copy.builder}
           />
         </div>

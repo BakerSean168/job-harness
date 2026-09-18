@@ -12,8 +12,9 @@ import {
   type ResumeRevision,
   type ResumeRevisionDiffOutput,
 } from '@job-harness/resume-contracts';
-import { publishResumeRevisionAction, saveResumeLibraryAction, saveResumeProfileAction } from '../../app/resumes/actions';
+import { publishResumeRevisionAction, saveResumeLibraryAction, saveResumeProfileAction, syncResumeRevisionToSiteAction } from '../../app/resumes/actions';
 import { ResumeContentComposer, type ResumeComposerCopy } from './resume-content-composer';
+import type { BrowserExtensionAgentView } from '@/lib/job-harness-client';
 
 const ResumeHeaderSchema = ResumeProfileSchema.shape.layout.shape.header;
 
@@ -72,6 +73,14 @@ export interface ResumeEditorCopy {
   readonly downloadJson: string;
   readonly revisionUnused: string;
   readonly revisionLastUsed: string;
+  readonly siteSync: string;
+  readonly siteSyncDescription: string;
+  readonly siteSyncAgent: string;
+  readonly siteSyncNoAgent: string;
+  readonly syncLiepin: string;
+  readonly syncingToSite: string;
+  readonly siteSyncSuccess: string;
+  readonly siteSyncFailed: string;
   readonly composer: ResumeComposerCopy;
 }
 
@@ -84,6 +93,7 @@ interface Props {
   usageLabels: { applications: string; submissions: string; screening: string; assessment: string; interview: string };
   applicationsHref: string;
   viewApplicationsLabel: string;
+  syncAgents: readonly BrowserExtensionAgentView[];
   copy: ResumeEditorCopy;
 }
 
@@ -99,7 +109,7 @@ function setLocalized<T extends Record<string, string | undefined>>(value: T, lo
   return { ...value, [locale]: next };
 }
 
-export function ResumeEditor({ initialContext, initialHtml, initialRevisions, revisionUsage, usage, usageLabels, applicationsHref, viewApplicationsLabel, copy }: Props) {
+export function ResumeEditor({ initialContext, initialHtml, initialRevisions, revisionUsage, usage, usageLabels, applicationsHref, viewApplicationsLabel, syncAgents, copy }: Props) {
   const [library, setLibrary] = useState<ResumeLibrary>(initialContext.library);
   const [profile, setProfile] = useState<ResumeProfile>(initialContext.profile);
   const [previewHtml, setPreviewHtml] = useState(initialHtml);
@@ -122,6 +132,9 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
   const [profileDirty, setProfileDirty] = useState(false);
   const [libraryDirty, setLibraryDirty] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [syncAgentId, setSyncAgentId] = useState(syncAgents[0]?.agentId ?? '');
+  const [syncingRevisionId, setSyncingRevisionId] = useState<string | null>(null);
+  const [siteSyncMessage, setSiteSyncMessage] = useState<string | null>(null);
   const locale = profile.locale;
   const hasUnsavedChanges = profileDirty || libraryDirty;
   const revisionUsageById = useMemo(() => new Map(revisionUsage.map((item) => [item.revisionId, item])), [revisionUsage]);
@@ -158,6 +171,10 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
       document.removeEventListener('submit', confirmSubmit, true);
     };
   }, [hasUnsavedChanges, copy.unsavedChanges]);
+
+  useEffect(() => {
+    if (!syncAgents.some((agent) => agent.agentId === syncAgentId)) setSyncAgentId(syncAgents[0]?.agentId ?? '');
+  }, [syncAgents, syncAgentId]);
 
   useEffect(() => {
     setLibrary(initialContext.library);
@@ -285,6 +302,20 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
     });
   }
 
+  function syncRevisionToLiepin(revision: ResumeRevision) {
+    if (!syncAgentId) { setSiteSyncMessage(copy.siteSyncNoAgent); return; }
+    setSiteSyncMessage(null);
+    setSyncingRevisionId(revision.id);
+    startTransition(async () => {
+      const fallbackName = `${pickLocalized(profile.name, locale)}-v${revision.revisionNumber}.pdf`;
+      const fileName = revision.resolvedDocumentSnapshot.output.pdfName || fallbackName;
+      const result = await syncResumeRevisionToSiteAction({ profileId: profile.id, revisionId: revision.id, agentId: syncAgentId, siteFamily: 'liepin', fileName });
+      if (!result.ok) setSiteSyncMessage(`${copy.siteSyncFailed}: ${result.message}`);
+      else setSiteSyncMessage(`${copy.siteSyncSuccess} · ${result.value.artifactSha256.slice(0, 12)} · ${result.value.title || result.value.currentUrl}`);
+      setSyncingRevisionId(null);
+    });
+  }
+
   function saveCurrentScope() {
     if (sourceError) return;
     setSaveMessage(null);
@@ -366,6 +397,13 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
         </div>
         <div className="resume-history-panel">
           <div className="resume-history-heading"><h3>{copy.history}</h3><span>{revisions.length}</span></div>
+          <div className="resume-site-sync-panel">
+            <div><strong>{copy.siteSync}</strong><p>{copy.siteSyncDescription}</p></div>
+            {syncAgents.length ? (
+              <label className="management-field"><span>{copy.siteSyncAgent}</span><select value={syncAgentId} onChange={(event) => setSyncAgentId(event.target.value)}>{syncAgents.map((agent) => <option key={agent.agentId} value={agent.agentId}>{agent.name} · {agent.version}</option>)}</select></label>
+            ) : <p className="management-error">{copy.siteSyncNoAgent}</p>}
+            {siteSyncMessage ? <p className={siteSyncMessage.startsWith(copy.siteSyncFailed) ? 'management-error' : 'management-success'}>{siteSyncMessage}</p> : null}
+          </div>
           <div className="resume-publish-row">
             <input value={revisionNote} onChange={(event) => setRevisionNote(event.target.value)} placeholder={copy.publishNote} maxLength={2000} />
             <button type="button" className="filter-submit" disabled={pending || hasUnsavedChanges || !!sourceError} title={hasUnsavedChanges ? copy.saveBeforePublish : undefined} onClick={publishRevision}>{pending ? copy.publishing : copy.publish}</button>
@@ -390,6 +428,7 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
                   <div>
                     <button type="button" disabled={diffLoading} onClick={() => void loadRevisionDiff(revision.id, 'previous')}>{copy.comparePrevious}</button>
                     <button type="button" disabled={diffLoading} onClick={() => void loadRevisionDiff(revision.id, 'current')}>{copy.compareCurrent}</button>
+                    <button type="button" disabled={!syncAgentId || syncingRevisionId === revision.id} onClick={() => syncRevisionToLiepin(revision)}>{syncingRevisionId === revision.id ? copy.syncingToSite : copy.syncLiepin}</button>
                     <form method="post" action="/downloads/resume-artifact" className="resume-artifact-actions">
                       <input type="hidden" name="revisionId" value={revision.id} />
                       <button type="submit" name="kind" value="pdf">{copy.downloadPdf}</button>

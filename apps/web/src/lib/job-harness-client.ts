@@ -185,3 +185,47 @@ export async function characterizeBrowserExtensionSite(input: { agentId: string;
   if (!characterized || typeof characterized !== 'object' || !('evidence' in characterized)) throw new Error('ATS characterization returned no evidence');
   return { runId, evidence: (characterized as { evidence: AtsCharacterizationEvidence }).evidence };
 }
+
+
+export interface SiteResumeSyncResult {
+  readonly runId: string;
+  readonly artifactId: string;
+  readonly artifactSha256: string;
+  readonly writeCount: number;
+  readonly currentUrl: string;
+  readonly title: string;
+  readonly stateSignals: readonly string[];
+}
+
+export async function syncResumeArtifactToRecruitingSite(input: {
+  agentId: string;
+  targetUrl: string;
+  artifactId: string;
+  fileName: string;
+}): Promise<SiteResumeSyncResult> {
+  const headers = browserExtensionHeaders();
+  const createResponse = await fetchWithHeaderTimeout(browserExtensionBridgeUrl('/validation-runs'), {
+    method: 'POST', headers, cache: 'no-store',
+    body: JSON.stringify({ agentId: input.agentId, targetUrl: input.targetUrl, mode: 'site-resume-sync', ttlMs: 600_000 }),
+  }, 30_000);
+  const created = await createResponse.json().catch(() => null) as any;
+  if (!createResponse.ok) throw new Error(`Site Resume Sync start failed: ${upstreamMessage(created, createResponse.status)}`);
+  if (!created || typeof created.id !== 'string') throw new Error('Site Resume Sync start returned an invalid run');
+  const runId = created.id as string;
+  const syncResponse = await fetchWithHeaderTimeout(browserExtensionBridgeUrl(`/validation-runs/${encodeURIComponent(runId)}/sync-resume`), {
+    method: 'POST', headers, cache: 'no-store',
+    body: JSON.stringify({ artifactId: input.artifactId, fileName: input.fileName }),
+  }, 90_000);
+  const synced = await syncResponse.json().catch(() => null) as any;
+  if (!syncResponse.ok) throw new Error(`Site Resume Sync failed: ${upstreamMessage(synced, syncResponse.status)}`);
+  if (!synced?.run || !synced?.evidence || typeof synced.artifactSha256 !== 'string') throw new Error('Site Resume Sync returned invalid evidence');
+  return {
+    runId,
+    artifactId: String(synced.artifactId),
+    artifactSha256: synced.artifactSha256,
+    writeCount: Number(synced.run.writeCount ?? 0),
+    currentUrl: String(synced.evidence.currentUrl ?? ''),
+    title: String(synced.evidence.title ?? ''),
+    stateSignals: Array.isArray(synced.evidence.stateSignals) ? synced.evidence.stateSignals.map(String) : [],
+  };
+}

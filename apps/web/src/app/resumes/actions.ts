@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import type { PublishResumeRevisionOutput, ResumeLibrary, ResumeProfile, ResumeProfileContext } from '@job-harness/resume-contracts';
 import { JobHarnessRestError } from '@job-harness/client';
-import { getJobHarnessClient } from '../../lib/job-harness-client';
+import { getJobHarnessClient, syncResumeArtifactToRecruitingSite } from '../../lib/job-harness-client';
 
 export type ResumeSaveResult<T> =
   | { ok: true; value: T }
@@ -37,3 +37,39 @@ export async function publishResumeRevisionAction(profileId: string, expectedPro
     return { ok: true, value };
   } catch (error) { return failure(error); }
 }
+
+
+export interface ResumeSiteSyncValue {
+  readonly revisionId: string;
+  readonly artifactId: string;
+  readonly artifactSha256: string;
+  readonly runId: string;
+  readonly currentUrl: string;
+  readonly title: string;
+  readonly stateSignals: readonly string[];
+}
+
+export async function syncResumeRevisionToSiteAction(input: {
+  profileId: string;
+  revisionId: string;
+  agentId: string;
+  siteFamily: 'liepin';
+  fileName: string;
+}): Promise<ResumeSaveResult<ResumeSiteSyncValue>> {
+  try {
+    const client = getJobHarnessClient();
+    const detail = await client.resume.getRevision(input.revisionId);
+    if (!detail || detail.revision.profileId !== input.profileId) return { ok: false, code: 'REVISION_MISMATCH', message: 'Resume Revision does not belong to the selected Profile' };
+    const materialized = await client.resume.materializeArtifact({ revisionId: input.revisionId, kind: 'pdf' });
+    const targetUrl = input.siteFamily === 'liepin' ? 'https://c.liepin.com/resume/create' : neverSite(input.siteFamily);
+    const synced = await syncResumeArtifactToRecruitingSite({
+      agentId: input.agentId,
+      targetUrl,
+      artifactId: materialized.artifact.id,
+      fileName: input.fileName.endsWith('.pdf') ? input.fileName : `${input.fileName}.pdf`,
+    });
+    return { ok: true, value: { revisionId: input.revisionId, artifactId: synced.artifactId, artifactSha256: synced.artifactSha256, runId: synced.runId, currentUrl: synced.currentUrl, title: synced.title, stateSignals: synced.stateSignals } };
+  } catch (error) { return failure(error); }
+}
+
+function neverSite(value: never): never { throw new Error(`Unsupported Site Resume Sync target '${String(value)}'`); }

@@ -230,6 +230,12 @@
 .resume-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .resume-history-heading h3 { margin: 0; font-size: 11px; }
 .resume-history-heading span { min-width: 20px; height: 18px; display: inline-grid; place-items: center; border-radius: 999px; background: var(--surface-subtle); color: var(--text-faint); font-size: 9px; }
+.resume-site-sync-panel { display: grid; grid-template-columns: minmax(0,1fr) minmax(160px,220px); gap: 8px 12px; align-items: end; padding: 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-subtle); }
+.resume-site-sync-panel > div { align-self: center; }
+.resume-site-sync-panel strong { font-size: 10px; }
+.resume-site-sync-panel p { margin: 3px 0 0; color: var(--text-muted); font-size: 9px; line-height: 1.45; }
+.resume-site-sync-panel > p { grid-column: 1 / -1; }
+.resume-site-sync-panel .management-field { margin: 0; }
 .resume-publish-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 7px; }
 .resume-publish-row input { min-width: 0; height: 32px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 10px; }
 .resume-revision-message { margin: 0; color: var(--text-muted); font-size: 10px; }
@@ -241,7 +247,7 @@
 .resume-revision-row span, .resume-revision-row small { color: var(--text-faint); font-size: 9px; }
 .resume-revision-row small { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .resume-revision-row .resume-revision-usage { white-space: normal; line-height: 1.45; color: var(--text-muted); }
-.resume-revision-row > div:last-child { flex: 0 0 auto; display: flex; gap: 4px; }
+.resume-revision-row > div:last-child { flex: 0 0 auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
 .resume-revision-row button { border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text-muted); font-size: 9px; padding: 4px 6px; }
 .resume-revision-row button:hover { background: var(--surface-hover); color: var(--text); }
 .resume-diff-panel { max-height: 260px; overflow: auto; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-subtle); }
@@ -251,7 +257,7 @@
 .resume-diff-panel code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
 .resume-diff-panel li > span { text-transform: uppercase; color: var(--accent); font-size: 8px; font-weight: 700; }
 .resume-diff-panel li > small { overflow-wrap: anywhere; color: var(--text-faint); }
-@media (max-width: 700px) { .resume-publish-row { grid-template-columns: 1fr; } .resume-revision-row { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 700px) { .resume-publish-row, .resume-site-sync-panel { grid-template-columns: 1fr; } .resume-revision-row { align-items: flex-start; flex-direction: column; } }
 .resume-artifact-actions { display: inline-flex; gap: 4px; }
 .resume-artifact-actions input[type='hidden'] { display: none; }
 
