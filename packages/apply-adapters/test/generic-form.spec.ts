@@ -26,6 +26,46 @@ describe('generic deterministic form adapter', () => {
     expect(form.fields.every((field) => !('value' in field))).toBe(true);
   });
 
+  it('fills a file-only application form without resolving an empty applicant-data key set', async () => {
+    const fileControls: BrowserControlSnapshot[] = [
+      { controlRef: '#resume', kind: 'file', label: '简历', name: 'resume', description: null, required: true, disabled: false, readOnly: false, options: [], semanticHints: ['resume'], accept: 'application/pdf,.pdf', multiple: false, sectionLabel: '选择投递简历' },
+    ];
+    const form = browserControlsToFormIr({
+      url: 'https://www.nowcoder.com/jobs/detail/463747',
+      title: 'Agent开发工程师',
+      observedAt: '2026-09-18T03:40:00.000Z',
+      controls: fileControls,
+    });
+    const fieldId = form.fields[0]!.id;
+    const plan = {
+      version: 1 as const,
+      formVersion: 'file-only-form-v1',
+      catalogVersion: 'file-only-catalog-v1',
+      bindings: [{ fieldId, applicantKey: 'documents.resume', confidence: 1, source: 'playbook' as const, reason: 'fixture' }],
+      instructions: [{ fieldId, applicantKey: 'documents.resume', method: 'attach_file' as const, source: 'playbook' as const, confidence: 1 }],
+      pending: [],
+      prohibited: [],
+    };
+    let resolveCalls = 0;
+    const uploads: string[] = [];
+    const applicant = {
+      async catalog() { throw new Error('catalog is not used by fillGenericForm'); },
+      async resolve() { resolveCalls += 1; throw new Error('file-only fill must not resolve applicant literals'); },
+    };
+    const browser: BrowserDriverPort = {
+      async navigate() {}, currentUrl: () => 'https://www.nowcoder.com/jobs/detail/463747', async title() { return 'Agent开发工程师'; }, async bodyText() { return ''; },
+      async exists() { return true; }, async text() { return null; }, async fill() {}, async select() {}, async setChecked() {}, async click() {},
+      async upload(selector, file) { uploads.push(`${selector}:${file.name}:${file.sha256 ?? ''}`); },
+      async wait() {}, async screenshot() { return new Uint8Array(); }, async scanActions() { return []; }, async scanControls() { return fileControls; }, async formStateHash() { return 'a'.repeat(64); },
+    };
+    const report = await fillGenericForm(browser, form, plan, applicant, {
+      resumeFile: { name: 'forgeflow.pdf', mimeType: 'application/pdf', bytes: new Uint8Array([1,2,3]), sha256: 'b'.repeat(64) },
+    });
+    expect(resolveCalls).toBe(0);
+    expect(report).toMatchObject({ filled: 1, failed: 0, manual: 0 });
+    expect(uploads).toEqual([expect.stringContaining('forgeflow.pdf')]);
+  });
+
   it('fills literal mapped values through BrowserDriverPort and leaves unknown legal fields untouched', async () => {
     const form = browserControlsToFormIr({
       url: 'https://jobs.example.test/apply', title: 'Apply', observedAt: '2026-09-17T10:00:00.000Z', controls,

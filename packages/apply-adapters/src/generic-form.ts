@@ -78,7 +78,9 @@ export async function fillGenericForm(
   assets: ApplyFillAssets = {},
 ) {
   const nonFileKeys = plan.instructions.filter((instruction) => instruction.method !== 'attach_file').map((instruction) => instruction.applicantKey);
-  const values = await applicant.resolve(nonFileKeys);
+  const values = nonFileKeys.length > 0
+    ? await applicant.resolve(nonFileKeys)
+    : { catalogVersion: plan.catalogVersion, values: [] };
   if (values.catalogVersion !== plan.catalogVersion) throw new Error(`Applicant catalog changed: plan=${plan.catalogVersion}, resolved=${values.catalogVersion}`);
   const byKey = new Map(values.values.map((value) => [value.key, value]));
   const fields = new Map(form.fields.map((field) => [field.id, field]));

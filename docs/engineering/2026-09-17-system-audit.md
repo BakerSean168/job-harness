@@ -639,3 +639,11 @@ Verification after A37/A38:
 - Browser Extension bridge/static gate: **PASS**
 - OpenAPI no-drift: **PASS**
 - Next.js production build: **PASS**
+
+### Finding A39 — file-only application forms must not resolve an empty applicant-data key set
+
+The first production `review_then_submit` Nowcoder canary reached the characterized resume-only modal and exposed a runtime contract mismatch before any external side effect: `fillGenericForm` always called the lease-scoped Applicant Data resolver even when every instruction was `attach_file`, producing `resolveApplicantData([])`. The resolver correctly rejects an empty key array, so the Attempt failed closed with `externalEffectState=not_crossed` and no submit authorization.
+
+**A39 — fixed.** File-only fill plans now skip literal Applicant Data resolution entirely and use the already-frozen plan catalog version with an empty resolved-value set. A dedicated regression proves a resume-only form performs exactly the artifact upload without invoking `resolve()` at all. Mixed/text forms preserve the existing catalog-version guard.
+
+Post-fix verification: `pnpm check` **PASS**, Vitest **89 files / 209 tests PASS**, strict TypeScript/OpenAPI/package boundaries/Browser Bridge checks and Next.js production build all PASS.
