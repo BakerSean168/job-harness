@@ -53,6 +53,13 @@ import {
   RecommendJobResumesOutputSchema,
   PrepareRecommendedSubmissionIntentInputSchema,
   PrepareRecommendedSubmissionIntentOutputSchema,
+  PrepareEmailApplicationInputSchema,
+  EmailApplicationPackageDetailSchema,
+  BeginEmailApplicationSendInputSchema,
+  BeginSubmissionIntentOutputSchema as EmailBeginSubmissionIntentOutputSchema,
+  ConfirmEmailApplicationSendInputSchema,
+  ConfirmEmailApplicationSendOutputSchema,
+  FailEmailApplicationSendInputSchema,
 } from '@job-harness/contracts';
 import {
   ListResumeProfilesInputSchema,
@@ -88,6 +95,11 @@ function tool(contract: CareerMcpToolContract): CareerMcpToolContract {
 
 export const JobResumeRecommendToolInputSchema = z.object({ jobId: z.string().trim().min(1).max(200) }).strict();
 export const JobResumePrepareToolInputSchema = PrepareRecommendedSubmissionIntentInputSchema.extend({ jobId: z.string().trim().min(1).max(200) });
+export const EmailApplicationPrepareToolInputSchema = PrepareEmailApplicationInputSchema.extend({ jobId: z.string().trim().min(1).max(200) });
+export const EmailApplicationGetToolInputSchema = z.object({ packageId: z.string().trim().min(1).max(200) }).strict();
+export const EmailApplicationBeginToolInputSchema = BeginEmailApplicationSendInputSchema.extend({ packageId: z.string().trim().min(1).max(200) });
+export const EmailApplicationConfirmToolInputSchema = ConfirmEmailApplicationSendInputSchema.extend({ packageId: z.string().trim().min(1).max(200) });
+export const EmailApplicationFailToolInputSchema = FailEmailApplicationSendInputSchema.extend({ packageId: z.string().trim().min(1).max(200) });
 
 export const CAREER_MCP_TOOLS = [
   tool({ name: 'career_context_get', description: 'Read the compact job-search context an AI should load before discovery or application work.', mutability: 'read', externalSideEffect: false, inputSchema: CareerContextInputSchema, outputSchema: CareerContextOutputSchema }),
@@ -122,6 +134,14 @@ export const CAREER_MCP_TOOL_BY_NAME = new Map(CAREER_MCP_TOOLS.map((entry) => [
 export const JOB_RESUME_MCP_TOOLS = [
   tool({ name: 'career_job_resume_recommend', description: 'Rank active Resume Profiles for a known job using deterministic explainable matching; performs no application side effect.', mutability: 'read', externalSideEffect: false, inputSchema: JobResumeRecommendToolInputSchema, outputSchema: RecommendJobResumesOutputSchema }),
   tool({ name: 'career_submission_intent_prepare_recommended', description: 'Choose or honor a Resume Profile for a job, freeze its latest Revision/PDF Artifact, and create a durable SubmissionIntent. Does not interact with the recruiting site.', mutability: 'state-write', externalSideEffect: false, inputSchema: JobResumePrepareToolInputSchema, outputSchema: PrepareRecommendedSubmissionIntentOutputSchema }),
+] as const satisfies readonly CareerMcpToolContract[];
+
+export const EMAIL_APPLICATION_MCP_TOOLS = [
+  tool({ name: 'career_email_application_prepare', description: 'Freeze recipient, email copy, deterministic draft hash, and exact Resume PDF for an email application. Does not send email.', mutability: 'state-write', externalSideEffect: false, inputSchema: EmailApplicationPrepareToolInputSchema, outputSchema: EmailApplicationPackageDetailSchema }),
+  tool({ name: 'career_email_application_get', description: 'Read one immutable email application package and its durable SubmissionIntent.', mutability: 'read', externalSideEffect: false, inputSchema: EmailApplicationGetToolInputSchema, outputSchema: EmailApplicationPackageDetailSchema }),
+  tool({ name: 'career_email_application_begin_send', description: 'Verify the immutable email draft hash and mark its SubmissionIntent external_in_progress immediately before a separate email-provider send. This tool itself does not send email.', mutability: 'state-write', externalSideEffect: false, inputSchema: EmailApplicationBeginToolInputSchema, outputSchema: EmailBeginSubmissionIntentOutputSchema }),
+  tool({ name: 'career_email_application_confirm', description: 'Persist provider Message-ID/thread evidence after a separate email-provider send and reconcile one ApplicationSubmission. Does not send email.', mutability: 'state-write', externalSideEffect: false, inputSchema: EmailApplicationConfirmToolInputSchema, outputSchema: ConfirmEmailApplicationSendOutputSchema }),
+  tool({ name: 'career_email_application_fail', description: 'Record known failure or uncertain/manual-review evidence for an email send attempt. Does not send email.', mutability: 'state-write', externalSideEffect: false, inputSchema: EmailApplicationFailToolInputSchema, outputSchema: EmailApplicationPackageDetailSchema }),
 ] as const satisfies readonly CareerMcpToolContract[];
 
 export const ResumeProfileIdInputSchema = z.object({ profileId: ResumeEntityIdSchema }).strict();
@@ -167,5 +187,5 @@ export const RESUME_MCP_TOOLS = [
   tool({ name: 'resume_revision_artifact_materialize', description: 'Materialize an immutable HTML/PDF/JSON Artifact for a published Resume Revision.', mutability: 'state-write', externalSideEffect: false, inputSchema: MaterializeResumeArtifactInputSchema, outputSchema: MaterializeResumeArtifactOutputSchema }),
 ] as const satisfies readonly CareerMcpToolContract[];
 
-export const JOB_HARNESS_MCP_TOOLS = [...CAREER_MCP_TOOLS, ...RESUME_MCP_TOOLS, ...JOB_RESUME_MCP_TOOLS] as const;
+export const JOB_HARNESS_MCP_TOOLS = [...CAREER_MCP_TOOLS, ...RESUME_MCP_TOOLS, ...JOB_RESUME_MCP_TOOLS, ...EMAIL_APPLICATION_MCP_TOOLS] as const;
 export const JOB_HARNESS_MCP_TOOL_BY_NAME = new Map(JOB_HARNESS_MCP_TOOLS.map((entry) => [entry.name, entry]));

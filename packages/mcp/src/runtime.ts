@@ -56,6 +56,16 @@ import {
   type PrepareRecommendedSubmissionIntentInput,
   type RecommendJobResumesOutput,
   type PrepareRecommendedSubmissionIntentOutput,
+  EmailApplicationPackageDetailSchema,
+  ConfirmEmailApplicationSendOutputSchema,
+  BeginSubmissionIntentOutputSchema as EmailBeginSubmissionIntentOutputSchema,
+  type PrepareEmailApplicationInput,
+  type EmailApplicationPackageDetail,
+  type BeginEmailApplicationSendInput,
+  type ConfirmEmailApplicationSendInput,
+  type ConfirmEmailApplicationSendOutput,
+  type FailEmailApplicationSendInput,
+  type SubmissionIntent,
 } from '@job-harness/contracts';
 import {
   CAREER_MCP_TOOL_BY_NAME,
@@ -69,6 +79,11 @@ import {
   ResumeProfileSelectionPatchInputSchema,
   JobResumeRecommendToolInputSchema,
   JobResumePrepareToolInputSchema,
+  EmailApplicationPrepareToolInputSchema,
+  EmailApplicationGetToolInputSchema,
+  EmailApplicationBeginToolInputSchema,
+  EmailApplicationConfirmToolInputSchema,
+  EmailApplicationFailToolInputSchema,
 } from './tool-contracts';
 import {
   ListResumeProfilesInputSchema,
@@ -83,6 +98,14 @@ import {
 export interface JobResumeMcpPort {
   recommend(jobId: string): Promise<RecommendJobResumesOutput>;
   prepare(jobId: string, input: PrepareRecommendedSubmissionIntentInput): Promise<PrepareRecommendedSubmissionIntentOutput>;
+}
+
+export interface EmailApplicationMcpPort {
+  prepare(jobId: string, input: PrepareEmailApplicationInput): Promise<EmailApplicationPackageDetail>;
+  get(packageId: string): Promise<EmailApplicationPackageDetail>;
+  beginSend(packageId: string, input: BeginEmailApplicationSendInput): Promise<SubmissionIntent>;
+  confirm(packageId: string, input: ConfirmEmailApplicationSendInput): Promise<ConfirmEmailApplicationSendOutput>;
+  fail(packageId: string, input: FailEmailApplicationSendInput): Promise<EmailApplicationPackageDetail>;
 }
 
 export class UnknownCareerMcpToolError extends Error {
@@ -105,13 +128,16 @@ export class CareerMcpRuntime {
     private readonly resume?: ResumeRuntimePorts,
     private readonly resumeArtifacts?: ResumeArtifactRuntimePorts,
     private readonly jobResume?: JobResumeMcpPort,
+    private readonly emailApplication?: EmailApplicationMcpPort,
   ) {}
 
   listTools() {
     if (!this.resume || !this.resumeArtifacts) return CAREER_MCP_TOOLS;
-    return this.jobResume
-      ? JOB_HARNESS_MCP_TOOLS
-      : JOB_HARNESS_MCP_TOOLS.filter((tool) => tool.name !== 'career_job_resume_recommend' && tool.name !== 'career_submission_intent_prepare_recommended');
+    return JOB_HARNESS_MCP_TOOLS.filter((tool) => {
+      if (!this.jobResume && (tool.name === 'career_job_resume_recommend' || tool.name === 'career_submission_intent_prepare_recommended')) return false;
+      if (!this.emailApplication && tool.name.startsWith('career_email_application_')) return false;
+      return true;
+    });
   }
 
   private requireResume(): ResumeRuntimePorts {
@@ -244,6 +270,35 @@ export class CareerMcpRuntime {
         const { jobId, ...prepareInput } = input;
         return PrepareRecommendedSubmissionIntentOutputSchema.parse(await this.jobResume.prepare(jobId, prepareInput));
       }
+      case 'career_email_application_prepare': {
+        if (!this.emailApplication) throw new Error('Email application capability is not configured');
+        const input = EmailApplicationPrepareToolInputSchema.parse(rawInput);
+        const { jobId, ...prepareInput } = input;
+        return EmailApplicationPackageDetailSchema.parse(await this.emailApplication.prepare(jobId, prepareInput));
+      }
+      case 'career_email_application_get': {
+        if (!this.emailApplication) throw new Error('Email application capability is not configured');
+        const input = EmailApplicationGetToolInputSchema.parse(rawInput);
+        return EmailApplicationPackageDetailSchema.parse(await this.emailApplication.get(input.packageId));
+      }
+      case 'career_email_application_begin_send': {
+        if (!this.emailApplication) throw new Error('Email application capability is not configured');
+        const input = EmailApplicationBeginToolInputSchema.parse(rawInput);
+        const { packageId, ...beginInput } = input;
+        return EmailBeginSubmissionIntentOutputSchema.parse(await this.emailApplication.beginSend(packageId, beginInput));
+      }
+      case 'career_email_application_confirm': {
+        if (!this.emailApplication) throw new Error('Email application capability is not configured');
+        const input = EmailApplicationConfirmToolInputSchema.parse(rawInput);
+        const { packageId, ...confirmInput } = input;
+        return ConfirmEmailApplicationSendOutputSchema.parse(await this.emailApplication.confirm(packageId, confirmInput));
+      }
+      case 'career_email_application_fail': {
+        if (!this.emailApplication) throw new Error('Email application capability is not configured');
+        const input = EmailApplicationFailToolInputSchema.parse(rawInput);
+        const { packageId, ...failInput } = input;
+        return EmailApplicationPackageDetailSchema.parse(await this.emailApplication.fail(packageId, failInput));
+      }
       case 'resume_profiles_list':
         return ListResumeProfilesOutputSchema.parse(
           await this.requireResume().listProfiles(ListResumeProfilesInputSchema.parse(rawInput)),
@@ -315,6 +370,6 @@ export function createCareerMcpRuntime(ports: CareerApplicationPorts): CareerMcp
   return new CareerMcpRuntime(ports);
 }
 
-export function createJobHarnessMcpRuntime(ports: CareerApplicationPorts, resume: ResumeRuntimePorts, resumeArtifacts: ResumeArtifactRuntimePorts, jobResume?: JobResumeMcpPort): CareerMcpRuntime {
-  return new CareerMcpRuntime(ports, resume, resumeArtifacts, jobResume);
+export function createJobHarnessMcpRuntime(ports: CareerApplicationPorts, resume: ResumeRuntimePorts, resumeArtifacts: ResumeArtifactRuntimePorts, jobResume?: JobResumeMcpPort, emailApplication?: EmailApplicationMcpPort): CareerMcpRuntime {
+  return new CareerMcpRuntime(ports, resume, resumeArtifacts, jobResume, emailApplication);
 }

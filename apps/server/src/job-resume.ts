@@ -143,19 +143,20 @@ export function createJobResumePreparationService(
       ? detail.job.listings.find((candidate) => candidate.id === parsed.listingId) ?? null
       : detail.primaryListing ?? detail.job.listings.find((candidate) => candidate.status === 'active' && candidate.url) ?? null;
     if (!listing) throw new CareerConflictError(`Job '${jobId}' has no listing available for application preparation`);
+    const channel = parsed.channel ?? listing.sourceKind;
     const externalTargetUrl = parsed.externalTargetUrl ?? listing.url;
-    if (!externalTargetUrl) throw new CareerConflictError(`Listing '${listing.id}' has no executable URL`);
+    if (!externalTargetUrl && channel !== 'email') throw new CareerConflictError(`Listing '${listing.id}' has no executable URL`);
 
     const intent = await career.submissionIntents.prepare({
       jobId,
       listingId: listing.id,
-      channel: parsed.channel ?? listing.sourceKind,
+      channel,
       resumeProfileId: context.profile.id,
       resumeRevisionId: published.revision.id,
       resumeArtifactId: pdfArtifact.id,
       executor: parsed.executor,
       ...(parsed.executorSessionId !== undefined ? { executorSessionId: parsed.executorSessionId } : {}),
-      externalTargetUrl,
+      ...(externalTargetUrl ? { externalTargetUrl } : {}),
       idempotencyKey: parsed.idempotencyKey,
       note: parsed.note ?? `Auto-selected ${context.profile.id} (${selected.score}/100) via deterministic resume matching.`,
     });

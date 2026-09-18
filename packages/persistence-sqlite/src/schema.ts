@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 11;
+export const SQLITE_SCHEMA_VERSION = 12;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -393,6 +393,7 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
   migrateApplySessionHandoffV9(db);
   migrateApplySubmitSafetyV10(db);
   migrateApplicantDataV11(db);
+  migrateEmailApplicationPackagesV12(db);
 }
 
 const PERFORMANCE_INDEXES_SCHEMA_V4 = `
@@ -845,6 +846,42 @@ function migrateApplicantDataV11(db: DatabaseSync): void {
   try {
     db.exec(APPLICANT_DATA_SCHEMA_V11);
     db.exec('PRAGMA user_version = 11');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+const EMAIL_APPLICATION_PACKAGE_SCHEMA_V12 = `
+CREATE TABLE IF NOT EXISTS email_application_packages (
+  id TEXT PRIMARY KEY,
+  intent_id TEXT NOT NULL UNIQUE REFERENCES submission_intents(id) ON DELETE CASCADE,
+  job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  listing_id TEXT NOT NULL REFERENCES job_listings(id) ON DELETE RESTRICT,
+  recipient TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,
+  draft_hash TEXT NOT NULL,
+  resume_profile_id TEXT NOT NULL,
+  resume_revision_id TEXT NOT NULL REFERENCES resume_revisions(id) ON DELETE RESTRICT,
+  resume_artifact_id TEXT NOT NULL REFERENCES resume_artifacts(id) ON DELETE RESTRICT,
+  attachment_file_name TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS email_application_packages_job_created_idx
+  ON email_application_packages(job_id, created_at DESC, id);
+`;
+
+function migrateEmailApplicationPackagesV12(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 12) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(EMAIL_APPLICATION_PACKAGE_SCHEMA_V12);
+    db.exec('PRAGMA user_version = 12');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

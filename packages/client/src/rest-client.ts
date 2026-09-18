@@ -89,6 +89,12 @@ import {
   RecommendJobResumesOutputSchema,
   PrepareRecommendedSubmissionIntentInputSchema,
   PrepareRecommendedSubmissionIntentOutputSchema,
+  PrepareEmailApplicationInputSchema,
+  EmailApplicationPackageDetailSchema,
+  BeginEmailApplicationSendInputSchema,
+  ConfirmEmailApplicationSendInputSchema,
+  FailEmailApplicationSendInputSchema,
+  ConfirmEmailApplicationSendOutputSchema,
   BeginSubmissionIntentOutputSchema,
   SubmissionIntentCommitOutputSchema,
   FailSubmissionIntentOutputSchema,
@@ -100,6 +106,12 @@ import {
   type RecommendJobResumesOutput,
   type PrepareRecommendedSubmissionIntentInput,
   type PrepareRecommendedSubmissionIntentOutput,
+  type PrepareEmailApplicationInput,
+  type EmailApplicationPackageDetail,
+  type BeginEmailApplicationSendInput,
+  type ConfirmEmailApplicationSendInput,
+  type FailEmailApplicationSendInput,
+  type ConfirmEmailApplicationSendOutput,
   type BeginSubmissionIntentInput,
   type ConfirmSubmissionIntentInput,
   type FailSubmissionIntentInput,
@@ -553,6 +565,35 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
         return PrepareRecommendedSubmissionIntentOutputSchema.parse(await request(`/jobs/${encodeURIComponent(jobId)}/prepare-application`, {
           method: 'POST',
           body: JSON.stringify(parsed),
+        }));
+      },
+    },
+    emailApplications: {
+      async prepare(jobId: string, input: PrepareEmailApplicationInput): Promise<EmailApplicationPackageDetail> {
+        const parsed = PrepareEmailApplicationInputSchema.parse(input);
+        return EmailApplicationPackageDetailSchema.parse(await request(`/jobs/${encodeURIComponent(jobId)}/email-application`, {
+          method: 'POST', body: JSON.stringify(parsed),
+        }));
+      },
+      async get(packageId: string): Promise<EmailApplicationPackageDetail | null> {
+        return nullable(async () => EmailApplicationPackageDetailSchema.parse(await request(`/email-applications/${encodeURIComponent(packageId)}`)));
+      },
+      async beginSend(packageId: string, input: BeginEmailApplicationSendInput): Promise<SubmissionIntent> {
+        const parsed = BeginEmailApplicationSendInputSchema.parse(input);
+        return BeginSubmissionIntentOutputSchema.parse(await request(`/email-applications/${encodeURIComponent(packageId)}/begin-send`, {
+          method: 'POST', body: JSON.stringify(parsed),
+        }));
+      },
+      async confirm(packageId: string, input: ConfirmEmailApplicationSendInput): Promise<ConfirmEmailApplicationSendOutput> {
+        const parsed = ConfirmEmailApplicationSendInputSchema.parse(input);
+        return ConfirmEmailApplicationSendOutputSchema.parse(await request(`/email-applications/${encodeURIComponent(packageId)}/confirm`, {
+          method: 'POST', body: JSON.stringify(parsed),
+        }));
+      },
+      async fail(packageId: string, input: FailEmailApplicationSendInput): Promise<EmailApplicationPackageDetail> {
+        const parsed = FailEmailApplicationSendInputSchema.parse(input);
+        return EmailApplicationPackageDetailSchema.parse(await request(`/email-applications/${encodeURIComponent(packageId)}/fail`, {
+          method: 'POST', body: JSON.stringify(parsed),
         }));
       },
     },

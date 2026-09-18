@@ -42,6 +42,12 @@ import {
   RecommendJobResumesOutputSchema,
   PrepareRecommendedSubmissionIntentInputSchema,
   PrepareRecommendedSubmissionIntentOutputSchema,
+  PrepareEmailApplicationInputSchema,
+  EmailApplicationPackageDetailSchema,
+  BeginEmailApplicationSendInputSchema,
+  ConfirmEmailApplicationSendInputSchema,
+  FailEmailApplicationSendInputSchema,
+  ConfirmEmailApplicationSendOutputSchema,
   BeginSubmissionIntentInputSchema,
   BeginSubmissionIntentOutputSchema,
   ConfirmSubmissionIntentInputSchema,
@@ -109,7 +115,7 @@ import {
   ResumeExecutionAttemptInputSchema,
   StartExecutionAttemptInputSchema,
 } from '@job-harness/apply-contracts';
-import { EntityIdSchema } from './schemas';
+import { EntityIdSchema, SubmissionIntentSchema } from './schemas';
 import {
   ListResumeProfilesInputSchema as ListResumeBuilderProfilesInputSchema,
   ListResumeProfilesOutputSchema as ListResumeBuilderProfilesOutputSchema,
@@ -157,6 +163,10 @@ export const PublishResumeRevisionBodySchema = PublishResumeRevisionInputSchema.
 export const MaterializeResumeArtifactBodySchema = MaterializeResumeArtifactInputSchema.omit({ revisionId: true });
 export const BeginSubmissionIntentBodySchema = BeginSubmissionIntentInputSchema.omit({ intentId: true });
 export const ConfirmSubmissionIntentBodySchema = ConfirmSubmissionIntentInputSchema.omit({ intentId: true });
+export const PrepareEmailApplicationBodySchema = PrepareEmailApplicationInputSchema;
+export const BeginEmailApplicationSendBodySchema = BeginEmailApplicationSendInputSchema;
+export const ConfirmEmailApplicationSendBodySchema = ConfirmEmailApplicationSendInputSchema;
+export const FailEmailApplicationSendBodySchema = FailEmailApplicationSendInputSchema;
 export const FailSubmissionIntentBodySchema = FailSubmissionIntentInputSchema.omit({ intentId: true });
 export const ExecutorHeartbeatBodySchema = ExecutorHeartbeatInputSchema.omit({ executorId: true });
 export const StartExecutionAttemptBodySchema = StartExecutionAttemptInputSchema.omit({ attemptId: true });
@@ -200,6 +210,11 @@ export const JOB_HARNESS_REST_V1_ROUTES = {
   jobDetail: route({ operationId: 'getJobDetail', method: 'get', path: '/jobs/:jobId', tags: ['Jobs'], summary: 'Read one job detail projection', paramsSchema: IdParam('jobId'), responseSchema: JobDetailSchema, successStatus: 200 }),
   jobResumeRecommendations: route({ operationId: 'recommendJobResumes', method: 'get', path: '/jobs/:jobId/resume-recommendations', tags: ['Jobs'], summary: 'Rank available Resume Profiles for one job using deterministic explainable scoring', paramsSchema: IdParam('jobId'), responseSchema: RecommendJobResumesOutputSchema, successStatus: 200 }),
   prepareRecommendedSubmissionIntent: route({ operationId: 'prepareRecommendedSubmissionIntent', method: 'post', path: '/jobs/:jobId/prepare-application', tags: ['Jobs'], summary: 'Select or honor a Resume Profile, freeze its latest Revision/PDF Artifact, and prepare a durable SubmissionIntent', paramsSchema: IdParam('jobId'), bodySchema: PrepareRecommendedSubmissionIntentInputSchema, responseSchema: PrepareRecommendedSubmissionIntentOutputSchema, successStatus: 201 }),
+  prepareEmailApplication: route({ operationId: 'prepareEmailApplication', method: 'post', path: '/jobs/:jobId/email-application', tags: ['Email Applications'], summary: 'Freeze recipient, email copy, and exact Resume Artifact for one email application', paramsSchema: IdParam('jobId'), bodySchema: PrepareEmailApplicationBodySchema, responseSchema: EmailApplicationPackageDetailSchema, successStatus: 201 }),
+  getEmailApplication: route({ operationId: 'getEmailApplication', method: 'get', path: '/email-applications/:packageId', tags: ['Email Applications'], summary: 'Read one immutable email application package and its SubmissionIntent', paramsSchema: IdParam('packageId'), responseSchema: EmailApplicationPackageDetailSchema, successStatus: 200 }),
+  beginEmailApplicationSend: route({ operationId: 'beginEmailApplicationSend', method: 'post', path: '/email-applications/:packageId/begin-send', tags: ['Email Applications'], summary: 'Verify the frozen draft hash and durably cross into external_in_progress before an email provider send', paramsSchema: IdParam('packageId'), bodySchema: BeginEmailApplicationSendBodySchema, responseSchema: SubmissionIntentSchema, successStatus: 200 }),
+  confirmEmailApplicationSend: route({ operationId: 'confirmEmailApplicationSend', method: 'post', path: '/email-applications/:packageId/confirm', tags: ['Email Applications'], summary: 'Persist provider Message-ID evidence and reconcile the email send into ApplicationSubmission state', paramsSchema: IdParam('packageId'), bodySchema: ConfirmEmailApplicationSendBodySchema, responseSchema: ConfirmEmailApplicationSendOutputSchema, successStatus: 200 }),
+  failEmailApplicationSend: route({ operationId: 'failEmailApplicationSend', method: 'post', path: '/email-applications/:packageId/fail', tags: ['Email Applications'], summary: 'Record a known failed or uncertain email-send result without fabricating success', paramsSchema: IdParam('packageId'), bodySchema: FailEmailApplicationSendBodySchema, responseSchema: EmailApplicationPackageDetailSchema, successStatus: 200 }),
   upsertJobsBatch: route({ operationId: 'upsertJobsBatch', method: 'post', path: '/jobs/batch', tags: ['Jobs'], summary: 'Idempotently upsert discovered jobs', bodySchema: UpsertJobsBatchInputSchema, responseSchema: UpsertJobsBatchOutputSchema, successStatus: 200 }),
   setJobState: route({ operationId: 'setJobState', method: 'patch', path: '/jobs/:jobId/state', tags: ['Jobs'], summary: 'Change a job triage state', paramsSchema: IdParam('jobId'), bodySchema: SetJobStateBodySchema, responseSchema: SetJobStateOutputSchema, successStatus: 200 }),
   applications: route({ operationId: 'listApplications', method: 'get', path: '/applications', tags: ['Applications'], summary: 'List application board projections', querySchema: ListApplicationBoardInputSchema, responseSchema: ListApplicationBoardOutputSchema, successStatus: 200 }),

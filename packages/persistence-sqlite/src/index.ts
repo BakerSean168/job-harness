@@ -5,3 +5,5 @@ export * from './resume-store';
 export * from './apply-store';
 
 export * from './applicant-store';
+
+export * from './email-application-store';

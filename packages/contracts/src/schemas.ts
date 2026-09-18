@@ -266,4 +266,22 @@ export type ApplicationDetail = z.infer<typeof ApplicationDetailSchema>;
 export type ResumeProfileRef = z.infer<typeof ResumeProfileRefSchema>;
 export type JobSearchCampaign = z.infer<typeof JobSearchCampaignSchema>;
 export type DiscoveryRun = z.infer<typeof DiscoveryRunSchema>;
+export const EmailApplicationPackageSchema = z.object({
+  id: EntityIdSchema,
+  intentId: EntityIdSchema,
+  jobId: EntityIdSchema,
+  listingId: EntityIdSchema,
+  recipient: z.email(),
+  subject: z.string().trim().min(1).max(500),
+  body: z.string().trim().min(1).max(20_000),
+  draftHash: z.string().regex(/^[a-f0-9]{64}$/),
+  resumeProfileId: EntityIdSchema,
+  resumeRevisionId: EntityIdSchema,
+  resumeArtifactId: EntityIdSchema,
+  attachmentFileName: z.string().trim().min(1).max(500),
+  idempotencyKey: IdempotencyKeySchema,
+  createdAt: IsoDateTimeSchema,
+}).strict();
+
+export type EmailApplicationPackage = z.infer<typeof EmailApplicationPackageSchema>;
 export type SubmissionIntent = z.infer<typeof SubmissionIntentSchema>;

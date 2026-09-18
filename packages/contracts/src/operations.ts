@@ -16,6 +16,7 @@ import {
   ResumeProfileRefSchema,
   SubmissionIntentExecutorSchema,
   SubmissionIntentSchema,
+  EmailApplicationPackageSchema,
   SubmissionIntentStatusSchema,
 } from './schemas';
 
@@ -235,6 +236,47 @@ export const PrepareRecommendedSubmissionIntentOutputSchema = z.object({
   selection: JobResumeMatchSchema,
   intent: SubmissionIntentSchema,
 }).strict();
+
+export const PrepareEmailApplicationInputSchema = z.object({
+  listingId: EntityIdSchema.nullable().optional(),
+  preferredProfileId: EntityIdSchema.nullable().optional(),
+  recipient: z.email().nullable().optional(),
+  idempotencyKey: IdempotencyKeySchema,
+}).strict();
+
+export const EmailApplicationPackageDetailSchema = z.object({
+  package: EmailApplicationPackageSchema,
+  intent: SubmissionIntentSchema,
+}).strict();
+
+export const BeginEmailApplicationSendInputSchema = z.object({
+  draftHash: z.string().regex(/^[a-f0-9]{64}$/),
+  occurredAt: IsoDateTimeSchema,
+}).strict();
+
+export const ConfirmEmailApplicationSendInputSchema = z.object({
+  draftHash: z.string().regex(/^[a-f0-9]{64}$/),
+  provider: z.enum(['gmail','outlook','other']),
+  messageId: z.string().trim().min(1).max(2000),
+  threadId: z.string().trim().min(1).max(2000).nullable().optional(),
+  sentAt: IsoDateTimeSchema,
+}).strict();
+
+export const FailEmailApplicationSendInputSchema = z.object({
+  draftHash: z.string().regex(/^[a-f0-9]{64}$/),
+  occurredAt: IsoDateTimeSchema,
+  outcome: z.enum(['external_failed','needs_manual_review']),
+  error: z.string().trim().min(1).max(4000),
+  provider: z.enum(['gmail','outlook','other']).nullable().optional(),
+  evidence: z.record(z.string(), z.unknown()).default({}),
+}).strict();
+
+export const ConfirmEmailApplicationSendOutputSchema = z.object({
+  package: EmailApplicationPackageSchema,
+  intent: SubmissionIntentSchema,
+  application: ApplicationDetailSchema.nullable(),
+  persistenceCommitted: z.boolean(),
+}).strict();
 export const GetSubmissionIntentInputSchema = z.object({ intentId: EntityIdSchema }).strict();
 export const GetSubmissionIntentOutputSchema = SubmissionIntentSchema.nullable();
 
@@ -363,6 +405,12 @@ export type JobResumeMatch = z.output<typeof JobResumeMatchSchema>;
 export type RecommendJobResumesOutput = z.output<typeof RecommendJobResumesOutputSchema>;
 export type PrepareRecommendedSubmissionIntentInput = z.input<typeof PrepareRecommendedSubmissionIntentInputSchema>;
 export type PrepareRecommendedSubmissionIntentOutput = z.output<typeof PrepareRecommendedSubmissionIntentOutputSchema>;
+export type PrepareEmailApplicationInput = z.input<typeof PrepareEmailApplicationInputSchema>;
+export type EmailApplicationPackageDetail = z.output<typeof EmailApplicationPackageDetailSchema>;
+export type BeginEmailApplicationSendInput = z.input<typeof BeginEmailApplicationSendInputSchema>;
+export type ConfirmEmailApplicationSendInput = z.input<typeof ConfirmEmailApplicationSendInputSchema>;
+export type FailEmailApplicationSendInput = z.input<typeof FailEmailApplicationSendInputSchema>;
+export type ConfirmEmailApplicationSendOutput = z.output<typeof ConfirmEmailApplicationSendOutputSchema>;
 export type BeginSubmissionIntentInput = z.input<typeof BeginSubmissionIntentInputSchema>;
 export type ConfirmSubmissionIntentInput = z.input<typeof ConfirmSubmissionIntentInputSchema>;
 export type FailSubmissionIntentInput = z.input<typeof FailSubmissionIntentInputSchema>;

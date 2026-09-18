@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { JobDetail, RecommendJobResumesOutput } from '@job-harness/contracts';
 import type { MessageCatalog } from '@/i18n';
-import { prepareRecommendedApplicationAction } from '@/app/jobs/actions';
+import { prepareEmailApplicationAction, prepareRecommendedApplicationAction } from '@/app/jobs/actions';
 
 export function ResumeRecommendations({
   jobId,
@@ -27,7 +27,7 @@ export function ResumeRecommendations({
         <span>{copy.deterministic}</span>
       </div>
       <p className="muted-copy">{copy.hint}</p>
-      <form action={prepareRecommendedApplicationAction}>
+      <form action={sourceKind === 'email' ? prepareEmailApplicationAction : prepareRecommendedApplicationAction}>
         <input type="hidden" name="jobId" value={jobId} />
         <input type="hidden" name="decisionNonce" value={decisionNonce} />
         {listingId ? <input type="hidden" name="listingId" value={listingId} /> : null}
@@ -52,8 +52,16 @@ export function ResumeRecommendations({
         <p className="muted-copy">{copy.delta.replace('{delta}', String(recommendations.recommendationDelta))}</p>
         {formalFillSupported ? (
           <button className="filter-submit" type="submit">{copy.prepare}</button>
+        ) : sourceKind === 'email' ? (
+          <div className="executor-review-actions">
+            <label>
+              <span>{copy.emailRecipient}</span>
+              <input name="recipient" type="email" placeholder={copy.emailRecipientHint} />
+            </label>
+            <button className="filter-submit" type="submit">{copy.prepareEmail}</button>
+          </div>
         ) : (
-          <p className="executor-boundary-note">{sourceKind === 'boss' ? copy.bossOutreach : copy.emailExecutor}</p>
+          <p className="executor-boundary-note">{copy.bossOutreach}</p>
         )}
       </form>
     </section>

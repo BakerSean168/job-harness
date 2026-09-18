@@ -10,7 +10,7 @@ import { createCareerApplicationService } from '@job-harness/application';
 import { createResumeApplicationService, createResumeArtifactService } from '@job-harness/resume-application';
 import { createApplicantApplicationService } from '@job-harness/applicant-application';
 import { createJobHarnessMcpRuntime } from '@job-harness/mcp';
-import { SqliteApplicantStore, SqliteApplyStore, SqliteCareerStore, SqliteResumeStore } from '@job-harness/persistence-sqlite';
+import { SqliteApplicantStore, SqliteApplyStore, SqliteCareerStore, SqliteEmailApplicationPackageStore, SqliteResumeStore } from '@job-harness/persistence-sqlite';
 import { generateJobHarnessOpenApiDocument } from '@job-harness/contracts';
 import { createApplyControlPlane } from '@job-harness/apply-runtime';
 import { API_PREFIX, registerJobHarnessApi } from './api';
@@ -22,6 +22,7 @@ import { ensureApplicantDefaultsFromResume } from './applicant-bootstrap';
 import { createApplyBundleFactory } from './apply-bundle';
 import { createResumeRevisionApplicantDataGrant } from './applicant-data';
 import { createJobResumePreparationService, registerJobResumeApi } from './job-resume';
+import { createEmailApplicationService, registerEmailApplicationApi } from './email-application';
 import { createFileSystemResumeArtifactStorage, createHttpResumePdfRenderer } from './resume-artifacts';
 import { getResumeRendererFingerprint, renderResumePreviewHtml } from '@job-harness/resume-renderer';
 import { BROWSER_EXTENSION_BRIDGE_PREFIX, BrowserExtensionBridge, BrowserExtensionBridgeError, registerBrowserExtensionBridgeApi } from './browser-extension-bridge';
@@ -111,6 +112,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   const resumeStore = new SqliteResumeStore(options.databasePath);
   const applyStore = new SqliteApplyStore(options.databasePath);
   const applicantStore = new SqliteApplicantStore(options.databasePath);
+  const emailApplicationStore = new SqliteEmailApplicationPackageStore(options.databasePath);
   const application = createCareerApplicationService(store, {
     resumeEvidence: {
       async getProfile(profileId) {
@@ -186,7 +188,8 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     pdfRenderer,
   });
   const jobResume = createJobResumePreparationService(application, resume, resumeArtifacts);
-  const runtime = createJobHarnessMcpRuntime(application, resume, resumeArtifacts, jobResume);
+  const emailApplication = createEmailApplicationService(application, resume, applicant, jobResume, emailApplicationStore);
+  const runtime = createJobHarnessMcpRuntime(application, resume, resumeArtifacts, jobResume, emailApplication);
   const host = options.host ?? '127.0.0.1';
   const authToken = options.authToken?.trim() || null;
   const executorAuthToken = options.executorAuthToken?.trim() || null;
@@ -325,6 +328,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   registerJobHarnessApi(app, application);
   registerResumeApi(app, resume, resumeArtifacts, pdfRenderer, API_PREFIX);
   registerJobResumeApi(app, jobResume, API_PREFIX);
+  registerEmailApplicationApi(app, emailApplication, API_PREFIX);
   registerApplicantApi(app, applicant, API_PREFIX);
   registerApplyApi(app, apply, resumeArtifacts);
 
@@ -403,6 +407,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
       browserExtensionBridge.close();
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
       applyStore.close();
+      emailApplicationStore.close();
       applicantStore.close();
       resumeStore.close();
       store.close();

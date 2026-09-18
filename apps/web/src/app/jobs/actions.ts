@@ -137,3 +137,21 @@ export async function prepareRecommendedApplicationAction(formData: FormData): P
   revalidatePath('/executors');
   redirect(`/executors/${attempt.id}`);
 }
+
+
+export async function prepareEmailApplicationAction(formData: FormData): Promise<void> {
+  const jobId = formString(formData, 'jobId');
+  const listingId = formString(formData, 'listingId');
+  const preferredProfileId = formString(formData, 'preferredProfileId');
+  const recipient = formString(formData, 'recipient');
+  const decisionNonce = formString(formData, 'decisionNonce');
+  if (!jobId || !preferredProfileId || !decisionNonce) throw new Error('Job, Resume Profile, and decision nonce are required');
+  const prepared = await getJobHarnessClient().emailApplications.prepare(jobId, {
+    ...(listingId ? { listingId } : {}),
+    preferredProfileId,
+    ...(recipient ? { recipient } : {}),
+    idempotencyKey: `web:email-package:${jobId}:${preferredProfileId}:${decisionNonce}`,
+  });
+  revalidatePath(`/jobs/${jobId}`);
+  redirect(`/email-applications/${prepared.package.id}`);
+}
