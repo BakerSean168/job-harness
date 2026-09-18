@@ -51,6 +51,7 @@ function validateLiteralValueType(valueType: z.infer<typeof ApplicantFactValueTy
 export const ApplicantEducationSchema = z.object({
   id: IdSchema,
   school: z.string().trim().min(1).max(500),
+  institutionTag: z.string().trim().max(300).nullable().default(null),
   major: z.string().trim().min(1).max(500),
   degree: z.string().trim().max(300).nullable().default(null),
   department: z.string().trim().max(500).nullable().default(null),

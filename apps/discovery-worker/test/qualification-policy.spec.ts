@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { descriptionMeetsCampaignRequirements, inferMinimumEducationRank, inferMinimumExperienceYears, matchesCampaignEducation, matchesCampaignExperience, titleLooksLikeEntryLevelDeveloper, titleMatchesCampaignTargetRole } from '../src/qualification-policy';
+import { descriptionMeetsApplicantAcademicRequirements, descriptionMeetsCampaignRequirements, inferMinimumEducationRank, inferMinimumExperienceYears, inferRequiredSchoolTierRank, matchesCampaignEducation, matchesCampaignExperience, titleEligibleForAutomaticPreparation, titleLooksLikeEntryLevelDeveloper, titleMatchesCampaignTargetRole } from '../src/qualification-policy';
 
 describe('discovery qualification policy', () => {
   it('keeps entry-level developer titles and rejects senior/non-engineering title traps', () => {
@@ -21,6 +21,20 @@ describe('discovery qualification policy', () => {
     expect(titleMatchesCampaignTargetRole('后端运维开发工程师-AI', roles)).toBe(false);
     expect(titleMatchesCampaignTargetRole('R&D Software Engineer', roles)).toBe(false);
     expect(titleMatchesCampaignTargetRole('python开发工程师', roles)).toBe(false);
+  });
+
+  it('keeps shortlist eligibility broader than the automatic-prepare role gate', () => {
+    expect(titleEligibleForAutomaticPreparation('AI Agent开发工程师')).toBe(true);
+    expect(titleEligibleForAutomaticPreparation('AI Agent实施工程师')).toBe(false);
+    expect(titleEligibleForAutomaticPreparation('AI Agent Communication Engineer (5G/6G)')).toBe(false);
+  });
+  it('treats 985/211 as applicant hard requirements but ignores preference-only clauses', () => {
+    expect(inferRequiredSchoolTierRank('本科毕业于优秀985院校或海外同水平院校')).toBe(2);
+    expect(inferRequiredSchoolTierRank('985/211院校毕业')).toBe(1);
+    expect(inferRequiredSchoolTierRank('985、211院校优先')).toBeNull();
+    expect(descriptionMeetsApplicantAcademicRequirements('本科毕业于优秀985院校', [{ institutionTag: '（211）' }])).toBe(false);
+    expect(descriptionMeetsApplicantAcademicRequirements('985/211院校毕业', [{ institutionTag: '（211）' }])).toBe(true);
+    expect(descriptionMeetsApplicantAcademicRequirements('985院校优先', [{ institutionTag: '（211）' }])).toBe(true);
   });
 
   it('matches normalized Campaign experience and education constraints', () => {

@@ -145,6 +145,18 @@
                                 "minLength": 1,
                                 "maxLength": 500
                               },
+                              "institutionTag": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 300
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "major": {
                                 "type": "string",
                                 "minLength": 1,
@@ -214,6 +226,7 @@
                             "required": [
                               "id",
                               "school",
+                              "institutionTag",
                               "major",
                               "degree",
                               "department",
@@ -417,6 +430,18 @@
                                     "minLength": 1,
                                     "maxLength": 500
                                   },
+                                  "institutionTag": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "maxLength": 300
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
                                   "major": {
                                     "type": "string",
                                     "minLength": 1,
@@ -486,6 +511,7 @@
                                 "required": [
                                   "id",
                                   "school",
+                                  "institutionTag",
                                   "major",
                                   "degree",
                                   "department",
@@ -925,6 +951,18 @@
                                 "minLength": 1,
                                 "maxLength": 500
                               },
+                              "institutionTag": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 300
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "major": {
                                 "type": "string",
                                 "minLength": 1,
@@ -994,6 +1032,7 @@
                             "required": [
                               "id",
                               "school",
+                              "institutionTag",
                               "major",
                               "degree",
                               "department",
@@ -1197,6 +1236,18 @@
                                     "minLength": 1,
                                     "maxLength": 500
                                   },
+                                  "institutionTag": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "maxLength": 300
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
                                   "major": {
                                     "type": "string",
                                     "minLength": 1,
@@ -1266,6 +1317,7 @@
                                 "required": [
                                   "id",
                                   "school",
+                                  "institutionTag",
                                   "major",
                                   "degree",
                                   "department",
@@ -1697,6 +1749,18 @@
                               "minLength": 1,
                               "maxLength": 500
                             },
+                            "institutionTag": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 300
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "major": {
                               "type": "string",
                               "minLength": 1,
@@ -1766,6 +1830,7 @@
                           "required": [
                             "id",
                             "school",
+                            "institutionTag",
                             "major",
                             "degree",
                             "department",

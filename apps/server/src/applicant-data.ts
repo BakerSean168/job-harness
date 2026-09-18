@@ -121,6 +121,7 @@ function factsFromApplicantProfile(revision: ApplicantProfileRevision): NativeFa
     const prefix = `education[${index}]`;
     items.push(
       fact(`${prefix}.school`, '学校', education.school, 'text', 'personal', ['学校','院校','毕业院校','university','school'], 'job-harness-applicant-profile', provenance),
+      fact(`${prefix}.institution_tag`, '院校标签', education.institutionTag, 'text', 'personal', ['院校标签','学校层级','school tier','institution tag'], 'job-harness-applicant-profile', provenance),
       fact(`${prefix}.major`, '专业', education.major, 'text', 'personal', ['专业','所学专业','major'], 'job-harness-applicant-profile', provenance),
       fact(`${prefix}.degree`, '学历/学位', education.degree, 'text', 'personal', ['学历','学位','degree','education level'], 'job-harness-applicant-profile', provenance),
       fact(`${prefix}.department`, '学院（院系）', education.department, 'text', 'personal', ['学院','院系','department'], 'job-harness-applicant-profile', provenance),

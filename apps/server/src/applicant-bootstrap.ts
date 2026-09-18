@@ -19,6 +19,7 @@ export async function ensureApplicantDefaultsFromResume(applicant: ApplicantRunt
   const education = source?.resolved.education.map((item) => ({
     id: item.id,
     school: item.institution,
+    institutionTag: item.institutionTag,
     major: item.major,
     degree: item.degree || null,
     department: item.department,

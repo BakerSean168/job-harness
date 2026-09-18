@@ -10,9 +10,10 @@ import type {
   DiscoveryRunDetail,
   JobSearchCampaign,
 } from '@job-harness/contracts';
-import { descriptionMeetsCampaignRequirements, matchesCampaignEducation, matchesCampaignExperience, titleMatchesCampaignTargetRole } from './qualification-policy';
+import { descriptionMeetsApplicantAcademicRequirements, descriptionMeetsCampaignRequirements, matchesCampaignEducation, matchesCampaignExperience, titleEligibleForAutomaticPreparation, titleMatchesCampaignTargetRole } from './qualification-policy';
 
 export interface DiscoveryQualificationClientPort {
+  readonly applicant: { getProfile(): Promise<{ profile: { education: readonly { institutionTag?: string | null }[] } }> };
   readonly campaigns: { get(campaignId: string): Promise<JobSearchCampaign | null> };
   readonly workspace: {
     getDiscoveryRunDetail(runId: string): Promise<DiscoveryRunDetail | null>;
@@ -49,12 +50,15 @@ export interface DiscoveryQualificationResult {
   readonly skippedLowMatch: number;
   readonly skippedHardRequirement: number;
   readonly skippedRoleMismatch: number;
+  readonly skippedApplicantRequirement: number;
   readonly skippedNonExecutable: number;
   readonly skippedChannel: number;
   readonly skippedTitleOnlyPrepare: number;
+  readonly skippedAutoPrepareRoleMismatch: number;
   readonly truncated: number;
   readonly dryRun: boolean;
   readonly qualifiedSamples: readonly { jobId: string; title: string; sourceKind: string | null; experience: string | null; profileId: string; score: number; titleOnly: boolean }[];
+  readonly preparableSamples: readonly { jobId: string; title: string; url: string; profileId: string; score: number }[];
   readonly failures: readonly { jobId: string; error: string }[];
 }
 
@@ -84,6 +88,7 @@ export class DiscoveryQualificationProcessor {
     const campaignId = discovery.campaign?.id ?? discovery.run.campaignId;
     const campaign = campaignId ? await this.client.campaigns.get(campaignId) : null;
     if (!campaign) throw new Error(`DiscoveryRun '${runId}' has no resolvable Campaign`);
+    const applicant = await this.client.applicant.getProfile();
     const selectedIds = input.jobIds ? new Set(input.jobIds) : null;
     const affectedJobs = selectedIds ? discovery.affectedJobs.filter((item) => selectedIds.has(item.jobId)) : discovery.affectedJobs;
     const jobs = affectedJobs.slice(0, this.maxJobs);
@@ -98,11 +103,14 @@ export class DiscoveryQualificationProcessor {
     let skippedLowMatch = 0;
     let skippedHardRequirement = 0;
     let skippedRoleMismatch = 0;
+    let skippedApplicantRequirement = 0;
     let skippedNonExecutable = 0;
     let skippedChannel = 0;
     let skippedTitleOnlyPrepare = 0;
+    let skippedAutoPrepareRoleMismatch = 0;
     const failures: Array<{ jobId: string; error: string }> = [];
     const qualifiedSamples: Array<{ jobId: string; title: string; sourceKind: string | null; experience: string | null; profileId: string; score: number; titleOnly: boolean }> = [];
+    const preparableSamples: Array<{ jobId: string; title: string; url: string; profileId: string; score: number }> = [];
 
     for (const item of jobs) {
       if (item.application) { skippedApplication += 1; continue; }
@@ -117,6 +125,10 @@ export class DiscoveryQualificationProcessor {
         }
         if (!titleMatchesCampaignTargetRole(jobDetail.job.title, campaign.targetRoles)) {
           skippedRoleMismatch += 1;
+          continue;
+        }
+        if (!descriptionMeetsApplicantAcademicRequirements(jobDetail.job.description, applicant.profile.education)) {
+          skippedApplicantRequirement += 1;
           continue;
         }
         const recommendations = await this.client.jobs.recommendResumes(item.jobId);
@@ -145,11 +157,13 @@ export class DiscoveryQualificationProcessor {
 
         if (!top.executable) { skippedNonExecutable += 1; continue; }
         if (!(jobDetail.job.description?.trim())) { skippedTitleOnlyPrepare += 1; continue; }
+        if (!titleEligibleForAutomaticPreparation(jobDetail.job.title)) { skippedAutoPrepareRoleMismatch += 1; continue; }
         const listing = jobDetail.primaryListing ?? item.primaryListing;
         if (!isFormalHttpListing(listing)) { skippedChannel += 1; continue; }
         const intents = await this.client.submissionIntents.list({ jobId: item.jobId, limit: 1, offset: 0 });
         if (intents.total > 0) { existingIntents += 1; continue; }
         preparable += 1;
+        if (preparableSamples.length < 20) preparableSamples.push({ jobId: item.jobId, title: jobDetail.job.title, url: listing.url!, profileId: top.profileId, score: top.score });
         if (!this.autoPrepare || this.dryRun) continue;
         await this.client.jobs.prepareRecommendedSubmission(item.jobId, {
           listingId: listing.id,
@@ -177,12 +191,15 @@ export class DiscoveryQualificationProcessor {
       skippedLowMatch,
       skippedHardRequirement,
       skippedRoleMismatch,
+      skippedApplicantRequirement,
       skippedNonExecutable,
       skippedChannel,
       skippedTitleOnlyPrepare,
+      skippedAutoPrepareRoleMismatch,
       truncated: Math.max(0, affectedJobs.length - jobs.length),
       dryRun: this.dryRun,
       qualifiedSamples,
+      preparableSamples,
       failures: failures.slice(0, 50),
     };
   }

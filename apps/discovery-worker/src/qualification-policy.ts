@@ -1,5 +1,47 @@
-export const TITLE_ONLY_NEGATIVE = /(?:负责人|架构师|专家|\bexpert\b|\barchitect\b|\bsenior\b|\blead\b|\bprincipal\b|\bdirector\b|\bstaff\b|资深|高级|主管|产品经理|产品专家|产品运营|测试|\bqa\b|投资|pmo|项目经理|需求分析|业务分析|\bba\b|售前|销售|运营|运维|规划)/i;
+export const TITLE_ONLY_NEGATIVE = /(?:负责人|架构师|专家|\bexpert\b|\barchitect\b|\bsenior\b|\blead\b|\bprincipal\b|\bdirector\b|\bstaff\b|资深|高级|主管|产品经理|产品专家|产品运营|用户增长|增长运营|市场|商务|测试|\bqa\b|投资|pmo|项目经理|需求分析|业务分析|\bba\b|售前|销售|运营|运维|规划)/i;
 export const TITLE_ONLY_DEVELOPER_SIGNAL = /(?:开发|研发|工程师|\bdeveloper\b|\bengineer\b|全栈|前端|后端)/i;
+export const AUTO_PREPARE_TITLE_NEGATIVE = /(?:实施|交付|客户成功|技术支持|现场支持|售前|\bsupport\b|customer\s*success|\bcommunication\b|通信|5g|6g|嵌入式|\bembedded\b|硬件|\bhardware\b)/i;
+
+export interface ApplicantEducationEligibilityFact { readonly institutionTag?: string | null }
+
+export function titleEligibleForAutomaticPreparation(title: string): boolean {
+  return !AUTO_PREPARE_TITLE_NEGATIVE.test(title);
+}
+
+export function descriptionMeetsApplicantAcademicRequirements(
+  description: string | null | undefined,
+  education: readonly ApplicantEducationEligibilityFact[],
+): boolean {
+  const required = inferRequiredSchoolTierRank(description ?? '');
+  if (required === null) return true;
+  return applicantSchoolTierRank(education) >= required;
+}
+
+export function inferRequiredSchoolTierRank(text: string): number | null {
+  const clauses = text.split(/[。；;\n]+/).map((part) => part.trim()).filter(Boolean);
+  const ranks: number[] = [];
+  for (const clause of clauses) {
+    if (!/(?:985|211)/i.test(clause)) continue;
+    if (/(?:优先|优先考虑|加分|preferred|plus)/i.test(clause)) continue;
+    const has985 = /985/.test(clause);
+    const has211 = /211/.test(clause);
+    if (has985 && has211) ranks.push(1);
+    else if (has985) ranks.push(2);
+    else if (has211) ranks.push(1);
+  }
+  return ranks.length ? Math.max(...ranks) : null;
+}
+
+function applicantSchoolTierRank(education: readonly ApplicantEducationEligibilityFact[]): number {
+  let rank = 0;
+  for (const item of education) {
+    const tag = item.institutionTag ?? '';
+    if (/985/.test(tag)) rank = Math.max(rank, 2);
+    else if (/211/.test(tag)) rank = Math.max(rank, 1);
+  }
+  return rank;
+}
+
 
 
 
