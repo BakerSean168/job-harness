@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ApplicantProfileContextSchema } from '@job-harness/applicant-contracts';
 import { ListResumeProfilesOutputSchema, ResumeProfileSchema } from '@job-harness/resume-contracts';
 import { createBossOutreachBridge, decideBossJob } from '../src/boss-outreach-bridge';
+import { patchBossResumeFollowupUserscript } from '../src/boss-resume-followup';
 
 const zh = (value: string) => ({ 'zh-CN': value });
 const at = '2026-09-18T06:30:00.000Z';
@@ -50,18 +51,37 @@ describe('Job Harness BOSS outreach bridge', () => {
   it('serves the existing userscript endpoints and keeps resume-send/multiturn paths blocked', async () => {
     dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
     const logPath = join(dir, 'events.jsonl');
-    const server = createBossOutreachBridge({ client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0 });
+    const followupSource = `// ==UserScript==
+// @name         Old
+// @namespace    old
+// @version      1
+// @description  old
+// @match        https://www.zhipin.com/*
+// ==/UserScript==
+const OPTIONS={ onlyGreet: true, // 是否只打招呼，默认为false，即打招呼和代聊天
+};
+const JAC_HARD_ONLY_GREET = true;
+async function x(){
+                                status(\`检测到新消息，直接发送简历（简历索引 \${decision.resumeIndex}）\`);
+                                const resumeResult = await sendResume(decision.resumeIndex);
+                                    await sendMsg('不好意思，不太合适哈，祝早日找到合适的人选。')
+}`;
+    const resumeFollowupUserscript = patchBossResumeFollowupUserscript(followupSource, { publicUrl: 'https://boss-bridge.example.test/boss-resume-followup.user.js' });
+    const server = createBossOutreachBridge({ client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0, resumeFollowupUserscript });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     try {
       const address = server.address();
       if (!address || typeof address === 'string') throw new Error('missing server address');
       const base = `http://127.0.0.1:${address.port}`;
       const health = await fetch(`${base}/api/health`);
-      expect(await health.json()).toMatchObject({ ok: true, service: 'job-harness-boss-outreach-bridge', mode: 'auto-resume-only-greet', discovery: false });
+      expect(await health.json()).toMatchObject({ ok: true, service: 'job-harness-boss-outreach-bridge', mode: 'auto-resume-followup', discovery: false, resumeFollowup: true });
       const reporter = await fetch(`${base}/boss-discovery-reporter.user.js`);
       expect(reporter.status).toBe(200);
       expect(reporter.headers.get('content-type')).toContain('text/javascript');
       expect(await reporter.text()).toContain('/api/discovery/report');
+      const followup = await fetch(`${base}/boss-resume-followup.user.js`);
+      expect(followup.status).toBe(200);
+      expect(await followup.text()).toContain('const JAC_HARD_ONLY_GREET = false;');
 
       const score = await fetch(`${base}/p/ai-agent-app/get-job-score`, { method: 'POST', body: JSON.stringify(payload), headers: { 'content-type': 'application/json' } });
       expect(await score.json()).toMatchObject({ profileId: 'ai-agent-forgeflow', resumeIndex: 0 });
@@ -72,9 +92,14 @@ describe('Job Harness BOSS outreach bridge', () => {
       expect(rows.at(-1)).toMatchObject({ action: 'greet_sent', recommendedProfileId: 'ai-agent-forgeflow' });
       expect(rows.at(-1)).not.toHaveProperty('unexpectedSecret');
 
+      const resumeNeed = await fetch(`${base}/p/ai-agent-app/is-need-resume`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        msgs: [{ role: 'assistant', content: '您好' }, { role: 'user', content: '方便聊一下吗' }],
+        needResume: 0, resumeSended: false, title: 'Agent开发工程师', company: '示例科技', salary: '15-25K', score: 90, resumeIndex: 0,
+      }) });
+      expect(await resumeNeed.json()).toEqual({ need: true, reason: 'qualified-followup' });
       const reply = await fetch(`${base}/p/ai-agent-app/reply`, { method: 'POST', body: JSON.stringify('hello') });
       expect(reply.status).toBe(409);
-      expect(await reply.json()).toMatchObject({ error: 'only_greet_mode' });
+      expect(await reply.json()).toMatchObject({ error: 'resume_followup_mode' });
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }

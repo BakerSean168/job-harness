@@ -1,8 +1,10 @@
+import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createJobHarnessRestClient } from '@job-harness/client';
 import { createBossOutreachBridge } from './boss-outreach-bridge';
 import { BossDiscoveryCoordinator } from './boss-discovery';
+import { patchBossResumeFollowupUserscript } from './boss-resume-followup';
 
 const host = process.env.JOB_HARNESS_BOSS_BRIDGE_HOST?.trim() || '127.0.0.1';
 const port = Number(process.env.JOB_HARNESS_BOSS_BRIDGE_PORT || 18788);
@@ -21,6 +23,16 @@ const discovery = new BossDiscoveryCoordinator({
   idleCompleteMs: Number(process.env.JOB_HARNESS_BOSS_DISCOVERY_IDLE_MS ?? 600_000),
 });
 await discovery.recover();
+const legacyUserscriptSourcePath = process.env.JOB_HARNESS_BOSS_LEGACY_USERSCRIPT_SOURCE?.trim() || '/home/ubuntu/projects/job-application-copilot/.local/channel/boss/ai-agent-app.user.js';
+let resumeFollowupUserscript: string | null = null;
+try {
+  const source = await readFile(legacyUserscriptSourcePath, 'utf8');
+  resumeFollowupUserscript = patchBossResumeFollowupUserscript(source, {
+    publicUrl: `${baseUrl.replace(/\/+$/, '')}/boss-resume-followup.user.js`,
+  });
+} catch (error) {
+  console.warn(`BOSS resume follow-up userscript is unavailable: ${error instanceof Error ? error.message : String(error)}`);
+}
 const server = createBossOutreachBridge({
   client,
   publicBaseUrl: baseUrl,
@@ -28,6 +40,7 @@ const server = createBossOutreachBridge({
   baseDelayMs: Number(process.env.JOB_HARNESS_BOSS_SCORE_DELAY_MS ?? 2500),
   delayJitterMs: Number(process.env.JOB_HARNESS_BOSS_SCORE_DELAY_JITTER_MS ?? 400),
   discovery,
+  resumeFollowupUserscript,
 });
 
 server.listen(port, host, () => {

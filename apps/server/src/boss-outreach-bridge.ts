@@ -5,6 +5,7 @@ import { rankResumeProfilesForJob, type ResumeJobMatch } from '@job-harness/resu
 import type { ApplicantProfileContext } from '@job-harness/applicant-contracts';
 import type { ListResumeProfilesOutput } from '@job-harness/resume-contracts';
 import { BossDiscoveryReportSchema, parseBossDiscoveryDecision, renderBossDiscoveryReporter, type BossDiscoveryCoordinator } from './boss-discovery';
+import { BossResumeFollowupRequestSchema, decideBossResumeFollowup } from './boss-resume-followup';
 
 export interface BossOutreachBridgeClient {
   readonly applicant: { getProfile(): Promise<ApplicantProfileContext> };
@@ -19,6 +20,7 @@ export interface BossOutreachBridgeOptions {
   readonly delayJitterMs?: number;
   readonly random?: () => number;
   readonly discovery?: BossDiscoveryCoordinator | null;
+  readonly resumeFollowupUserscript?: string | null;
 }
 
 export interface ParsedBossJob {
@@ -143,7 +145,7 @@ async function readJsonBody(req: IncomingMessage, limit = 128 * 1024): Promise<u
 function safeActionPayload(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { value: String(value ?? '').slice(0, 2000) };
   const source = value as Record<string, unknown>;
-  const allow = ['action','scene','screeningSessionId','jobUrl','title','salary','score','threshold','screeningPassed','resumeIndex','reason','chatUrl','addUrl'];
+  const allow = ['action','scene','screeningSessionId','jobUrl','title','company','salary','score','threshold','screeningPassed','resumeIndex','requestedResumeIndex','selectedResumeIndex','sendMode','reason','chatUrl','addUrl'];
   const result: Record<string, unknown> = {};
   for (const key of allow) {
     const item = source[key];
@@ -209,10 +211,24 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
       const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
       if (req.method === 'GET' && url.pathname === '/api/health') {
         const [profiles, applicant] = await Promise.all([options.client.resume.listProfiles(), options.client.applicant.getProfile()]);
-        return sendJson(res, 200, { ok: true, service: 'job-harness-boss-outreach-bridge', mode: 'auto-resume-only-greet', discovery: Boolean(options.discovery), reporterUrl: `${options.publicBaseUrl.replace(/\/+$/, '')}/boss-discovery-reporter.user.js`, profiles: profiles.items.map((p) => ({ id: p.id, name: p.name })), applicantProfileVersion: applicant.profile.version });
+        return sendJson(res, 200, {
+          ok: true,
+          service: 'job-harness-boss-outreach-bridge',
+          mode: 'auto-resume-followup',
+          discovery: Boolean(options.discovery),
+          reporterUrl: `${options.publicBaseUrl.replace(/\/+$/, '')}/boss-discovery-reporter.user.js`,
+          resumeFollowup: Boolean(options.resumeFollowupUserscript),
+          resumeFollowupUrl: options.resumeFollowupUserscript ? `${options.publicBaseUrl.replace(/\/+$/, '')}/boss-resume-followup.user.js` : null,
+          profiles: profiles.items.map((p) => ({ id: p.id, name: p.name })),
+          applicantProfileVersion: applicant.profile.version,
+        });
       }
       if (req.method === 'GET' && url.pathname === '/boss-discovery-reporter.user.js') {
         return sendText(res, 200, 'text/javascript; charset=utf-8', renderBossDiscoveryReporter(options.publicBaseUrl));
+      }
+      if (req.method === 'GET' && url.pathname === '/boss-resume-followup.user.js') {
+        if (!options.resumeFollowupUserscript) return sendJson(res, 503, { error: 'resume_followup_userscript_unavailable' });
+        return sendText(res, 200, 'text/javascript; charset=utf-8', options.resumeFollowupUserscript);
       }
       if (req.method === 'POST' && url.pathname === '/api/discovery/report') {
         if (!options.discovery) return sendJson(res, 503, { error: 'discovery_not_configured' });
@@ -243,7 +259,8 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
             resumeIndex: bossResumeIndex(requestedProfileId),
             thread: 58,
             timestampTimeout: 3000,
-            onlyGreet: true,
+            onlyGreet: false,
+            resumeFollowup: true,
             manualFilterWaitMs: 10000,
             roundRestartDelayMs: 2000,
             maxEmptyRounds: 3,
@@ -290,8 +307,24 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         return sendJson(res, 200, { success: true });
       }
 
-      if (req.method === 'POST' && ['reply','is-need-resume','is-need-works'].includes(action)) {
-        return sendJson(res, 409, { error: 'only_greet_mode', message: 'Job Harness BOSS bridge 当前只允许岗位评分和首次打招呼；多轮聊天与自动发送简历仍被禁用。' });
+      if (req.method === 'POST' && action === 'is-need-resume') {
+        const input = BossResumeFollowupRequestSchema.parse(await readJsonBody(req));
+        const decision = decideBossResumeFollowup(input, 58);
+        await appendEvent(options.logPath, {
+          loggedAt: new Date().toISOString(),
+          requestedProfileId,
+          action: decision.need ? 'resume_followup_authorized' : 'resume_followup_denied',
+          title: input.title,
+          company: input.company ?? null,
+          salary: input.salary ?? null,
+          score: input.score,
+          resumeIndex: input.resumeIndex,
+          reason: decision.reason,
+        });
+        return sendJson(res, 200, decision);
+      }
+      if (req.method === 'POST' && ['reply','is-need-works'].includes(action)) {
+        return sendJson(res, 409, { error: 'resume_followup_mode', message: 'Job Harness BOSS follow-up 仅允许受 policy 约束的简历发送；LLM 多轮自动聊天和作品集自动发送仍被禁用。' });
       }
       return sendJson(res, 405, { error: 'method_not_allowed' });
     } catch (error) {
