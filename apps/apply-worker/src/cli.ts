@@ -4,6 +4,7 @@ import { ApplySiteAdapterRegistry, GenericAtsSiteAdapter, observedApplySiteAdapt
 import { createJobHarnessRestClient } from '@job-harness/client';
 import { FormFillExecutionEngine } from './form-fill-engine';
 import { SubmitExecutionEngine } from './submit-engine';
+import { OpenAiSemanticFieldMapper } from './semantic-mapper';
 import { ApplyWorker } from './runtime';
 import { readApplyWorkerRuntimeConfig } from './runtime-config';
 
@@ -42,7 +43,19 @@ const siteAdapters = phase === 'form-fill'
       new GenericAtsSiteAdapter(),
     ])
   : null;
-const formFillEngine = siteAdapters ? new FormFillExecutionEngine({ siteAdapters }) : null;
+const semanticMapper = siteAdapters && config.semanticMappingEnabled
+  ? new OpenAiSemanticFieldMapper({
+      baseUrl: config.semanticMappingBaseUrl,
+      apiKey: config.semanticMappingApiKey!,
+      model: config.semanticMappingModel,
+      timeoutMs: config.semanticMappingTimeoutMs,
+    })
+  : null;
+const formFillEngine = siteAdapters ? new FormFillExecutionEngine({
+  siteAdapters,
+  semanticMapper,
+  semanticConfidenceThreshold: config.semanticMappingConfidenceThreshold,
+}) : null;
 const submitEngine = siteAdapters && config.enableSupervisedSubmit ? new SubmitExecutionEngine({ siteAdapters }) : null;
 const adapterId = phase === 'form-fill' ? 'generic-ats' : 'readiness-v1';
 const advertisedAdapterIds = siteAdapters
@@ -66,7 +79,7 @@ const descriptor: ExecutorDescriptor = {
     humanControl: true,
     persistentSession: true,
     screenshots: backendId === 'extension' ? extensionScreenshots : true,
-    semanticMapping: false,
+    semanticMapping: Boolean(semanticMapper),
   },
   maxConcurrency: 1,
   metadata: {
@@ -74,6 +87,7 @@ const descriptor: ExecutorDescriptor = {
     externalSubmit: Boolean(submitEngine),
     formFill: phase === 'form-fill',
     applicantData: phase === 'form-fill' ? 'lease-scoped-frozen-applicant-snapshot' : 'none',
+    semanticMapping: semanticMapper ? { model: config.semanticMappingModel, valueFree: true, confidenceThreshold: config.semanticMappingConfidenceThreshold } : false,
     siteAdapters: advertisedAdapterIds,
     userBrowser: backendId === 'extension',
     ...(backendId === 'extension' && config.extensionAgentId ? { browserAgentId: config.extensionAgentId } : {}),
@@ -105,5 +119,5 @@ function requestStop(signal: string) {
 process.on('SIGINT', () => requestStop('SIGINT'));
 process.on('SIGTERM', () => requestStop('SIGTERM'));
 
-console.log(`Apply Worker ${executorId} starting: Job Harness=${apiUrl} backend=${backendId} phase=${phase} adapter=${adapterId} mode=${submitEngine ? 'review_then_submit' : 'fill_only'} sideEffects=${Boolean(submitEngine)}`);
+console.log(`Apply Worker ${executorId} starting: Job Harness=${apiUrl} backend=${backendId} phase=${phase} adapter=${adapterId} mode=${submitEngine ? 'review_then_submit' : 'fill_only'} semanticMapping=${Boolean(semanticMapper)} sideEffects=${Boolean(submitEngine)}`);
 await worker.start();

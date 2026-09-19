@@ -51,6 +51,12 @@ export interface ApplyWorkerRuntimeConfig {
   readonly extensionResumeUpload: boolean;
   readonly extensionScreenshots: boolean;
   readonly enableSupervisedSubmit: boolean;
+  readonly semanticMappingEnabled: boolean;
+  readonly semanticMappingBaseUrl: string;
+  readonly semanticMappingApiKey: string | null;
+  readonly semanticMappingModel: string;
+  readonly semanticMappingTimeoutMs: number;
+  readonly semanticMappingConfidenceThreshold: number;
   readonly pollIntervalMs: number;
   readonly executorHeartbeatIntervalMs: number;
   readonly attemptHeartbeatIntervalMs: number;
@@ -79,6 +85,15 @@ export function readApplyWorkerRuntimeConfig(env: NodeJS.ProcessEnv = process.en
   if (leaseSeconds < 30 || leaseSeconds > 300) throw new Error('Invalid JOB_HARNESS_APPLY_LEASE_SECONDS: expected 30..300');
   const attemptHeartbeatIntervalMs = positiveInt(env, 'JOB_HARNESS_APPLY_ATTEMPT_HEARTBEAT_MS', 20_000);
   if (attemptHeartbeatIntervalMs >= leaseSeconds * 1000) throw new Error('Invalid JOB_HARNESS_APPLY_ATTEMPT_HEARTBEAT_MS: heartbeat must be shorter than the attempt lease');
+  const semanticMappingEnabled = phase === 'form-fill' && booleanEnv(env, 'JOB_HARNESS_APPLY_SEMANTIC_MAPPING_ENABLED', false);
+  const semanticMappingApiKey = optionalTrimmed(env.JOB_HARNESS_APPLY_SEMANTIC_MAPPING_API_KEY);
+  if (semanticMappingEnabled && !semanticMappingApiKey) throw new Error('JOB_HARNESS_APPLY_SEMANTIC_MAPPING_API_KEY is required when semantic mapping is enabled');
+  const semanticMappingTimeoutMs = positiveInt(env, 'JOB_HARNESS_APPLY_SEMANTIC_MAPPING_TIMEOUT_MS', 20_000);
+  if (semanticMappingTimeoutMs > 60_000) throw new Error('Invalid JOB_HARNESS_APPLY_SEMANTIC_MAPPING_TIMEOUT_MS: must be <= 60000');
+  const semanticMappingConfidenceThresholdRaw = Number(optionalTrimmed(env.JOB_HARNESS_APPLY_SEMANTIC_MAPPING_CONFIDENCE_THRESHOLD) ?? '0.93');
+  if (!Number.isFinite(semanticMappingConfidenceThresholdRaw) || semanticMappingConfidenceThresholdRaw < 0.8 || semanticMappingConfidenceThresholdRaw > 1) {
+    throw new Error('Invalid JOB_HARNESS_APPLY_SEMANTIC_MAPPING_CONFIDENCE_THRESHOLD: expected 0.8..1');
+  }
 
   return {
     apiUrl,
@@ -102,6 +117,12 @@ export function readApplyWorkerRuntimeConfig(env: NodeJS.ProcessEnv = process.en
     extensionResumeUpload: backendId === 'extension' && booleanEnv(env, 'JOB_HARNESS_BROWSER_EXTENSION_RESUME_UPLOAD', false),
     extensionScreenshots: backendId === 'extension' && booleanEnv(env, 'JOB_HARNESS_BROWSER_EXTENSION_SCREENSHOTS', false),
     enableSupervisedSubmit: phase === 'form-fill' && booleanEnv(env, 'JOB_HARNESS_APPLY_ENABLE_SUPERVISED_SUBMIT', false),
+    semanticMappingEnabled,
+    semanticMappingBaseUrl: parseNamed(HttpUrlSchema, optionalTrimmed(env.JOB_HARNESS_APPLY_SEMANTIC_MAPPING_BASE_URL) ?? 'http://127.0.0.1:4000/v1', 'JOB_HARNESS_APPLY_SEMANTIC_MAPPING_BASE_URL'),
+    semanticMappingApiKey,
+    semanticMappingModel: z.string().trim().min(1).max(240).parse(optionalTrimmed(env.JOB_HARNESS_APPLY_SEMANTIC_MAPPING_MODEL) ?? 'gpt-5.6-luna'),
+    semanticMappingTimeoutMs,
+    semanticMappingConfidenceThreshold: semanticMappingConfidenceThresholdRaw,
     pollIntervalMs: positiveInt(env, 'JOB_HARNESS_APPLY_POLL_INTERVAL_MS', 3_000),
     executorHeartbeatIntervalMs,
     attemptHeartbeatIntervalMs,

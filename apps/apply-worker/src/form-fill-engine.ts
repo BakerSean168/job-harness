@@ -155,7 +155,7 @@ export class FormFillExecutionEngine {
     let proposals: readonly SemanticMappingProposal[] = [];
     if (this.semanticMapper) {
       const mappingView = buildSemanticMappingView(form, catalog);
-      proposals = await this.semanticMapper.propose(mappingView);
+      proposals = await this.semanticMapper.propose(mappingView).catch(() => []);
     }
     const plan = buildFillPlan(form, catalog, {
       explicitBindings: adapter.explicitBindings?.(form, { siteResumeBinding: input.attempt.bundle.siteResumeBinding }) ?? [],

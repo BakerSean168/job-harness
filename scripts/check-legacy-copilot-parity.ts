@@ -41,8 +41,9 @@ async function main(): Promise<void> {
     }
   }
 
-  const [formEngine, bossSource, bossCli, dispatcher, notice] = await Promise.all([
+  const [formEngine, semanticMapper, bossSource, bossCli, dispatcher, notice] = await Promise.all([
     readFile(resolve(root, 'packages/browser-form-engine/browser/runtime.js'), 'utf8'),
+    readFile(resolve(root, 'apps/apply-worker/src/semantic-mapper.ts'), 'utf8'),
     readFile(resolve(root, 'integrations/boss/legacy-copilot.user.js'), 'utf8'),
     readFile(resolve(root, 'apps/server/src/boss-outreach-bridge-cli.ts'), 'utf8'),
     readFile(resolve(root, 'apps/intent-dispatch-worker/src/runtime.ts'), 'utf8'),
@@ -62,6 +63,10 @@ async function main(): Promise<void> {
     'fillDatePicker',
   ]) {
     if (!formEngine.includes(marker)) throw new Error(`Browser Form Engine lost legacy compatibility marker '${marker}'`);
+  }
+
+  for (const marker of ['SemanticMappingProposalSchema', 'allowAiMapping', "entry.sensitivity !== 'protected'", 'response_format']) {
+    if (!semanticMapper.includes(marker)) throw new Error(`Semantic mapper lost privacy/validation marker '${marker}'`);
   }
 
   for (const marker of [
