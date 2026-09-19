@@ -1010,3 +1010,15 @@ A recruiting-site resume upload can succeed while the external resume-creation w
 `/resumes` now loads the current ApplicantProfile alongside Resume state and derives a localized missing-facts list for those four site-resume prerequisites. The Site Resume Sync panel renders the exact missing fields and links directly to `Settings -> Applicant profile` (`#applicant-profile`). Missing facts do not block publishing or PDF upload: they explain why a recruiting-site resume wizard may still require completion after a successful Artifact upload. When all four are present, the panel explicitly reports the ApplicantProfile base facts as complete.
 
 This avoids copying personal base facts into every Resume Profile or site adapter and keeps unknown/protected values fail-closed instead of inferred from job-search activity, fixtures, names, or PDFs.
+
+#### A72 — Resume Manager closes the SiteResumeBinding operator loop
+
+The remaining post-upload step previously lived only under Settings: after synchronizing an immutable ResumeRevision PDF to a recruiting-site account, the user had to leave `/resumes`, rediscover the pending SubmissionIntent, manually copy the job URL, run staged read-only characterization, and then confirm the observed site-managed Resume label. That split made the canonical Resume Manager feel incomplete even though the underlying SiteResumeBinding safety boundary already existed.
+
+`/resumes` now projects the same pending SiteResumeBinding backlog for the **selected ResumeProfile** directly below the Resume editor. A shared server-only projection helper derives targets from real `planned` SubmissionIntents, exact frozen Profile/Revision/Artifact evidence, existing active bindings, and the absence of an ExecutionAttempt; Settings and Resume Manager therefore cannot drift into different eligibility rules. The existing characterization/binding component is reused rather than reimplemented.
+
+The safety contract is unchanged: Job Harness still does not navigate or click the job into its final layer. The user opens the target job, manually stages the signed-in resume-selection/final-confirmation layer, runs `site-staged-readonly`, and explicitly confirms one Resume label that was actually observed in redacted structural evidence. The resulting SiteResumeBinding pins the exact immutable Revision/PDF already frozen by the pending Intent. Binding create/revoke actions now invalidate both `/settings` and `/resumes`, so durable binding truth is reflected immediately beside Resume history.
+
+This closes the product-level loop without weakening authority boundaries:
+
+`ResumeRevision -> PDF Artifact -> Site Resume Sync -> staged read-only evidence -> user-confirmed SiteResumeBinding -> Apply/SubmissionIntent`.

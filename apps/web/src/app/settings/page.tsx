@@ -5,7 +5,7 @@ import { BrowserExtensionPairing } from '@/components/management/browser-extensi
 import { ApplicantDataSettings } from '@/components/management/applicant-data-settings';
 import { AtsCharacterizationPanel } from '@/components/management/ats-characterization-panel';
 import { getBrowserExtensionAgents, getBrowserExtensionPublicBridgeUrl, getJobHarnessClient } from '@/lib/job-harness-client';
-import { exactSiteResumeBindingExists, makeAtsBindingTarget, managedSiteIntentRoute } from '@/lib/ats-binding-targets';
+import { buildPendingAtsBindingTargets } from '@/lib/ats-binding-targets-server';
 
 export default async function SettingsPage() {
   const client = getJobHarnessClient();
@@ -14,18 +14,11 @@ export default async function SettingsPage() {
     client.resume.listProfiles(), client.siteResumeBindings.list(),
     client.submissionIntents.list({ statuses: ['planned'], limit: 100, offset: 0, order: 'oldest' }),
   ]);
-  const bindingCandidates = plannedIntents.items.filter((intent) => {
-    const route = managedSiteIntentRoute(intent);
-    return Boolean(route
-      && intent.resumeProfileId && intent.resumeRevisionId && intent.resumeArtifactId
-      && !exactSiteResumeBindingExists(intent, route!, siteResumeBindings.items));
+  const bindingTargets = await buildPendingAtsBindingTargets({
+    client,
+    bindings: siteResumeBindings.items,
+    plannedIntents: plannedIntents.items,
   });
-  const bindingTargets = (await Promise.all(bindingCandidates.map(async (intent) => {
-    const attempts = await client.apply.attempts.list({ intentId: intent.id, limit: 1, offset: 0 });
-    if (attempts.total > 0) return null;
-    const detail = await client.workspace.getJobDetail(intent.jobId);
-    return detail ? makeAtsBindingTarget(intent, detail) : null;
-  }))).filter((target) => target !== null);
   const config = getWebAuthRuntimeConfig();
   const copy = messages.settingsWorkspace;
   const publicBridgeUrl = getBrowserExtensionPublicBridgeUrl();

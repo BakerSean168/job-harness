@@ -17,6 +17,8 @@ ResumeLibrary
   -> ResolvedResume
   -> ResumeRevision (immutable)
   -> ResumeArtifact (HTML/PDF/JSON/Markdown)
+  -> optional Site Resume Sync
+  -> user-confirmed SiteResumeBinding
   -> ApplicationSubmission
   -> Application
 ```

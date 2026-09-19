@@ -79,6 +79,7 @@ export async function createSiteResumeBindingAction(_previous: SiteResumeBinding
       idempotencyKey: `web:site-resume-binding:${characterizationRunId}:${profileId}:${externalResumeLabel}`,
     });
     revalidatePath('/settings');
+    revalidatePath('/resumes');
     return { ok: true, bindingId: binding.id, message: binding.externalResumeLabel };
   } catch (error) {
     return { ok: false, bindingId: null, message: error instanceof JobHarnessRestError ? error.payload.message : error instanceof Error ? error.message : String(error) };
@@ -90,4 +91,5 @@ export async function revokeSiteResumeBindingAction(formData: FormData): Promise
   if (!bindingId) throw new Error('Site resume binding ID is required');
   await getJobHarnessClient().siteResumeBindings.revoke(bindingId, { idempotencyKey: `web:site-resume-binding-revoke:${bindingId}` });
   revalidatePath('/settings');
+  revalidatePath('/resumes');
 }

@@ -149,6 +149,8 @@
 .resume-builder-toolbar .management-filter-bar { flex: 0 1 auto; padding: 0; border: 0; background: transparent; }
 .resume-builder-toolbar > p { max-width: 620px; margin: 0; color: var(--text-faint); font-size: 9px; line-height: 1.45; text-align: right; }
 .resume-builder-surface { min-height: 0; display: grid; grid-template-columns: minmax(220px, .48fr) minmax(320px, .72fr) minmax(520px, 1.3fr); border-bottom: 1px solid var(--border); }
+.resume-site-binding-workspace { padding: 16px; border-bottom: 1px solid var(--border); }
+.resume-site-binding-workspace .settings-panel { max-width: none; }
 .resume-profile-pane,
 .resume-profile-detail-pane,
 .resume-preview-pane { min-width: 0; min-height: 0; background: var(--surface); }

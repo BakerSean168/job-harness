@@ -2,8 +2,10 @@ import Link from 'next/link';
 import type { ResumeProfile } from '@job-harness/resume-contracts';
 import { WorkspaceHeader } from '@/components/shell/workspace-header';
 import { ResumeEditor } from './resume-editor';
+import { AtsCharacterizationPanel } from './ats-characterization-panel';
 import { getMessages } from '@/i18n/server';
 import { getBrowserExtensionAgents, getJobHarnessClient } from '@/lib/job-harness-client';
+import { buildPendingAtsBindingTargets } from '@/lib/ats-binding-targets-server';
 import type { ManagementSearchParams } from './campaigns-workspace';
 
 function one(value: string | string[] | undefined): string | undefined {
@@ -19,12 +21,13 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
   const client = getJobHarnessClient();
   const campaignId = one(searchParams.campaign)?.trim() || undefined;
   const requestedProfile = one(searchParams.profile)?.trim();
-  const [profiles, campaignPage, usage, browserAgents, applicantProfile] = await Promise.all([
+  const [profiles, campaignPage, usage, browserAgents, applicantProfile, plannedIntents] = await Promise.all([
     client.resume.listProfiles(),
     client.campaigns.list({ limit: 200, offset: 0 }),
     client.workspace.listResumeUsage({ limit: 200, offset: 0, ...(campaignId ? { campaignId } : {}) }),
     getBrowserExtensionAgents(),
     client.applicant.getProfile(),
+    client.submissionIntents.list({ statuses: ['planned'], limit: 100, offset: 0, order: 'oldest' }),
   ]);
   const resumeSyncAgents = browserAgents.filter((agent) => agent.online && agent.resumeUpload);
   const selected = profiles.items.find((profile) => profile.id === requestedProfile) ?? profiles.items[0] ?? null;
@@ -36,6 +39,12 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
         client.siteResumeBindings.list({ profileId: selected!.id }),
       ])
     : [null, { items: [], total: 0 }, { items: [] }];
+  const bindingTargets = selected ? await buildPendingAtsBindingTargets({
+    client,
+    bindings: siteResumeBindings.items,
+    plannedIntents: plannedIntents.items,
+    profileId: selected.id,
+  }) : [];
   const usageByProfile = new Map(usage.items.map((item) => [item.resume.id, item]));
   const selectedUsage = selected ? usageByProfile.get(selected.id) ?? null : null;
   const copy = messages.resumesWorkspace;
@@ -67,6 +76,7 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
       </div>
 
       {selected && context && preview ? (
+        <>
         <div className="resume-builder-surface">
           <aside className="resume-profile-pane" aria-label={copy.builder.profiles}>
             <div className="management-panel-heading"><h2>{copy.builder.profiles}</h2><span>{profiles.total}</span></div>
@@ -113,6 +123,16 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
             copy={copy.builder}
           />
         </div>
+        <div className="resume-site-binding-workspace">
+          <AtsCharacterizationPanel
+            agents={browserAgents}
+            profiles={[selected]}
+            bindings={siteResumeBindings.items}
+            bindingTargets={bindingTargets}
+            copy={messages.settingsWorkspace.characterization}
+          />
+        </div>
+        </>
       ) : (
         <div className="management-content">
           <section className="management-panel"><p className="management-empty">{copy.builder.noProfiles}</p></section>
