@@ -157,12 +157,12 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
         const rect = (element as HTMLElement).getBoundingClientRect();
         return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
       };
-      const standard = [...document.querySelectorAll('a[href], button, [role="button"]')];
+      const standard = [...document.querySelectorAll('a[href], button, [role="button"], [role="option"], [role="menuitem"], [role="radio"], [role="tab"], .ant-select-item-option, .ant-picker-cell')];
       const inferred = [...document.querySelectorAll(
         '[onclick],[tabindex],[class*="apply" i],[class*="deliver" i],[class*="submit" i],[class*="chat" i],[class*="btn" i],[class*="button" i],[class*="action" i]'
       )].filter((element) => {
         if (!(element instanceof HTMLElement)) return false;
-        if (element.matches('a[href], button, [role="button"]')) return true;
+        if (element.matches('a[href], button, [role="button"], [role="option"], [role="menuitem"], [role="radio"], [role="tab"], .ant-select-item-option, .ant-picker-cell')) return true;
         const text = compact(element.innerText || element.getAttribute('aria-label') || element.getAttribute('title'));
         if (!text || text.length > 220) return false;
         const className = typeof element.className === 'string' ? element.className : '';
@@ -273,6 +273,7 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
         if (element instanceof HTMLTextAreaElement) return 'textarea';
         if (element instanceof HTMLSelectElement) return 'select';
         const type = element.type.toLowerCase();
+        if (type === 'search') return 'text';
         if (['text','email','tel','url','number','date','radio','checkbox','file'].includes(type)) return type as Snapshot['kind'];
         return 'unknown';
       };

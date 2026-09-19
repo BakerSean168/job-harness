@@ -101,7 +101,7 @@ export interface BrowserExtensionValidationRun {
   readonly characterization: BrowserExtensionCharacterizationEvidence | null;
 }
 
-export type SiteResumePreparationState = 'attachment_upload_ready' | 'profile_onboarding_required' | 'unknown';
+export type SiteResumePreparationState = 'attachment_upload_ready' | 'profile_onboarding_required' | 'education_onboarding_required' | 'unknown';
 export interface SiteResumePreparationResult {
   readonly run: BrowserExtensionValidationRun;
   readonly state: SiteResumePreparationState;
@@ -151,8 +151,11 @@ export class BrowserExtensionValidationRegistry {
     const target = this.validateTarget(input.targetUrl, input.mode);
     const agent = this.bridge.status(input.agentId);
     if (!agent?.online) throw new BrowserExtensionBridgeError('AGENT_OFFLINE', `Browser extension agent '${input.agentId}' is offline`, 503);
-    if ((input.mode === 'site-staged-readonly' || input.mode === 'site-resume-sync') && !versionAtLeast(agent.version, '0.1.6')) {
-      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Staged/site-resume operations require Browser Bridge >= 0.1.6; agent '${input.agentId}' reports '${agent.version}'`, 409);
+    if (input.mode === 'site-staged-readonly' && !versionAtLeast(agent.version, '0.1.6')) {
+      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Staged characterization requires Browser Bridge >= 0.1.6; agent '${input.agentId}' reports '${agent.version}'`, 409);
+    }
+    if (input.mode === 'site-resume-sync' && !versionAtLeast(agent.version, '0.1.7')) {
+      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Site Resume Sync requires Browser Bridge >= 0.1.7; agent '${input.agentId}' reports '${agent.version}'`, 409);
     }
     const createdAt = this.now().toISOString();
     const run: MutableValidationRun = {
@@ -315,7 +318,9 @@ export class BrowserExtensionValidationRegistry {
       run.characterization = observed.evidence;
       return { run: freezeRun(run), state: 'attachment_upload_ready', missingFacts: [], manualFacts: [], appliedFacts: [], evidence: observed.evidence };
     }
-    if (!isLiepinProfileOnboarding(observed.evidence.currentUrl, observed.bodyText)) {
+    const profileOnboarding = isLiepinProfileOnboarding(observed.evidence.currentUrl, observed.bodyText);
+    const educationOnboarding = isLiepinEducationOnboarding(observed.evidence.currentUrl, observed.bodyText);
+    if (!profileOnboarding && !educationOnboarding) {
       run.characterization = observed.evidence;
       return { run: freezeRun(run), state: 'unknown', missingFacts: [], manualFacts: [], appliedFacts: [], evidence: observed.evidence };
     }
@@ -323,9 +328,86 @@ export class BrowserExtensionValidationRegistry {
     const applicantContext = await this.applicant?.getDefaultProfile() ?? null;
     if (!applicantContext) {
       run.characterization = observed.evidence;
-      return { run: freezeRun(run), state: 'profile_onboarding_required', missingFacts: ['applicantProfile'], manualFacts: [], appliedFacts: [], evidence: observed.evidence };
+      return { run: freezeRun(run), state: educationOnboarding ? 'education_onboarding_required' : 'profile_onboarding_required', missingFacts: ['applicantProfile'], manualFacts: [], appliedFacts: [], evidence: observed.evidence };
     }
     const profile = applicantContext.profile;
+
+    if (educationOnboarding) {
+      const education = profile.education[0] ?? null;
+      const missingFacts = [
+        !education ? 'education[0]' : null,
+        education && !education.school ? 'education[0].school' : null,
+        education && !education.major ? 'education[0].major' : null,
+        education && !education.degree ? 'education[0].degree' : null,
+        education && !education.admissionType ? 'education[0].admissionType' : null,
+        education && !education.startMonth ? 'education[0].startMonth' : null,
+        education && !education.endMonth ? 'education[0].endMonth' : null,
+      ].filter((value): value is string => Boolean(value));
+      const manualFacts: string[] = [];
+      const appliedFacts: string[] = [];
+      const scanActions = async () => parseRawActions((await this.invoke(id, { sessionRef, command: { type: 'scan_actions', payload: {} }, timeoutMs: 15_000 })).result);
+      const wait = async (milliseconds = 300) => { await this.invoke(id, { sessionRef, command: { type: 'wait', payload: { milliseconds } }, timeoutMs: 15_000 }); };
+      const clickExactAction = async (text: string): Promise<boolean> => {
+        const action = uniqueActionByText(await scanActions(), text);
+        if (!action) return false;
+        await this.invoke(id, { sessionRef, command: { type: 'click', payload: { selector: action.actionRef, expectedText: text } }, timeoutMs: 15_000 });
+        return true;
+      };
+      const chooseAutocomplete = async (control: RawControl | null, value: string, factKey: string) => {
+        if (!control) { manualFacts.push(factKey); return; }
+        await this.invoke(id, { sessionRef, command: { type: 'fill', payload: { selector: control.controlRef, value, blur: false } }, timeoutMs: 15_000 });
+        await wait(450);
+        if (await clickExactAction(value)) appliedFacts.push(factKey); else manualFacts.push(factKey);
+      };
+      const choosePickerValue = async (control: RawControl | null, value: string, factKey: string) => {
+        if (!control) { manualFacts.push(factKey); return; }
+        await this.invoke(id, { sessionRef, command: { type: 'click', payload: { selector: control.controlRef, expectedText: null } }, timeoutMs: 15_000 });
+        await wait(250);
+        if (await clickExactAction(value)) appliedFacts.push(factKey); else manualFacts.push(factKey);
+      };
+      const chooseMonth = async (control: RawControl | null, value: string, factKey: string) => {
+        if (!control) { manualFacts.push(factKey); return; }
+        const [year, monthRaw] = value.split('-');
+        if (!year || !monthRaw) { manualFacts.push(factKey); return; }
+        const month = String(Number(monthRaw));
+        await this.invoke(id, { sessionRef, command: { type: 'click', payload: { selector: control.controlRef, expectedText: null } }, timeoutMs: 15_000 });
+        await wait(250);
+        let actions = await scanActions();
+        let yearAction = uniqueActionByAnyText(actions, [`${year}年`, year]);
+        if (yearAction) {
+          await this.invoke(id, { sessionRef, command: { type: 'click', payload: { selector: yearAction.actionRef, expectedText: yearAction.text } }, timeoutMs: 15_000 });
+          await wait(200);
+          actions = await scanActions();
+        }
+        const monthAction = uniqueActionByAnyText(actions, [`${month}月`, `${monthRaw}月`]);
+        if (!monthAction) { manualFacts.push(factKey); return; }
+        await this.invoke(id, { sessionRef, command: { type: 'click', payload: { selector: monthAction.actionRef, expectedText: monthAction.text } }, timeoutMs: 15_000 });
+        appliedFacts.push(factKey);
+      };
+
+      if (education) {
+        const admissionText = education.admissionType === 'unified' ? '统招' : education.admissionType === 'non_unified' ? '非统招' : null;
+        if (admissionText) {
+          if (await clickExactAction(admissionText)) appliedFacts.push('education[0].admissionType');
+          else manualFacts.push('education[0].admissionType');
+        }
+        await chooseAutocomplete(uniqueSectionControl(observed.rawControls, '学校名称'), education.school, 'education[0].school');
+        if (education.degree) {
+          if (normalizedContains(observed.bodyText, education.degree)) appliedFacts.push('education[0].degree');
+          else await choosePickerValue(uniqueSectionControl(observed.rawControls, '学历', true), education.degree, 'education[0].degree');
+        }
+        await chooseAutocomplete(uniqueSectionControl(observed.rawControls, '专业'), education.major, 'education[0].major');
+        if (education.startMonth) await chooseMonth(uniqueControlByLabel(observed.rawControls, '入学时间', true), education.startMonth, 'education[0].startMonth');
+        if (education.endMonth) await chooseMonth(uniqueControlByLabel(observed.rawControls, '毕业时间', true), education.endMonth, 'education[0].endMonth');
+      }
+      if (appliedFacts.length) observed = await capture();
+      run.characterization = observed.evidence;
+      return {
+        run: freezeRun(run), state: 'education_onboarding_required',
+        missingFacts: [...new Set(missingFacts)], manualFacts: [...new Set(manualFacts)], appliedFacts: [...new Set(appliedFacts)], evidence: observed.evidence,
+      };
+    }
+
     const missingFacts = [
       !profile.gender ? 'gender' : null,
       !profile.birthDate ? 'birthDate' : null,
@@ -616,10 +698,22 @@ function uniqueSectionControl(controls: readonly RawControl[], sectionLabel: str
   const matches = controls.filter((control) => !control.disabled && (allowReadOnly || !control.readOnly) && (control.sectionLabel ?? '').replace(/\s+/g, '') === sectionLabel.replace(/\s+/g, ''));
   return matches.length === 1 ? matches[0]! : null;
 }
+function uniqueControlByLabel(controls: readonly RawControl[], label: string, allowReadOnly = false): RawControl | null {
+  const expected = label.replace(/\s+/g, '');
+  const matches = controls.filter((control) => !control.disabled && (allowReadOnly || !control.readOnly) && control.label.replace(/\s+/g, '') === expected);
+  return matches.length === 1 ? matches[0]! : null;
+}
 function uniqueActionByText(actions: readonly RawAction[], text: string): RawAction | null {
   const expected = text.replace(/\s+/g, ' ').trim();
   const matches = actions.filter((action) => !action.disabled && !action.ariaDisabled && action.text.replace(/\s+/g, ' ').trim() === expected);
   return matches.length === 1 ? matches[0]! : null;
+}
+function uniqueActionByAnyText(actions: readonly RawAction[], texts: readonly string[]): RawAction | null {
+  for (const text of texts) {
+    const exact = uniqueActionByText(actions, text);
+    if (exact) return exact;
+  }
+  return null;
 }
 function isLiepinProfileOnboarding(currentUrl: string, bodyText: string): boolean {
   try {
@@ -627,6 +721,15 @@ function isLiepinProfileOnboarding(currentUrl: string, bodyText: string): boolea
     const host = url.hostname.toLowerCase();
     if (host !== 'c.liepin.com' || !/^\/resume\/create\/?$/i.test(url.pathname)) return false;
     const markers = ['姓名', '性别', '出生年月', '求职身份', '当前城市', '下一步'];
+    return markers.filter((marker) => bodyText.includes(marker)).length >= 5;
+  } catch { return false; }
+}
+function isLiepinEducationOnboarding(currentUrl: string, bodyText: string): boolean {
+  try {
+    const url = new URL(currentUrl);
+    const host = url.hostname.toLowerCase();
+    if (host !== 'c.liepin.com' || !/^\/resume\/create\/?$/i.test(url.pathname)) return false;
+    const markers = ['你就读的学校', '学校名称', '学历', '专业', '就读时间', '在校经历', '下一步'];
     return markers.filter((marker) => bodyText.includes(marker)).length >= 5;
   } catch { return false; }
 }

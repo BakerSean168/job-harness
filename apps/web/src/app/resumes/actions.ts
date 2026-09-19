@@ -41,7 +41,7 @@ export async function publishResumeRevisionAction(profileId: string, expectedPro
 
 export type ResumeSiteSyncValue =
   | { readonly state: 'uploaded'; readonly revisionId: string; readonly artifactId: string; readonly artifactSha256: string; readonly runId: string; readonly currentUrl: string; readonly title: string; readonly stateSignals: readonly string[] }
-  | { readonly state: 'profile_onboarding_required' | 'unknown'; readonly revisionId: string; readonly artifactId: string; readonly runId: string; readonly currentUrl: string; readonly title: string; readonly stateSignals: readonly string[]; readonly missingFacts: readonly string[]; readonly manualFacts: readonly string[]; readonly appliedFacts: readonly string[] };
+  | { readonly state: 'profile_onboarding_required' | 'education_onboarding_required' | 'unknown'; readonly revisionId: string; readonly artifactId: string; readonly runId: string; readonly currentUrl: string; readonly title: string; readonly stateSignals: readonly string[]; readonly missingFacts: readonly string[]; readonly manualFacts: readonly string[]; readonly appliedFacts: readonly string[] };
 
 export async function syncResumeRevisionToSiteAction(input: {
   profileId: string;

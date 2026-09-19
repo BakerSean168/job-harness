@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BrowserExtensionBridge } from '../src/browser-extension-bridge';
 import { BrowserExtensionValidationRegistry } from '../src/browser-extension-validation';
 
-function register(bridge: BrowserExtensionBridge, version = '0.1.6') {
+function register(bridge: BrowserExtensionBridge, version = '0.1.7') {
   bridge.register({
     agentId: 'windows-chrome-primary',
     name: 'Windows Chrome',
@@ -104,6 +104,19 @@ describe('browser-extension validation scope', () => {
     expect(() => registry.create({
       agentId: 'windows-chrome-primary', targetUrl: 'https://www.zhaopin.com/jobdetail/CC1.htm', mode: 'site-staged-readonly',
     })).toThrow(/Browser Bridge >= 0.1.6/);
+    expect(bridge.status('windows-chrome-primary')?.queuedCommands).toBe(0);
+    bridge.close();
+  });
+
+  it('rejects site-resume sync from a pre-0.1.7 Browser Bridge before any command is queued', () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge, '0.1.6');
+    const registry = new BrowserExtensionValidationRegistry(bridge, {
+      allowedOrigin: 'https://job-harness.test:20900', readonlySiteFamilies: ['zhilian', 'liepin'],
+    });
+    expect(() => registry.create({
+      agentId: 'windows-chrome-primary', targetUrl: 'https://c.liepin.com/resume/create', mode: 'site-resume-sync',
+    })).toThrow(/Browser Bridge >= 0.1.7/);
     expect(bridge.status('windows-chrome-primary')?.queuedCommands).toBe(0);
     bridge.close();
   });
@@ -294,6 +307,104 @@ describe('browser-extension validation scope', () => {
       expect.objectContaining({ type:'click', payload:expect.objectContaining({ selector:'[data-job-harness-field-id="jh-3"]' }) }),
       expect.objectContaining({ type:'click', payload:expect.objectContaining({ expectedText:'离校，在找工作' }) }),
     ]);
+    expect(JSON.stringify(writes)).not.toContain('下一步');
+    bridge.close();
+  });
+
+  it('recognizes Liepin education onboarding and maps deterministic ApplicantProfile education facts without clicking next', async () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge);
+    const registry = new BrowserExtensionValidationRegistry(bridge, {
+      allowedOrigin: 'https://job-harness.test:20900', readonlySiteFamilies: ['liepin'],
+      applicant: {
+        async getDefaultProfile() {
+          return {
+            profile: {
+              id:'default-applicant', version:4, displayName:'Candidate Name', phone:null, email:'candidate@example.test', gender:'male', birthDate:'2004-08-17',
+              location:'浙江金华', jobSearchStatus:'actively_looking', careerIdentity:'new_graduate', website:null, github:null,
+              education:[{ id:'sicau', school:'四川农业大学', institutionTag:'（211）', major:'物联网工程', degree:'本科', admissionType:'unified', department:'信息工程学院', location:'雅安', startMonth:'2022-09', endMonth:'2026-06' }],
+              targetRoles:[], targetCities:[], availableFrom:null, notes:null, createdAt:'2026-09-18T00:00:00.000Z', updatedAt:'2026-09-19T00:00:00.000Z',
+            },
+            latestRevision: { id:'profile-rev-4', profileId:'default-applicant', revisionNumber:4, profileVersion:4, snapshot:{} as any, contentHash:'a'.repeat(64), createdAt:'2026-09-19T00:00:00.000Z', createdBy:'user' as const },
+          } as any;
+        },
+      },
+    });
+    const pageUrl = 'https://c.liepin.com/resume/create?backUrl=https%253A%252F%252Fc.liepin.com%252Fresume%252Fedit';
+    const run = registry.create({ agentId:'windows-chrome-primary', targetUrl:'https://c.liepin.com/resume/create', mode:'site-resume-sync' });
+    const pending = registry.prepareResume(run.id);
+    const controls = [
+      { controlRef:'[data-job-harness-field-id="jh-0"]', kind:'text', label:'学校名称', name:null, description:null, required:false, disabled:false, readOnly:false, options:[], semanticHints:['school'], accept:null, multiple:false, sectionLabel:'学校名称' },
+      { controlRef:'[data-job-harness-field-id="jh-1"]', kind:'unknown', label:'学历', name:null, description:null, required:false, disabled:false, readOnly:true, options:[], semanticHints:['degree'], accept:null, multiple:false, sectionLabel:'学历' },
+      { controlRef:'[data-job-harness-field-id="jh-2"]', kind:'text', label:'专业', name:null, description:null, required:false, disabled:false, readOnly:false, options:[], semanticHints:['major'], accept:null, multiple:false, sectionLabel:'专业' },
+      { controlRef:'[data-job-harness-field-id="jh-3"]', kind:'text', label:'入学时间', name:null, description:null, required:false, disabled:false, readOnly:true, options:[], semanticHints:['入学时间'], accept:null, multiple:false, sectionLabel:null },
+      { controlRef:'[data-job-harness-field-id="jh-4"]', kind:'text', label:'毕业时间', name:null, description:null, required:false, disabled:false, readOnly:true, options:[], semanticHints:['毕业时间'], accept:null, multiple:false, sectionLabel:null },
+      { controlRef:'[data-job-harness-field-id="jh-5"]', kind:'textarea', label:'在校经历', name:null, description:null, required:false, disabled:false, readOnly:false, options:[], semanticHints:['experience'], accept:null, multiple:false, sectionLabel:'在校经历' },
+    ];
+    const baseActions = [
+      { actionRef:'[data-job-harness-action-id="jha-next"]', tag:'button', text:'下一步', href:null, type:'button', role:null, disabled:false, ariaDisabled:false },
+      { actionRef:'[data-job-harness-action-id="jha-unified"]', tag:'other', text:'统招', href:null, type:null, role:null, disabled:false, ariaDisabled:false },
+      { actionRef:'[data-job-harness-action-id="jha-non-unified"]', tag:'other', text:'非统招', href:null, type:null, role:null, disabled:false, ariaDisabled:false },
+    ];
+    const writes: any[] = [];
+    let autocomplete: 'school'|'major'|null = null;
+    let dateField: 'start'|'end'|null = null;
+    let dateYearChosen = false;
+    let settled = false;
+    void pending.finally(() => { settled = true; });
+    for (let i=0;i<120 && !settled;i++) {
+      const command = await bridge.poll('windows-chrome-primary', 1_000);
+      if (!command) continue;
+      let result: unknown = null;
+      if (command.command.type === 'session_acquire') result = { sessionRef:'chrome-tab:education', currentUrl:pageUrl };
+      else if (command.command.type === 'current_url') result = pageUrl;
+      else if (command.command.type === 'title') result = '完善教育经历 - 猎聘';
+      else if (command.command.type === 'body_text') result = '你就读的学校 填写教育经历，让简历更加完整 学校名称 统招 非统招 学历 本科 专业 就读时间 — 在校经历 下一步';
+      else if (command.command.type === 'scan_controls') result = controls;
+      else if (command.command.type === 'form_state_hash') result = 'c'.repeat(64);
+      else if (command.command.type === 'scan_actions') {
+        const dynamic = autocomplete === 'school'
+          ? [{ actionRef:'[data-job-harness-action-id="jha-school"]', tag:'other', text:'四川农业大学', href:null, type:null, role:'option', disabled:false, ariaDisabled:false }]
+          : autocomplete === 'major'
+            ? [{ actionRef:'[data-job-harness-action-id="jha-major"]', tag:'other', text:'物联网工程', href:null, type:null, role:'option', disabled:false, ariaDisabled:false }]
+            : dateField && !dateYearChosen
+              ? [{ actionRef:`[data-job-harness-action-id="jha-${dateField}-year"]`, tag:'other', text:dateField === 'start' ? '2022年' : '2026年', href:null, type:null, role:'option', disabled:false, ariaDisabled:false }]
+              : dateField && dateYearChosen
+                ? [{ actionRef:`[data-job-harness-action-id="jha-${dateField}-month"]`, tag:'other', text:dateField === 'start' ? '9月' : '6月', href:null, type:null, role:'option', disabled:false, ariaDisabled:false }]
+                : [];
+        result = [...baseActions, ...dynamic];
+      } else if (command.command.type === 'wait') result = null;
+      else if (command.command.type === 'fill') {
+        writes.push(command.command);
+        if (command.command.payload.value === '四川农业大学') autocomplete = 'school';
+        if (command.command.payload.value === '物联网工程') autocomplete = 'major';
+        result = null;
+      } else if (command.command.type === 'click') {
+        writes.push(command.command);
+        const text = command.command.payload.expectedText;
+        if (text === '四川农业大学' || text === '物联网工程') autocomplete = null;
+        if (command.command.payload.selector === '[data-job-harness-field-id="jh-3"]') { dateField = 'start'; dateYearChosen = false; }
+        if (command.command.payload.selector === '[data-job-harness-field-id="jh-4"]') { dateField = 'end'; dateYearChosen = false; }
+        if (text === '2022年' || text === '2026年') dateYearChosen = true;
+        if (text === '9月' || text === '6月') { dateField = null; dateYearChosen = false; }
+        result = null;
+      }
+      bridge.complete('windows-chrome-primary', { commandId:command.commandId, ok:true, result });
+    }
+    const completed = await pending;
+    expect(completed).toMatchObject({
+      state:'education_onboarding_required', missingFacts:[], manualFacts:[],
+      appliedFacts:['education[0].admissionType','education[0].school','education[0].degree','education[0].major','education[0].startMonth','education[0].endMonth'],
+      run:{ writeCount:11 },
+    });
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type:'fill', payload:expect.objectContaining({ value:'四川农业大学', blur:false }) }),
+      expect.objectContaining({ type:'click', payload:expect.objectContaining({ expectedText:'统招' }) }),
+      expect.objectContaining({ type:'click', payload:expect.objectContaining({ expectedText:'2022年' }) }),
+      expect.objectContaining({ type:'click', payload:expect.objectContaining({ expectedText:'9月' }) }),
+      expect.objectContaining({ type:'click', payload:expect.objectContaining({ expectedText:'2026年' }) }),
+      expect.objectContaining({ type:'click', payload:expect.objectContaining({ expectedText:'6月' }) }),
+    ]));
     expect(JSON.stringify(writes)).not.toContain('下一步');
     bridge.close();
   });

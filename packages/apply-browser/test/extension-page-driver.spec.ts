@@ -87,6 +87,42 @@ describe('MV3 page driver contract', () => {
     });
   });
 
+  it('supports focused autocomplete fills without forced blur and exposes popup options as actions', async () => {
+    await withDriver(async (page) => {
+      await page.evaluate(() => {
+        const form = document.querySelector('form')!;
+        const input = document.createElement('input');
+        input.id = 'school';
+        input.type = 'search';
+        input.placeholder = '学校名称';
+        input.style.cssText = 'display:block;width:180px;height:30px;margin:8px';
+        const popup = document.createElement('div');
+        popup.id = 'school-options';
+        input.addEventListener('input', () => {
+          popup.innerHTML = '';
+          if (input.value === '四川农业大学') {
+            const option = document.createElement('div');
+            option.setAttribute('role', 'option');
+            option.textContent = '四川农业大学';
+            option.style.cssText = 'display:block;width:180px;height:30px;cursor:pointer';
+            popup.appendChild(option);
+          }
+        });
+        input.addEventListener('blur', () => { input.value = ''; popup.innerHTML = ''; });
+        form.insertBefore(input, form.firstChild);
+        form.insertBefore(popup, document.getElementById('next'));
+      });
+
+      const controls = await command(page, 'scan_controls') as Array<Record<string, unknown>>;
+      const school = controls.find((field) => field.label === '学校名称');
+      expect(school).toMatchObject({ kind: 'text' });
+      await command(page, 'fill', { selector: school!.controlRef, value: '四川农业大学', blur: false });
+      expect(await page.inputValue('#school')).toBe('四川农业大学');
+      const actions = await command(page, 'scan_actions') as Array<Record<string, unknown>>;
+      expect(actions).toEqual(expect.arrayContaining([expect.objectContaining({ text: '四川农业大学' })]));
+    });
+  });
+
   it('keeps MV3 control/action refs unique and stable when a dynamic form inserts earlier elements', async () => {
     await withDriver(async (page) => {
       const initialControls = await command(page, 'scan_controls') as Array<Record<string, unknown>>;

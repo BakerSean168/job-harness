@@ -21,7 +21,7 @@
         const element = document.querySelector(requiredSelector(payload.selector));
         return element ? compact(element.innerText || element.textContent || "", 50000) : null;
       }
-      case "fill": return fill(requiredSelector(payload.selector), String(payload.value ?? ""));
+      case "fill": return fill(requiredSelector(payload.selector), String(payload.value ?? ""), payload.blur !== false);
       case "select": return select(requiredSelector(payload.selector), payload.value);
       case "set_checked": return setChecked(requiredSelector(payload.selector), Boolean(payload.checked));
       case "click": return click(requiredSelector(payload.selector), payload.expectedText ?? null);
@@ -33,12 +33,13 @@
     }
   }
 
-  function fill(selector, value) {
+  function fill(selector, value, blur = true) {
     const element = firstElement(selector);
     if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) throw new Error("Target is not a text input/textarea");
     if (element.disabled || element.readOnly) throw new Error("Target field is disabled/read-only");
+    element.focus({ preventScroll: true });
     setNativeValue(element, value);
-    dispatchInputEvents(element);
+    dispatchInputEvents(element, blur);
     return null;
   }
 
@@ -97,7 +98,7 @@
   }
 
   function scanActions() {
-    const standard = [...document.querySelectorAll('a[href],button,[role="button"]')];
+    const standard = [...document.querySelectorAll('a[href],button,[role="button"],[role="option"],[role="menuitem"],[role="radio"],[role="tab"],.ant-select-item-option,.ant-picker-cell')];
     const inferred = [...document.querySelectorAll(
       '[onclick],[tabindex],[class*="apply" i],[class*="deliver" i],[class*="submit" i],[class*="chat" i],[class*="btn" i],[class*="button" i],[class*="action" i]'
     )].filter((element) => {
@@ -266,6 +267,7 @@
     if (element instanceof HTMLTextAreaElement) return "textarea";
     if (element instanceof HTMLSelectElement) return "select";
     const type = String(element.type || "").toLowerCase();
+    if (type === "search") return "text";
     return ["text", "email", "tel", "url", "number", "date", "radio", "checkbox", "file"].includes(type) ? type : "unknown";
   }
   function labelFor(element) {
@@ -290,10 +292,10 @@
     const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
     if (descriptor?.set) descriptor.set.call(element, value); else element.value = value;
   }
-  function dispatchInputEvents(element) {
+  function dispatchInputEvents(element, blur = true) {
     element.dispatchEvent(new Event("input", { bubbles: true }));
     element.dispatchEvent(new Event("change", { bubbles: true }));
-    element.dispatchEvent(new Event("blur", { bubbles: true }));
+    if (blur) element.dispatchEvent(new Event("blur", { bubbles: true }));
   }
   function firstElement(selector) { const element = document.querySelector(selector); if (!element) throw new Error(`Target not found: ${selector}`); return element; }
   function requiredSelector(value) { const selector = String(value || "").trim(); if (!selector || selector.length > 4000) throw new Error("Invalid selector"); return selector; }

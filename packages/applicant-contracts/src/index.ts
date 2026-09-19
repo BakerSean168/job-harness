@@ -7,6 +7,7 @@ const FactKeySchema = z.string().trim().min(1).max(240).regex(/^[a-z0-9_.\[\]-]+
 export const ApplicantGenderSchema = z.enum(['male', 'female']);
 export const ApplicantJobSearchStatusSchema = z.enum(['actively_looking', 'open_to_opportunities', 'not_looking']);
 export const ApplicantCareerIdentitySchema = z.enum(['student', 'new_graduate', 'professional']);
+export const ApplicantEducationAdmissionTypeSchema = z.enum(['unified', 'non_unified']);
 
 export const APPLICANT_FACT_VALUE_TYPES = ['text', 'multiline', 'email', 'phone', 'url', 'number', 'date', 'boolean', 'choice', 'multi_choice'] as const;
 export const APPLICANT_FACT_SENSITIVITIES = ['public', 'personal', 'sensitive', 'legal', 'protected'] as const;
@@ -57,6 +58,7 @@ export const ApplicantEducationSchema = z.object({
   institutionTag: z.string().trim().max(300).nullable().default(null),
   major: z.string().trim().min(1).max(500),
   degree: z.string().trim().max(300).nullable().default(null),
+  admissionType: ApplicantEducationAdmissionTypeSchema.nullable().default(null),
   department: z.string().trim().max(500).nullable().default(null),
   location: z.string().trim().max(300).nullable().default(null),
   startMonth: MonthSchema.nullable().default(null),
@@ -178,6 +180,7 @@ export const ApplicationAnswerSetContextSchema = z.object({
 export type ApplicantGender = z.infer<typeof ApplicantGenderSchema>;
 export type ApplicantJobSearchStatus = z.infer<typeof ApplicantJobSearchStatusSchema>;
 export type ApplicantCareerIdentity = z.infer<typeof ApplicantCareerIdentitySchema>;
+export type ApplicantEducationAdmissionType = z.infer<typeof ApplicantEducationAdmissionTypeSchema>;
 export type ApplicantProfile = z.infer<typeof ApplicantProfileSchema>;
 export type ApplicantProfileRevision = z.infer<typeof ApplicantProfileRevisionSchema>;
 export type SaveApplicantProfileInput = z.infer<typeof SaveApplicantProfileInputSchema>;

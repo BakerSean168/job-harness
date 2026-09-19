@@ -64,7 +64,7 @@ const TitleCommandSchema = z.object({ type: z.literal('title'), payload: z.objec
 const BodyTextCommandSchema = z.object({ type: z.literal('body_text'), payload: z.object({ limit: z.number().int().min(0).max(200_000).default(50_000) }).strict() }).strict();
 const ExistsCommandSchema = z.object({ type: z.literal('exists'), payload: z.object({ selector: z.string().min(1).max(4000) }).strict() }).strict();
 const TextCommandSchema = z.object({ type: z.literal('text'), payload: z.object({ selector: z.string().min(1).max(4000) }).strict() }).strict();
-const FillCommandSchema = z.object({ type: z.literal('fill'), payload: z.object({ selector: z.string().min(1).max(4000), value: z.string().max(100_000) }).strict() }).strict();
+const FillCommandSchema = z.object({ type: z.literal('fill'), payload: z.object({ selector: z.string().min(1).max(4000), value: z.string().max(100_000), blur: z.boolean().optional() }).strict() }).strict();
 const SelectCommandSchema = z.object({
   type: z.literal('select'),
   payload: z.object({ selector: z.string().min(1).max(4000), value: z.union([z.string().max(10_000), z.array(z.string().max(10_000)).max(500)]) }).strict(),

@@ -46,4 +46,14 @@ describe('ApplicantProfile stable autofill facts', () => {
     expect(ApplicantProfileSchema.safeParse({ ...profile, birthDate:'2001-13-40' }).success).toBe(false);
     expect(ApplicantProfileSchema.safeParse({ ...profile, careerIdentity:'graduate' }).success).toBe(false);
   });
+
+  it('keeps education admission type explicit instead of inferring full-time as unified admission', () => {
+    const parsed = ApplicantProfileSchema.parse({
+      ...profile,
+      education:[{ id:'edu-1', school:'四川农业大学', institutionTag:'（211）', major:'物联网工程', degree:'本科', department:'信息工程学院', location:'雅安', startMonth:'2022-09', endMonth:'2026-06' }],
+    });
+    expect(parsed.education[0]?.admissionType).toBeNull();
+    expect(ApplicantProfileSchema.safeParse({ ...parsed, education:[{ ...parsed.education[0]!, admissionType:'unified' }] }).success).toBe(true);
+    expect(ApplicantProfileSchema.safeParse({ ...parsed, education:[{ ...parsed.education[0]!, admissionType:'full_time' }] }).success).toBe(false);
+  });
 });

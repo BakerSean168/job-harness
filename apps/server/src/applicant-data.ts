@@ -128,6 +128,7 @@ function factsFromApplicantProfile(revision: ApplicantProfileRevision): NativeFa
       fact(`${prefix}.institution_tag`, '院校标签', education.institutionTag, 'text', 'personal', ['院校标签','学校层级','school tier','institution tag'], 'job-harness-applicant-profile', provenance),
       fact(`${prefix}.major`, '专业', education.major, 'text', 'personal', ['专业','所学专业','major'], 'job-harness-applicant-profile', provenance),
       fact(`${prefix}.degree`, '学历/学位', education.degree, 'text', 'personal', ['学历','学位','degree','education level'], 'job-harness-applicant-profile', provenance),
+      fact(`${prefix}.admission_type`, '招生类型', education.admissionType, 'choice', 'personal', ['统招','非统招','招生类型','admission type'], 'job-harness-applicant-profile', provenance, false),
       fact(`${prefix}.department`, '学院（院系）', education.department, 'text', 'personal', ['学院','院系','department'], 'job-harness-applicant-profile', provenance),
       fact(`${prefix}.city`, '学校所在地', education.location, 'text', 'personal', ['学校所在地','教育地点','city','location'], 'job-harness-applicant-profile', provenance),
       fact(`${prefix}.start_date`, '教育开始时间', education.startMonth, 'text', 'personal', ['入学时间','教育开始时间','start date'], 'job-harness-applicant-profile', provenance),

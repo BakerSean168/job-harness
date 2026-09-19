@@ -234,6 +234,21 @@
                                   }
                                 ]
                               },
+                              "admissionType": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "unified",
+                                      "non_unified"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "department": {
                                 "default": null,
                                 "anyOf": [
@@ -289,6 +304,7 @@
                               "institutionTag",
                               "major",
                               "degree",
+                              "admissionType",
                               "department",
                               "location",
                               "startMonth",
@@ -583,6 +599,21 @@
                                       }
                                     ]
                                   },
+                                  "admissionType": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "unified",
+                                          "non_unified"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
                                   "department": {
                                     "default": null,
                                     "anyOf": [
@@ -638,6 +669,7 @@
                                   "institutionTag",
                                   "major",
                                   "degree",
+                                  "admissionType",
                                   "department",
                                   "location",
                                   "startMonth",
@@ -1168,6 +1200,21 @@
                                   }
                                 ]
                               },
+                              "admissionType": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "unified",
+                                      "non_unified"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "department": {
                                 "default": null,
                                 "anyOf": [
@@ -1223,6 +1270,7 @@
                               "institutionTag",
                               "major",
                               "degree",
+                              "admissionType",
                               "department",
                               "location",
                               "startMonth",
@@ -1517,6 +1565,21 @@
                                       }
                                     ]
                                   },
+                                  "admissionType": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "unified",
+                                          "non_unified"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
                                   "department": {
                                     "default": null,
                                     "anyOf": [
@@ -1572,6 +1635,7 @@
                                   "institutionTag",
                                   "major",
                                   "degree",
+                                  "admissionType",
                                   "department",
                                   "location",
                                   "startMonth",
@@ -2094,6 +2158,21 @@
                                 }
                               ]
                             },
+                            "admissionType": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "unified",
+                                    "non_unified"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "department": {
                               "default": null,
                               "anyOf": [
@@ -2149,6 +2228,7 @@
                             "institutionTag",
                             "major",
                             "degree",
+                            "admissionType",
                             "department",
                             "location",
                             "startMonth",

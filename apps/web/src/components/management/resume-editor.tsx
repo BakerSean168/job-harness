@@ -82,6 +82,7 @@ export interface ResumeEditorCopy {
   readonly siteSyncSuccess: string;
   readonly siteSyncFailed: string;
   readonly siteSyncOnboardingRequired: string;
+  readonly siteSyncEducationOnboardingRequired: string;
   readonly siteSyncUnknownState: string;
   readonly siteBinding: string;
   readonly siteBindingNone: string;
@@ -333,8 +334,13 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
       if (!result.ok) setSiteSyncMessage(`${copy.siteSyncFailed}: ${result.message}`);
       else if (result.value.state === 'uploaded') setSiteSyncMessage(`${copy.siteSyncSuccess} · ${result.value.artifactSha256.slice(0, 12)} · ${result.value.title || result.value.currentUrl}`);
       else if (result.value.state === 'profile_onboarding_required') {
-        const missing = siteSyncMissingFacts.length ? ` · ${copy.siteSyncMissingFacts}: ${siteSyncMissingFacts.join('、')}` : '';
-        setSiteSyncMessage(`${copy.siteSyncOnboardingRequired}${missing}`);
+        const missing = result.value.missingFacts.length ? ` · ${copy.siteSyncMissingFacts}: ${result.value.missingFacts.join('、')}` : '';
+        const manual = result.value.manualFacts.length ? ` · manual: ${result.value.manualFacts.join('、')}` : '';
+        setSiteSyncMessage(`${copy.siteSyncOnboardingRequired}${missing}${manual}`);
+      } else if (result.value.state === 'education_onboarding_required') {
+        const missing = result.value.missingFacts.length ? ` · ${copy.siteSyncMissingFacts}: ${result.value.missingFacts.join('、')}` : '';
+        const manual = result.value.manualFacts.length ? ` · manual: ${result.value.manualFacts.join('、')}` : '';
+        setSiteSyncMessage(`${copy.siteSyncEducationOnboardingRequired}${missing}${manual}`);
       } else setSiteSyncMessage(copy.siteSyncUnknownState);
       setSyncingRevisionId(null);
     });

@@ -63,4 +63,27 @@ describe('Resume manager site sync client', () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('returns a typed education-onboarding blocker without attempting PDF upload', async () => {
+    process.env.JOB_HARNESS_API_URL = 'https://jh.example.test/api/v1';
+    process.env.JOB_HARNESS_AUTH_TOKEN = 'secret';
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id:'run-sync-3' }), { status:201, headers:{'content-type':'application/json'} }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        state:'education_onboarding_required',
+        missingFacts:['education[0].admissionType'],
+        manualFacts:['education[0].admissionType'],
+        appliedFacts:['education[0].school','education[0].degree','education[0].major','education[0].startMonth','education[0].endMonth'],
+        run:{ id:'run-sync-3', writeCount:10 },
+        evidence:{ currentUrl:'https://c.liepin.com/resume/create', title:'完善教育经历', stateSignals:[] },
+      }), { status:200, headers:{'content-type':'application/json'} }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { syncResumeArtifactToRecruitingSite } = await import('../src/lib/job-harness-client');
+    const result = await syncResumeArtifactToRecruitingSite({ agentId:'windows-chrome-primary', targetUrl:'https://c.liepin.com/resume/create', artifactId:'artifact-3', fileName:'agent.pdf' });
+    expect(result).toMatchObject({
+      state:'education_onboarding_required', runId:'run-sync-3', artifactId:'artifact-3', writeCount:10,
+      missingFacts:['education[0].admissionType'], manualFacts:['education[0].admissionType'],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

@@ -193,7 +193,7 @@ export type SiteResumeSyncResult =
       readonly currentUrl: string; readonly title: string; readonly stateSignals: readonly string[];
     }
   | {
-      readonly state: 'profile_onboarding_required' | 'unknown'; readonly runId: string; readonly artifactId: string; readonly writeCount: number;
+      readonly state: 'profile_onboarding_required' | 'education_onboarding_required' | 'unknown'; readonly runId: string; readonly artifactId: string; readonly writeCount: number;
       readonly currentUrl: string; readonly title: string; readonly stateSignals: readonly string[];
       readonly missingFacts: readonly string[]; readonly manualFacts: readonly string[]; readonly appliedFacts: readonly string[];
     };
@@ -221,7 +221,11 @@ export async function syncResumeArtifactToRecruitingSite(input: {
   if (!prepared?.run || !prepared?.evidence || typeof prepared.state !== 'string') throw new Error('Site Resume preparation returned invalid evidence');
   if (prepared.state !== 'attachment_upload_ready') {
     return {
-      state: prepared.state === 'profile_onboarding_required' ? 'profile_onboarding_required' : 'unknown',
+      state: prepared.state === 'profile_onboarding_required'
+        ? 'profile_onboarding_required'
+        : prepared.state === 'education_onboarding_required'
+          ? 'education_onboarding_required'
+          : 'unknown',
       runId,
       artifactId: input.artifactId,
       writeCount: Number(prepared.run.writeCount ?? 0),

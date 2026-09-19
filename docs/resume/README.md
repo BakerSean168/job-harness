@@ -19,6 +19,7 @@ ResumeLibrary
   -> ResumeArtifact (HTML/PDF/JSON/Markdown)
   -> optional Site Resume Sync
        -> recruiting-site profile onboarding (when required)
+       -> recruiting-site education onboarding (when required)
        -> exact immutable PDF upload
   -> user-confirmed SiteResumeBinding
   -> ApplicationSubmission
