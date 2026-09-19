@@ -801,8 +801,8 @@
                     const input = await tools.endlessFind(SELECTORS.ZHIPIN.SEARCH.SEARCHINPUT);
                     const btn = await tools.endlessFind(SELECTORS.ZHIPIN.SEARCH.SEARCHBTN);
                     const currentQuery = new URL(location.href).searchParams.get('query') || '';
-                    const currentValue = String(input.value || '').trim();
-                    if (currentQuery === kw && currentValue === kw) {
+                    if (currentQuery === kw) {
+                        if (String(input.value || '').trim() !== kw) tools.inputText(input, kw);
                         logger.add(`当前已是搜索关键词：${kw}，复用现有结果页`);
                         return;
                     }
