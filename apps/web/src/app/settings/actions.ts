@@ -31,7 +31,7 @@ function failure(error: unknown): ApplicantSettingsActionState {
 export async function saveApplicantProfileAction(_previous: ApplicantSettingsActionState, formData: FormData): Promise<ApplicantSettingsActionState> {
   try {
     const input = SaveApplicantProfileInputSchema.parse({ expectedVersion: number(formData, 'expectedVersion'), profile: json(formData, 'profileJson') });
-    await getJobHarnessClient().applicant.saveProfile(input); revalidatePath('/settings'); return { ok: true, message: null };
+    await getJobHarnessClient().applicant.saveProfile(input); revalidatePath('/settings'); revalidatePath('/resumes'); return { ok: true, message: null };
   } catch (error) { return failure(error); }
 }
 export async function saveApplicationAnswerSetAction(_previous: ApplicantSettingsActionState, formData: FormData): Promise<ApplicantSettingsActionState> {
