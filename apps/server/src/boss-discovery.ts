@@ -68,7 +68,7 @@ interface SessionState {
 }
 
 interface PersistedSessionEvent {
-  type: 'started' | 'candidate' | 'completed';
+  type: 'started' | 'candidate' | 'completed' | 'reconciled';
   sessionId: string;
   generation: number;
   runId: string;
@@ -106,6 +106,12 @@ function safeSessionId(value: unknown): string | null {
 function decisionUrl(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   try { return canonicalJobUrl(value); } catch { return null; }
+}
+
+function isAlreadyCompletedConflict(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const status = Number((error as Error & { status?: unknown }).status ?? 0);
+  return status === 409 && /already completed/i.test(error.message);
 }
 
 export function parseBossDiscoveryDecision(
@@ -186,7 +192,7 @@ export class BossDiscoveryCoordinator {
           duplicateCount: event.duplicateCount ?? 0,
           rejectedCount: event.rejectedCount ?? 0,
           seenUrls: new Set(event.jobUrl ? [event.jobUrl] : []),
-          completed: event.type === 'completed',
+          completed: event.type === 'completed' || event.type === 'reconciled',
           timer: null,
           completing: null,
         });
@@ -197,7 +203,7 @@ export class BossDiscoveryCoordinator {
         current.duplicateCount = event.duplicateCount ?? current.duplicateCount;
         current.rejectedCount = event.rejectedCount ?? current.rejectedCount;
         if (event.jobUrl) current.seenUrls.add(event.jobUrl);
-        if (event.type === 'completed') current.completed = true;
+        if (event.type === 'completed' || event.type === 'reconciled') current.completed = true;
       }
     }
     for (const [sessionId, state] of states) {
@@ -353,14 +359,26 @@ export class BossDiscoveryCoordinator {
   private async completeOnce(state: SessionState): Promise<void> {
     if (state.timer) { clearTimeout(state.timer); state.timer = null; }
     const completedAt = this.now();
-    await this.client.discovery.complete({
-      runId: state.runId,
-      completedAt,
-      candidateCount: state.candidateCount,
-      insertedCount: state.insertedCount,
-      duplicateCount: state.duplicateCount,
-      rejectedCount: state.rejectedCount,
-    });
+    try {
+      await this.client.discovery.complete({
+        runId: state.runId,
+        completedAt,
+        candidateCount: state.candidateCount,
+        insertedCount: state.insertedCount,
+        duplicateCount: state.duplicateCount,
+        rejectedCount: state.rejectedCount,
+      });
+    } catch (error) {
+      if (!isAlreadyCompletedConflict(error)) throw error;
+      // The canonical DiscoveryRun already crossed the completion boundary, but an
+      // earlier process may have crashed before appending the local completion event.
+      // Reconcile the append-only recovery log instead of retrying the completed run forever.
+      state.lastAt = completedAt;
+      await this.persist(state, 'reconciled');
+      state.completed = true;
+      this.logger.warn(`BOSS discovery session '${state.sessionId}' reconciled to already-completed run '${state.runId}'`);
+      return;
+    }
     state.lastAt = completedAt;
     await this.persist(state, 'completed');
     state.completed = true;
