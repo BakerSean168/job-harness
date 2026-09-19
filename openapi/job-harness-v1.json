@@ -155,6 +155,7 @@
                               "type": "string",
                               "enum": [
                                 "student",
+                                "new_graduate",
                                 "professional"
                               ]
                             },
@@ -503,6 +504,7 @@
                                   "type": "string",
                                   "enum": [
                                     "student",
+                                    "new_graduate",
                                     "professional"
                                   ]
                                 },
@@ -1087,6 +1089,7 @@
                               "type": "string",
                               "enum": [
                                 "student",
+                                "new_graduate",
                                 "professional"
                               ]
                             },
@@ -1435,6 +1438,7 @@
                                   "type": "string",
                                   "enum": [
                                     "student",
+                                    "new_graduate",
                                     "professional"
                                   ]
                                 },
@@ -2011,6 +2015,7 @@
                             "type": "string",
                             "enum": [
                               "student",
+                              "new_graduate",
                               "professional"
                             ]
                           },

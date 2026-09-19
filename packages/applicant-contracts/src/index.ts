@@ -6,7 +6,7 @@ const MonthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const FactKeySchema = z.string().trim().min(1).max(240).regex(/^[a-z0-9_.\[\]-]+$/);
 export const ApplicantGenderSchema = z.enum(['male', 'female']);
 export const ApplicantJobSearchStatusSchema = z.enum(['actively_looking', 'open_to_opportunities', 'not_looking']);
-export const ApplicantCareerIdentitySchema = z.enum(['student', 'professional']);
+export const ApplicantCareerIdentitySchema = z.enum(['student', 'new_graduate', 'professional']);
 
 export const APPLICANT_FACT_VALUE_TYPES = ['text', 'multiline', 'email', 'phone', 'url', 'number', 'date', 'boolean', 'choice', 'multi_choice'] as const;
 export const APPLICANT_FACT_SENSITIVITIES = ['public', 'personal', 'sensitive', 'legal', 'protected'] as const;

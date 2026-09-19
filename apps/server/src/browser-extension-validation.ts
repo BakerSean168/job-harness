@@ -346,14 +346,14 @@ export class BrowserExtensionValidationRegistry {
       await this.invoke(id, { sessionRef, command: { type: 'fill', payload: { selector: emailControl.controlRef, value: profile.email } }, timeoutMs: 15_000 });
       appliedFacts.push('email');
     }
-    if (profile.careerIdentity) {
+    if (profile.careerIdentity === 'student' || profile.careerIdentity === 'professional') {
       const identityText = profile.careerIdentity === 'student' ? '我是学生' : '我是职场人';
       const identityAction = uniqueActionByText(observed.rawActions, identityText);
       if (identityAction) {
         await this.invoke(id, { sessionRef, command: { type: 'click', payload: { selector: identityAction.actionRef, expectedText: identityText } }, timeoutMs: 15_000 });
         appliedFacts.push('careerIdentity');
       } else manualFacts.push('careerIdentity');
-    }
+    } else if (profile.careerIdentity === 'new_graduate') manualFacts.push('careerIdentity');
     if (profile.gender) {
       const genderText = profile.gender === 'male' ? '男' : '女';
       const genderAction = uniqueActionByText(observed.rawActions, genderText);

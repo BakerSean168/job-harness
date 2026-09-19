@@ -225,7 +225,7 @@ describe('browser-extension validation scope', () => {
           return {
             profile: {
               id:'default-applicant', version:3, displayName:'Candidate Name', phone:null, email:'candidate@example.test', gender:null, birthDate:null,
-              location:'浙江金华', jobSearchStatus:'actively_looking', careerIdentity:null, website:null, github:null, education:[], targetRoles:[], targetCities:[], availableFrom:null, notes:null,
+              location:'浙江金华', jobSearchStatus:'actively_looking', careerIdentity:'new_graduate', website:null, github:null, education:[], targetRoles:[], targetCities:[], availableFrom:null, notes:null,
               createdAt:'2026-09-18T00:00:00.000Z', updatedAt:'2026-09-19T00:00:00.000Z',
             },
             latestRevision: { id:'profile-rev-3', profileId:'default-applicant', revisionNumber:3, profileVersion:3, snapshot:{} as any, contentHash:'a'.repeat(64), createdAt:'2026-09-19T00:00:00.000Z', createdBy:'user' as const },
@@ -270,8 +270,8 @@ describe('browser-extension validation scope', () => {
     const completed = await pending;
     expect(completed).toMatchObject({
       state:'profile_onboarding_required',
-      missingFacts:['gender','birthDate','careerIdentity'],
-      manualFacts:[],
+      missingFacts:['gender','birthDate'],
+      manualFacts:['careerIdentity'],
       appliedFacts:['displayName','email'],
       run:{ writeCount:2 },
     });
