@@ -107,7 +107,7 @@ async function main(): Promise<void> {
   for (const marker of ['SEARCHBTN', 'STARTCHAT', 'RESUMESEND', 'sendResume', 'fetch(details.url', 'const JAC_HARD_ONLY_GREET = false;']) {
     if (!compatRuntime.includes(marker)) throw new Error(`BOSS Copilot compatibility runtime lost proven marker '${marker}'`);
   }
-  for (const marker of ['JobHarness\\BossCopilot', '--remote-debugging-port', '--load-extension', "[ValidateSet('auto','edge','chrome')]"]) {
+  for (const marker of ['JobHarness\\BossCopilot', '--remote-debugging-port', '--load-extension', "[ValidateSet('auto','edge','chrome')]", 'SkipRuntimeSync', 'boss-resume-followup.user.js', 'Move-Item -Force']) {
     if (!compatLauncher.includes(marker)) throw new Error(`BOSS Copilot dedicated-browser launcher lost marker '${marker}'`);
   }
   for (const marker of ['navigator.clipboard.writeText', 'ApplicantProfileContext', 'ApplicationAnswerSetContext', 'copyVisible']) {

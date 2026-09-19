@@ -28,7 +28,7 @@ The launcher prefers Edge, falls back to Chrome, stores the persistent profile a
 %LOCALAPPDATA%\JobHarness\BossCopilot\Profile
 ```
 
-and loads the unpacked extension from `extension/`.
+and loads the unpacked extension from `extension/`. Before launch it refreshes only the generated `boss-copilot.js` runtime from the Tailnet bridge and validates expected markers before atomically replacing the local copy; if the bridge is temporarily unavailable it keeps the last known-good local runtime. Pass `-SkipRuntimeSync` to suppress that refresh. Manifest/background/shim changes still require updating the extension bundle itself.
 
 The page overlay starts paused. Clicking **开始** enables the proven Copilot loop. The Job Harness bridge supplies current target roles, scores every job across active Resume Profiles, returns the selected BOSS resume index and policy-gates resume follow-up.
 

@@ -2,8 +2,10 @@ param(
   [ValidateSet('auto','edge','chrome')]
   [string]$Browser = 'auto',
   [switch]$ResetProfile,
+  [switch]$SkipRuntimeSync,
   [int]$RemoteDebuggingPort = 9222,
-  [string]$StartUrl = 'https://www.zhipin.com/web/geek/job'
+  [string]$StartUrl = 'https://www.zhipin.com/web/geek/job',
+  [string]$RuntimeUrl = 'https://oracle.taile92a8e.ts.net:10444/boss-resume-followup.user.js'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,6 +14,24 @@ $integrationRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyComman
 $extension = Join-Path $integrationRoot 'extension'
 if (-not (Test-Path (Join-Path $extension 'manifest.json'))) {
   throw "Missing Job Harness BOSS Copilot extension: $extension"
+}
+
+$runtimePath = Join-Path $extension 'boss-copilot.js'
+if (-not $SkipRuntimeSync) {
+  $runtimeTemp = "$runtimePath.download"
+  try {
+    Invoke-WebRequest -Uri $RuntimeUrl -OutFile $runtimeTemp -UseBasicParsing -TimeoutSec 20
+    $runtimeSource = Get-Content -Raw -LiteralPath $runtimeTemp
+    if ($runtimeSource -notmatch 'Job Application Copilot BOSS' -or $runtimeSource -notmatch 'Job Harness') {
+      throw 'Downloaded runtime did not contain the expected Job Harness BOSS Copilot markers.'
+    }
+    Move-Item -Force -LiteralPath $runtimeTemp -Destination $runtimePath
+    Write-Host "Synced latest BOSS Copilot runtime from Job Harness Bridge."
+  } catch {
+    Remove-Item -Force -LiteralPath $runtimeTemp -ErrorAction SilentlyContinue
+    if (-not (Test-Path $runtimePath)) { throw }
+    Write-Warning "Could not refresh BOSS Copilot runtime; using the existing local copy. $($_.Exception.Message)"
+  }
 }
 
 function Get-AppPath([string]$Exe) {
