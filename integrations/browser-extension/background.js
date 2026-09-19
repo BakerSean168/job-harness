@@ -9,7 +9,7 @@ const DEFAULTS = Object.freeze({
 });
 const POLL_ALARM = "job-harness-browser-bridge-poll";
 const DRIVER_COMMANDS = Object.freeze([
-  "session_acquire", "navigate", "current_url", "title", "body_text", "exists", "text", "fill",
+  "session_acquire", "navigate", "current_url", "title", "body_text", "exists", "text", "value_matches", "fill",
   "select", "set_checked", "click", "wait", "scan_controls", "scan_actions", "form_state_hash",
 ]);
 let loopRunning = false;

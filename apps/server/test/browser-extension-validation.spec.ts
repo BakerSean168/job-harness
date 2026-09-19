@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BrowserExtensionBridge } from '../src/browser-extension-bridge';
 import { BrowserExtensionValidationRegistry } from '../src/browser-extension-validation';
 
-function register(bridge: BrowserExtensionBridge, version = '0.1.7') {
+function register(bridge: BrowserExtensionBridge, version = '0.1.8') {
   bridge.register({
     agentId: 'windows-chrome-primary',
     name: 'Windows Chrome',
@@ -14,7 +14,7 @@ function register(bridge: BrowserExtensionBridge, version = '0.1.7') {
       persistentSession: true,
       resumeUpload: true,
       screenshots: true,
-      driverCommands: ['session_acquire','current_url','title','body_text','wait','fill','select','set_checked','click','upload','screenshot','scan_controls','scan_actions','form_state_hash'],
+      driverCommands: ['session_acquire','current_url','title','body_text','wait','value_matches','fill','select','set_checked','click','upload','screenshot','scan_controls','scan_actions','form_state_hash'],
     },
   });
 }
@@ -108,15 +108,15 @@ describe('browser-extension validation scope', () => {
     bridge.close();
   });
 
-  it('rejects site-resume sync from a pre-0.1.7 Browser Bridge before any command is queued', () => {
+  it('rejects site-resume sync from a pre-0.1.8 Browser Bridge before any command is queued', () => {
     const bridge = new BrowserExtensionBridge();
-    register(bridge, '0.1.6');
+    register(bridge, '0.1.7');
     const registry = new BrowserExtensionValidationRegistry(bridge, {
       allowedOrigin: 'https://job-harness.test:20900', readonlySiteFamilies: ['zhilian', 'liepin'],
     });
     expect(() => registry.create({
       agentId: 'windows-chrome-primary', targetUrl: 'https://c.liepin.com/resume/create', mode: 'site-resume-sync',
-    })).toThrow(/Browser Bridge >= 0.1.7/);
+    })).toThrow(/Browser Bridge >= 0.1.8/);
     expect(bridge.status('windows-chrome-primary')?.queuedCommands).toBe(0);
     bridge.close();
   });
@@ -363,10 +363,8 @@ describe('browser-extension validation scope', () => {
       else if (command.command.type === 'scan_controls') result = controls;
       else if (command.command.type === 'form_state_hash') result = 'c'.repeat(64);
       else if (command.command.type === 'scan_actions') {
-        const dynamic = autocomplete === 'school'
-          ? [{ actionRef:'[data-job-harness-action-id="jha-school"]', tag:'other', text:'四川农业大学', href:null, type:null, role:'option', disabled:false, ariaDisabled:false }]
-          : autocomplete === 'major'
-            ? [{ actionRef:'[data-job-harness-action-id="jha-major"]', tag:'other', text:'物联网工程', href:null, type:null, role:'option', disabled:false, ariaDisabled:false }]
+        const dynamic = autocomplete === 'major'
+          ? [{ actionRef:'[data-job-harness-action-id="jha-major"]', tag:'other', text:'物联网工程', href:null, type:null, role:'option', disabled:false, ariaDisabled:false }]
             : dateField && !dateYearChosen
               ? [{ actionRef:`[data-job-harness-action-id="jha-${dateField}-year"]`, tag:'other', text:dateField === 'start' ? '2022年' : '2026年', href:null, type:null, role:'option', disabled:false, ariaDisabled:false }]
               : dateField && dateYearChosen
@@ -374,7 +372,9 @@ describe('browser-extension validation scope', () => {
                 : [];
         result = [...baseActions, ...dynamic];
       } else if (command.command.type === 'wait') result = null;
-      else if (command.command.type === 'fill') {
+      else if (command.command.type === 'value_matches') {
+        result = command.command.payload.selector === '[data-job-harness-field-id="jh-0"]' && command.command.payload.expected === '四川农业大学';
+      } else if (command.command.type === 'fill') {
         writes.push(command.command);
         if (command.command.payload.value === '四川农业大学') autocomplete = 'school';
         if (command.command.payload.value === '物联网工程') autocomplete = 'major';

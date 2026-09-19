@@ -102,10 +102,13 @@ describe('MV3 page driver contract', () => {
           popup.innerHTML = '';
           if (input.value === '四川农业大学') {
             const option = document.createElement('div');
-            option.setAttribute('role', 'option');
             option.textContent = '四川农业大学';
             option.style.cssText = 'display:block;width:180px;height:30px;cursor:pointer';
             popup.appendChild(option);
+            const year = document.createElement('span');
+            year.textContent = '2026年';
+            year.style.cssText = 'display:block;width:80px;height:30px';
+            popup.appendChild(year);
           }
         });
         input.addEventListener('blur', () => { input.value = ''; popup.innerHTML = ''; });
@@ -118,8 +121,11 @@ describe('MV3 page driver contract', () => {
       expect(school).toMatchObject({ kind: 'text' });
       await command(page, 'fill', { selector: school!.controlRef, value: '四川农业大学', blur: false });
       expect(await page.inputValue('#school')).toBe('四川农业大学');
+      expect(await command(page, 'value_matches', { selector: school!.controlRef, expected: '四川农业大学' })).toBe(true);
+      expect(await command(page, 'value_matches', { selector: school!.controlRef, expected: '其他学校' })).toBe(false);
       const actions = await command(page, 'scan_actions') as Array<Record<string, unknown>>;
       expect(actions).toEqual(expect.arrayContaining([expect.objectContaining({ text: '四川农业大学' })]));
+      expect(actions).toEqual(expect.arrayContaining([expect.objectContaining({ text: '2026年' })]));
     });
   });
 

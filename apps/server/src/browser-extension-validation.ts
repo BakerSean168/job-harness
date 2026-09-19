@@ -54,6 +54,7 @@ const SAFE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(
   'body_text',
   'exists',
   'text',
+  'value_matches',
   'fill',
   'select',
   'set_checked',
@@ -64,10 +65,10 @@ const SAFE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(
   'form_state_hash',
 ]);
 const READONLY_SITE_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
-  'session_acquire', 'current_url', 'title', 'body_text', 'exists', 'text', 'wait', 'scan_controls', 'scan_actions', 'form_state_hash',
+  'session_acquire', 'current_url', 'title', 'body_text', 'exists', 'text', 'value_matches', 'wait', 'scan_controls', 'scan_actions', 'form_state_hash',
 ]);
 const RESUME_SYNC_SITE_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
-  'session_acquire', 'current_url', 'title', 'body_text', 'exists', 'text',
+  'session_acquire', 'current_url', 'title', 'body_text', 'exists', 'text', 'value_matches',
   'fill', 'select', 'set_checked', 'upload', 'click', 'wait', 'scan_controls', 'scan_actions', 'form_state_hash',
 ]);
 const RESUME_SYNC_FORBIDDEN_CLICK_TEXT = /(?:投简历|立即投递|确认投递|投递简历|立即申请|提交申请|申请职位|提交职位申请|聊一聊|发送)/i;
@@ -154,8 +155,8 @@ export class BrowserExtensionValidationRegistry {
     if (input.mode === 'site-staged-readonly' && !versionAtLeast(agent.version, '0.1.6')) {
       throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Staged characterization requires Browser Bridge >= 0.1.6; agent '${input.agentId}' reports '${agent.version}'`, 409);
     }
-    if (input.mode === 'site-resume-sync' && !versionAtLeast(agent.version, '0.1.7')) {
-      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Site Resume Sync requires Browser Bridge >= 0.1.7; agent '${input.agentId}' reports '${agent.version}'`, 409);
+    if (input.mode === 'site-resume-sync' && !versionAtLeast(agent.version, '0.1.8')) {
+      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Site Resume Sync requires Browser Bridge >= 0.1.8; agent '${input.agentId}' reports '${agent.version}'`, 409);
     }
     const createdAt = this.now().toISOString();
     const run: MutableValidationRun = {
@@ -357,7 +358,14 @@ export class BrowserExtensionValidationRegistry {
         if (!control) { manualFacts.push(factKey); return; }
         await this.invoke(id, { sessionRef, command: { type: 'fill', payload: { selector: control.controlRef, value, blur: false } }, timeoutMs: 15_000 });
         await wait(450);
-        if (await clickExactAction(value)) appliedFacts.push(factKey); else manualFacts.push(factKey);
+        if (await clickExactAction(value)) {
+          appliedFacts.push(factKey);
+          return;
+        }
+        await this.invoke(id, { sessionRef, command: { type: 'fill', payload: { selector: control.controlRef, value, blur: true } }, timeoutMs: 15_000 });
+        await wait(150);
+        const matched = await this.invoke(id, { sessionRef, command: { type: 'value_matches', payload: { selector: control.controlRef, expected: value } }, timeoutMs: 15_000 });
+        if (matched.result === true) appliedFacts.push(factKey); else manualFacts.push(factKey);
       };
       const choosePickerValue = async (control: RawControl | null, value: string, factKey: string) => {
         if (!control) { manualFacts.push(factKey); return; }

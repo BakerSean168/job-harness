@@ -21,6 +21,7 @@
         const element = document.querySelector(requiredSelector(payload.selector));
         return element ? compact(element.innerText || element.textContent || "", 50000) : null;
       }
+      case "value_matches": return valueMatches(requiredSelector(payload.selector), String(payload.expected ?? ""));
       case "fill": return fill(requiredSelector(payload.selector), String(payload.value ?? ""), payload.blur !== false);
       case "select": return select(requiredSelector(payload.selector), payload.value);
       case "set_checked": return setChecked(requiredSelector(payload.selector), Boolean(payload.checked));
@@ -31,6 +32,14 @@
       case "form_state_hash": return formStateHash();
       default: throw new Error(`Unsupported page-driver command '${type}'`);
     }
+  }
+
+  function valueMatches(selector, expected) {
+    const element = firstElement(selector);
+    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
+      return String(element.value ?? "") === expected;
+    }
+    return false;
   }
 
   function fill(selector, value, blur = true) {
@@ -112,7 +121,19 @@
       const style = window.getComputedStyle(element);
       return element.hasAttribute("onclick") || tabIndex >= 0 || (style.cursor === "pointer" && semantic);
     });
-    const elements = [...new Set([...standard, ...inferred])]
+    const choiceLike = [...document.querySelectorAll('li,div,span')].filter((element) => {
+      if (!(element instanceof HTMLElement) || !visible(element)) return false;
+      const text = compact(element.innerText || element.getAttribute("aria-label") || element.getAttribute("title") || "", 500);
+      if (!text || text.length > 120) return false;
+      const childRepeatsText = [...element.children].some((child) =>
+        child instanceof HTMLElement && visible(child) && compact(child.innerText || child.textContent || "", 500) === text
+      );
+      if (childRepeatsText) return false;
+      const style = window.getComputedStyle(element);
+      const dateChoice = /^\d{4}年$/.test(text) || /^(?:[1-9]|1[0-2])月$/.test(text);
+      return style.cursor === "pointer" || dateChoice;
+    });
+    const elements = [...new Set([...standard, ...inferred, ...choiceLike])]
       .filter((element) => element instanceof HTMLElement && visible(element))
       .slice(0, 500);
     const allocate = createStableRefAllocator(elements, "data-job-harness-action-id", "jha");
