@@ -12,7 +12,7 @@ Dedicated Edge/Chrome profile
            -> ApplicantProfile / ResumeProfile ranking / DiscoveryRun / logs
 ```
 
-The dedicated browser is isolated from the user's normal browser profile and exposes localhost CDP for debugging only. The compatibility extension is built from `../boss/legacy-copilot.user.js`; it does not require Tampermonkey. The legacy script now falls back to normal CORS `fetch` when GM request APIs are absent, while retaining the existing Tampermonkey path.
+The dedicated browser is isolated from the user's normal browser profile and exposes localhost CDP for debugging only. The compatibility extension is built from `../boss/legacy-copilot.user.js`; it does not require Tampermonkey. A tiny MV3 background transport exposes the old `GM.xmlHttpRequest` / `GM_xmlhttpRequest` contract to the copied script and permits requests only to `https://oracle.taile92a8e.ts.net:10444`. This avoids public-page -> Tailnet Private Network Access/CORS restrictions without restoring a general-purpose network proxy. The legacy script also retains a normal CORS `fetch` fallback for non-extension embedding.
 
 ## Start on Windows
 

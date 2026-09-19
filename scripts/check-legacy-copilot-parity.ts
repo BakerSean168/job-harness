@@ -41,7 +41,7 @@ async function main(): Promise<void> {
     }
   }
 
-  const [formEngine, semanticMapper, bossSource, bossCli, bossBrowserWorker, bossSemanticDriver, bossFollowupRuntime, compatManifest, compatRuntime, compatLauncher, applicantReference, dispatcher, notice] = await Promise.all([
+  const [formEngine, semanticMapper, bossSource, bossCli, bossBrowserWorker, bossSemanticDriver, bossFollowupRuntime, compatManifest, compatRuntime, compatShim, compatBackground, compatLauncher, applicantReference, dispatcher, notice] = await Promise.all([
     readFile(resolve(root, 'packages/browser-form-engine/browser/runtime.js'), 'utf8'),
     readFile(resolve(root, 'apps/apply-worker/src/semantic-mapper.ts'), 'utf8'),
     readFile(resolve(root, 'integrations/boss/legacy-copilot.user.js'), 'utf8'),
@@ -51,6 +51,8 @@ async function main(): Promise<void> {
     readFile(resolve(root, 'apps/boss-browser-worker/src/followup-runtime.ts'), 'utf8'),
     readFile(resolve(root, 'integrations/boss-copilot/extension/manifest.json'), 'utf8'),
     readFile(resolve(root, 'integrations/boss-copilot/extension/boss-copilot.js'), 'utf8'),
+    readFile(resolve(root, 'integrations/boss-copilot/extension/gm-request-shim.js'), 'utf8'),
+    readFile(resolve(root, 'integrations/boss-copilot/extension/background.js'), 'utf8'),
     readFile(resolve(root, 'integrations/boss-copilot/windows/start-boss-copilot.ps1'), 'utf8'),
     readFile(resolve(root, 'apps/web/src/components/management/applicant-reference-panel.tsx'), 'utf8'),
     readFile(resolve(root, 'apps/intent-dispatch-worker/src/runtime.ts'), 'utf8'),
@@ -96,8 +98,11 @@ async function main(): Promise<void> {
   for (const marker of ['authorizeResumeFollowup', 'sendResumeFollowup', 'latestRole', 'resumeSended', 'explicit-request', 'qualified-followup']) {
     if (!bossFollowupRuntime.includes(marker)) throw new Error(`BOSS resume-followup parity lost policy marker '${marker}'`);
   }
-  for (const marker of ['Job Harness BOSS Copilot Compatibility Runtime', 'boss-copilot.js', 'https://www.zhipin.com/*']) {
+  for (const marker of ['Job Harness BOSS Copilot Compatibility Runtime', 'background.js', 'gm-request-shim.js', 'boss-copilot.js', 'https://www.zhipin.com/*']) {
     if (!compatManifest.includes(marker)) throw new Error(`BOSS Copilot compatibility extension lost manifest marker '${marker}'`);
+  }
+  if (!compatShim.includes('JH_BOSS_COMPAT_HTTP') || !compatShim.includes('GM_xmlhttpRequest') || !compatBackground.includes('oracle.taile92a8e.ts.net') || !compatBackground.includes('10444')) {
+    throw new Error('BOSS Copilot compatibility extension lost its bounded extension-origin bridge transport');
   }
   for (const marker of ['SEARCHBTN', 'STARTCHAT', 'RESUMESEND', 'sendResume', 'fetch(details.url', 'const JAC_HARD_ONLY_GREET = false;']) {
     if (!compatRuntime.includes(marker)) throw new Error(`BOSS Copilot compatibility runtime lost proven marker '${marker}'`);

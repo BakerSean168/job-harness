@@ -8,6 +8,9 @@
     "https://zhipin.com/*",
     "https://oracle.taile92a8e.ts.net/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": [
@@ -16,6 +19,7 @@
       ],
       "js": [
         "runtime-marker.js",
+        "gm-request-shim.js",
         "boss-copilot.js"
       ],
       "run_at": "document_idle"

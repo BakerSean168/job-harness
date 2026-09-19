@@ -14,12 +14,27 @@ if (-not (Test-Path (Join-Path $extension 'manifest.json'))) {
   throw "Missing Job Harness BOSS Copilot extension: $extension"
 }
 
+function Get-AppPath([string]$Exe) {
+  foreach ($key in @(
+    "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\$Exe",
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\$Exe"
+  )) {
+    $item = Get-ItemProperty $key -ErrorAction SilentlyContinue
+    if ($item -and $item.'(default)') { return $item.'(default)' }
+  }
+  return $null
+}
+
 $edgeCandidates = @(
+  (Get-AppPath 'msedge.exe'),
   "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
   "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
   "$env:LOCALAPPDATA\Microsoft\Edge\Application\msedge.exe"
 )
 $chromeCandidates = @(
+  (Get-AppPath 'chrome.exe'),
+  $(if ($env:SCOOP) { Join-Path $env:SCOOP 'apps\googlechrome\current\chrome.exe' }),
+  "$env:USERPROFILE\scoop\apps\googlechrome\current\chrome.exe",
   "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
   "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
   "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
@@ -57,6 +72,7 @@ $arguments = @(
   "--remote-debugging-address=127.0.0.1",
   "--remote-debugging-port=$RemoteDebuggingPort",
   "--user-data-dir=`"$profile`"",
+  "--disable-extensions-except=`"$extension`"",
   "--load-extension=`"$extension`"",
   '--no-first-run',
   '--no-default-browser-check',
