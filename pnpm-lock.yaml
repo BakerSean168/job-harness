@@ -297,6 +297,8 @@ importers:
         specifier: workspace:*
         version: link:../apply-core
 
+  packages/browser-form-engine: {}
+
   packages/client:
     dependencies:
       '@job-harness/applicant-contracts':

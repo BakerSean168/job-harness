@@ -30,7 +30,8 @@
     "smoke:apply-synthetic": "pnpm --filter @job-harness/apply-worker smoke:synthetic",
     "smoke:apply-shadow-inspect": "pnpm --filter @job-harness/apply-worker smoke:shadow-inspect",
     "smoke:apply-live-preflight": "tsx scripts/apply-live-preflight-smoke.ts",
-    "check:browser-extension-bridge": "tsx scripts/check-browser-extension-bridge.ts"
+    "check:browser-extension-bridge": "tsx scripts/check-browser-extension-bridge.ts && node scripts/check-browser-form-engine.mjs",
+    "sync:browser-form-engine": "node scripts/sync-browser-form-engine.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",

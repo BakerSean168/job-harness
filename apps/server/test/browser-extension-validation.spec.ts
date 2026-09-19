@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BrowserExtensionBridge } from '../src/browser-extension-bridge';
 import { BrowserExtensionValidationRegistry } from '../src/browser-extension-validation';
 
-function register(bridge: BrowserExtensionBridge, version = '0.1.9') {
+function register(bridge: BrowserExtensionBridge, version = '0.2.0') {
   bridge.register({
     agentId: 'windows-chrome-primary',
     name: 'Windows Chrome',
@@ -108,15 +108,15 @@ describe('browser-extension validation scope', () => {
     bridge.close();
   });
 
-  it('rejects site-resume sync from a pre-0.1.9 Browser Bridge before any command is queued', () => {
+  it('rejects site-resume sync from a pre-0.2.0 Browser Bridge before any command is queued', () => {
     const bridge = new BrowserExtensionBridge();
-    register(bridge, '0.1.8');
+    register(bridge, '0.1.9');
     const registry = new BrowserExtensionValidationRegistry(bridge, {
       allowedOrigin: 'https://job-harness.test:20900', readonlySiteFamilies: ['zhilian', 'liepin'],
     });
     expect(() => registry.create({
       agentId: 'windows-chrome-primary', targetUrl: 'https://c.liepin.com/resume/create', mode: 'site-resume-sync',
-    })).toThrow(/Browser Bridge >= 0.1.9/);
+    })).toThrow(/Browser Bridge >= 0.2.0/);
     expect(bridge.status('windows-chrome-primary')?.queuedCommands).toBe(0);
     bridge.close();
   });
@@ -347,9 +347,6 @@ describe('browser-extension validation scope', () => {
       { actionRef:'[data-job-harness-action-id="jha-non-unified"]', tag:'other', text:'非统招', href:null, type:null, role:null, disabled:false, ariaDisabled:false },
     ];
     const writes: any[] = [];
-    let autocomplete: 'school'|'major'|null = null;
-    let dateField: 'start'|'end'|null = null;
-    let dateYearChosen = false;
     let settled = false;
     void pending.finally(() => { settled = true; });
     for (let i=0;i<120 && !settled;i++) {
@@ -362,31 +359,21 @@ describe('browser-extension validation scope', () => {
       else if (command.command.type === 'body_text') result = '你就读的学校 填写教育经历，让简历更加完整 学校名称 统招 非统招 学历 本科 专业 就读时间 — 在校经历 下一步';
       else if (command.command.type === 'scan_controls') result = controls;
       else if (command.command.type === 'form_state_hash') result = 'c'.repeat(64);
-      else if (command.command.type === 'scan_actions') {
-        const dynamic = autocomplete === 'major'
-          ? [{ actionRef:'[data-job-harness-action-id="jha-major"]', tag:'other', text:'物联网工程', href:null, type:null, role:'option', disabled:false, ariaDisabled:false }]
-            : dateField && !dateYearChosen
-              ? [{ actionRef:`[data-job-harness-action-id="jha-${dateField}-year"]`, tag:'other', text:dateField === 'start' ? '2022年' : '2026年', href:null, type:null, role:'option', disabled:false, ariaDisabled:false }]
-              : dateField && dateYearChosen
-                ? [{ actionRef:`[data-job-harness-action-id="jha-${dateField}-month"]`, tag:'other', text:dateField === 'start' ? '9月' : '6月', href:null, type:null, role:'option', disabled:false, ariaDisabled:false }]
-                : [];
-        result = [...baseActions, ...dynamic];
-      } else if (command.command.type === 'wait') result = null;
+      else if (command.command.type === 'scan_actions') result = baseActions;
+      else if (command.command.type === 'wait') result = null;
       else if (command.command.type === 'value_matches') {
-        result = command.command.payload.selector === '[data-job-harness-field-id="jh-0"]' && command.command.payload.expected === '四川农业大学';
+        const key = `${command.command.payload.selector}::${command.command.payload.expected}`;
+        result = new Set([
+          '[data-job-harness-field-id="jh-0"]::四川农业大学',
+          '[data-job-harness-field-id="jh-2"]::物联网工程',
+          '[data-job-harness-field-id="jh-3"]::2022-09',
+          '[data-job-harness-field-id="jh-4"]::2026-06',
+        ]).has(key);
       } else if (command.command.type === 'fill') {
         writes.push(command.command);
-        if (command.command.payload.value === '四川农业大学') autocomplete = 'school';
-        if (command.command.payload.value === '物联网工程') autocomplete = 'major';
         result = null;
       } else if (command.command.type === 'click') {
         writes.push(command.command);
-        const text = command.command.payload.expectedText;
-        if (text === '四川农业大学' || text === '物联网工程') autocomplete = null;
-        if (command.command.payload.selector === '[data-job-harness-field-id="jh-3"]') { dateField = 'start'; dateYearChosen = false; }
-        if (command.command.payload.selector === '[data-job-harness-field-id="jh-4"]') { dateField = 'end'; dateYearChosen = false; }
-        if (text === '2022年' || text === '2026年') dateYearChosen = true;
-        if (text === '9月' || text === '6月') { dateField = null; dateYearChosen = false; }
         result = null;
       }
       bridge.complete('windows-chrome-primary', { commandId:command.commandId, ok:true, result });
@@ -395,15 +382,14 @@ describe('browser-extension validation scope', () => {
     expect(completed).toMatchObject({
       state:'education_onboarding_required', missingFacts:[], manualFacts:[],
       appliedFacts:['education[0].admissionType','education[0].school','education[0].degree','education[0].major','education[0].startMonth','education[0].endMonth'],
-      run:{ writeCount:11 },
+      run:{ writeCount:5 },
     });
     expect(writes).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type:'fill', payload:expect.objectContaining({ value:'四川农业大学', blur:false }) }),
+      expect.objectContaining({ type:'fill', payload:expect.objectContaining({ value:'四川农业大学', blur:true }) }),
+      expect.objectContaining({ type:'fill', payload:expect.objectContaining({ value:'物联网工程', blur:true }) }),
+      expect.objectContaining({ type:'fill', payload:expect.objectContaining({ value:'2022-09', blur:true }) }),
+      expect.objectContaining({ type:'fill', payload:expect.objectContaining({ value:'2026-06', blur:true }) }),
       expect.objectContaining({ type:'click', payload:expect.objectContaining({ expectedText:'统招' }) }),
-      expect.objectContaining({ type:'click', payload:expect.objectContaining({ expectedText:'2022年' }) }),
-      expect.objectContaining({ type:'click', payload:expect.objectContaining({ expectedText:'9月' }) }),
-      expect.objectContaining({ type:'click', payload:expect.objectContaining({ expectedText:'2026年' }) }),
-      expect.objectContaining({ type:'click', payload:expect.objectContaining({ expectedText:'6月' }) }),
     ]));
     expect(JSON.stringify(writes)).not.toContain('下一步');
     bridge.close();

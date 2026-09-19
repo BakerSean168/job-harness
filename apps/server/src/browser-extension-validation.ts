@@ -155,8 +155,8 @@ export class BrowserExtensionValidationRegistry {
     if (input.mode === 'site-staged-readonly' && !versionAtLeast(agent.version, '0.1.6')) {
       throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Staged characterization requires Browser Bridge >= 0.1.6; agent '${input.agentId}' reports '${agent.version}'`, 409);
     }
-    if (input.mode === 'site-resume-sync' && !versionAtLeast(agent.version, '0.1.9')) {
-      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Site Resume Sync requires Browser Bridge >= 0.1.9; agent '${input.agentId}' reports '${agent.version}'`, 409);
+    if (input.mode === 'site-resume-sync' && !versionAtLeast(agent.version, '0.2.0')) {
+      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Site Resume Sync requires Browser Bridge >= 0.2.0; agent '${input.agentId}' reports '${agent.version}'`, 409);
     }
     const createdAt = this.now().toISOString();
     const run: MutableValidationRun = {
@@ -356,14 +356,8 @@ export class BrowserExtensionValidationRegistry {
       };
       const chooseAutocomplete = async (control: RawControl | null, value: string, factKey: string) => {
         if (!control) { manualFacts.push(factKey); return; }
-        await this.invoke(id, { sessionRef, command: { type: 'fill', payload: { selector: control.controlRef, value, blur: false } }, timeoutMs: 15_000 });
-        await wait(450);
-        if (await clickExactAction(value)) {
-          appliedFacts.push(factKey);
-          return;
-        }
         await this.invoke(id, { sessionRef, command: { type: 'fill', payload: { selector: control.controlRef, value, blur: true } }, timeoutMs: 15_000 });
-        await wait(150);
+        await wait(200);
         const matched = await this.invoke(id, { sessionRef, command: { type: 'value_matches', payload: { selector: control.controlRef, expected: value } }, timeoutMs: 15_000 });
         if (matched.result === true) appliedFacts.push(factKey); else manualFacts.push(factKey);
       };
@@ -375,22 +369,10 @@ export class BrowserExtensionValidationRegistry {
       };
       const chooseMonth = async (control: RawControl | null, value: string, factKey: string) => {
         if (!control) { manualFacts.push(factKey); return; }
-        const [year, monthRaw] = value.split('-');
-        if (!year || !monthRaw) { manualFacts.push(factKey); return; }
-        const month = String(Number(monthRaw));
-        await this.invoke(id, { sessionRef, command: { type: 'click', payload: { selector: control.controlRef, expectedText: null } }, timeoutMs: 15_000 });
-        await wait(250);
-        let actions = await scanActions();
-        let yearAction = uniqueActionByAnyText(actions, [`${year}年`, year]);
-        if (yearAction) {
-          await this.invoke(id, { sessionRef, command: { type: 'click', payload: { selector: yearAction.actionRef, expectedText: yearAction.text } }, timeoutMs: 15_000 });
-          await wait(200);
-          actions = await scanActions();
-        }
-        const monthAction = uniqueActionByAnyText(actions, [`${month}月`, `${monthRaw}月`]);
-        if (!monthAction) { manualFacts.push(factKey); return; }
-        await this.invoke(id, { sessionRef, command: { type: 'click', payload: { selector: monthAction.actionRef, expectedText: monthAction.text } }, timeoutMs: 15_000 });
-        appliedFacts.push(factKey);
+        await this.invoke(id, { sessionRef, command: { type: 'fill', payload: { selector: control.controlRef, value, blur: true } }, timeoutMs: 15_000 });
+        await wait(200);
+        const matched = await this.invoke(id, { sessionRef, command: { type: 'value_matches', payload: { selector: control.controlRef, expected: value } }, timeoutMs: 15_000 });
+        if (matched.result === true) appliedFacts.push(factKey); else manualFacts.push(factKey);
       };
 
       if (education) {
@@ -715,13 +697,6 @@ function uniqueActionByText(actions: readonly RawAction[], text: string): RawAct
   const expected = text.replace(/\s+/g, ' ').trim();
   const matches = actions.filter((action) => !action.disabled && !action.ariaDisabled && action.text.replace(/\s+/g, ' ').trim() === expected);
   return matches.length === 1 ? matches[0]! : null;
-}
-function uniqueActionByAnyText(actions: readonly RawAction[], texts: readonly string[]): RawAction | null {
-  for (const text of texts) {
-    const exact = uniqueActionByText(actions, text);
-    if (exact) return exact;
-  }
-  return null;
 }
 function isLiepinProfileOnboarding(currentUrl: string, bodyText: string): boolean {
   try {

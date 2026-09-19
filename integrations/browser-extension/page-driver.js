@@ -35,6 +35,8 @@
   }
 
   function valueMatches(selector, expected) {
+    const engine = globalThis.__JOB_HARNESS_FORM_ENGINE__;
+    if (engine?.valueMatches) return Boolean(engine.valueMatches(selector, expected));
     const element = firstElement(selector);
     if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
       return String(element.value ?? "") === expected;
@@ -42,7 +44,13 @@
     return false;
   }
 
-  function fill(selector, value, blur = true) {
+  async function fill(selector, value, blur = true) {
+    const engine = globalThis.__JOB_HARNESS_FORM_ENGINE__;
+    if (engine?.fill) {
+      const result = await engine.fill(selector, value, { blur });
+      if (result?.ok) return null;
+      throw new Error(`Form engine fill failed: ${result?.reason || "unknown"}`);
+    }
     const element = firstElement(selector);
     if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) throw new Error("Target is not a text input/textarea");
     if (element.disabled || element.readOnly) throw new Error("Target field is disabled/read-only");
@@ -52,7 +60,13 @@
     return null;
   }
 
-  function select(selector, rawValue) {
+  async function select(selector, rawValue) {
+    const engine = globalThis.__JOB_HARNESS_FORM_ENGINE__;
+    if (engine?.select) {
+      const result = await engine.select(selector, rawValue);
+      if (result?.ok) return null;
+      throw new Error(`Form engine select failed: ${result?.reason || "unknown"}`);
+    }
     const values = Array.isArray(rawValue) ? rawValue.map(String) : [String(rawValue ?? "")];
     const nodes = [...document.querySelectorAll(selector)];
     if (!nodes.length) throw new Error("Select/radio target was not found");
@@ -72,7 +86,13 @@
     return null;
   }
 
-  function setChecked(selector, checked) {
+  async function setChecked(selector, checked) {
+    const engine = globalThis.__JOB_HARNESS_FORM_ENGINE__;
+    if (engine?.setChecked) {
+      const result = await engine.setChecked(selector, checked);
+      if (result?.ok) return null;
+      throw new Error(`Form engine setChecked failed: ${result?.reason || "unknown"}`);
+    }
     const element = firstElement(selector);
     if (!(element instanceof HTMLInputElement) || !["checkbox", "radio"].includes(element.type)) throw new Error("Target is not checkable");
     element.checked = checked;
@@ -121,33 +141,8 @@
       const style = window.getComputedStyle(element);
       return element.hasAttribute("onclick") || tabIndex >= 0 || (style.cursor === "pointer" && semantic);
     });
-    const choiceLike = [...document.querySelectorAll('li,div,span')].filter((element) => {
-      if (!(element instanceof HTMLElement) || !visible(element)) return false;
-      const text = compact(element.innerText || element.getAttribute("aria-label") || element.getAttribute("title") || "", 500);
-      if (!text || text.length > 120) return false;
-      const style = window.getComputedStyle(element);
-      return style.cursor === "pointer";
-    });
-    const dateChoices = [...document.querySelectorAll('*')].filter((element) => {
-      if (!(element instanceof HTMLElement) || !visible(element)) return false;
-      const text = compact(element.innerText || element.getAttribute("aria-label") || element.getAttribute("title") || "", 500);
-      if (!/^\d{4}年$/.test(text) && !/^(?:[1-9]|1[0-2])月$/.test(text)) return false;
-      return ![...element.children].some((child) =>
-        child instanceof HTMLElement && visible(child) && compact(child.innerText || child.textContent || "", 500) === text
-      );
-    });
-    const candidates = [...new Set([...standard, ...inferred, ...choiceLike, ...dateChoices])]
-      .filter((element) => element instanceof HTMLElement && visible(element));
-    const elements = candidates
-      .filter((element) => {
-        const text = compact(element.innerText || element.getAttribute("aria-label") || element.getAttribute("title") || "", 500);
-        if (!text) return true;
-        return !candidates.some((other) =>
-          other !== element &&
-          element.contains(other) &&
-          compact(other.innerText || other.getAttribute("aria-label") || other.getAttribute("title") || "", 500) === text
-        );
-      })
+    const elements = [...new Set([...standard, ...inferred])]
+      .filter((element) => element instanceof HTMLElement && visible(element))
       .slice(0, 500);
     const allocate = createStableRefAllocator(elements, "data-job-harness-action-id", "jha");
     return elements.map((element) => {
@@ -166,6 +161,8 @@
   }
 
   function scanControls() {
+    const engine = globalThis.__JOB_HARNESS_FORM_ENGINE__;
+    if (engine?.scanControls) return engine.scanControls();
     const all = [...document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),textarea,select')]
       .filter((element) => (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) && (visible(element) || isResumeFileInput(element)));
     const result = [];

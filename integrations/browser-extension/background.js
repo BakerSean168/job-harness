@@ -245,7 +245,7 @@ async function ensurePageDriver(tabId) {
   const tab = await requireTab(tabId);
   const url = String(tab.url || "");
   if (!/^https?:\/\//i.test(url)) throw new Error(`Cannot inject page driver into ${url || "this tab"}`);
-  await chrome.scripting.executeScript({ target: { tabId }, files: ["page-driver.js"] });
+  await chrome.scripting.executeScript({ target: { tabId }, files: ["form-engine.js", "page-driver.js"] });
 }
 
 async function captureScreenshot(tabId) {

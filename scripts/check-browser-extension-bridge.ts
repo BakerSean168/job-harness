@@ -12,7 +12,7 @@ async function main(): Promise<void> {
   const optionalHosts = Array.isArray(manifest.optional_host_permissions) ? manifest.optional_host_permissions.map(String) : [];
   if (!optionalHosts.includes('https://*/*')) throw new Error('browser extension must declare optional HTTPS site access for explicit user grant');
 
-  const sourceFiles = ['background.js', 'page-driver.js', 'options.js', 'popup.js'];
+  const sourceFiles = ['background.js', 'form-engine.js', 'page-driver.js', 'options.js', 'popup.js'];
   const source = (await Promise.all(sourceFiles.map((name) => readFile(new URL(`../integrations/browser-extension/${name}`, import.meta.url), 'utf8')))).join('\n');
   for (const forbidden of ['/api/ledger', 'jacApplications', 'profile-bundle.json', 'JOB_HARNESS_AUTH_TOKEN', 'chrome.debugger', 'submission_intents', 'application_submissions']) {
     if (source.includes(forbidden)) throw new Error(`browser extension crossed ownership boundary via '${forbidden}'`);
@@ -21,6 +21,7 @@ async function main(): Promise<void> {
     if (!source.includes(`"${command}"`)) throw new Error(`browser extension implementation is missing driver command '${command}'`);
   }
   if (!source.includes('JH_PAGE_DRIVER_COMMAND')) throw new Error('browser extension page-driver transport marker is missing');
+  if (!source.includes('__JOB_HARNESS_FORM_ENGINE__') || !source.includes('OpenJobAutofill')) throw new Error('browser extension must load the attributed shared Browser Form Engine');
   const background = await readFile(new URL('../integrations/browser-extension/background.js', import.meta.url), 'utf8');
   if (!background.includes('deliverPageDriverCommand') || !background.includes('const response = await deliverPageDriverCommand')) {
     throw new Error('browser extension must keep page-driver application errors outside the delivery retry boundary');

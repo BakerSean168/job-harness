@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
 import type { Page } from 'playwright';
 import type { BrowserActionSnapshot, BrowserClickExpectation, BrowserControlSnapshot, BrowserDriverPort, BrowserUploadFile } from './types';
+
+const FORM_ENGINE_RUNTIME_SOURCE = readFileSync(new URL('../../browser-form-engine/browser/runtime.js', import.meta.url), 'utf8');
 
 export class PlaywrightBrowserDriver implements BrowserDriverPort {
   constructor(private readonly page: Page) {}
@@ -10,6 +13,12 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
     // The compiled production JS does not need this, but defining the identity helper
     // in page scope keeps source-runtime and compiled-runtime behavior identical.
     await this.page.evaluate('globalThis.__name = globalThis.__name || ((value) => value)');
+  }
+
+  private async ensureFormEngine(): Promise<void> {
+    await this.ensureEvaluationHelpers();
+    const installed = await this.page.evaluate('Boolean(globalThis.__JOB_HARNESS_FORM_ENGINE__)');
+    if (!installed) await this.page.evaluate(FORM_ENGINE_RUNTIME_SOURCE);
   }
 
   async navigate(url: string): Promise<void> {
@@ -38,37 +47,34 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
   }
 
   async fill(selector: string, value: string): Promise<void> {
-    await this.page.locator(selector).first().fill(value);
+    await this.ensureFormEngine();
+    const result = await this.page.evaluate(async ({ selector, value }) => {
+      const engine = (globalThis as typeof globalThis & { __JOB_HARNESS_FORM_ENGINE__?: { fill?: (selector: string, value: string, options?: { blur?: boolean }) => Promise<{ ok?: boolean; reason?: string }> | { ok?: boolean; reason?: string } } }).__JOB_HARNESS_FORM_ENGINE__;
+      return engine?.fill ? await engine.fill(selector, value, { blur: true }) : { ok: false, reason: 'engine_unavailable' };
+    }, { selector, value });
+    if (result?.ok) return;
+    throw new Error(`Browser form engine fill failed: ${result?.reason ?? 'unknown'}`);
   }
 
   async select(selector: string, value: string | readonly string[]): Promise<void> {
-    const locator = this.page.locator(selector);
-    const first = locator.first();
-    const tag = await first.evaluate((element) => element.tagName.toLowerCase());
-    const values = Array.isArray(value) ? [...value] : [value];
-    if (tag === 'select') {
-      await first.selectOption(values);
-      return;
-    }
-    const target = locator.filter({ has: this.page.locator(`input[value=${JSON.stringify(values[0] ?? '')}]`) });
-    if (await target.count()) {
-      await target.locator('input').first().setChecked(true);
-      return;
-    }
-    const controls = locator;
-    for (let index = 0; index < await controls.count(); index += 1) {
-      const candidate = controls.nth(index);
-      if (await candidate.getAttribute('value') === values[0]) {
-        await candidate.setChecked(true);
-        return;
-      }
-    }
-    throw new Error(`No radio/select option matched '${values[0] ?? ''}'`);
+    await this.ensureFormEngine();
+    const payload = Array.isArray(value) ? [...value] : value;
+    const result = await this.page.evaluate(async ({ selector, value }) => {
+      const engine = (globalThis as typeof globalThis & { __JOB_HARNESS_FORM_ENGINE__?: { select?: (selector: string, value: string | readonly string[]) => Promise<{ ok?: boolean; reason?: string }> | { ok?: boolean; reason?: string } } }).__JOB_HARNESS_FORM_ENGINE__;
+      return engine?.select ? await engine.select(selector, value) : { ok: false, reason: 'engine_unavailable' };
+    }, { selector, value: payload });
+    if (result?.ok) return;
+    throw new Error(`Browser form engine select failed: ${result?.reason ?? 'unknown'}`);
   }
 
   async setChecked(selector: string, checked: boolean): Promise<void> {
-    const locator = this.page.locator(selector).first();
-    await locator.setChecked(checked);
+    await this.ensureFormEngine();
+    const result = await this.page.evaluate(async ({ selector, checked }) => {
+      const engine = (globalThis as typeof globalThis & { __JOB_HARNESS_FORM_ENGINE__?: { setChecked?: (selector: string, checked: boolean) => Promise<{ ok?: boolean; reason?: string }> | { ok?: boolean; reason?: string } } }).__JOB_HARNESS_FORM_ENGINE__;
+      return engine?.setChecked ? await engine.setChecked(selector, checked) : { ok: false, reason: 'engine_unavailable' };
+    }, { selector, checked });
+    if (result?.ok) return;
+    throw new Error(`Browser form engine setChecked failed: ${result?.reason ?? 'unknown'}`);
   }
 
   async click(selector: string, expectation: BrowserClickExpectation = {}): Promise<void> {
@@ -171,33 +177,9 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
         const style = window.getComputedStyle(element);
         return element.hasAttribute('onclick') || tabIndex >= 0 || (style.cursor === 'pointer' && semantic);
       });
-      const choiceLike = [...document.querySelectorAll('li,div,span')].filter((element) => {
-        if (!(element instanceof HTMLElement) || !visible(element)) return false;
-        const text = compact(element.innerText || element.getAttribute('aria-label') || element.getAttribute('title'));
-        if (!text || text.length > 120) return false;
-        return window.getComputedStyle(element).cursor === 'pointer';
-      });
-      const dateChoices = [...document.querySelectorAll('*')].filter((element) => {
-        if (!(element instanceof HTMLElement) || !visible(element)) return false;
-        const text = compact(element.innerText || element.getAttribute('aria-label') || element.getAttribute('title'));
-        if (!/^\d{4}年$/.test(text) && !/^(?:[1-9]|1[0-2])月$/.test(text)) return false;
-        return ![...element.children].some((child) =>
-          child instanceof HTMLElement && visible(child) && compact(child.innerText || child.textContent || '') === text
-        );
-      });
-      const candidates = [...new Set([...standard, ...inferred, ...choiceLike, ...dateChoices])]
+      const nodes = [...new Set([...standard, ...inferred])]
         .filter((element): element is HTMLElement => element instanceof HTMLElement)
-        .filter(visible);
-      const nodes = candidates
-        .filter((element) => {
-          const text = compact(element.innerText || element.getAttribute('aria-label') || element.getAttribute('title'));
-          if (!text) return true;
-          return !candidates.some((other) =>
-            other !== element &&
-            element.contains(other) &&
-            compact(other.innerText || other.getAttribute('aria-label') || other.getAttribute('title')) === text
-          );
-        })
+        .filter(visible)
         .slice(0, 500);
       const existingActionIds = nodes.map((element) => element.getAttribute('data-job-harness-action-id')).filter((value): value is string => Boolean(value));
       const actionIdCounts = new Map<string, number>();
@@ -238,6 +220,12 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
   }
 
   async scanControls(): Promise<readonly BrowserControlSnapshot[]> {
+    await this.ensureFormEngine();
+    const engineControls = await this.page.evaluate(() => {
+      const engine = (globalThis as typeof globalThis & { __JOB_HARNESS_FORM_ENGINE__?: { scanControls?: () => BrowserControlSnapshot[] } }).__JOB_HARNESS_FORM_ENGINE__;
+      return engine?.scanControls ? engine.scanControls() : null;
+    });
+    if (engineControls) return engineControls;
     await this.ensureEvaluationHelpers();
     return this.page.evaluate(() => {
       type Snapshot = {

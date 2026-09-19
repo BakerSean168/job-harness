@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { chromium } from 'playwright';
 import { PlaywrightBrowserDriver } from '../src/playwright-driver';
 
+const formEnginePath = fileURLToPath(new URL('../../../integrations/browser-extension/form-engine.js', import.meta.url));
 const driverPath = fileURLToPath(new URL('../../../integrations/browser-extension/page-driver.js', import.meta.url));
 
 async function withDriver<T>(run: (page: import('playwright').Page) => Promise<T>): Promise<T> {
@@ -32,6 +33,7 @@ async function withDriver<T>(run: (page: import('playwright').Page) => Promise<T
         },
       };
     });
+    await page.addScriptTag({ content: await readFile(formEnginePath, 'utf8') });
     await page.addScriptTag({ content: await readFile(driverPath, 'utf8') });
     return await run(page);
   } finally {
@@ -87,7 +89,7 @@ describe('MV3 page driver contract', () => {
     });
   });
 
-  it('supports focused autocomplete fills without forced blur and exposes popup options as actions', async () => {
+  it('supports focused autocomplete fills without forced blur while keeping popup choices inside the form engine', async () => {
     await withDriver(async (page) => {
       await page.evaluate(() => {
         const form = document.querySelector('form')!;
@@ -131,9 +133,82 @@ describe('MV3 page driver contract', () => {
       expect(await command(page, 'value_matches', { selector: school!.controlRef, expected: '四川农业大学' })).toBe(true);
       expect(await command(page, 'value_matches', { selector: school!.controlRef, expected: '其他学校' })).toBe(false);
       const actions = await command(page, 'scan_actions') as Array<Record<string, unknown>>;
-      expect(actions).toEqual(expect.arrayContaining([expect.objectContaining({ text: '四川农业大学' })]));
-      expect(actions).toEqual(expect.arrayContaining([expect.objectContaining({ text: '2026年' })]));
-      expect(actions.filter((action) => action.text === '物联网工程')).toHaveLength(1);
+      expect(actions.some((action) => action.text === '四川农业大学')).toBe(false);
+      expect(actions.some((action) => action.text === '2026年')).toBe(false);
+      expect(actions.some((action) => action.text === '物联网工程')).toBe(false);
+    });
+  });
+
+  it('reuses the OpenJobAutofill-derived engine for custom combobox and read-only month picker writes', async () => {
+    await withDriver(async (page) => {
+      await page.evaluate(() => {
+        const form = document.querySelector('form')!;
+        const custom = document.createElement('div');
+        custom.innerHTML = `
+          <div class="ant-form-item">
+            <label>学校名称</label>
+            <input id="school-combobox" role="combobox" aria-label="学校名称" style="display:block;width:180px;height:30px">
+          </div>
+          <div class="ant-form-item">
+            <label>入学时间</label>
+            <input id="start-month" aria-label="入学时间" readonly style="display:block;width:180px;height:30px">
+          </div>
+          <div id="engine-popup"></div>
+        `;
+        form.insertBefore(custom, form.firstChild);
+        const popup = custom.querySelector('#engine-popup') as HTMLElement;
+        const school = custom.querySelector('#school-combobox') as HTMLInputElement;
+        school.addEventListener('input', () => {
+          popup.innerHTML = '';
+          if (school.value === '四川农业大学') {
+            const option = document.createElement('div');
+            option.setAttribute('role', 'option');
+            option.textContent = '四川农业大学';
+            option.style.cssText = 'display:block;width:180px;height:30px;cursor:pointer';
+            option.addEventListener('click', () => { school.value = '四川农业大学'; popup.innerHTML = ''; });
+            popup.appendChild(option);
+          }
+        });
+        const month = custom.querySelector('#start-month') as HTMLInputElement;
+        month.addEventListener('click', () => {
+          popup.innerHTML = '';
+          const year = document.createElement('em');
+          year.textContent = '2022年';
+          year.style.cssText = 'display:block;width:80px;height:30px;cursor:pointer';
+          popup.appendChild(year);
+          for (const value of ['8月', '9月', '10月']) {
+            const option = document.createElement('i');
+            option.textContent = value;
+            option.style.cssText = 'display:block;width:80px;height:30px;cursor:pointer';
+            option.addEventListener('click', () => {
+              if (value === '9月') month.value = '2022-09';
+              popup.innerHTML = '';
+            });
+            popup.appendChild(option);
+          }
+        });
+      });
+
+      const controls = await command(page, 'scan_controls') as Array<Record<string, unknown>>;
+      const school = controls.find((field) => field.label === '学校名称');
+      const startMonth = controls.find((field) => field.label === '入学时间');
+      expect(school).toMatchObject({ kind: 'select' });
+      expect(startMonth).toMatchObject({ kind: 'text', readOnly: true });
+
+      await command(page, 'fill', { selector: school!.controlRef, value: '四川农业大学', blur: true });
+      expect(await page.inputValue('#school-combobox')).toBe('四川农业大学');
+      await command(page, 'fill', { selector: startMonth!.controlRef, value: '2022-09', blur: true });
+      expect(await page.inputValue('#start-month')).toBe('2022-09');
+      expect(await command(page, 'value_matches', { selector: startMonth!.controlRef, expected: '2022-09' })).toBe(true);
+
+      const driver = new PlaywrightBrowserDriver(page);
+      const rescanned = await driver.scanControls();
+      const schoolAgain = rescanned.find((field) => field.label === '学校名称');
+      const monthAgain = rescanned.find((field) => field.label === '入学时间');
+      expect(schoolAgain?.semanticHints).toEqual(expect.arrayContaining([expect.stringContaining('学校名称')]));
+      await driver.fill(String(schoolAgain!.controlRef), '四川农业大学');
+      await driver.fill(String(monthAgain!.controlRef), '2022-09');
+      expect(await page.inputValue('#start-month')).toBe('2022-09');
     });
   });
 
