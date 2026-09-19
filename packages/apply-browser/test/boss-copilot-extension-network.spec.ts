@@ -70,8 +70,8 @@ describe('BOSS Copilot compatibility extension network shim', () => {
       chrome: {
         runtime: {
           lastError: null,
-          sendMessage(_message: unknown, callback: (value: unknown) => void) {
-            callback({ ok: true, result: { status: 200, response: '{"tags":["前端开发工程师"]}' } });
+          async sendMessage(_message: unknown) {
+            return { ok: true, result: { status: 200, response: '{"tags":["前端开发工程师"]}' } };
           },
         },
       },
