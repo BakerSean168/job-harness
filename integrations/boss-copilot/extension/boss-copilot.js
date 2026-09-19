@@ -153,26 +153,7 @@
             el.dispatchEvent(new Event('input', { bubbles: true }));
         },
         asyncSleep(ms) {
-            return new Promise((resolve) => {
-                // 创建一个 Blob 对象，包含 Web Worker 的代码
-                const workerCode = `self.addEventListener('message', function(e) {
-                    const delay = e.data;
-                    setTimeout(function() {
-                        self.postMessage('done');
-                    }, delay);
-                });`;
-
-                const blob = new Blob([workerCode], { type: 'application/javascript' });
-                const workerUrl = URL.createObjectURL(blob);
-
-                const worker = new Worker(workerUrl);
-                worker.onmessage = function () {
-                    resolve();
-                    worker.terminate(); // 使用后终止worker
-                    URL.revokeObjectURL(workerUrl); // 释放对象URL
-                };
-                worker.postMessage(ms);
-            });
+            return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
         },
         getTimestamp(key) {
             return Number(localStorage.getItem(key));
