@@ -1,6 +1,6 @@
 import { BrowserBackendRegistry, ExtensionBrowserBackend, LocalCdpBrowserBackend, SteelBrowserBackend } from '@job-harness/apply-browser';
 import type { ExecutorDescriptor } from '@job-harness/apply-contracts';
-import { ApplySiteAdapterRegistry, BeisenAtsSiteAdapter, FeishuJobsAtsSiteAdapter, GenericAtsSiteAdapter, HotJobAtsSiteAdapter, LegacyMokaAtsSiteAdapter, LiepinAtsSiteAdapter, MokaSocialRecruitmentAtsSiteAdapter, NowcoderAtsSiteAdapter, ZhilianAtsSiteAdapter, ZhiyeAtsSiteAdapter } from '@job-harness/apply-adapters';
+import { ApplySiteAdapterRegistry, GenericAtsSiteAdapter, observedApplySiteAdapters } from '@job-harness/apply-adapters';
 import { createJobHarnessRestClient } from '@job-harness/client';
 import { FormFillExecutionEngine } from './form-fill-engine';
 import { SubmitExecutionEngine } from './submit-engine';
@@ -38,15 +38,7 @@ if (backendId === 'steel') {
 
 const siteAdapters = phase === 'form-fill'
   ? new ApplySiteAdapterRegistry([
-      new ZhilianAtsSiteAdapter(),
-      new LiepinAtsSiteAdapter(),
-      new NowcoderAtsSiteAdapter(),
-      new MokaSocialRecruitmentAtsSiteAdapter(),
-      new BeisenAtsSiteAdapter(),
-      new FeishuJobsAtsSiteAdapter(),
-      new HotJobAtsSiteAdapter(),
-      new ZhiyeAtsSiteAdapter(),
-      new LegacyMokaAtsSiteAdapter(),
+      ...observedApplySiteAdapters(),
       new GenericAtsSiteAdapter(),
     ])
   : null;

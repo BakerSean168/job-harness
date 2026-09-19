@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@job-harness/apply-adapters": "workspace:*",
     "@job-harness/client": "workspace:*"
   },
   "devDependencies": {

@@ -13,7 +13,7 @@
     "e2e:headed": "pnpm build:web && playwright test --headed",
     "typecheck": "tsc -b && pnpm --filter @job-harness/web typecheck",
     "test": "vitest run",
-    "check": "pnpm check:manifest && pnpm check:boundaries && pnpm check:browser-extension-bridge && pnpm check:chatgpt-integration && pnpm typecheck && pnpm check:openapi && pnpm test && pnpm build:web",
+    "check": "pnpm check:manifest && pnpm check:boundaries && pnpm check:browser-extension-bridge && pnpm check:legacy-copilot-parity && pnpm check:chatgpt-integration && pnpm typecheck && pnpm check:openapi && pnpm test && pnpm build:web",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "server": "pnpm --filter @job-harness/server start",
     "import:legacy": "pnpm --filter @job-harness/server import:legacy",
@@ -31,6 +31,7 @@
     "smoke:apply-shadow-inspect": "pnpm --filter @job-harness/apply-worker smoke:shadow-inspect",
     "smoke:apply-live-preflight": "tsx scripts/apply-live-preflight-smoke.ts",
     "check:browser-extension-bridge": "tsx scripts/check-browser-extension-bridge.ts && node scripts/check-browser-form-engine.mjs",
+    "check:legacy-copilot-parity": "tsx scripts/check-legacy-copilot-parity.ts",
     "sync:browser-form-engine": "node scripts/sync-browser-form-engine.mjs"
   },
   "devDependencies": {

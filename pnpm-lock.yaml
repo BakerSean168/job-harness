@@ -92,6 +92,9 @@ importers:
 
   apps/intent-dispatch-worker:
     dependencies:
+      '@job-harness/apply-adapters':
+        specifier: workspace:*
+        version: link:../../packages/apply-adapters
       '@job-harness/client':
         specifier: workspace:*
         version: link:../../packages/client

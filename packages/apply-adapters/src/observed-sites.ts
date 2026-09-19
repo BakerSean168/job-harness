@@ -4,7 +4,7 @@ import { fillGenericForm, inspectGenericForm } from './generic-form';
 import type { ApplicantDataProviderPort } from './applicant-data';
 import { inspectApplyPagePreflight } from './page-preflight';
 import { GenericAtsSiteAdapter } from './generic-site-adapter';
-import type { ApplyApplicationEntryResult, ApplyFillAssets, ApplySiteAdapter, ApplySiteBindingContext, ApplySiteSubmitResult } from './site-adapter';
+import { ApplySiteAdapterRegistry, type ApplyApplicationEntryResult, type ApplyFillAssets, type ApplySiteAdapter, type ApplySiteBindingContext, type ApplySiteSubmitResult } from './site-adapter';
 
 abstract class ObservedPublicAtsAdapter implements ApplySiteAdapter {
   abstract readonly descriptor: ApplySiteAdapter['descriptor'];
@@ -403,4 +403,55 @@ export class LegacyMokaAtsSiteAdapter extends LegacyCopilotObservedAtsAdapter {
     capabilities: { inspect: true, enter: false, fill: true, validate: true, submit: false },
   };
   readonly hostSuffixes = ['mokahr.com', 'moka.com'] as const;
+}
+
+export type ObservedApplySiteFamily = 'zhilian' | 'liepin' | 'nowcoder' | 'moka' | 'beisen' | 'feishu-jobs' | 'hotjob' | 'zhiye';
+
+export interface ObservedApplySiteRoute {
+  readonly family: ObservedApplySiteFamily;
+  readonly adapterId:
+    | 'zhilian-ats'
+    | 'liepin-ats'
+    | 'nowcoder-ats'
+    | 'moka-social-recruitment'
+    | 'legacy-moka-ats'
+    | 'beisen-ats'
+    | 'feishu-jobs-ats'
+    | 'hotjob-ats'
+    | 'zhiye-ats';
+  readonly requiresSiteResumeBinding: boolean;
+}
+
+export function observedApplySiteAdapters(): readonly ApplySiteAdapter[] {
+  return [
+    new ZhilianAtsSiteAdapter(),
+    new LiepinAtsSiteAdapter(),
+    new NowcoderAtsSiteAdapter(),
+    new MokaSocialRecruitmentAtsSiteAdapter(),
+    new BeisenAtsSiteAdapter(),
+    new FeishuJobsAtsSiteAdapter(),
+    new HotJobAtsSiteAdapter(),
+    new ZhiyeAtsSiteAdapter(),
+    new LegacyMokaAtsSiteAdapter(),
+  ];
+}
+
+export function classifyObservedApplySite(url: string): ObservedApplySiteRoute | null {
+  const registry = new ApplySiteAdapterRegistry(observedApplySiteAdapters());
+  const adapter = registry.resolve({ url, semantics: 'formal_application' });
+  if (!adapter) return null;
+  const adapterId = adapter.descriptor.id as ObservedApplySiteRoute['adapterId'];
+  const mapping: Record<ObservedApplySiteRoute['adapterId'], Omit<ObservedApplySiteRoute, 'adapterId'>> = {
+    'zhilian-ats': { family: 'zhilian', requiresSiteResumeBinding: true },
+    'liepin-ats': { family: 'liepin', requiresSiteResumeBinding: true },
+    'nowcoder-ats': { family: 'nowcoder', requiresSiteResumeBinding: false },
+    'moka-social-recruitment': { family: 'moka', requiresSiteResumeBinding: false },
+    'legacy-moka-ats': { family: 'moka', requiresSiteResumeBinding: false },
+    'beisen-ats': { family: 'beisen', requiresSiteResumeBinding: false },
+    'feishu-jobs-ats': { family: 'feishu-jobs', requiresSiteResumeBinding: false },
+    'hotjob-ats': { family: 'hotjob', requiresSiteResumeBinding: false },
+    'zhiye-ats': { family: 'zhiye', requiresSiteResumeBinding: false },
+  };
+  const route = mapping[adapterId];
+  return route ? { adapterId, ...route } : null;
 }

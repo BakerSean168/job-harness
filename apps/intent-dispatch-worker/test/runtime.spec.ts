@@ -16,7 +16,7 @@ function intent(overrides: Record<string, unknown> = {}) {
 function executor(overrides: Record<string, unknown> = {}) {
   return {
     executorId: 'extension-executor', name: 'Chrome', version: '1', hostLabel: 'oracle2', status: 'ready',
-    browserBackends: ['extension'], adapterIds: ['zhilian-ats','liepin-ats','nowcoder-ats'], executionModes: ['fill_only'],
+    browserBackends: ['extension'], adapterIds: ['zhilian-ats','liepin-ats','nowcoder-ats','moka-social-recruitment','legacy-moka-ats','beisen-ats','feishu-jobs-ats','hotjob-ats','zhiye-ats'], executionModes: ['fill_only'],
     capabilities: { resumeUpload: true, humanControl: true, persistentSession: true, screenshots: false, semanticMapping: false },
     maxConcurrency: 1, metadata: { browserAgentId: 'windows-chrome-primary' },
     lastHeartbeatAt: '2026-09-18T00:00:00.000Z', createdAt: '2026-09-18T00:00:00.000Z', updatedAt: '2026-09-18T00:00:00.000Z',
@@ -89,6 +89,32 @@ describe('PlannedIntentDispatcher', () => {
     expect(dispatches[0]).toMatchObject({
       requiredAdapterId: 'nowcoder-ats', executionMode: 'fill_only',
       policySnapshot: { submitAllowed: false, requiredBrowserAgentId: 'windows-chrome-primary' },
+    });
+    expect(dispatches[0].policySnapshot.siteResumeBindingId).toBeUndefined();
+  });
+
+  it.each([
+    ['Moka social recruitment', 'https://app.mokahr.com/social-recruitment/example/123/#/job/job-1', 'moka', 'moka-social-recruitment'],
+    ['Moka legacy host', 'https://acme.mokahr.com/campus-recruitment/acme/123#/jobs/1', 'moka', 'legacy-moka-ats'],
+    ['Beisen/iTalentX', 'https://acme.italentx.com/recruitment/job/123', 'beisen', 'beisen-ats'],
+    ['Feishu Jobs', 'https://jobs.feishu.cn/acme/position/123', 'feishu-jobs', 'feishu-jobs-ats'],
+    ['HotJob', 'https://acme.hotjob.cn/wt/acme/web/index/webPositionN310', 'hotjob', 'hotjob-ats'],
+    ['Zhiye', 'https://acme.zhiye.com/social/jobs/123', 'zhiye', 'zhiye-ats'],
+  ])('restores legacy Copilot safe-fill dispatch for %s without granting submit authority', async (_name, externalTargetUrl, site, requiredAdapterId) => {
+    const legacy = intent({ channel: 'other', externalTargetUrl });
+    const { client, dispatches } = fakeClient({ intents: [legacy], bindings: [] });
+    const result = await new PlannedIntentDispatcher(client).runOnce();
+    expect(result).toMatchObject({ dispatched: 1, skippedMissingBinding: 0, failures: [] });
+    expect(result.decisions[0]).toMatchObject({ site, outcome: 'dispatch', reason: 'queued_fill_only' });
+    expect(dispatches[0]).toMatchObject({
+      requiredAdapterId,
+      executionMode: 'fill_only',
+      policySnapshot: {
+        allowFormFill: true,
+        allowApplicationEntry: true,
+        submitAllowed: false,
+        requiredBrowserAgentId: 'windows-chrome-primary',
+      },
     });
     expect(dispatches[0].policySnapshot.siteResumeBindingId).toBeUndefined();
   });

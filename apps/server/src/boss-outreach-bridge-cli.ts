@@ -23,7 +23,7 @@ const discovery = new BossDiscoveryCoordinator({
   idleCompleteMs: Number(process.env.JOB_HARNESS_BOSS_DISCOVERY_IDLE_MS ?? 600_000),
 });
 await discovery.recover();
-const legacyUserscriptSourcePath = process.env.JOB_HARNESS_BOSS_LEGACY_USERSCRIPT_SOURCE?.trim() || '/home/ubuntu/projects/job-application-copilot/.local/channel/boss/ai-agent-app.user.js';
+const legacyUserscriptSourcePath = process.env.JOB_HARNESS_BOSS_LEGACY_USERSCRIPT_SOURCE?.trim() || '/home/ubuntu/projects/job-harness/integrations/boss/legacy-copilot.user.js';
 let resumeFollowupUserscript: string | null = null;
 try {
   const source = await readFile(legacyUserscriptSourcePath, 'utf8');

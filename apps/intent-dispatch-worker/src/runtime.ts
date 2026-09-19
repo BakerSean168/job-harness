@@ -1,3 +1,4 @@
+import { classifyObservedApplySite, type ObservedApplySiteFamily, type ObservedApplySiteRoute } from '@job-harness/apply-adapters';
 import type { JobHarnessRestClient } from '@job-harness/client';
 
 type Client = JobHarnessRestClient;
@@ -30,7 +31,7 @@ export interface IntentDispatchResult {
 export interface IntentDispatchDecision {
   readonly intentId: string;
   readonly jobId: string;
-  readonly site: 'zhilian' | 'liepin' | 'nowcoder' | 'unsupported';
+  readonly site: ObservedApplySiteFamily | 'unsupported';
   readonly outcome: 'dispatch' | 'skip';
   readonly reason: string;
   readonly attemptId: string | null;
@@ -39,8 +40,8 @@ export interface IntentDispatchDecision {
 }
 
 interface SiteRoute {
-  readonly site: Exclude<IntentDispatchDecision['site'], 'unsupported'>;
-  readonly adapterId: 'zhilian-ats' | 'liepin-ats' | 'nowcoder-ats';
+  readonly site: ObservedApplySiteFamily;
+  readonly adapterId: ObservedApplySiteRoute['adapterId'];
   readonly requiresSiteResumeBinding: boolean;
 }
 
@@ -204,19 +205,10 @@ export class PlannedIntentDispatcher {
 
 function routeIntent(intent: PlannedIntent): SiteRoute | null {
   if (!intent.externalTargetUrl) return null;
-  let url: URL;
-  try { url = new URL(intent.externalTargetUrl); } catch { return null; }
-  const host = url.hostname.toLowerCase();
-  if ((host === 'www.zhaopin.com' || host === 'zhaopin.com') && /^\/jobdetail\//i.test(url.pathname)) {
-    return { site: 'zhilian', adapterId: 'zhilian-ats', requiresSiteResumeBinding: true };
-  }
-  if ((host === 'www.liepin.com' || host === 'liepin.com') && /^\/job\/\d+\.shtml$/i.test(url.pathname)) {
-    return { site: 'liepin', adapterId: 'liepin-ats', requiresSiteResumeBinding: true };
-  }
-  if ((host === 'www.nowcoder.com' || host === 'nowcoder.com') && /^\/jobs\/detail\/\d+\/?$/i.test(url.pathname)) {
-    return { site: 'nowcoder', adapterId: 'nowcoder-ats', requiresSiteResumeBinding: false };
-  }
-  return null;
+  const route = classifyObservedApplySite(intent.externalTargetUrl);
+  return route
+    ? { site: route.family, adapterId: route.adapterId, requiresSiteResumeBinding: route.requiresSiteResumeBinding }
+    : null;
 }
 
 function hasFrozenResume(intent: PlannedIntent): intent is PlannedIntent & { resumeProfileId: string; resumeRevisionId: string; resumeArtifactId: string } {
