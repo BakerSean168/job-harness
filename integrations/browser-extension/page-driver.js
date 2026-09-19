@@ -27,11 +27,18 @@
       case "set_checked": return setChecked(requiredSelector(payload.selector), Boolean(payload.checked));
       case "click": return click(requiredSelector(payload.selector), payload.expectedText ?? null);
       case "upload": return upload(requiredSelector(payload.selector), payload.file || {});
+      case "scroll": return scroll(Number(payload.deltaY));
       case "scan_controls": return scanControls();
       case "scan_actions": return scanActions();
       case "form_state_hash": return formStateHash();
       default: throw new Error(`Unsupported page-driver command '${type}'`);
     }
+  }
+
+  function scroll(deltaY) {
+    if (!Number.isInteger(deltaY) || deltaY < -20000 || deltaY > 20000) throw new Error("Scroll deltaY must be an integer between -20000 and 20000");
+    window.scrollBy({ top: deltaY, left: 0, behavior: "instant" });
+    return null;
   }
 
   function valueMatches(selector, expected) {

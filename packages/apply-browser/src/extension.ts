@@ -195,6 +195,9 @@ class ExtensionBrowserDriver implements BrowserDriverPort {
     await this.backend.invoke(this.scope, this.sessionRef, { type: 'wait', payload: { milliseconds } });
     await this.refreshUrl();
   }
+  async scroll(deltaY: number): Promise<void> {
+    await this.backend.invoke(this.scope, this.sessionRef, { type: 'scroll', payload: { deltaY } });
+  }
   async screenshot(): Promise<Uint8Array> {
     const raw = stringResult(await this.backend.invoke(this.scope, this.sessionRef, { type: 'screenshot', payload: {} }), 'screenshot');
     return new Uint8Array(Buffer.from(raw, 'base64'));

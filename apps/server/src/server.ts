@@ -295,6 +295,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
 
   registerBrowserExtensionBridgeApi(app, browserExtensionBridge, {
     auth: browserExtensionAuth,
+    webUrl: options.browserExtensionValidationAllowedOrigin?.trim() || null,
     async authorizeInvoke(input) {
       const valid = await applyStore.hasValidLease({
         attemptId: input.scope.attemptId,

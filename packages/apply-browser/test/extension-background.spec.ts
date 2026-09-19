@@ -6,6 +6,7 @@ type BackgroundHarness = {
   executePageDriver(tabId: number, command: unknown): Promise<unknown>;
   executeEnvelope(config: Record<string, unknown>, envelope: Record<string, unknown>): Promise<void>;
   acquireSession(payload: Record<string, unknown>): Promise<unknown>;
+  register(config: Record<string, unknown>): Promise<void>;
 };
 
 async function loadBackground(
@@ -17,6 +18,7 @@ async function loadBackground(
   let sendCount = 0;
   let injectionCount = 0;
   let createCount = 0;
+  const storageWrites: Array<Record<string, unknown>> = [];
   const noopListener = { addListener: () => undefined };
   const chrome = {
     runtime: {
@@ -28,7 +30,7 @@ async function loadBackground(
     alarms: { onAlarm: noopListener, create: async () => undefined },
     storage: {
       onChanged: noopListener,
-      local: { get: async (defaults: unknown) => defaults },
+      local: { get: async (defaults: unknown) => defaults, set: async (value: Record<string, unknown>) => { storageWrites.push(value); } },
     },
     tabs: {
       get: async () => ({ id: 7, url: 'https://example.test/apply', status: 'complete' }),
@@ -45,6 +47,7 @@ async function loadBackground(
     chrome,
     console,
     URL,
+    navigator: { platform: 'Win32' },
     AbortController,
     Date,
     Error,
@@ -59,7 +62,7 @@ async function loadBackground(
   }) as vm.Context & BackgroundHarness;
   vm.runInContext(source, context, { filename: 'background.js' });
   await Promise.resolve();
-  return { context, counts: () => ({ sendCount, injectionCount, createCount }) };
+  return { context, counts: () => ({ sendCount, injectionCount, createCount, storageWrites }) };
 }
 
 describe('MV3 browser command delivery boundary', () => {
@@ -105,6 +108,29 @@ describe('MV3 browser command delivery boundary', () => {
     await expect(context.acquireSession({ preferredUrl: 'https://www.zhaopin.com/jobdetail/CC1.htm', reuseLiveSession: true, requireLiveSession: true }))
       .rejects.toThrow(/No reusable live Chrome tab/);
     expect(counts().createCount).toBe(0);
+  });
+
+  it('learns the authenticated Job Harness Web URL from registration without requesting Career/Resume API authority', async () => {
+    const { context, counts } = await loadBackground(
+      async () => null,
+      async (url) => {
+        expect(String(url)).toContain('/agents/register');
+        return new Response(JSON.stringify({ agentId: 'windows-chrome-primary', webUrl: 'https://job-harness.example.test/' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      },
+    );
+    await context.register({
+      bridgeUrl: 'https://bridge.example.test',
+      agentId: 'windows-chrome-primary',
+      agentName: 'Windows Chrome',
+      agentToken: 'agent-token',
+      resumeUpload: true,
+      screenshots: false,
+      webUrl: '',
+    });
+    expect(counts().storageWrites).toEqual([{ webUrl: 'https://job-harness.example.test' }]);
   });
 
   it('retries only idempotent result acknowledgement when the first result response is lost', async () => {

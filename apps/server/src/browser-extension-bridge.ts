@@ -279,6 +279,7 @@ export class BrowserExtensionBridgeError extends Error {
 
 export interface BrowserExtensionBridgeApiOptions {
   readonly auth: BrowserExtensionAuth | null;
+  readonly webUrl?: string | null;
   readonly authorizeInvoke: (input: InvokeScopedBrowserExtensionCommandInput) => Promise<void>;
 }
 
@@ -306,7 +307,7 @@ export function registerBrowserExtensionBridgeApi(app: Express, bridge: BrowserE
     res.json(result);
   });
   app.post(`${BROWSER_EXTENSION_BRIDGE_PREFIX}/agents/register`, route(async (req, res) => {
-    res.json(bridge.register(RegisterBrowserExtensionAgentInputSchema.parse(req.body)));
+    res.json({ ...bridge.register(RegisterBrowserExtensionAgentInputSchema.parse(req.body)), webUrl: options.webUrl ?? null });
   }));
   app.post(`${BROWSER_EXTENSION_BRIDGE_PREFIX}/agents/:agentId/poll`, route(async (req, res) => {
     const input = PollBrowserExtensionCommandInputSchema.parse(req.body ?? {});

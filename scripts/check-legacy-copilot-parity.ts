@@ -41,11 +41,13 @@ async function main(): Promise<void> {
     }
   }
 
-  const [formEngine, semanticMapper, bossSource, bossCli, dispatcher, notice] = await Promise.all([
+  const [formEngine, semanticMapper, bossSource, bossCli, bossBrowserWorker, applicantReference, dispatcher, notice] = await Promise.all([
     readFile(resolve(root, 'packages/browser-form-engine/browser/runtime.js'), 'utf8'),
     readFile(resolve(root, 'apps/apply-worker/src/semantic-mapper.ts'), 'utf8'),
     readFile(resolve(root, 'integrations/boss/legacy-copilot.user.js'), 'utf8'),
     readFile(resolve(root, 'apps/server/src/boss-outreach-bridge-cli.ts'), 'utf8'),
+    readFile(resolve(root, 'apps/boss-browser-worker/src/runtime.ts'), 'utf8'),
+    readFile(resolve(root, 'apps/web/src/components/management/applicant-reference-panel.tsx'), 'utf8'),
     readFile(resolve(root, 'apps/intent-dispatch-worker/src/runtime.ts'), 'utf8'),
     readFile(resolve(root, 'NOTICE.md'), 'utf8'),
   ]);
@@ -80,6 +82,13 @@ async function main(): Promise<void> {
     if (!bossSource.includes(marker)) throw new Error(`Vendored BOSS compatibility source lost marker '${marker}'`);
   }
 
+  for (const marker of ['runBossBrowserDiscovery', 'scanActions', 'driver.scroll', 'reportDiscovery', 'logDecision']) {
+    if (!bossBrowserWorker.includes(marker)) throw new Error(`BOSS Browser Provider parity lost marker '${marker}'`);
+  }
+  for (const marker of ['navigator.clipboard.writeText', 'ApplicantProfileContext', 'ApplicationAnswerSetContext', 'copyVisible']) {
+    if (!applicantReference.includes(marker)) throw new Error(`Applicant reference/quick-copy parity lost marker '${marker}'`);
+  }
+
   if (bossCli.includes('/home/ubuntu/projects/job-application-copilot')) {
     throw new Error('BOSS bridge still depends on the retired Job Application Copilot checkout');
   }
@@ -93,7 +102,7 @@ async function main(): Promise<void> {
     throw new Error('Third-party attribution is incomplete');
   }
 
-  console.log(`legacy copilot parity ok: ${requiredAdapters.size} observed ATS adapters + vendored BOSS automation + shared form/resume engine`);
+  console.log(`legacy copilot parity ok: ${requiredAdapters.size} observed ATS adapters + vendored BOSS automation + direct BOSS Browser Provider + quick-copy reference + shared form/resume/semantic engine`);
 }
 
 main().catch((error) => {

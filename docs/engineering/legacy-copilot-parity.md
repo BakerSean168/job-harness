@@ -19,9 +19,10 @@ The goal is **functional recovery without restoring the old ownership model**. T
 | BOSS rule scoring | Job Harness resume/job scoring through Outreach Bridge | recovered |
 | BOSS first greeting | vendored userscript + Outreach Bridge | recovered |
 | BOSS recruiter follow-up resume send | vendored userscript + policy gate | recovered |
+| BOSS direct Browser Provider (Steel / Local CDP search-detail-score) | `@job-harness/boss-browser-worker` + shared BrowserBackendPort + canonical BOSS bridge | recovered |
 | BOSS autonomous multi-turn LLM chat | deliberately not enabled; old public mainline did not require it | not part of production parity |
 | OpenJobAutofill optional AI semantic field mapping | value-free OpenAI-compatible semantic mapper with typed proposal validation, protected/legal exclusion and deterministic fallback | recovered; opt-in runtime credential |
-| Popup quick-copy/profile-reference panel | canonical Applicant/Resume UI replaces storage ownership, but one-click current-page reference UX is not yet equivalent | pending |
+| Popup quick-copy/profile-reference panel | authenticated Web reference panel + Browser Bridge popup deep-link; canonical Applicant/AnswerSet stays server-owned | recovered |
 | Extension update/private-channel profile bundle | canonical Server/Web + unpacked Bridge replace profile bundle; automated client distribution still separate | superseded / partial UX parity |
 | Final ATS submit | old Copilot explicitly required human final submit; Job Harness keeps final submit behind typed authorization | parity preserved, not widened |
 
@@ -76,12 +77,22 @@ The BOSS browser layer is intentionally separate from generic ATS Form Engine be
 - automatic dispatch stops being `fill_only` / `submitAllowed=false`;
 - third-party attribution disappears.
 
+## BOSS direct Browser Provider
+
+`@job-harness/boss-browser-worker` restores the old Copilot's alternate BOSS Browser Provider path without reviving its separate profile bundle or scoring implementation. It uses the canonical Job Harness `SteelBrowserBackend` or `LocalCdpBrowserBackend`, rotates current target-role keywords supplied by the BOSS bridge, scans result links, visits bounded job-detail pages, and sends those details back through the canonical BOSS bridge for Resume ranking and `DiscoveryRun -> JobObservation` ingestion. The worker has no chat, resume-send, or application-submit primitive. Login/human-verification states fail closed and surface the backend human-control URL.
+
+The shared BrowserDriverPort gained one bounded read/navigation primitive, `scroll(deltaY)`, so both Playwright and the Browser Bridge can support list traversal without site-specific provider copies. Its extension protocol shape is bounded to ±20,000 pixels and it is not counted as a form write.
+
+## Applicant reference / quick copy
+
+The old browser-local profile reference panel is recovered as an authenticated Job Harness Web panel. It reads the canonical ApplicantProfile and enabled ApplicationAnswerSet, supports search plus one-click value/category/result copying, and is deep-linked from the Browser Bridge popup after registration supplies the existing authenticated Web origin. The extension stores only that Web URL; it still cannot read Career/Applicant/Resume APIs and stores no applicant values.
+
 ## Remaining parity work
 
-The remaining legacy capabilities should be recovered in this order:
+The remaining legacy recovery is now limited to runtime/real-site proof and distribution ergonomics:
 
-1. restore current-page quick-copy/reference ergonomics without putting Applicant or Resume truth back into browser storage;
-2. add real-page regression canaries for Moka / Beisen / Feishu / HotJob / Zhiye using the shared engine;
+1. add real-page regression canaries for Moka / Beisen / Feishu / HotJob / Zhiye using the shared engine;
+2. productize automatic unpacked-extension distribution/update so manual Chrome reloads are no longer the normal upgrade path;
 3. only after parity is closed, extend beyond legacy behavior (more discovery providers and supervised submit adapters).
 
 The semantic mapper is intentionally optional at runtime. It receives only `SemanticMappingView` metadata (field structure and value-free catalog labels/aliases), never resolved Applicant values. Protected/legal catalog entries and any entry with `allowAiMapping=false` are excluded before the network request; returned field/key IDs are checked against the same allowlist and only high-confidence proposals can enter `buildFillPlan`. Provider outages fail back to deterministic local mapping rather than failing the application attempt.

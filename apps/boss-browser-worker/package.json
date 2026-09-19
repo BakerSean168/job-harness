@@ -1,0 +1,16 @@
+{
+  "name": "@job-harness/boss-browser-worker",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@job-harness/apply-browser": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5"
+  }
+}

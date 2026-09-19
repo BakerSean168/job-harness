@@ -75,6 +75,9 @@
     },
     {
       "path": "./apps/intent-dispatch-worker"
+    },
+    {
+      "path": "./apps/boss-browser-worker"
     }
   ]
 }

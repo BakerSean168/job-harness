@@ -318,6 +318,31 @@
 /* Applicant Profile / AnswerSet settings */
 .applicant-settings-panel { max-width: 980px; }
 .applicant-settings-panel .campaign-editor-fields { padding: 16px; }
+
+.applicant-reference-panel { max-width: 980px; }
+.applicant-reference-panel .management-panel-heading { align-items: flex-start; }
+.applicant-reference-panel .management-panel-heading div { min-width: 0; }
+.applicant-reference-panel .management-panel-heading p { margin: 4px 0 0; color: var(--text-muted); font-size: 11px; line-height: 1.5; }
+.applicant-reference-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; padding: 14px 16px 0; }
+.applicant-reference-toolbar .management-field { margin: 0; }
+.applicant-reference-note { margin: 10px 16px 0; }
+.applicant-reference-groups { display: grid; gap: 12px; padding: 14px 16px 16px; }
+.applicant-reference-group { border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.applicant-reference-group-heading { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 9px 6px 11px; background: var(--surface-muted); border-bottom: 1px solid var(--border); }
+.applicant-reference-group-heading strong { font-size: 12px; }
+.applicant-reference-list { display: grid; }
+.applicant-reference-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 10px; }
+.applicant-reference-row + .applicant-reference-row { border-top: 1px solid var(--border); }
+.applicant-reference-copy { min-width: 0; display: grid; grid-template-columns: minmax(90px, 160px) minmax(0, 1fr); column-gap: 12px; row-gap: 2px; align-items: baseline; }
+.applicant-reference-copy span { color: var(--text-muted); font-size: 11px; }
+.applicant-reference-copy strong { min-width: 0; font-size: 12px; font-weight: 550; overflow-wrap: anywhere; white-space: pre-wrap; }
+.applicant-reference-copy small { grid-column: 1; color: var(--text-muted); font-size: 9px; }
+.applicant-reference-copy small + strong { grid-column: 2; grid-row: 1 / span 2; }
+@media (max-width: 720px) {
+  .applicant-reference-toolbar { grid-template-columns: 1fr; }
+  .applicant-reference-copy { grid-template-columns: 1fr; }
+  .applicant-reference-copy small, .applicant-reference-copy small + strong { grid-column: 1; grid-row: auto; }
+}
 .applicant-settings-note { margin: 0; padding: 0; }
 .applicant-subsection-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 4px; font-size: 12px; }
 .applicant-subsection-heading span { color: var(--text-faint); font-size: 10px; }

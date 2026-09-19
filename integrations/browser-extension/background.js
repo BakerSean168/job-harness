@@ -6,11 +6,12 @@ const DEFAULTS = Object.freeze({
   agentToken: "",
   resumeUpload: false,
   screenshots: false,
+  webUrl: "",
 });
 const POLL_ALARM = "job-harness-browser-bridge-poll";
 const DRIVER_COMMANDS = Object.freeze([
   "session_acquire", "navigate", "current_url", "title", "body_text", "exists", "text", "value_matches", "fill",
-  "select", "set_checked", "click", "wait", "scan_controls", "scan_actions", "form_state_hash",
+  "select", "set_checked", "click", "wait", "scroll", "scan_controls", "scan_actions", "form_state_hash",
 ]);
 let loopRunning = false;
 let stopRequested = false;
@@ -93,7 +94,9 @@ async function register(config) {
     }),
   });
   if (!response.ok) throw new Error(`register HTTP ${response.status}`);
-  await response.json();
+  const body = await response.json();
+  const webUrl = normalizeWebUrl(body?.webUrl);
+  if (webUrl && webUrl !== config.webUrl) await chrome.storage.local.set({ webUrl });
 }
 
 async function executeEnvelope(config, envelope) {
@@ -309,10 +312,21 @@ async function settings() {
   return { ...DEFAULTS, ...(await chrome.storage.local.get(DEFAULTS)) };
 }
 function publicSettings(value) {
-  return { enabled: Boolean(value.enabled), bridgeUrl: value.bridgeUrl, agentId: value.agentId, agentName: value.agentName, resumeUpload: Boolean(value.resumeUpload), screenshots: Boolean(value.screenshots), tokenConfigured: Boolean(value.agentToken) };
+  return { enabled: Boolean(value.enabled), bridgeUrl: value.bridgeUrl, webUrl: value.webUrl || "", agentId: value.agentId, agentName: value.agentName, resumeUpload: Boolean(value.resumeUpload), screenshots: Boolean(value.screenshots), tokenConfigured: Boolean(value.agentToken) };
 }
 function updateState(connected, detail) {
   lastState = { connected, detail: String(detail || "").slice(0, 500), lastSeenAt: new Date().toISOString() };
+}
+function normalizeWebUrl(raw) {
+  if (!raw) return "";
+  try {
+    const url = new URL(String(raw));
+    if (url.protocol !== "https:" && !(url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname))) return "";
+    url.pathname = url.pathname.replace(/\/+$/, "") || "/";
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch { return ""; }
 }
 function validateHttpUrl(raw) {
   const url = new URL(String(raw || ""));

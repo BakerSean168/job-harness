@@ -18,6 +18,7 @@ export const BROWSER_EXTENSION_DRIVER_COMMANDS = [
   'click',
   'upload',
   'wait',
+  'scroll',
   'screenshot',
   'scan_controls',
   'scan_actions',
@@ -85,6 +86,7 @@ const UploadCommandSchema = z.object({
   }).strict(),
 }).strict();
 const WaitCommandSchema = z.object({ type: z.literal('wait'), payload: z.object({ milliseconds: z.number().int().min(0).max(60_000) }).strict() }).strict();
+const ScrollCommandSchema = z.object({ type: z.literal('scroll'), payload: z.object({ deltaY: z.number().int().min(-20_000).max(20_000) }).strict() }).strict();
 const ScreenshotCommandSchema = z.object({ type: z.literal('screenshot'), payload: z.object({}).strict() }).strict();
 const ScanControlsCommandSchema = z.object({ type: z.literal('scan_controls'), payload: z.object({}).strict() }).strict();
 const ScanActionsCommandSchema = z.object({ type: z.literal('scan_actions'), payload: z.object({}).strict() }).strict();
@@ -105,6 +107,7 @@ export const BrowserExtensionDriverCommandSchema = z.discriminatedUnion('type', 
   ClickCommandSchema,
   UploadCommandSchema,
   WaitCommandSchema,
+  ScrollCommandSchema,
   ScreenshotCommandSchema,
   ScanControlsCommandSchema,
   ScanActionsCommandSchema,

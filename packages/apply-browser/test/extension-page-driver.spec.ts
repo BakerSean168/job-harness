@@ -89,6 +89,22 @@ describe('MV3 page driver contract', () => {
     });
   });
 
+  it('shares bounded scroll support between the MV3 page driver and Playwright backend', async () => {
+    await withDriver(async (page) => {
+      await page.evaluate(() => {
+        document.body.style.minHeight = '5000px';
+        window.scrollTo(0, 0);
+      });
+      await command(page, 'scroll', { deltaY: 650 });
+      expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+      const driver = new PlaywrightBrowserDriver(page);
+      const before = await page.evaluate(() => window.scrollY);
+      await driver.scroll(650);
+      expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(before);
+      await expect(command(page, 'scroll', { deltaY: 50_000 })).rejects.toThrow(/between -20000 and 20000/);
+    });
+  });
+
   it('supports focused autocomplete fills without forced blur while keeping popup choices inside the form engine', async () => {
     await withDriver(async (page) => {
       await page.evaluate(() => {

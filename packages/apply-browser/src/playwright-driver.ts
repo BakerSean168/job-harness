@@ -98,6 +98,11 @@ export class PlaywrightBrowserDriver implements BrowserDriverPort {
 
   wait(milliseconds: number): Promise<void> { return this.page.waitForTimeout(milliseconds); }
 
+  async scroll(deltaY: number): Promise<void> {
+    if (!Number.isInteger(deltaY) || deltaY < -20_000 || deltaY > 20_000) throw new Error('Scroll deltaY must be an integer between -20000 and 20000');
+    await this.page.evaluate((value) => window.scrollBy({ top: value, left: 0, behavior: 'instant' }), deltaY);
+  }
+
   async screenshot(): Promise<Uint8Array> {
     return new Uint8Array(await this.page.screenshot({ type: 'png', fullPage: false }));
   }

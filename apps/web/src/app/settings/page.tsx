@@ -3,6 +3,7 @@ import { getWebAuthRuntimeConfig } from '@/auth/session';
 import { getMessages } from '@/i18n/server';
 import { BrowserExtensionPairing } from '@/components/management/browser-extension-pairing';
 import { ApplicantDataSettings } from '@/components/management/applicant-data-settings';
+import { ApplicantReferencePanel } from '@/components/management/applicant-reference-panel';
 import { AtsCharacterizationPanel } from '@/components/management/ats-characterization-panel';
 import { getBrowserExtensionAgents, getBrowserExtensionPublicBridgeUrl, getJobHarnessClient } from '@/lib/job-harness-client';
 import { buildPendingAtsBindingTargets } from '@/lib/ats-binding-targets-server';
@@ -41,6 +42,8 @@ export default async function SettingsPage() {
             <form method="post" action="/auth/logout" className="settings-logout-form"><button className="action-button" type="submit">{copy.logout}</button></form>
           ) : null}
         </section>
+
+        <ApplicantReferencePanel profileContext={applicantProfile} answerSetContext={applicationAnswerSet} copy={copy.applicantReference} />
 
         <ApplicantDataSettings profileContext={applicantProfile} answerSetContext={applicationAnswerSet} copy={copy.applicant} />
 

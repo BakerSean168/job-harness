@@ -41,6 +41,7 @@ describe('browser-extension transport auth and BrowserBackendPort', () => {
     running = await startJobHarnessServer({
       databasePath: join(dir, 'career.db'), host: '127.0.0.1', port: 0,
       authToken: 'global-secret', executorAuthToken: 'worker-secret', browserExtensionSigningKey: 'fixture-browser-extension-signing-key-0123456789',
+      browserExtensionValidationAllowedOrigin: 'https://job-harness.example.test',
       submissionReconcileIntervalMs: null,
     });
     const bridgeUrl = `${running.url}/internal/browser-bridge/v1`;
@@ -61,6 +62,14 @@ describe('browser-extension transport auth and BrowserBackendPort', () => {
     expect(paired.status).toBe(201);
     const pairedBody = await paired.json() as { agentToken: string };
     const agentHeaders = { authorization: `Bearer ${pairedBody.agentToken}`, 'content-type': 'application/json' };
+    const registered = await fetch(`${bridgeUrl}/agents/register`, {
+      method: 'POST', headers: agentHeaders, body: JSON.stringify({
+        agentId, name: 'Windows Chrome', version: '0.2.1', browserName: 'Chrome', platform: 'Windows',
+        capabilities: { humanControl: true, persistentSession: true, resumeUpload: false, screenshots: false, driverCommands: ['current_url'] },
+      }),
+    });
+    expect(registered.status).toBe(200);
+    await expect(registered.json()).resolves.toMatchObject({ agentId, webUrl: 'https://job-harness.example.test' });
     const workerHeaders = { authorization: 'Bearer worker-secret', 'content-type': 'application/json' };
 
     const forbiddenWorkerRegister = await fetch(`${bridgeUrl}/agents/register`, { method: 'POST', headers: workerHeaders, body: '{}' });

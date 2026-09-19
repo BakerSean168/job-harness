@@ -52,6 +52,16 @@ importers:
         specifier: ^4.20.5
         version: 4.23.13
 
+  apps/boss-browser-worker:
+    dependencies:
+      '@job-harness/apply-browser':
+        specifier: workspace:*
+        version: link:../../packages/apply-browser
+    devDependencies:
+      tsx:
+        specifier: ^4.20.5
+        version: 4.23.13
+
   apps/discovery-worker:
     dependencies:
       '@job-harness/client':

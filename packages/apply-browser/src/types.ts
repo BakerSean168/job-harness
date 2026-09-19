@@ -77,6 +77,7 @@ export interface BrowserDriverPort {
   click(selector: string, expectation?: BrowserClickExpectation): Promise<void>;
   upload(selector: string, file: BrowserUploadFile): Promise<void>;
   wait(milliseconds: number): Promise<void>;
+  scroll(deltaY: number): Promise<void>;
   screenshot(): Promise<Uint8Array>;
   scanControls(): Promise<readonly BrowserControlSnapshot[]>;
   scanActions(): Promise<readonly BrowserActionSnapshot[]>;

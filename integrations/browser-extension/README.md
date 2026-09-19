@@ -7,7 +7,7 @@ This is a deliberately narrow MV3 browser companion for the R019 Apply Executor.
 The extension has three layers:
 
 - `background.js` owns the authenticated long-poll bridge, user-owned Chrome tab/session references and browser-level navigation.
-- `page-driver.js` owns the narrow `BrowserDriverPort` transport surface (scan/fill/select/check/click/upload/hash) and delegates form compatibility instead of accumulating ATS-specific DOM patches.
+- `page-driver.js` owns the narrow `BrowserDriverPort` transport surface (scan/fill/select/check/click/upload/hash plus bounded read-navigation scroll) and delegates form compatibility instead of accumulating ATS-specific DOM patches.
 - `form-engine.js` is an exact generated copy of the canonical `packages/browser-form-engine/browser/runtime.js`. It is derived from the MIT-licensed Job Application Copilot / OpenJobAutofill form engine and owns only DOM compatibility: richer field discovery, recruiting-site/UI-framework hints, framework-compatible writes, custom choices and date/month pickers.
 
 The server-side relay is in-memory. Command payloads, including field values and optional PDF bytes, are never written to Job Harness SQLite. The extension bearer can only register/poll/report bridge commands; it cannot access Career, Resume, Apply control-plane or MCP routes. The worker bearer can invoke the bridge but cannot impersonate the extension agent.
@@ -21,4 +21,4 @@ Load this directory as an unpacked extension in Chrome. In Job Harness Settings 
 
 ## Provenance
 
-Job Harness now deliberately reuses the mature browser-form compatibility layer from the old `job-application-copilot`, which itself directly evolved the MIT-licensed OpenJobAutofill project. Only the form/DOM compatibility responsibility is migrated. The old browser-local ledger, profile bundle, scoring, resume-selection ownership and server contract remain excluded; Job Harness `ApplicantProfile`, immutable Resume Revision/Artifact, SubmissionIntent/Application, execution leases, auditing and submit authorization remain canonical. See the repository-level `NOTICE.md` for attribution and license details.
+Job Harness now deliberately reuses the mature browser-form compatibility layer from the old `job-application-copilot`, which itself directly evolved the MIT-licensed OpenJobAutofill project. Only the form/DOM compatibility responsibility is migrated. The popup also restores the old quick-reference entry point by opening the authenticated Job Harness Web `#applicant-reference` panel; registration gives the extension only that Web origin, never Applicant/Resume API data. The old browser-local ledger, profile bundle, scoring, resume-selection ownership and server contract remain excluded; Job Harness `ApplicantProfile`, immutable Resume Revision/Artifact, SubmissionIntent/Application, execution leases, auditing and submit authorization remain canonical. See the repository-level `NOTICE.md` for attribution and license details.
