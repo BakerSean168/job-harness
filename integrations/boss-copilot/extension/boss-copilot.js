@@ -31,8 +31,8 @@
         greetTimeout: 12000, // 打招呼页回执超时时间
         preloadScrollPixels: 180, // 岗位预加载：每轮下滑像素
         preloadScrollWaitMs: 450, // 岗位预加载：每轮等待毫秒数
-        preloadStableRoundsLimit: 24, // 岗位预加载：连续多少轮无增长后结束
-        preloadMaxRounds: 300, // 岗位预加载：最多滑动多少轮
+        preloadStableRoundsLimit: 8, // 岗位预加载：连续多少轮无增长后结束
+        preloadMaxRounds: 30, // 岗位预加载：最多滑动多少轮
         preloadActivateCardEvery: 0, // 预加载时每隔多少轮尝试轻点一次左侧岗位卡片，0 表示关闭
         preloadActivateCardWaitMs: 250, // 轻点岗位卡片后的额外等待时间
     };
@@ -819,6 +819,12 @@
                 try {
                     const input = await tools.endlessFind(SELECTORS.ZHIPIN.SEARCH.SEARCHINPUT);
                     const btn = await tools.endlessFind(SELECTORS.ZHIPIN.SEARCH.SEARCHBTN);
+                    const currentQuery = new URL(location.href).searchParams.get('query') || '';
+                    const currentValue = String(input.value || '').trim();
+                    if (currentQuery === kw && currentValue === kw) {
+                        logger.add(`当前已是搜索关键词：${kw}，复用现有结果页`);
+                        return;
+                    }
                     tools.inputText(input, kw);
                     btn.click();
                 } catch (e) {
