@@ -392,12 +392,15 @@ export class BrowserExtensionValidationRegistry {
           if (await clickExactAction(admissionText)) appliedFacts.push('education[0].admissionType');
           else manualFacts.push('education[0].admissionType');
         }
-        await chooseAutocomplete(uniqueSectionControl(observed.rawControls, '学校名称'), education.school, 'education[0].school');
+        const schoolControl = uniqueControlByMeaning(observed.rawControls, '学校名称');
+        await chooseAutocomplete(schoolControl, education.school, 'education[0].school');
         if (education.degree) {
           if (normalizedContains(observed.bodyText, education.degree)) appliedFacts.push('education[0].degree');
-          else await choosePickerValue(uniqueSectionControl(observed.rawControls, '学历', true), education.degree, 'education[0].degree');
+          else await choosePickerValue(uniqueControlByMeaning(observed.rawControls, '学历', true), education.degree, 'education[0].degree');
         }
-        await chooseAutocomplete(uniqueSectionControl(observed.rawControls, '专业'), education.major, 'education[0].major');
+        const majorControl = uniqueControlByMeaning(observed.rawControls, '专业')
+          ?? uniqueLiepinEducationMajorControl(observed.rawControls, schoolControl);
+        await chooseAutocomplete(majorControl, education.major, 'education[0].major');
         if (education.startMonth) await chooseMonth(uniqueControlByLabel(observed.rawControls, '入学时间', true), education.startMonth, 'education[0].startMonth');
         if (education.endMonth) await chooseMonth(uniqueControlByLabel(observed.rawControls, '毕业时间', true), education.endMonth, 'education[0].endMonth');
       }
@@ -698,6 +701,28 @@ function selectResumeUploadControl(raw: unknown): { controlRef: string; label: s
 function uniqueSectionControl(controls: readonly RawControl[], sectionLabel: string, allowReadOnly = false): RawControl | null {
   const matches = controls.filter((control) => !control.disabled && (allowReadOnly || !control.readOnly) && (control.sectionLabel ?? '').replace(/\s+/g, '') === sectionLabel.replace(/\s+/g, ''));
   return matches.length === 1 ? matches[0]! : null;
+}
+function uniqueControlByMeaning(controls: readonly RawControl[], meaning: string, allowReadOnly = false): RawControl | null {
+  const expected = meaning.replace(/\s+/g, '').toLowerCase();
+  const matches = controls.filter((control) => {
+    if (control.disabled || (!allowReadOnly && control.readOnly)) return false;
+    const evidence = [control.label, control.sectionLabel ?? '', ...control.semanticHints]
+      .map((value) => value.replace(/\s+/g, '').toLowerCase())
+      .filter(Boolean);
+    return evidence.some((value) => value === expected || value.includes(expected));
+  });
+  return matches.length === 1 ? matches[0]! : null;
+}
+function uniqueLiepinEducationMajorControl(controls: readonly RawControl[], schoolControl: RawControl | null): RawControl | null {
+  const candidates = controls.filter((control) =>
+    !control.disabled
+    && !control.readOnly
+    && control.controlRef !== schoolControl?.controlRef
+    && ['text', 'select', 'unknown'].includes(control.kind)
+    && !normalizedContains(control.label, '入学时间')
+    && !normalizedContains(control.label, '毕业时间')
+    && !normalizedContains(control.label, '在校经历'));
+  return candidates.length === 1 ? candidates[0]! : null;
 }
 function uniqueControlByLabel(controls: readonly RawControl[], label: string, allowReadOnly = false): RawControl | null {
   const expected = label.replace(/\s+/g, '');
