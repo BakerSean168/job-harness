@@ -10,6 +10,8 @@ async function main(): Promise<void> {
     'resume_authoring_context_get',
     'career_submission_intent_prepare',
     'career_submission_intents_reconcile_pending',
+    'boss_greetings_pending',
+    'boss_greeting_resolve',
   ];
 
   const client = new Client({ name: 'job-harness-chatgpt-smoke', version: '1.0.0' });
@@ -27,11 +29,13 @@ async function main(): Promise<void> {
     const pipeline = await client.callTool({ name: 'career_pipeline_stats', arguments: {} });
     const intents = await client.callTool({ name: 'career_submission_intents_list', arguments: { limit: 10, offset: 0 } });
     const resumes = await client.callTool({ name: 'resume_profiles_list', arguments: {} });
-    if (pipeline.isError || intents.isError || resumes.isError) throw new Error('One or more read-only smoke calls returned an MCP tool error');
+    const bossGreetings = await client.callTool({ name: 'boss_greetings_pending', arguments: { limit: 1 } });
+    if (pipeline.isError || intents.isError || resumes.isError || bossGreetings.isError) throw new Error('One or more read-only smoke calls returned an MCP tool error');
 
     const pipelineData = pipeline.structuredContent as Record<string, unknown> | undefined;
     const intentData = intents.structuredContent as { total?: unknown } | undefined;
     const resumeData = resumes.structuredContent as { total?: unknown } | undefined;
+    const bossGreetingData = bossGreetings.structuredContent as { total?: unknown; mode?: unknown } | undefined;
     console.log(JSON.stringify({
       endpoint: new URL(url).origin,
       toolCount: names.length,
@@ -40,6 +44,8 @@ async function main(): Promise<void> {
       applications: pipelineData?.applications ?? null,
       submissionIntents: intentData?.total ?? null,
       resumeProfiles: resumeData?.total ?? null,
+      pendingBossGreetings: bossGreetingData?.total ?? null,
+      bossGreetingMode: bossGreetingData?.mode ?? null,
     }, null, 2));
   } finally {
     await client.close().catch(() => undefined);
