@@ -81,6 +81,8 @@ export interface ResumeEditorCopy {
   readonly syncingToSite: string;
   readonly siteSyncSuccess: string;
   readonly siteSyncFailed: string;
+  readonly siteSyncOnboardingRequired: string;
+  readonly siteSyncUnknownState: string;
   readonly siteBinding: string;
   readonly siteBindingNone: string;
   readonly resyncLiepin: string;
@@ -329,7 +331,11 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
       const fileName = revision.resolvedDocumentSnapshot.output.pdfName || fallbackName;
       const result = await syncResumeRevisionToSiteAction({ profileId: profile.id, revisionId: revision.id, agentId: syncAgentId, siteFamily: 'liepin', fileName });
       if (!result.ok) setSiteSyncMessage(`${copy.siteSyncFailed}: ${result.message}`);
-      else setSiteSyncMessage(`${copy.siteSyncSuccess} · ${result.value.artifactSha256.slice(0, 12)} · ${result.value.title || result.value.currentUrl}`);
+      else if (result.value.state === 'uploaded') setSiteSyncMessage(`${copy.siteSyncSuccess} · ${result.value.artifactSha256.slice(0, 12)} · ${result.value.title || result.value.currentUrl}`);
+      else if (result.value.state === 'profile_onboarding_required') {
+        const missing = siteSyncMissingFacts.length ? ` · ${copy.siteSyncMissingFacts}: ${siteSyncMissingFacts.join('、')}` : '';
+        setSiteSyncMessage(`${copy.siteSyncOnboardingRequired}${missing}`);
+      } else setSiteSyncMessage(copy.siteSyncUnknownState);
       setSyncingRevisionId(null);
     });
   }

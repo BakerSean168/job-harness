@@ -54,6 +54,7 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
     !applicantProfile.profile.birthDate ? applicantCopy.birthDate : null,
     !applicantProfile.profile.location ? applicantCopy.location : null,
     !applicantProfile.profile.jobSearchStatus ? applicantCopy.jobSearchStatus : null,
+    !applicantProfile.profile.careerIdentity ? applicantCopy.careerIdentity : null,
   ].filter((value): value is string => Boolean(value));
 
   return (

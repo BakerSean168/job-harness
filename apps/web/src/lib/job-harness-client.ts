@@ -187,15 +187,16 @@ export async function characterizeBrowserExtensionSite(input: { agentId: string;
 }
 
 
-export interface SiteResumeSyncResult {
-  readonly runId: string;
-  readonly artifactId: string;
-  readonly artifactSha256: string;
-  readonly writeCount: number;
-  readonly currentUrl: string;
-  readonly title: string;
-  readonly stateSignals: readonly string[];
-}
+export type SiteResumeSyncResult =
+  | {
+      readonly state: 'uploaded'; readonly runId: string; readonly artifactId: string; readonly artifactSha256: string; readonly writeCount: number;
+      readonly currentUrl: string; readonly title: string; readonly stateSignals: readonly string[];
+    }
+  | {
+      readonly state: 'profile_onboarding_required' | 'unknown'; readonly runId: string; readonly artifactId: string; readonly writeCount: number;
+      readonly currentUrl: string; readonly title: string; readonly stateSignals: readonly string[];
+      readonly missingFacts: readonly string[]; readonly manualFacts: readonly string[]; readonly appliedFacts: readonly string[];
+    };
 
 export async function syncResumeArtifactToRecruitingSite(input: {
   agentId: string;
@@ -212,6 +213,26 @@ export async function syncResumeArtifactToRecruitingSite(input: {
   if (!createResponse.ok) throw new Error(`Site Resume Sync start failed: ${upstreamMessage(created, createResponse.status)}`);
   if (!created || typeof created.id !== 'string') throw new Error('Site Resume Sync start returned an invalid run');
   const runId = created.id as string;
+  const prepareResponse = await fetchWithHeaderTimeout(browserExtensionBridgeUrl(`/validation-runs/${encodeURIComponent(runId)}/prepare-resume`), {
+    method: 'POST', headers, cache: 'no-store', body: '{}',
+  }, 90_000);
+  const prepared = await prepareResponse.json().catch(() => null) as any;
+  if (!prepareResponse.ok) throw new Error(`Site Resume preparation failed: ${upstreamMessage(prepared, prepareResponse.status)}`);
+  if (!prepared?.run || !prepared?.evidence || typeof prepared.state !== 'string') throw new Error('Site Resume preparation returned invalid evidence');
+  if (prepared.state !== 'attachment_upload_ready') {
+    return {
+      state: prepared.state === 'profile_onboarding_required' ? 'profile_onboarding_required' : 'unknown',
+      runId,
+      artifactId: input.artifactId,
+      writeCount: Number(prepared.run.writeCount ?? 0),
+      currentUrl: String(prepared.evidence.currentUrl ?? ''),
+      title: String(prepared.evidence.title ?? ''),
+      stateSignals: Array.isArray(prepared.evidence.stateSignals) ? prepared.evidence.stateSignals.map(String) : [],
+      missingFacts: Array.isArray(prepared.missingFacts) ? prepared.missingFacts.map(String) : [],
+      manualFacts: Array.isArray(prepared.manualFacts) ? prepared.manualFacts.map(String) : [],
+      appliedFacts: Array.isArray(prepared.appliedFacts) ? prepared.appliedFacts.map(String) : [],
+    };
+  }
   const syncResponse = await fetchWithHeaderTimeout(browserExtensionBridgeUrl(`/validation-runs/${encodeURIComponent(runId)}/sync-resume`), {
     method: 'POST', headers, cache: 'no-store',
     body: JSON.stringify({ artifactId: input.artifactId, fileName: input.fileName }),
@@ -220,6 +241,7 @@ export async function syncResumeArtifactToRecruitingSite(input: {
   if (!syncResponse.ok) throw new Error(`Site Resume Sync failed: ${upstreamMessage(synced, syncResponse.status)}`);
   if (!synced?.run || !synced?.evidence || typeof synced.artifactSha256 !== 'string') throw new Error('Site Resume Sync returned invalid evidence');
   return {
+    state: 'uploaded',
     runId,
     artifactId: String(synced.artifactId),
     artifactSha256: synced.artifactSha256,

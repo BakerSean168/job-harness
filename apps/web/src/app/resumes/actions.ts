@@ -39,15 +39,9 @@ export async function publishResumeRevisionAction(profileId: string, expectedPro
 }
 
 
-export interface ResumeSiteSyncValue {
-  readonly revisionId: string;
-  readonly artifactId: string;
-  readonly artifactSha256: string;
-  readonly runId: string;
-  readonly currentUrl: string;
-  readonly title: string;
-  readonly stateSignals: readonly string[];
-}
+export type ResumeSiteSyncValue =
+  | { readonly state: 'uploaded'; readonly revisionId: string; readonly artifactId: string; readonly artifactSha256: string; readonly runId: string; readonly currentUrl: string; readonly title: string; readonly stateSignals: readonly string[] }
+  | { readonly state: 'profile_onboarding_required' | 'unknown'; readonly revisionId: string; readonly artifactId: string; readonly runId: string; readonly currentUrl: string; readonly title: string; readonly stateSignals: readonly string[]; readonly missingFacts: readonly string[]; readonly manualFacts: readonly string[]; readonly appliedFacts: readonly string[] };
 
 export async function syncResumeRevisionToSiteAction(input: {
   profileId: string;
@@ -68,7 +62,9 @@ export async function syncResumeRevisionToSiteAction(input: {
       artifactId: materialized.artifact.id,
       fileName: input.fileName.endsWith('.pdf') ? input.fileName : `${input.fileName}.pdf`,
     });
-    return { ok: true, value: { revisionId: input.revisionId, artifactId: synced.artifactId, artifactSha256: synced.artifactSha256, runId: synced.runId, currentUrl: synced.currentUrl, title: synced.title, stateSignals: synced.stateSignals } };
+    return synced.state === 'uploaded'
+      ? { ok: true, value: { state: 'uploaded', revisionId: input.revisionId, artifactId: synced.artifactId, artifactSha256: synced.artifactSha256, runId: synced.runId, currentUrl: synced.currentUrl, title: synced.title, stateSignals: synced.stateSignals } }
+      : { ok: true, value: { state: synced.state, revisionId: input.revisionId, artifactId: synced.artifactId, runId: synced.runId, currentUrl: synced.currentUrl, title: synced.title, stateSignals: synced.stateSignals, missingFacts: synced.missingFacts, manualFacts: synced.manualFacts, appliedFacts: synced.appliedFacts } };
   } catch (error) { return failure(error); }
 }
 

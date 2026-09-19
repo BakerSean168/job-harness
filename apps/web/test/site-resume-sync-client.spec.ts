@@ -11,11 +11,16 @@ afterEach(() => {
 });
 
 describe('Resume manager site sync client', () => {
-  it('starts a bounded site-resume-sync run and uploads an exact Artifact ID', async () => {
+  it('prepares the recruiting-site state before uploading an exact Artifact ID', async () => {
     process.env.JOB_HARNESS_API_URL = 'https://jh.example.test/api/v1';
     process.env.JOB_HARNESS_AUTH_TOKEN = 'secret';
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ id:'run-sync-1' }), { status:201, headers:{'content-type':'application/json'} }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        state:'attachment_upload_ready', missingFacts:[], manualFacts:[], appliedFacts:[],
+        run:{ id:'run-sync-1', writeCount:0 },
+        evidence:{ currentUrl:'https://c.liepin.com/resume/create', title:'完善简历', stateSignals:['上传简历'] },
+      }), { status:200, headers:{'content-type':'application/json'} }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         run:{ id:'run-sync-1', writeCount:1 }, artifactId:'artifact-1', artifactSha256:'a'.repeat(64),
         evidence:{ currentUrl:'https://c.liepin.com/resume/create', title:'完善简历', stateSignals:['选择简历'] },
@@ -23,11 +28,39 @@ describe('Resume manager site sync client', () => {
     vi.stubGlobal('fetch', fetchMock);
     const { syncResumeArtifactToRecruitingSite } = await import('../src/lib/job-harness-client');
     const result = await syncResumeArtifactToRecruitingSite({ agentId:'windows-chrome-primary', targetUrl:'https://c.liepin.com/resume/create', artifactId:'artifact-1', fileName:'agent.pdf' });
-    expect(result).toMatchObject({ runId:'run-sync-1', artifactId:'artifact-1', artifactSha256:'a'.repeat(64), writeCount:1, title:'完善简历' });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ state:'uploaded', runId:'run-sync-1', artifactId:'artifact-1', artifactSha256:'a'.repeat(64), writeCount:1, title:'完善简历' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://jh.example.test/internal/browser-bridge/v1/validation-runs');
     expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))).toMatchObject({ agentId:'windows-chrome-primary', targetUrl:'https://c.liepin.com/resume/create', mode:'site-resume-sync' });
-    expect(String(fetchMock.mock.calls[1]?.[0])).toBe('https://jh.example.test/internal/browser-bridge/v1/validation-runs/run-sync-1/sync-resume');
-    expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body))).toEqual({ artifactId:'artifact-1', fileName:'agent.pdf' });
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe('https://jh.example.test/internal/browser-bridge/v1/validation-runs/run-sync-1/prepare-resume');
+    expect(String(fetchMock.mock.calls[2]?.[0])).toBe('https://jh.example.test/internal/browser-bridge/v1/validation-runs/run-sync-1/sync-resume');
+    expect(JSON.parse(String((fetchMock.mock.calls[2]?.[1] as RequestInit).body))).toEqual({ artifactId:'artifact-1', fileName:'agent.pdf' });
+  });
+
+  it('returns a typed onboarding blocker without attempting PDF upload', async () => {
+    process.env.JOB_HARNESS_API_URL = 'https://jh.example.test/api/v1';
+    process.env.JOB_HARNESS_AUTH_TOKEN = 'secret';
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id:'run-sync-2' }), { status:201, headers:{'content-type':'application/json'} }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        state:'profile_onboarding_required',
+        missingFacts:['gender','birthDate','careerIdentity'],
+        manualFacts:[],
+        appliedFacts:['displayName','email'],
+        run:{ id:'run-sync-2', writeCount:2 },
+        evidence:{ currentUrl:'https://c.liepin.com/resume/create', title:'完善简历', stateSignals:[] },
+      }), { status:200, headers:{'content-type':'application/json'} }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { syncResumeArtifactToRecruitingSite } = await import('../src/lib/job-harness-client');
+    const result = await syncResumeArtifactToRecruitingSite({ agentId:'windows-chrome-primary', targetUrl:'https://c.liepin.com/resume/create', artifactId:'artifact-2', fileName:'agent.pdf' });
+    expect(result).toMatchObject({
+      state:'profile_onboarding_required',
+      runId:'run-sync-2',
+      artifactId:'artifact-2',
+      writeCount:2,
+      missingFacts:['gender','birthDate','careerIdentity'],
+      appliedFacts:['displayName','email'],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

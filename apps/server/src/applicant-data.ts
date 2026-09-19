@@ -114,6 +114,7 @@ function factsFromApplicantProfile(revision: ApplicantProfileRevision): NativeFa
     fact('person.birth_date', '出生日期', p.birthDate, 'date', 'protected', ['出生日期','出生年月','生日','birth date','date of birth'], 'job-harness-applicant-profile', provenance, false),
     fact('contact.location', '所在地', p.location, 'text', 'personal', ['所在地','当前城市','当前居住地','现居住地','城市','location','current location'], 'job-harness-applicant-profile', provenance),
     fact('career.job_search_status', '当前求职状态', p.jobSearchStatus, 'choice', 'personal', ['当前求职状态','求职状态','求职意向状态','job search status','availability status'], 'job-harness-applicant-profile', provenance),
+    fact('career.identity', '求职身份', p.careerIdentity, 'choice', 'personal', ['求职身份','我是学生','我是职场人','candidate identity','career identity'], 'job-harness-applicant-profile', provenance, false),
     fact('links.website', '个人主页', p.website, 'url', 'public', ['个人主页','个人网站','website','homepage','portfolio'], 'job-harness-applicant-profile', provenance),
     fact('links.github', 'GitHub', p.github, 'url', 'public', ['github','github主页','github地址'], 'job-harness-applicant-profile', provenance),
     fact('availability.start', '可到岗时间', p.availableFrom, 'text', 'personal', ['到岗时间','可到岗时间','available from','start date'], 'job-harness-applicant-profile', provenance),

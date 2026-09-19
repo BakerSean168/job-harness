@@ -40,9 +40,10 @@ describe('ApplicantProfile stable autofill facts', () => {
   };
 
   it('keeps new personal facts nullable for migrated profiles and validates explicit values', () => {
-    expect(ApplicantProfileSchema.parse(profile)).toMatchObject({ gender: null, birthDate: null, jobSearchStatus: null });
-    expect(ApplicantProfileSchema.parse({ ...profile, gender:'male', birthDate:'2001-04-09', jobSearchStatus:'actively_looking' })).toMatchObject({ gender:'male', birthDate:'2001-04-09', jobSearchStatus:'actively_looking' });
+    expect(ApplicantProfileSchema.parse(profile)).toMatchObject({ gender: null, birthDate: null, jobSearchStatus: null, careerIdentity: null });
+    expect(ApplicantProfileSchema.parse({ ...profile, gender:'male', birthDate:'2001-04-09', jobSearchStatus:'actively_looking', careerIdentity:'student' })).toMatchObject({ gender:'male', birthDate:'2001-04-09', jobSearchStatus:'actively_looking', careerIdentity:'student' });
     expect(ApplicantProfileSchema.safeParse({ ...profile, gender:'unknown' }).success).toBe(false);
     expect(ApplicantProfileSchema.safeParse({ ...profile, birthDate:'2001-13-40' }).success).toBe(false);
+    expect(ApplicantProfileSchema.safeParse({ ...profile, careerIdentity:'graduate' }).success).toBe(false);
   });
 });

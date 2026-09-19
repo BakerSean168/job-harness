@@ -289,6 +289,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
         allowedOrigin: options.browserExtensionValidationAllowedOrigin,
         readonlySiteFamilies: ['zhilian', 'liepin'],
         resumeArtifacts,
+        applicant,
       })
     : null;
 

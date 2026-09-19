@@ -64,7 +64,7 @@ describe('lease-scoped applicant data derived from immutable Resume Revision', (
     expect(applicantContext.response.status).toBe(200);
     const savedApplicant = await request('/applicant-profile', 'global-secret', { method:'PUT', body:JSON.stringify({
       expectedVersion: applicantContext.body.profile.version,
-      profile: { ...applicantContext.body.profile, gender:'male', birthDate:'2001-04-09', location:'杭州', jobSearchStatus:'actively_looking' },
+      profile: { ...applicantContext.body.profile, gender:'male', birthDate:'2001-04-09', location:'杭州', jobSearchStatus:'actively_looking', careerIdentity:'student' },
     }) });
     expect(savedApplicant.response.status).toBe(200);
 
@@ -121,6 +121,7 @@ describe('lease-scoped applicant data derived from immutable Resume Revision', (
       expect.objectContaining({ key: 'person.birth_date', valueType: 'date', sensitivity: 'protected', allowAiMapping: false, source: 'job-harness-applicant-profile' }),
       expect.objectContaining({ key: 'contact.location', source: 'job-harness-applicant-profile' }),
       expect.objectContaining({ key: 'career.job_search_status', valueType: 'choice', source: 'job-harness-applicant-profile' }),
+      expect.objectContaining({ key: 'career.identity', valueType: 'choice', allowAiMapping: false, source: 'job-harness-applicant-profile' }),
       expect.objectContaining({ key: 'education[0].school', source: 'job-harness-applicant-profile' }),
       expect.objectContaining({ key: 'work[0].description', source: 'job-harness-resume-revision' }),
       expect.objectContaining({ key: 'projects[0].description', source: 'job-harness-resume-revision' }),
@@ -132,7 +133,7 @@ describe('lease-scoped applicant data derived from immutable Resume Revision', (
     expect(catalogSerialized).not.toContain('四川农业大学');
 
     const resolved = await request(`/execution-attempts/${attemptId}/applicant-data/resolve`, 'worker-secret', {
-      method: 'POST', body: JSON.stringify({ executorId: 'worker-applicant', leaseToken, keys: ['person.full_name','contact.email','person.gender','person.birth_date','contact.location','career.job_search_status','education[0].school','work[0].description','legal.visa_sponsorship_required','legal.work_authorization'] }),
+      method: 'POST', body: JSON.stringify({ executorId: 'worker-applicant', leaseToken, keys: ['person.full_name','contact.email','person.gender','person.birth_date','contact.location','career.job_search_status','career.identity','education[0].school','work[0].description','legal.visa_sponsorship_required','legal.work_authorization'] }),
     });
     expect(resolved.response.status).toBe(200);
     expect(resolved.body.catalogVersion).toBe(catalog.body.version);
@@ -143,6 +144,7 @@ describe('lease-scoped applicant data derived from immutable Resume Revision', (
       expect.objectContaining({ key: 'person.birth_date', value: '2001-04-09', sensitivity: 'protected', literal: true }),
       expect.objectContaining({ key: 'contact.location', value: '杭州', literal: true }),
       expect.objectContaining({ key: 'career.job_search_status', value: 'actively_looking', literal: true }),
+      expect.objectContaining({ key: 'career.identity', value: 'student', literal: true }),
       expect.objectContaining({ key: 'education[0].school', value: '四川农业大学', literal: true }),
       expect.objectContaining({ key: 'work[0].description', value: '交付：完成业务功能', literal: true }),
       expect.objectContaining({ key: 'legal.visa_sponsorship_required', value: false, sensitivity: 'legal', literal: true }),

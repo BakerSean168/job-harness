@@ -148,6 +148,21 @@
                             }
                           ]
                         },
+                        "careerIdentity": {
+                          "default": null,
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "student",
+                                "professional"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "website": {
                           "default": null,
                           "anyOf": [
@@ -346,6 +361,7 @@
                         "birthDate",
                         "location",
                         "jobSearchStatus",
+                        "careerIdentity",
                         "website",
                         "github",
                         "education",
@@ -473,6 +489,21 @@
                                     "actively_looking",
                                     "open_to_opportunities",
                                     "not_looking"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "careerIdentity": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "student",
+                                    "professional"
                                   ]
                                 },
                                 {
@@ -678,6 +709,7 @@
                             "birthDate",
                             "location",
                             "jobSearchStatus",
+                            "careerIdentity",
                             "website",
                             "github",
                             "education",
@@ -1048,6 +1080,21 @@
                             }
                           ]
                         },
+                        "careerIdentity": {
+                          "default": null,
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "student",
+                                "professional"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "website": {
                           "default": null,
                           "anyOf": [
@@ -1246,6 +1293,7 @@
                         "birthDate",
                         "location",
                         "jobSearchStatus",
+                        "careerIdentity",
                         "website",
                         "github",
                         "education",
@@ -1373,6 +1421,21 @@
                                     "actively_looking",
                                     "open_to_opportunities",
                                     "not_looking"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "careerIdentity": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "student",
+                                    "professional"
                                   ]
                                 },
                                 {
@@ -1578,6 +1641,7 @@
                             "birthDate",
                             "location",
                             "jobSearchStatus",
+                            "careerIdentity",
                             "website",
                             "github",
                             "education",
@@ -1940,6 +2004,21 @@
                           }
                         ]
                       },
+                      "careerIdentity": {
+                        "default": null,
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "student",
+                              "professional"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
                       "website": {
                         "default": null,
                         "anyOf": [
@@ -2138,6 +2217,7 @@
                       "birthDate",
                       "location",
                       "jobSearchStatus",
+                      "careerIdentity",
                       "website",
                       "github",
                       "education",

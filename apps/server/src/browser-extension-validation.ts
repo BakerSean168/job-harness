@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { z } from 'zod';
 import type { ResumeArtifactRuntimePorts } from '@job-harness/resume-application';
+import type { ApplicantRuntimePorts } from '@job-harness/applicant-application';
 import {
   BrowserExtensionDriverCommandSchema,
   InvokeBrowserExtensionCommandInputSchema,
@@ -33,6 +34,18 @@ const SyncResumeInputSchema = z.object({
   artifactId: z.string().trim().min(1).max(200),
   fileName: z.string().trim().min(1).max(500).regex(/\.pdf$/i),
 }).strict();
+const RawControlSchema = z.object({
+  controlRef: z.string().min(1).max(4000), kind: z.string(), label: z.string().default(''), name: z.string().nullable().optional(),
+  description: z.string().nullable().optional(), required: z.boolean().default(false), disabled: z.boolean().default(false), readOnly: z.boolean().default(false),
+  options: z.array(z.object({ value: z.string().optional(), label: z.string().default(''), disabled: z.boolean().default(false) }).passthrough()).default([]),
+  semanticHints: z.array(z.string()).default([]), accept: z.string().nullable().optional(), multiple: z.boolean().default(false), sectionLabel: z.string().nullable().optional(),
+}).passthrough();
+const RawActionSchema = z.object({
+  actionRef: z.string().min(1).max(4000), tag: z.string().default('other'), text: z.string().default(''), href: z.string().nullable().optional(),
+  type: z.string().nullable().optional(), role: z.string().nullable().optional(), disabled: z.boolean().default(false), ariaDisabled: z.boolean().default(false),
+}).passthrough();
+type RawControl = z.infer<typeof RawControlSchema>;
+type RawAction = z.infer<typeof RawActionSchema>;
 
 const SAFE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
   'session_acquire',
@@ -58,7 +71,7 @@ const RESUME_SYNC_SITE_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>
   'fill', 'select', 'set_checked', 'upload', 'click', 'wait', 'scan_controls', 'scan_actions', 'form_state_hash',
 ]);
 const RESUME_SYNC_FORBIDDEN_CLICK_TEXT = /(?:投简历|立即投递|确认投递|投递简历|立即申请|提交申请|申请职位|提交职位申请|聊一聊|发送)/i;
-const WRITE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(['fill', 'select', 'set_checked', 'upload']);
+const WRITE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(['fill', 'select', 'set_checked', 'upload', 'click']);
 
 export interface BrowserExtensionCharacterizationEvidence {
   readonly observedAt: string;
@@ -88,6 +101,16 @@ export interface BrowserExtensionValidationRun {
   readonly characterization: BrowserExtensionCharacterizationEvidence | null;
 }
 
+export type SiteResumePreparationState = 'attachment_upload_ready' | 'profile_onboarding_required' | 'unknown';
+export interface SiteResumePreparationResult {
+  readonly run: BrowserExtensionValidationRun;
+  readonly state: SiteResumePreparationState;
+  readonly missingFacts: readonly string[];
+  readonly manualFacts: readonly string[];
+  readonly appliedFacts: readonly string[];
+  readonly evidence: BrowserExtensionCharacterizationEvidence;
+}
+
 interface MutableValidationRun {
   id: string;
   agentId: string;
@@ -106,17 +129,19 @@ export class BrowserExtensionValidationRegistry {
   private readonly allowedOrigin: string;
   private readonly now: () => Date;
   private readonly resumeArtifacts: Pick<ResumeArtifactRuntimePorts, 'getContent'> | null;
+  private readonly applicant: Pick<ApplicantRuntimePorts, 'getDefaultProfile'> | null;
   private readonly readonlySiteFamilies: ReadonlySet<ReadonlySiteFamily>;
 
   constructor(
     private readonly bridge: BrowserExtensionBridge,
-    options: { allowedOrigin: string; readonlySiteFamilies?: readonly ReadonlySiteFamily[]; resumeArtifacts?: Pick<ResumeArtifactRuntimePorts, 'getContent'> | null; now?: () => Date },
+    options: { allowedOrigin: string; readonlySiteFamilies?: readonly ReadonlySiteFamily[]; resumeArtifacts?: Pick<ResumeArtifactRuntimePorts, 'getContent'> | null; applicant?: Pick<ApplicantRuntimePorts, 'getDefaultProfile'> | null; now?: () => Date },
   ) {
     const origin = new URL(options.allowedOrigin).origin;
     if (!/^https?:\/\//i.test(origin)) throw new Error('Browser validation allowed origin must use HTTP(S)');
     this.allowedOrigin = origin;
     this.readonlySiteFamilies = new Set((options.readonlySiteFamilies ?? []).map((value) => ReadonlySiteFamilySchema.parse(value)));
     this.resumeArtifacts = options.resumeArtifacts ?? null;
+    this.applicant = options.applicant ?? null;
     this.now = options.now ?? (() => new Date());
   }
 
@@ -250,6 +275,103 @@ export class BrowserExtensionValidationRegistry {
     run.commandCount += 1;
     if (WRITE_VALIDATION_COMMANDS.has(input.command.type)) run.writeCount += 1;
     return { run: freezeRun(run), commandId: output.commandId, result: output.result };
+  }
+
+  async prepareResume(id: string): Promise<SiteResumePreparationResult> {
+    this.reap();
+    const run = this.requireRun(id);
+    if (run.mode !== 'site-resume-sync') throw new BrowserExtensionBridgeError('VALIDATION_MODE_REQUIRED', 'Resume preparation requires a site-resume-sync run', 409);
+    if (!run.sessionRef) {
+      await this.invoke(id, { sessionRef: null, command: { type: 'session_acquire', payload: { preferredUrl: run.targetUrl, reuseLiveSession: true, requireLiveSession: false } }, timeoutMs: 30_000 });
+    }
+    const sessionRef = run.sessionRef!;
+    const capture = async () => {
+      const current = await this.invoke(id, { sessionRef, command: { type: 'current_url', payload: {} }, timeoutMs: 10_000 });
+      const title = await this.invoke(id, { sessionRef, command: { type: 'title', payload: {} }, timeoutMs: 10_000 });
+      const body = await this.invoke(id, { sessionRef, command: { type: 'body_text', payload: { limit: 50_000 } }, timeoutMs: 15_000 });
+      const actions = await this.invoke(id, { sessionRef, command: { type: 'scan_actions', payload: {} }, timeoutMs: 15_000 });
+      const controls = await this.invoke(id, { sessionRef, command: { type: 'scan_controls', payload: {} }, timeoutMs: 15_000 });
+      const formHash = await this.invoke(id, { sessionRef, command: { type: 'form_state_hash', payload: {} }, timeoutMs: 15_000 });
+      const bodyText = requireString(body.result, 'body_text');
+      const rawActions = parseRawActions(actions.result);
+      const rawControls = parseRawControls(controls.result);
+      const sanitizedActions = sanitizeCharacterizationActions(actions.result);
+      const sanitizedControls = sanitizeCharacterizationControls(controls.result);
+      const evidence: BrowserExtensionCharacterizationEvidence = {
+        observedAt: this.now().toISOString(),
+        currentUrl: requireString(current.result, 'current_url'),
+        title: requireString(title.result, 'title').slice(0, 500),
+        formStateHash: requireString(formHash.result, 'form_state_hash').slice(0, 200),
+        bodyTextLength: bodyText.length,
+        stateSignals: characterizedStateSignals(bodyText, sanitizedControls),
+        actions: sanitizedActions,
+        controls: sanitizedControls,
+      };
+      return { bodyText, rawActions, rawControls, evidence };
+    };
+
+    let observed = await capture();
+    if (findResumeUploadControl(observed.rawControls)) {
+      run.characterization = observed.evidence;
+      return { run: freezeRun(run), state: 'attachment_upload_ready', missingFacts: [], manualFacts: [], appliedFacts: [], evidence: observed.evidence };
+    }
+    if (!isLiepinProfileOnboarding(observed.evidence.currentUrl, observed.bodyText)) {
+      run.characterization = observed.evidence;
+      return { run: freezeRun(run), state: 'unknown', missingFacts: [], manualFacts: [], appliedFacts: [], evidence: observed.evidence };
+    }
+
+    const applicantContext = await this.applicant?.getDefaultProfile() ?? null;
+    if (!applicantContext) {
+      run.characterization = observed.evidence;
+      return { run: freezeRun(run), state: 'profile_onboarding_required', missingFacts: ['applicantProfile'], manualFacts: [], appliedFacts: [], evidence: observed.evidence };
+    }
+    const profile = applicantContext.profile;
+    const missingFacts = [
+      !profile.gender ? 'gender' : null,
+      !profile.birthDate ? 'birthDate' : null,
+      !profile.location ? 'location' : null,
+      !profile.jobSearchStatus ? 'jobSearchStatus' : null,
+      !profile.careerIdentity ? 'careerIdentity' : null,
+    ].filter((value): value is string => Boolean(value));
+    const manualFacts: string[] = [];
+    const appliedFacts: string[] = [];
+
+    const nameControl = uniqueSectionControl(observed.rawControls, '姓名');
+    if (nameControl && profile.displayName) {
+      await this.invoke(id, { sessionRef, command: { type: 'fill', payload: { selector: nameControl.controlRef, value: profile.displayName } }, timeoutMs: 15_000 });
+      appliedFacts.push('displayName');
+    }
+    const emailControl = uniqueSectionControl(observed.rawControls, '邮箱');
+    if (emailControl && profile.email) {
+      await this.invoke(id, { sessionRef, command: { type: 'fill', payload: { selector: emailControl.controlRef, value: profile.email } }, timeoutMs: 15_000 });
+      appliedFacts.push('email');
+    }
+    if (profile.careerIdentity) {
+      const identityText = profile.careerIdentity === 'student' ? '我是学生' : '我是职场人';
+      const identityAction = uniqueActionByText(observed.rawActions, identityText);
+      if (identityAction) {
+        await this.invoke(id, { sessionRef, command: { type: 'click', payload: { selector: identityAction.actionRef, expectedText: identityText } }, timeoutMs: 15_000 });
+        appliedFacts.push('careerIdentity');
+      } else manualFacts.push('careerIdentity');
+    }
+    if (profile.gender) {
+      const genderText = profile.gender === 'male' ? '男' : '女';
+      const genderAction = uniqueActionByText(observed.rawActions, genderText);
+      if (genderAction) {
+        await this.invoke(id, { sessionRef, command: { type: 'click', payload: { selector: genderAction.actionRef, expectedText: genderText } }, timeoutMs: 15_000 });
+        appliedFacts.push('gender');
+      } else manualFacts.push('gender');
+    }
+    if (profile.birthDate) manualFacts.push('birthDate');
+    if (profile.location && !normalizedContains(observed.bodyText, profile.location)) manualFacts.push('location');
+    if (profile.careerIdentity === 'professional' && profile.jobSearchStatus) manualFacts.push('jobSearchStatus');
+
+    if (appliedFacts.length) observed = await capture();
+    run.characterization = observed.evidence;
+    return {
+      run: freezeRun(run), state: 'profile_onboarding_required',
+      missingFacts: [...new Set(missingFacts)], manualFacts: [...new Set(manualFacts)], appliedFacts: [...new Set(appliedFacts)], evidence: observed.evidence,
+    };
   }
 
   async syncResume(id: string, raw: unknown): Promise<{
@@ -426,6 +548,10 @@ export function registerBrowserExtensionValidationApi(
     if (!registry) throw new BrowserExtensionBridgeError('VALIDATION_DISABLED', 'Browser validation is not configured', 503);
     res.json(await registry.invoke(pathId(req.params.runId), req.body));
   }));
+  app.post(`${BROWSER_EXTENSION_BRIDGE_PREFIX}/validation-runs/:runId/prepare-resume`, validationRoute(async (req, res) => {
+    if (!registry) throw new BrowserExtensionBridgeError('VALIDATION_DISABLED', 'Browser validation is not configured', 503);
+    res.json(await registry.prepareResume(pathId(req.params.runId)));
+  }));
   app.post(`${BROWSER_EXTENSION_BRIDGE_PREFIX}/validation-runs/:runId/sync-resume`, validationRoute(async (req, res) => {
     if (!registry) throw new BrowserExtensionBridgeError('VALIDATION_DISABLED', 'Browser validation is not configured', 503);
     res.json(await registry.syncResume(pathId(req.params.runId), req.body));
@@ -455,17 +581,44 @@ function sendValidationError(res: Response, error: unknown): void {
 function freezeRun(run: MutableValidationRun): BrowserExtensionValidationRun {
   return { ...run };
 }
-function selectResumeUploadControl(raw: unknown): { controlRef: string; label: string; name: string | null; accept: string | null } {
-  const ControlSchema = z.object({ controlRef: z.string().min(1).max(4000), kind: z.string(), label: z.string().default(''), name: z.string().nullable().optional(), accept: z.string().nullable().optional(), disabled: z.boolean().default(false), semanticHints: z.array(z.string()).default([]) }).passthrough();
-  const controls = z.array(ControlSchema).parse(raw).filter((control) => control.kind === 'file' && !control.disabled);
-  const scored = controls.map((control) => {
+function parseRawControls(raw: unknown): RawControl[] { return z.array(RawControlSchema).parse(raw); }
+function parseRawActions(raw: unknown): RawAction[] { return z.array(RawActionSchema).parse(raw); }
+function findResumeUploadControl(controls: readonly RawControl[]): RawControl | null {
+  const scored = controls.filter((control) => control.kind === 'file' && !control.disabled).map((control) => {
     const evidence = [control.label, control.name ?? '', control.accept ?? '', ...control.semanticHints].join(' ').toLowerCase();
     const score = (/简历|resume|cv/.test(evidence) ? 4 : 0) + (/pdf|doc/.test(evidence) ? 2 : 0) + (/upload|file|附件/.test(evidence) ? 1 : 0);
     return { control, score };
   }).sort((a, b) => b.score - a.score);
-  if (!scored.length || scored[0]!.score === 0 || (scored[1] && scored[1].score === scored[0]!.score)) throw new BrowserExtensionBridgeError('VALIDATION_UPLOAD_AMBIGUOUS', 'Site Resume Sync requires one unambiguous resume file input', 409);
-  const selected = scored[0]!.control;
+  if (!scored.length || scored[0]!.score === 0 || (scored[1] && scored[1].score === scored[0]!.score)) return null;
+  return scored[0]!.control;
+}
+function selectResumeUploadControl(raw: unknown): { controlRef: string; label: string; name: string | null; accept: string | null } {
+  const selected = findResumeUploadControl(parseRawControls(raw));
+  if (!selected) throw new BrowserExtensionBridgeError('VALIDATION_UPLOAD_AMBIGUOUS', 'Site Resume Sync requires one unambiguous resume file input', 409);
   return { controlRef: selected.controlRef, label: selected.label, name: selected.name ?? null, accept: selected.accept ?? null };
+}
+function uniqueSectionControl(controls: readonly RawControl[], sectionLabel: string): RawControl | null {
+  const matches = controls.filter((control) => !control.disabled && !control.readOnly && (control.sectionLabel ?? '').replace(/\s+/g, '') === sectionLabel.replace(/\s+/g, ''));
+  return matches.length === 1 ? matches[0]! : null;
+}
+function uniqueActionByText(actions: readonly RawAction[], text: string): RawAction | null {
+  const expected = text.replace(/\s+/g, ' ').trim();
+  const matches = actions.filter((action) => !action.disabled && !action.ariaDisabled && action.text.replace(/\s+/g, ' ').trim() === expected);
+  return matches.length === 1 ? matches[0]! : null;
+}
+function isLiepinProfileOnboarding(currentUrl: string, bodyText: string): boolean {
+  try {
+    const url = new URL(currentUrl);
+    const host = url.hostname.toLowerCase();
+    if (host !== 'c.liepin.com' || !/^\/resume\/create\/?$/i.test(url.pathname)) return false;
+    const markers = ['姓名', '性别', '出生年月', '求职身份', '当前城市', '下一步'];
+    return markers.filter((marker) => bodyText.includes(marker)).length >= 5;
+  } catch { return false; }
+}
+function normalizedContains(haystack: string, needle: string): boolean {
+  const normalize = (value: string) => value.toLowerCase().replace(/[\s·•,，.。;；:_\-—–/\\()（）\[\]【】]+/g, '');
+  const normalizedNeedle = normalize(needle);
+  return Boolean(normalizedNeedle) && normalize(haystack).includes(normalizedNeedle);
 }
 
 function characterizedStateSignals(

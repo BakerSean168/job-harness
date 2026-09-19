@@ -205,13 +205,81 @@ describe('browser-extension validation scope', () => {
     await answerOne(bridge, pageUrl);
     const controlClickCommand = await answerOne(bridge, null);
     expect(controlClickCommand.command).toMatchObject({ type:'click', payload:{ selector:'[data-job-harness-field-id=\"jh-city\"]', expectedText:null } });
-    await controlClick;
+    await expect(controlClick).resolves.toMatchObject({ run:{ writeCount:3 } });
     await expect(registry.invoke(run.id, {
       sessionRef:'chrome-tab:resume-sync', command:{ type:'click', payload:{ selector:'.arbitrary', expectedText:null } }, timeoutMs:5_000,
     })).rejects.toMatchObject({ code:'VALIDATION_CLICK_DENIED' });
     await expect(registry.invoke(run.id, {
       sessionRef:'chrome-tab:resume-sync', command:{ type:'click', payload:{ selector:'button.apply', expectedText:'投简历' } }, timeoutMs:5_000,
     })).rejects.toMatchObject({ code:'VALIDATION_CLICK_DENIED' });
+    bridge.close();
+  });
+
+  it('recognizes Liepin online-resume onboarding and fills only deterministic ApplicantProfile facts', async () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge);
+    const registry = new BrowserExtensionValidationRegistry(bridge, {
+      allowedOrigin: 'https://job-harness.test:20900', readonlySiteFamilies: ['liepin'],
+      applicant: {
+        async getDefaultProfile() {
+          return {
+            profile: {
+              id:'default-applicant', version:3, displayName:'Candidate Name', phone:null, email:'candidate@example.test', gender:null, birthDate:null,
+              location:'浙江金华', jobSearchStatus:'actively_looking', careerIdentity:null, website:null, github:null, education:[], targetRoles:[], targetCities:[], availableFrom:null, notes:null,
+              createdAt:'2026-09-18T00:00:00.000Z', updatedAt:'2026-09-19T00:00:00.000Z',
+            },
+            latestRevision: { id:'profile-rev-3', profileId:'default-applicant', revisionNumber:3, profileVersion:3, snapshot:{} as any, contentHash:'a'.repeat(64), createdAt:'2026-09-19T00:00:00.000Z', createdBy:'user' as const },
+          } as any;
+        },
+      },
+    });
+    const pageUrl = 'https://c.liepin.com/resume/create?backUrl=https%253A%252F%252Fc.liepin.com%252Fresume%252Fedit';
+    const run = registry.create({ agentId:'windows-chrome-primary', targetUrl:'https://c.liepin.com/resume/create', mode:'site-resume-sync' });
+    const pending = registry.prepareResume(run.id);
+    const controls = [
+      { controlRef:'[data-job-harness-field-id="jh-0"]', kind:'text', label:'请填写', name:null, description:null, required:false, disabled:false, readOnly:false, options:[], semanticHints:['请填写'], accept:null, multiple:false, sectionLabel:'姓名' },
+      { controlRef:'[data-job-harness-field-id="jh-1"]', kind:'text', label:'请选择', name:null, description:null, required:false, disabled:false, readOnly:false, options:[], semanticHints:['请选择'], accept:null, multiple:false, sectionLabel:'出生年月' },
+      { controlRef:'[data-job-harness-field-id="jh-2"]', kind:'unknown', label:'rc_select_0', name:null, description:null, required:false, disabled:false, readOnly:true, options:[], semanticHints:['rc_select_0'], accept:null, multiple:false, sectionLabel:'当前城市' },
+      { controlRef:'[data-job-harness-field-id="jh-3"]', kind:'unknown', label:'当前求职状态', name:null, description:null, required:false, disabled:false, readOnly:true, options:[], semanticHints:['basic_workStatusCode'], accept:null, multiple:false, sectionLabel:'当前求职状态' },
+      { controlRef:'[data-job-harness-field-id="jh-5"]', kind:'text', label:'请填写（选填）', name:null, description:null, required:false, disabled:false, readOnly:false, options:[], semanticHints:['请填写（选填）'], accept:null, multiple:false, sectionLabel:'邮箱' },
+    ];
+    const actions = [
+      { actionRef:'[data-job-harness-action-id="jha-3"]', tag:'button', text:'下一步', href:null, type:'button', role:null, disabled:false, ariaDisabled:false },
+      { actionRef:'[data-job-harness-action-id="jha-4"]', tag:'other', text:'男', href:null, type:null, role:null, disabled:false, ariaDisabled:false },
+      { actionRef:'[data-job-harness-action-id="jha-5"]', tag:'other', text:'女', href:null, type:null, role:null, disabled:false, ariaDisabled:false },
+      { actionRef:'[data-job-harness-action-id="jha-6"]', tag:'other', text:'我是职场人', href:null, type:null, role:null, disabled:false, ariaDisabled:false },
+      { actionRef:'[data-job-harness-action-id="jha-7"]', tag:'other', text:'我是学生', href:null, type:null, role:null, disabled:false, ariaDisabled:false },
+    ];
+    const writes: any[] = [];
+    let settled = false;
+    void pending.finally(() => { settled = true; });
+    for (let i=0;i<60 && !settled;i++) {
+      const command = await bridge.poll('windows-chrome-primary', 1_000);
+      if (!command) continue;
+      let result: unknown = null;
+      if (command.command.type === 'session_acquire') result = { sessionRef:'chrome-tab:onboarding', currentUrl:pageUrl };
+      else if (command.command.type === 'current_url') result = pageUrl;
+      else if (command.command.type === 'title') result = '完善简历 - 猎聘';
+      else if (command.command.type === 'body_text') result = '邀请你完善求职名片 姓名 性别 出生年月 求职身份 当前城市 浙江·金华 当前求职状态 在职，看看新机会 邮箱 下一步';
+      else if (command.command.type === 'scan_actions') result = actions;
+      else if (command.command.type === 'scan_controls') result = controls;
+      else if (command.command.type === 'form_state_hash') result = 'b'.repeat(64);
+      else if (command.command.type === 'fill' || command.command.type === 'click') { writes.push(command.command); result = null; }
+      bridge.complete('windows-chrome-primary', { commandId:command.commandId, ok:true, result });
+    }
+    const completed = await pending;
+    expect(completed).toMatchObject({
+      state:'profile_onboarding_required',
+      missingFacts:['gender','birthDate','careerIdentity'],
+      manualFacts:[],
+      appliedFacts:['displayName','email'],
+      run:{ writeCount:2 },
+    });
+    expect(writes).toEqual([
+      expect.objectContaining({ type:'fill', payload:expect.objectContaining({ value:'Candidate Name' }) }),
+      expect.objectContaining({ type:'fill', payload:expect.objectContaining({ value:'candidate@example.test' }) }),
+    ]);
+    expect(JSON.stringify(writes)).not.toContain('下一步');
     bridge.close();
   });
 

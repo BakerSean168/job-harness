@@ -18,6 +18,8 @@ ResumeLibrary
   -> ResumeRevision (immutable)
   -> ResumeArtifact (HTML/PDF/JSON/Markdown)
   -> optional Site Resume Sync
+       -> recruiting-site profile onboarding (when required)
+       -> exact immutable PDF upload
   -> user-confirmed SiteResumeBinding
   -> ApplicationSubmission
   -> Application
