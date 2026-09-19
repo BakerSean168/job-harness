@@ -255,13 +255,17 @@ export class SteelBrowserBackend implements BrowserBackendPort {
   }
 
   private normalizeWebsocketUrl(raw: string): string {
-    const url = new URL(raw);
+    const advertised = new URL(raw);
     const base = new URL(this.baseUrl);
-    if (['0.0.0.0', 'localhost'].includes(url.hostname)) url.hostname = base.hostname;
-    if (!url.port && base.port) url.port = base.port;
-    url.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
-    if (this.apiKey && !url.searchParams.has('apiKey')) url.searchParams.set('apiKey', this.apiKey);
-    return url.toString();
+    // Steel's DOMAIN/USE_SSL settings describe the public viewer/CDP origin.
+    // Automation workers must still connect through the explicitly configured
+    // control-plane baseUrl so a TLS reverse-proxy/public DOMAIN never forces a
+    // local worker to hairpin through the external endpoint.
+    advertised.hostname = base.hostname;
+    advertised.port = base.port;
+    advertised.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
+    if (this.apiKey && !advertised.searchParams.has('apiKey')) advertised.searchParams.set('apiKey', this.apiKey);
+    return advertised.toString();
   }
 
   private async connectWithRetry(websocketUrl: string, timeoutMs = 12_000): Promise<Browser> {

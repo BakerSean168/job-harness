@@ -110,6 +110,15 @@ describe('Steel retained-session cleanup', () => {
     })).rejects.toThrow();
   });
 
+  it('keeps worker CDP traffic on the configured control-plane base URL even when Steel advertises a public TLS domain', () => {
+    const backend = new SteelBrowserBackend({
+      baseUrl: 'http://127.0.0.1:3000',
+      viewerBaseUrl: 'https://oracle.example.test:10445',
+    });
+    expect((backend as any).normalizeWebsocketUrl('wss://oracle.example.test:10445/?sessionId=public-session'))
+      .toBe('ws://127.0.0.1:3000/?sessionId=public-session');
+  });
+
   it('bounds Steel HTTP health checks so a half-open provider cannot stall a worker indefinitely', async () => {
     server = createServer((_req, _res) => { /* deliberately never respond */ });
     await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', () => resolve()));
