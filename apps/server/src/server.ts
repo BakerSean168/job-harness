@@ -30,6 +30,7 @@ import { BrowserExtensionAuth } from './browser-extension-auth';
 import { BrowserExtensionValidationRegistry, registerBrowserExtensionValidationApi } from './browser-extension-validation';
 import { browserExtensionClickAuthority } from './browser-extension-click-policy';
 import { createSiteResumeBindingService, registerSiteResumeBindingApi } from './site-resume-binding';
+import { createBossGreetingMcpBridge } from './boss-greeting-mcp';
 
 export interface JobHarnessServerOptions {
   readonly databasePath: string;
@@ -46,6 +47,7 @@ export interface JobHarnessServerOptions {
   readonly submissionStaleAfterMs?: number;
   readonly submissionMaxAutomaticRetries?: number;
   readonly submissionReconcileBatchSize?: number;
+  readonly bossGreetingBridgeUrl?: string;
 }
 
 export interface RunningJobHarnessServer {
@@ -73,7 +75,7 @@ export function createProtocolServer(runtime: ReturnType<typeof createJobHarness
           readOnlyHint: tool.mutability === 'read',
           destructiveHint: false,
           idempotentHint: tool.idempotent !== false,
-          openWorldHint: false,
+          openWorldHint: tool.externalSideEffect,
         },
       },
       async (args) => {
@@ -191,7 +193,10 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   });
   const jobResume = createJobResumePreparationService(application, resume, resumeArtifacts);
   const emailApplication = createEmailApplicationService(application, resume, applicant, jobResume, emailApplicationStore);
-  const runtime = createJobHarnessMcpRuntime(application, resume, resumeArtifacts, jobResume, emailApplication);
+  const bossGreeting = createBossGreetingMcpBridge({
+    baseUrl: options.bossGreetingBridgeUrl ?? 'http://127.0.0.1:18788',
+  });
+  const runtime = createJobHarnessMcpRuntime(application, resume, resumeArtifacts, jobResume, emailApplication, bossGreeting);
   const host = options.host ?? '127.0.0.1';
   const authToken = options.authToken?.trim() || null;
   const executorAuthToken = options.executorAuthToken?.trim() || null;

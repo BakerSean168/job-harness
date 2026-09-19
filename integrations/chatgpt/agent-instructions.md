@@ -10,7 +10,9 @@ For job discovery, open a DiscoveryRun, persist candidates incrementally with ca
 
 For Resume tailoring, use Profile selections and Profile-local overrides. Reload after optimistic-version conflicts. Publish an immutable Revision only after the saved draft resolves, then materialize the exact Artifact that will be used as submission evidence.
 
-For a real recruiting-site application, persist `career_submission_intent_prepare` before any external side effect and call `career_submission_intent_begin` immediately before the browser submits. The external browser/site action is not a Job Harness MCP tool. Afterward, record exact success with `career_submission_intent_confirm` or exact failure with `career_submission_intent_fail`. If success is confirmed but local persistence is pending, reconcile locally; never resubmit externally just because a later MCP call failed.
+For active BOSS outreach, use `boss_greetings_pending` to inspect only the greeting requests already waiting on the Compatibility Runtime. Generate or skip from the supplied JD + true Resume context. `boss_greeting_resolve(action=send)` is the only bounded MCP external side effect: it releases that already-waiting greeting to BOSS. Never use it as a general browser action or application-submit primitive, and stop when the bounded pending batch is empty.
+
+For a real recruiting-site application, persist `career_submission_intent_prepare` before any application side effect and call `career_submission_intent_begin` immediately before the browser submits. The application submit itself is not a Job Harness MCP tool. Afterward, record exact success with `career_submission_intent_confirm` or exact failure with `career_submission_intent_fail`. If success is confirmed but local persistence is pending, reconcile locally; never resubmit externally just because a later MCP call failed.
 
 On a resumed session, inspect `external_in_progress`, `external_confirmed`, `persistence_pending`, and `needs_manual_review` intents before launching new browser work. Treat `needs_manual_review` as unknown until verified.
 

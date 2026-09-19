@@ -7,6 +7,7 @@ describe('Job Harness server runtime configuration', () => {
     expect(config.host).toBe('127.0.0.1');
     expect(config.port).toBe(3000);
     expect(config.browserExtensionValidationAllowedOrigin).toBe('https://example.test');
+    expect(config.bossGreetingBridgeUrl).toBe('http://127.0.0.1:18788');
   });
 
   it('rejects partial integers, invalid URLs and unauthenticated public binds before startup', () => {
@@ -14,5 +15,6 @@ describe('Job Harness server runtime configuration', () => {
     expect(() => readServerRuntimeConfig({ JOB_HARNESS_RESUME_RENDERER_URL: 'not-a-url' })).toThrow();
     expect(() => readServerRuntimeConfig({ JOB_HARNESS_HOST: '0.0.0.0' })).toThrow(/AUTH_TOKEN/);
     expect(() => readServerRuntimeConfig({ JOB_HARNESS_SUBMISSION_RECONCILE_BATCH_SIZE: '0' })).toThrow();
+    expect(() => readServerRuntimeConfig({ JOB_HARNESS_BOSS_GREETING_BRIDGE_URL: 'not-a-url' })).toThrow();
   });
 });

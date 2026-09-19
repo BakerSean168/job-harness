@@ -12,6 +12,7 @@ This is the normative orchestration policy for a ChatGPT/custom-MCP client. It i
 6. Never repeat a recruiting-site side effect merely because the subsequent Job Harness call failed. Recover from the durable intent first.
 7. `needs_manual_review` means “unknown/needs verification”, not success and not failure.
 8. Keep discovery and storage incremental. Upsert candidates in bounded batches instead of retaining an entire search session only in conversation state.
+9. `boss_greeting_resolve(action=send)` is the only MCP tool allowed to trigger an external recruiting-site effect. It may only release an already-waiting BOSS Compatibility Runtime greeting; it is not permission to submit an application or perform arbitrary browser actions.
 
 ## Discovery workflow
 
@@ -49,9 +50,29 @@ Rules:
 - A published Revision is immutable evidence. Never rewrite it to represent a later submission.
 - When preparing an application, bind the exact Revision/Artifact whenever available.
 
+## BOSS greeting workflow
+
+When the user has explicitly asked Job Harness to continue BOSS outreach and the Compatibility Runtime is already running:
+
+```text
+boss_greetings_pending(limit <= 10)
+  -> inspect each request's JD, match data and true candidate context
+  -> boss_greeting_resolve(action=send, message=...) OR boss_greeting_resolve(action=skip, reason=...)
+  -> re-read boss_greetings_pending while the active run still has work
+```
+
+Rules:
+
+- `boss_greetings_pending` is read-only and sends nothing.
+- For `send`, write only a natural 1-3 sentence greeting grounded in the provided Resume facts and current JD. Do not invent experience, years, employers, awards or proficiency.
+- Use `skip` when the JD has an explicit hard requirement the candidate does not meet, or when the core role does not match the supplied evidence.
+- `boss_greeting_resolve(action=send)` is a bounded external side effect: it releases the already-waiting Compatibility Runtime, which sends exactly that greeting to the current BOSS recruiter. Do not call it outside an explicit BOSS-outreach task.
+- Do not spin indefinitely. Process a bounded batch during the active ChatGPT run; if there are no pending requests, stop cleanly.
+- A BOSS greeting is recruiter contact, not a completed job application. Durable outreach evidence and Application/Submission state remain separate.
+
 ## External application workflow
 
-The MCP app itself **does not click the recruiting site**. A separate user/browser executor performs that side effect.
+Except for the bounded BOSS greeting release above, the MCP app itself **does not click or submit on recruiting sites**. A separate user/browser executor performs application side effects.
 
 Before any external action:
 

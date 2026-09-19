@@ -18,7 +18,7 @@ Browser / Tailscale Serve / reverse proxy
        /data/resume-artifacts/
 ```
 
-Neither REST/MCP nor the Resume renderer publishes a host port. The Web container is the only default host entry point and binds to `127.0.0.1:3001` unless explicitly changed. Server waits for renderer health; Web waits for Server health.
+REST/MCP and the Resume renderer stay private to the Compose network. Web is the normal host entry point and binds to `127.0.0.1:3001` unless explicitly changed. The optional BOSS Compatibility Bridge also publishes only on host loopback (default `127.0.0.1:18788`) so a private Tailnet/reverse-proxy route can reach it without exposing the bridge on LAN/public interfaces. Server waits for renderer health; the BOSS bridge waits for Server health; Web waits for Server health.
 
 ## Prerequisites
 
@@ -73,11 +73,18 @@ JOB_HARNESS_SUBMISSION_RECONCILE_BATCH_SIZE=100
 Set the interval to `0` to disable the background sweep. A startup sweep runs when reconciliation is enabled, so `persistence_pending` items survive process/container restarts and are retried without repeating the external application side effect.
 
 
+## BOSS Compatibility Bridge
+
+The Compose stack includes a `boss-bridge` service for the mature BOSS Copilot compatibility runtime. The bridge talks to `server:3000` through the private Compose network, while the Server's ChatGPT MCP adapter reaches pending/resolution endpoints at `http://boss-bridge:18788`. This avoids routing the ChatGPT control loop back out through a public/Tailnet URL.
+
+The bridge host mapping is loopback-only by default. Set `JOB_HARNESS_BOSS_BRIDGE_PUBLIC_URL` to the private HTTPS/Tailnet address used by the dedicated browser profile when applicable. The ChatGPT MCP surface exposes `boss_greetings_pending` as read-only and `boss_greeting_resolve` as the single bounded external-effect tool: resolving `send` releases only an already-waiting greeting, while `skip` releases it without sending. This is separate from job-application submission and does not bypass SubmissionIntent rules.
+
 ## Network/security defaults
 
 - `renderer:3002` and `server:3000` are only exposed to the Compose network; do not add host `ports:` mappings for normal operation.
 - Renderer receives only self-contained Resume HTML, disables page JavaScript, blocks network requests, runs read-only except `/tmp`, and requires an internal bearer for `/render/pdf`.
 - Web defaults to `127.0.0.1`, suitable for local access or for a host-level Tailscale Serve/reverse proxy.
+- `boss-bridge:18788` is private between Compose services and is host-published only on `127.0.0.1`; expose it externally only through an intentional private HTTPS/Tailnet route.
 - `JOB_HARNESS_AUTH_TOKEN` is required by Compose because Server binds to `0.0.0.0` inside the container.
 - The same bearer is injected into Web server-side runtime only; it is not a `NEXT_PUBLIC_*` value and is not sent to browser HTML.
 - Runtime containers run as non-root users and set `no-new-privileges`; renderer additionally uses a read-only root filesystem with tmpfs for Chromium scratch state.

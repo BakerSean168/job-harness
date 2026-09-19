@@ -81,8 +81,8 @@ export interface CareerMcpToolContract {
   readonly name: string;
   readonly description: string;
   readonly mutability: 'read' | 'state-write';
-  /** V1 tools only mutate Job Harness state; none performs a real external job application. */
-  readonly externalSideEffect: false;
+  /** True only when invoking the tool can deliberately trigger a bounded external action. */
+  readonly externalSideEffect: boolean;
   /** Whether replaying the exact same tool call is expected to be safe. */
   readonly idempotent?: boolean;
   readonly inputSchema: z.ZodType;
@@ -100,6 +100,60 @@ export const EmailApplicationGetToolInputSchema = z.object({ packageId: z.string
 export const EmailApplicationBeginToolInputSchema = BeginEmailApplicationSendInputSchema.extend({ packageId: z.string().trim().min(1).max(200) });
 export const EmailApplicationConfirmToolInputSchema = ConfirmEmailApplicationSendInputSchema.extend({ packageId: z.string().trim().min(1).max(200) });
 export const EmailApplicationFailToolInputSchema = FailEmailApplicationSendInputSchema.extend({ packageId: z.string().trim().min(1).max(200) });
+
+const BossGreetingJobSchema = z.object({
+  title: z.string().trim().min(1).max(240),
+  salary: z.string().trim().max(120),
+  description: z.string().trim().min(1).max(50_000),
+  company: z.string().trim().max(300).nullable(),
+  city: z.string().trim().max(200).nullable(),
+  jobUrl: z.url().nullable(),
+  externalId: z.string().trim().max(300).nullable(),
+  screeningSessionId: z.string().trim().max(200).nullable(),
+}).strict();
+const BossGreetingMatchSchema = z.object({
+  score: z.number().finite().min(0).max(100),
+  profileId: z.string().trim().min(1).max(200),
+  profileLabel: z.string().trim().min(1).max(300),
+  resumeIndex: z.number().int().nonnegative(),
+  decision: z.enum(['strong-match', 'review', 'low-match']),
+  signals: z.array(z.string().trim().min(1).max(120)),
+}).strict();
+export const BossGreetingRequestSchema = z.object({
+  id: z.string().uuid(),
+  createdAt: z.iso.datetime({ offset: true }),
+  expiresAt: z.iso.datetime({ offset: true }),
+  requestedProfileId: z.string().trim().min(1).max(200),
+  job: BossGreetingJobSchema,
+  match: BossGreetingMatchSchema,
+  candidate: z.record(z.string(), z.unknown()),
+  guidance: z.array(z.string().trim().min(1).max(1000)),
+}).strict();
+export const BossGreetingsPendingToolInputSchema = z.object({
+  limit: z.number().int().min(1).max(20).default(10),
+}).strict();
+export const BossGreetingsPendingToolOutputSchema = z.object({
+  mode: z.literal('chatgpt-assisted'),
+  total: z.number().int().nonnegative(),
+  items: z.array(BossGreetingRequestSchema),
+}).strict();
+const BossGreetingResolveSendSchema = z.object({
+  id: z.string().uuid(),
+  action: z.literal('send'),
+  message: z.string().trim().min(12).max(320),
+}).strict();
+const BossGreetingResolveSkipSchema = z.object({
+  id: z.string().uuid(),
+  action: z.literal('skip'),
+  reason: z.string().trim().min(3).max(240),
+}).strict();
+export const BossGreetingResolveToolInputSchema = z.discriminatedUnion('action', [BossGreetingResolveSendSchema, BossGreetingResolveSkipSchema]);
+export const BossGreetingResolveToolOutputSchema = z.object({
+  ok: z.literal(true),
+  id: z.string().uuid(),
+  action: z.enum(['send', 'skip']),
+  source: z.literal('chatgpt-web-mcp'),
+}).strict();
 
 export const CAREER_MCP_TOOLS = [
   tool({ name: 'career_context_get', description: 'Read the compact job-search context an AI should load before discovery or application work.', mutability: 'read', externalSideEffect: false, inputSchema: CareerContextInputSchema, outputSchema: CareerContextOutputSchema }),
@@ -134,6 +188,11 @@ export const CAREER_MCP_TOOL_BY_NAME = new Map(CAREER_MCP_TOOLS.map((entry) => [
 export const JOB_RESUME_MCP_TOOLS = [
   tool({ name: 'career_job_resume_recommend', description: 'Rank active Resume Profiles for a known job using deterministic explainable matching; performs no application side effect.', mutability: 'read', externalSideEffect: false, inputSchema: JobResumeRecommendToolInputSchema, outputSchema: RecommendJobResumesOutputSchema }),
   tool({ name: 'career_submission_intent_prepare_recommended', description: 'Choose or honor a Resume Profile for a job, freeze its latest Revision/PDF Artifact, and create a durable SubmissionIntent. Does not interact with the recruiting site.', mutability: 'state-write', externalSideEffect: false, inputSchema: JobResumePrepareToolInputSchema, outputSchema: PrepareRecommendedSubmissionIntentOutputSchema }),
+] as const satisfies readonly CareerMcpToolContract[];
+
+export const BOSS_GREETING_MCP_TOOLS = [
+  tool({ name: 'boss_greetings_pending', description: 'Read BOSS greeting requests currently waiting for ChatGPT to inspect the JD and true Resume context. This tool sends nothing.', mutability: 'read', externalSideEffect: false, inputSchema: BossGreetingsPendingToolInputSchema, outputSchema: BossGreetingsPendingToolOutputSchema }),
+  tool({ name: 'boss_greeting_resolve', idempotent: false, description: 'Resolve one waiting BOSS greeting request. action=send releases the already-waiting Compatibility Runtime to send exactly the supplied greeting externally; action=skip releases it without sending.', mutability: 'state-write', externalSideEffect: true, inputSchema: BossGreetingResolveToolInputSchema, outputSchema: BossGreetingResolveToolOutputSchema }),
 ] as const satisfies readonly CareerMcpToolContract[];
 
 export const EMAIL_APPLICATION_MCP_TOOLS = [
@@ -187,5 +246,5 @@ export const RESUME_MCP_TOOLS = [
   tool({ name: 'resume_revision_artifact_materialize', description: 'Materialize an immutable HTML/PDF/JSON Artifact for a published Resume Revision.', mutability: 'state-write', externalSideEffect: false, inputSchema: MaterializeResumeArtifactInputSchema, outputSchema: MaterializeResumeArtifactOutputSchema }),
 ] as const satisfies readonly CareerMcpToolContract[];
 
-export const JOB_HARNESS_MCP_TOOLS = [...CAREER_MCP_TOOLS, ...RESUME_MCP_TOOLS, ...JOB_RESUME_MCP_TOOLS, ...EMAIL_APPLICATION_MCP_TOOLS] as const;
+export const JOB_HARNESS_MCP_TOOLS = [...CAREER_MCP_TOOLS, ...RESUME_MCP_TOOLS, ...JOB_RESUME_MCP_TOOLS, ...EMAIL_APPLICATION_MCP_TOOLS, ...BOSS_GREETING_MCP_TOOLS] as const;
 export const JOB_HARNESS_MCP_TOOL_BY_NAME = new Map(JOB_HARNESS_MCP_TOOLS.map((entry) => [entry.name, entry]));

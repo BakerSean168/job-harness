@@ -55,6 +55,7 @@ services:
       JOB_HARNESS_SUBMISSION_STALE_AFTER_MS: ${JOB_HARNESS_SUBMISSION_STALE_AFTER_MS:-7200000}
       JOB_HARNESS_SUBMISSION_MAX_AUTOMATIC_RETRIES: ${JOB_HARNESS_SUBMISSION_MAX_AUTOMATIC_RETRIES:-8}
       JOB_HARNESS_SUBMISSION_RECONCILE_BATCH_SIZE: ${JOB_HARNESS_SUBMISSION_RECONCILE_BATCH_SIZE:-100}
+      JOB_HARNESS_BOSS_GREETING_BRIDGE_URL: http://boss-bridge:18788
     volumes:
       - type: bind
         source: ${JOB_HARNESS_DATA_DIR:-./data}
@@ -63,6 +64,45 @@ services:
       - "3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+  boss-bridge:
+    image: ${JOB_HARNESS_IMAGE:-job-harness:local}
+    init: true
+    restart: unless-stopped
+    command: ["pnpm", "--filter", "@job-harness/server", "boss:bridge"]
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      JOB_HARNESS_API_URL: http://server:3000/api/v1
+      JOB_HARNESS_AUTH_TOKEN: ${JOB_HARNESS_AUTH_TOKEN:?set JOB_HARNESS_AUTH_TOKEN}
+      JOB_HARNESS_BOSS_BRIDGE_HOST: 0.0.0.0
+      JOB_HARNESS_BOSS_BRIDGE_PORT: 18788
+      JOB_HARNESS_BOSS_BRIDGE_PUBLIC_URL: ${JOB_HARNESS_BOSS_BRIDGE_PUBLIC_URL:-http://127.0.0.1:18788}
+      JOB_HARNESS_BOSS_SCORE_DELAY_MS: ${JOB_HARNESS_BOSS_SCORE_DELAY_MS:-2500}
+      JOB_HARNESS_BOSS_SCORE_DELAY_JITTER_MS: ${JOB_HARNESS_BOSS_SCORE_DELAY_JITTER_MS:-400}
+      JOB_HARNESS_BOSS_GREETING_WAIT_MS: ${JOB_HARNESS_BOSS_GREETING_WAIT_MS:-180000}
+      JOB_HARNESS_BOSS_GREETING_THRESHOLD: ${JOB_HARNESS_BOSS_GREETING_THRESHOLD:-58}
+      JOB_HARNESS_BOSS_OUTREACH_LOG: /data/boss-outreach-events.jsonl
+      JOB_HARNESS_BOSS_CAMPAIGN_ID: ${JOB_HARNESS_BOSS_CAMPAIGN_ID:-2026-grad-agent-fullstack-frontend}
+      JOB_HARNESS_BOSS_DISCOVERY_IDLE_MS: ${JOB_HARNESS_BOSS_DISCOVERY_IDLE_MS:-600000}
+      JOB_HARNESS_BOSS_DISCOVERY_STATE_LOG: /data/boss-discovery-sessions.jsonl
+      JOB_HARNESS_BOSS_LEGACY_USERSCRIPT_SOURCE: /app/integrations/boss/legacy-copilot.user.js
+    volumes:
+      - type: bind
+        source: ${JOB_HARNESS_DATA_DIR:-./data}
+        target: /data
+    ports:
+      - "127.0.0.1:${JOB_HARNESS_BOSS_BRIDGE_PORT:-18788}:18788"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:18788/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 3s
       retries: 6

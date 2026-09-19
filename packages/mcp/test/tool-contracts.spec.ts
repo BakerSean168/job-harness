@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAREER_MCP_TOOLS, JOB_HARNESS_MCP_TOOLS, RESUME_MCP_TOOLS } from '../src';
+import { BOSS_GREETING_MCP_TOOLS, CAREER_MCP_TOOLS, JOB_HARNESS_MCP_TOOLS, RESUME_MCP_TOOLS } from '../src';
 
 const expectedNames = [
   'career_context_get',
@@ -29,6 +29,8 @@ const expectedNames = [
   'career_campaign_upsert',
 ];
 
+const expectedBossGreetingNames = ['boss_greetings_pending', 'boss_greeting_resolve'];
+
 const expectedResumeNames = [
   'resume_profiles_list',
   'resume_profile_get',
@@ -55,11 +57,14 @@ describe('MCP contract surface', () => {
   });
 
 
-  it('exposes the narrow Resume authoring surface without database or external-submit tools', () => {
+  it('exposes the narrow Resume authoring surface and exactly one bounded BOSS external-effect tool', () => {
     expect(RESUME_MCP_TOOLS.map((tool) => tool.name)).toEqual(expectedResumeNames);
+    expect(BOSS_GREETING_MCP_TOOLS.map((tool) => tool.name)).toEqual(expectedBossGreetingNames);
     const names = JOB_HARNESS_MCP_TOOLS.map((tool) => tool.name);
     expect(new Set(names).size).toBe(names.length);
-    expect(JOB_HARNESS_MCP_TOOLS.every((tool) => tool.externalSideEffect === false)).toBe(true);
+    expect(JOB_HARNESS_MCP_TOOLS.filter((tool) => tool.externalSideEffect).map((tool) => tool.name)).toEqual(['boss_greeting_resolve']);
+    expect(BOSS_GREETING_MCP_TOOLS.find((tool) => tool.name === 'boss_greetings_pending')?.mutability).toBe('read');
+    expect(BOSS_GREETING_MCP_TOOLS.find((tool) => tool.name === 'boss_greeting_resolve')?.idempotent).toBe(false);
     expect(names.some((name) => name.includes('database') || name.includes('raw_sql') || name.includes('submit_application'))).toBe(false);
   });
 

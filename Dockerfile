@@ -13,6 +13,7 @@ COPY apps ./apps
 COPY packages ./packages
 COPY plugin ./plugin
 COPY scripts ./scripts
+COPY integrations ./integrations
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @job-harness/web build

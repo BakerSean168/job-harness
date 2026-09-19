@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { CareerApplicationPorts } from '@job-harness/application';
 import type { ResumeArtifactRuntimePorts, ResumeRuntimePorts } from '@job-harness/resume-application';
 import {
@@ -84,6 +85,10 @@ import {
   EmailApplicationBeginToolInputSchema,
   EmailApplicationConfirmToolInputSchema,
   EmailApplicationFailToolInputSchema,
+  BossGreetingsPendingToolInputSchema,
+  BossGreetingsPendingToolOutputSchema,
+  BossGreetingResolveToolInputSchema,
+  BossGreetingResolveToolOutputSchema,
 } from './tool-contracts';
 import {
   ListResumeProfilesInputSchema,
@@ -108,6 +113,11 @@ export interface EmailApplicationMcpPort {
   fail(packageId: string, input: FailEmailApplicationSendInput): Promise<EmailApplicationPackageDetail>;
 }
 
+export interface BossGreetingMcpPort {
+  listPending(input: z.input<typeof BossGreetingsPendingToolInputSchema>): Promise<z.output<typeof BossGreetingsPendingToolOutputSchema>>;
+  resolve(input: z.input<typeof BossGreetingResolveToolInputSchema>): Promise<z.output<typeof BossGreetingResolveToolOutputSchema>>;
+}
+
 export class UnknownCareerMcpToolError extends Error {
   constructor(readonly toolName: string) {
     super(`Unknown Job Harness MCP tool: ${toolName}`);
@@ -129,6 +139,7 @@ export class CareerMcpRuntime {
     private readonly resumeArtifacts?: ResumeArtifactRuntimePorts,
     private readonly jobResume?: JobResumeMcpPort,
     private readonly emailApplication?: EmailApplicationMcpPort,
+    private readonly bossGreeting?: BossGreetingMcpPort,
   ) {}
 
   listTools() {
@@ -136,6 +147,7 @@ export class CareerMcpRuntime {
     return JOB_HARNESS_MCP_TOOLS.filter((tool) => {
       if (!this.jobResume && (tool.name === 'career_job_resume_recommend' || tool.name === 'career_submission_intent_prepare_recommended')) return false;
       if (!this.emailApplication && tool.name.startsWith('career_email_application_')) return false;
+      if (!this.bossGreeting && tool.name.startsWith('boss_greeting')) return false;
       return true;
     });
   }
@@ -299,6 +311,16 @@ export class CareerMcpRuntime {
         const { packageId, ...failInput } = input;
         return EmailApplicationPackageDetailSchema.parse(await this.emailApplication.fail(packageId, failInput));
       }
+      case 'boss_greetings_pending': {
+        if (!this.bossGreeting) throw new Error('BOSS greeting capability is not configured');
+        const input = BossGreetingsPendingToolInputSchema.parse(rawInput);
+        return BossGreetingsPendingToolOutputSchema.parse(await this.bossGreeting.listPending(input));
+      }
+      case 'boss_greeting_resolve': {
+        if (!this.bossGreeting) throw new Error('BOSS greeting capability is not configured');
+        const input = BossGreetingResolveToolInputSchema.parse(rawInput);
+        return BossGreetingResolveToolOutputSchema.parse(await this.bossGreeting.resolve(input));
+      }
       case 'resume_profiles_list':
         return ListResumeProfilesOutputSchema.parse(
           await this.requireResume().listProfiles(ListResumeProfilesInputSchema.parse(rawInput)),
@@ -370,6 +392,6 @@ export function createCareerMcpRuntime(ports: CareerApplicationPorts): CareerMcp
   return new CareerMcpRuntime(ports);
 }
 
-export function createJobHarnessMcpRuntime(ports: CareerApplicationPorts, resume: ResumeRuntimePorts, resumeArtifacts: ResumeArtifactRuntimePorts, jobResume?: JobResumeMcpPort, emailApplication?: EmailApplicationMcpPort): CareerMcpRuntime {
-  return new CareerMcpRuntime(ports, resume, resumeArtifacts, jobResume, emailApplication);
+export function createJobHarnessMcpRuntime(ports: CareerApplicationPorts, resume: ResumeRuntimePorts, resumeArtifacts: ResumeArtifactRuntimePorts, jobResume?: JobResumeMcpPort, emailApplication?: EmailApplicationMcpPort, bossGreeting?: BossGreetingMcpPort): CareerMcpRuntime {
+  return new CareerMcpRuntime(ports, resume, resumeArtifacts, jobResume, emailApplication, bossGreeting);
 }
