@@ -9,7 +9,7 @@ Dedicated Edge/Chrome profile
   -> unpacked Job Harness BOSS Copilot compatibility extension
      -> proven legacy BOSS search/detail/chat/resume DOM workflow
         -> Job Harness BOSS Outreach Bridge
-           -> ApplicantProfile / ResumeProfile ranking / DiscoveryRun / logs
+           -> ApplicantProfile / ResumeProfile ranking / DiscoveryRun / Job + Listing + OutreachEvent
 ```
 
 The dedicated browser is isolated from the user's normal browser profile and exposes localhost CDP for debugging only. The compatibility extension is built from `../boss/legacy-copilot.user.js`; it does not require Tampermonkey. A tiny MV3 background transport exposes the old `GM.xmlHttpRequest` / `GM_xmlhttpRequest` contract to the copied script and permits requests only to `https://oracle.taile92a8e.ts.net:10444`. This avoids public-page -> Tailnet Private Network Access/CORS restrictions without restoring a general-purpose network proxy. The legacy script also retains a normal CORS `fetch` fallback for non-extension embedding.
@@ -30,7 +30,7 @@ The launcher prefers Edge, falls back to Chrome, stores the persistent profile a
 
 and loads the unpacked extension from `extension/`. Before launch it refreshes only the generated `boss-copilot.js` runtime from the Tailnet bridge and validates expected markers before atomically replacing the local copy; if the bridge is temporarily unavailable it keeps the last known-good local runtime. Pass `-SkipRuntimeSync` to suppress that refresh. Manifest/background/shim changes still require updating the extension bundle itself.
 
-The page overlay starts paused. Clicking **开始** enables the proven Copilot loop. The Job Harness bridge supplies current target roles, scores every job across active Resume Profiles, returns the selected BOSS resume index and policy-gates resume follow-up.
+The page overlay starts paused. Clicking **开始** enables the proven Copilot loop. The Job Harness bridge supplies current target roles, scores every job across active Resume Profiles, returns the selected BOSS resume index and policy-gates resume follow-up. Every inspected BOSS detail is normalized into the canonical Job/Listing ledger; `greet_sent`, recruiter reply, resume send, and previously-contacted evidence are recorded as durable `JobOutreachEvent` rows rather than being misrepresented as formal Application submissions.
 
 First-contact copy is **not** a fixed server-side template. For jobs that pass the outreach threshold, the bridge creates a short-lived `chatgpt-assisted` greeting request containing the current JD plus a privacy-reduced view of the selected Resume Profile. The score request waits for ChatGPT to resolve that request. If no generated greeting arrives before the deadline, the bridge fails closed and the compatibility runtime moves on without contacting the recruiter. This keeps wording generation in the ChatGPT control plane while the mature Copilot remains only the browser executor.
 

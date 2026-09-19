@@ -159,6 +159,7 @@ export interface MessageCatalog {
       city: string;
       state: string;
       application: string;
+      contact: string;
       source: string;
       resume: string;
       lastSeen: string;
@@ -169,6 +170,7 @@ export interface MessageCatalog {
     detail: {
       overview: string;
       listings: string;
+      outreach: string;
       application: string;
       timeline: string;
       observations: string;
@@ -177,6 +179,7 @@ export interface MessageCatalog {
       description: string;
       noDescription: string;
       noApplication: string;
+      noOutreach: string;
       appliedAt: string;
       currentStage: string;
       resume: string;
@@ -203,6 +206,7 @@ export interface MessageCatalog {
     applicationStages: Record<'applied' | 'screening' | 'assessment' | 'interview' | 'offer' | 'rejected' | 'withdrawn', string>;
     listingStatuses: Record<'active' | 'closed' | 'unknown', string>;
     eventTypes: Record<'application_recorded' | 'submission_recorded' | 'stage_changed' | 'interview_scheduled' | 'note_added', string>;
+    outreachTypes: Record<'greeting_sent' | 'recruiter_replied' | 'resume_sent' | 'already_contacted', string>;
     sourceKinds: Record<'official' | 'boss' | 'zhilian' | 'liepin' | 'moka' | 'greenhouse' | 'lever' | 'ashby' | 'email' | 'manual' | 'other', string>;
   };
 }

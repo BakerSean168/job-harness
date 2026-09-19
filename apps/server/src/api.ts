@@ -18,6 +18,8 @@ import {
   ListSavedViewsInputSchema,
   PipelineStatsInputSchema,
   RecordApplicationInputSchema,
+  RecordJobOutreachEventInputSchema,
+  ListJobOutreachEventsInputSchema,
   SearchJobListItemsInputSchema,
   SetJobStateInputSchema,
   TransitionApplicationInputSchema,
@@ -179,6 +181,21 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.setJobState, route(async (req, res) => {
     const input = SetJobStateInputSchema.parse({ ...req.body, jobId: entityId(req.params.jobId) });
     res.json(await career.jobs.setJobState(input));
+  }));
+
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.jobOutreachEvents, route(async (req, res) => {
+    const input = ListJobOutreachEventsInputSchema.parse({
+      ...pageQuery(req.query),
+      ...(first(req.query.jobId) ? { jobId: first(req.query.jobId) } : {}),
+      ...(first(req.query.channel) ? { channel: first(req.query.channel) } : {}),
+      ...(list(req.query.types) ? { types: list(req.query.types) } : {}),
+    });
+    res.json(await career.outreach.list(input));
+  }));
+
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.recordJobOutreachEvent, route(async (req, res) => {
+    const input = RecordJobOutreachEventInputSchema.parse(req.body);
+    res.status(201).json(await career.outreach.record(input));
   }));
 
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.applications, route(async (req, res) => {

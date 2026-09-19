@@ -117,6 +117,50 @@ describe('Job Harness BOSS outreach bridge', () => {
     }
   });
 
+  it('closes BOSS observe/contact events into durable Job/outreach identities', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
+    const logPath = join(dir, 'events.jsonl');
+    const persistedOutreach: any[] = [];
+    const h: any = client();
+    h.jobs = {
+      async upsertJobsBatch() { return { items: [{ index: 0, status: 'inserted', jobId: 'boss-job-1', reason: null }] }; },
+    };
+    h.workspace = {
+      async getJobDetail() {
+        return {
+          job: { listings: [{ id: 'boss-listing-1', sourceKind: 'boss', externalId: 'abc123', url: 'https://www.zhipin.com/job_detail/abc123.html' }] },
+        };
+      },
+    };
+    h.outreach = { async record(input: any) { persistedOutreach.push(input); return { id: 'outreach-1', ...input, createdAt: input.occurredAt }; } };
+    const server = createBossOutreachBridge({ client: h, publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0, greetingWaitMs: 5_000, campaignId: 'campaign-1' });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('missing server address');
+      const base = `http://127.0.0.1:${address.port}`;
+      const observed = await fetch(`${base}/p/ai-agent-app/observe-job`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          job: payload,
+          company: '示例科技', city: '深圳', jobUrl: 'https://www.zhipin.com/job_detail/abc123.html', screeningSessionId: 'screen-1',
+        }),
+      });
+      expect(await observed.json()).toMatchObject({ success: true, jobId: 'boss-job-1', listingId: 'boss-listing-1' });
+      const logged = await fetch(`${base}/p/ai-agent-app/log-action`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'job_already_talked', scene: 'search', title: 'Agent开发工程师', jobId: 'boss-job-1', listingId: 'boss-listing-1', jobUrl: 'https://www.zhipin.com/job_detail/abc123.html' }),
+      });
+      expect(logged.status).toBe(200);
+      expect(persistedOutreach).toHaveLength(1);
+      expect(persistedOutreach[0]).toMatchObject({ jobId: 'boss-job-1', listingId: 'boss-listing-1', channel: 'boss', type: 'already_contacted' });
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
   it('serves the existing userscript endpoints and keeps resume-send/multiturn paths blocked', async () => {
     dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
     const logPath = join(dir, 'events.jsonl');

@@ -30,6 +30,7 @@ export function JobsTable({
             <th>{copy.table.city}</th>
             <th>{copy.table.state}</th>
             <th>{copy.table.application}</th>
+            <th>{copy.table.contact}</th>
             <th>{copy.table.source}</th>
             <th>{copy.table.resume}</th>
             <th className="numeric-cell">{copy.table.listings}</th>
@@ -38,7 +39,7 @@ export function JobsTable({
         </thead>
         <tbody>
           {items.length === 0 ? (
-            <tr><td className="table-empty" colSpan={8}>{copy.table.noResults}</td></tr>
+            <tr><td className="table-empty" colSpan={9}>{copy.table.noResults}</td></tr>
           ) : items.map((item) => {
             const href = workspaceHref(pathname, params, { job: item.jobId });
             return (
@@ -54,6 +55,11 @@ export function JobsTable({
                 <td>
                   {item.application
                     ? <StatusBadge value={item.application.currentStage} label={copy.applicationStages[item.application.currentStage]} />
+                    : <span className="empty-value">—</span>}
+                </td>
+                <td>
+                  {item.latestOutreach
+                    ? <StatusBadge value={item.latestOutreach.type} label={copy.outreachTypes[item.latestOutreach.type]} />
                     : <span className="empty-value">—</span>}
                 </td>
                 <td>

@@ -4,7 +4,14 @@ import { dirname } from 'node:path';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { rankResumeProfilesForJob, type ResumeJobMatch } from '@job-harness/resume-application';
 import type { ApplicantProfileContext } from '@job-harness/applicant-contracts';
-import type { JobSearchCampaign } from '@job-harness/contracts';
+import type {
+  JobDetail,
+  JobOutreachEvent,
+  JobSearchCampaign,
+  RecordJobOutreachEventInput,
+  UpsertJobsBatchInput,
+  UpsertJobsBatchOutput,
+} from '@job-harness/contracts';
 import type { ListResumeProfilesOutput, ResumeProfileContext } from '@job-harness/resume-contracts';
 import { BossDiscoveryReportSchema, parseBossDiscoveryDecision, renderBossDiscoveryReporter, type BossDiscoveryCoordinator } from './boss-discovery';
 import { BossResumeFollowupRequestSchema, decideBossResumeFollowup } from './boss-resume-followup';
@@ -16,6 +23,12 @@ export interface BossOutreachBridgeClient {
     getProfileContext?(profileId: string): Promise<ResumeProfileContext | null>;
   };
   readonly campaigns?: { get(campaignId: string): Promise<JobSearchCampaign | null> };
+  readonly jobs?: {
+    upsertJobsBatch(input: UpsertJobsBatchInput): Promise<UpsertJobsBatchOutput>;
+    checkDuplicate?(input: { companyName: string; title: string; city?: string | null; listings: UpsertJobsBatchInput['jobs'][number]['listings'] }): Promise<{ duplicate: boolean; job: JobDetail['job'] | null }>;
+  };
+  readonly workspace?: { getJobDetail(jobId: string): Promise<JobDetail | null> };
+  readonly outreach?: { record(input: RecordJobOutreachEventInput): Promise<JobOutreachEvent> };
 }
 
 export interface BossOutreachBridgeOptions {
@@ -36,6 +49,11 @@ export interface ParsedBossJob {
   readonly title: string;
   readonly salary: string;
   readonly description: string;
+  readonly company: string | null;
+  readonly city: string | null;
+  readonly jobUrl: string | null;
+  readonly externalId: string | null;
+  readonly screeningSessionId: string | null;
 }
 
 export interface BossJobDecision {
@@ -49,6 +67,8 @@ export interface BossJobDecision {
   readonly greetingRequestId?: string | null;
   readonly policyBlocked?: boolean;
   readonly policyReason?: string | null;
+  readonly jobId?: string | null;
+  readonly listingId?: string | null;
 }
 
 export interface BossGreetingRequest {
@@ -69,18 +89,51 @@ export interface BossGreetingRequest {
   readonly guidance: readonly string[];
 }
 
+function canonicalBossJobUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    const url = new URL(value, 'https://www.zhipin.com');
+    if (!['www.zhipin.com', 'zhipin.com'].includes(url.hostname.toLowerCase()) || !/^\/job_detail\//i.test(url.pathname)) return null;
+    url.hash = '';
+    for (const key of [...url.searchParams.keys()]) if (key !== 'ka') url.searchParams.delete(key);
+    return url.toString();
+  } catch { return null; }
+}
+
+function bossExternalJobId(jobUrl: string | null): string | null {
+  if (!jobUrl) return null;
+  const match = /^\/job_detail\/([^/?#]+?)(?:\.html)?$/i.exec(new URL(jobUrl).pathname);
+  return match?.[1]?.trim().slice(0, 300) || null;
+}
+
 export function parseLegacyBossJobPayload(raw: unknown): ParsedBossJob {
+  const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
   const text = typeof raw === 'string'
     ? raw
-    : raw && typeof raw === 'object' && 'job' in raw
-      ? String((raw as { job?: unknown }).job ?? '')
-      : raw && typeof raw === 'object' && 'text' in raw
-        ? String((raw as { text?: unknown }).text ?? '')
+    : source && 'job' in source
+      ? String(source.job ?? '')
+      : source && 'text' in source
+        ? String(source.text ?? '')
         : String(raw ?? '');
-  const title = text.match(/#\s*职位名称\s*\n([^\n]+)/)?.[1]?.trim() ?? '';
-  const salary = text.match(/#\s*薪资范围\s*\n([^\n]+)/)?.[1]?.trim() ?? '';
-  const description = text.match(/#\s*职位描述\s*\n([\s\S]*)$/)?.[1]?.trim() ?? text;
-  return { title: title.slice(0, 240), salary: salary.slice(0, 120), description: description.slice(0, 50_000) };
+  const title = text.match(/#\s*职位名称\s*\n([^\n]+)/)?.[1]?.trim() ?? (typeof source?.title === 'string' ? source.title.trim() : '');
+  const salary = text.match(/#\s*薪资范围\s*\n([^\n]+)/)?.[1]?.trim() ?? (typeof source?.salary === 'string' ? source.salary.trim() : '');
+  const description = text.match(/#\s*职位描述\s*\n([\s\S]*)$/)?.[1]?.trim() ?? (typeof source?.description === 'string' ? source.description.trim() : text);
+  const jobUrl = canonicalBossJobUrl(source?.jobUrl);
+  const company = typeof source?.company === 'string' ? source.company.replace(/\s+/g, ' ').trim().slice(0, 300) || null : null;
+  const city = typeof source?.city === 'string' ? source.city.replace(/\s+/g, ' ').trim().slice(0, 200) || null : null;
+  const screeningSessionId = typeof source?.screeningSessionId === 'string' && /^[A-Za-z0-9._:-]{1,200}$/.test(source.screeningSessionId.trim())
+    ? source.screeningSessionId.trim()
+    : null;
+  return {
+    title: title.slice(0, 240),
+    salary: salary.slice(0, 120),
+    description: description.slice(0, 50_000),
+    company,
+    city,
+    jobUrl,
+    externalId: bossExternalJobId(jobUrl),
+    screeningSessionId,
+  };
 }
 
 export function bossResumeIndex(profileId: string): number {
@@ -232,7 +285,7 @@ async function readJsonBody(req: IncomingMessage, limit = 128 * 1024): Promise<u
 function safeActionPayload(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { value: String(value ?? '').slice(0, 2000) };
   const source = value as Record<string, unknown>;
-  const allow = ['action','scene','screeningSessionId','jobUrl','title','company','salary','score','threshold','screeningPassed','resumeIndex','requestedResumeIndex','selectedResumeIndex','sendMode','reason','chatUrl','addUrl'];
+  const allow = ['action','scene','screeningSessionId','jobUrl','jobId','listingId','title','company','city','salary','score','threshold','screeningPassed','resumeIndex','requestedResumeIndex','selectedResumeIndex','sendMode','reason','chatUrl','addUrl'];
   const result: Record<string, unknown> = {};
   for (const key of allow) {
     const item = source[key];
@@ -313,12 +366,111 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
   const greetingThreshold = Math.max(0, Math.min(100, options.greetingThreshold ?? 58));
   const greetingWaitMs = Math.max(5_000, Math.min(9 * 60_000, options.greetingWaitMs ?? 120_000));
   const recentDecisions = new Map<string, BossJobDecision>();
+  const recentDecisionsByJobId = new Map<string, BossJobDecision>();
   const pendingGreetings = new Map<string, PendingBossGreeting>();
   let campaignPromise: Promise<JobSearchCampaign | null> | null = null;
   const getCampaign = (): Promise<JobSearchCampaign | null> => {
     if (!options.campaignId || !options.client.campaigns) return Promise.resolve(null);
     campaignPromise ??= options.client.campaigns.get(options.campaignId).catch(() => null);
     return campaignPromise;
+  };
+
+  const persistBossJob = async (job: ParsedBossJob, decision: BossJobDecision): Promise<{ jobId: string; listingId: string | null } | null> => {
+    if (!job.title || !job.company || !job.jobUrl || !job.description) return null;
+    const observedAt = new Date().toISOString();
+    let jobId: string | null = null;
+    if (options.discovery) {
+      if (job.screeningSessionId) {
+        await options.discovery.decision({
+          screeningSessionId: job.screeningSessionId,
+          jobUrl: job.jobUrl,
+          title: job.title,
+          salary: job.salary || null,
+          score: decision.score,
+          threshold: greetingThreshold,
+          screeningPassed: decision.score >= greetingThreshold,
+          recommendedProfileId: decision.profileId,
+          recommendedProfileLabel: decision.profileLabel,
+          observedAt,
+        });
+      }
+      const report = await options.discovery.report({
+        jobUrl: job.jobUrl,
+        title: job.title,
+        companyName: job.company,
+        city: job.city,
+        salary: job.salary || null,
+        description: job.description,
+        observedAt,
+        ...(job.screeningSessionId ? { discoverySessionId: job.screeningSessionId } : {}),
+      });
+      jobId = report.jobId;
+    }
+    if (!jobId && options.client.jobs) {
+      const result = await options.client.jobs.upsertJobsBatch({ jobs: [{
+        companyName: job.company,
+        title: job.title,
+        ...(job.city ? { city: job.city } : {}),
+        description: job.description,
+        observedAt,
+        listings: [{
+          sourceKind: 'boss',
+          label: 'BOSS直聘',
+          url: job.jobUrl,
+          ...(job.externalId ? { externalNamespace: 'boss', externalId: job.externalId, identityKind: 'external-id' as const } : { identityKind: 'url' as const }),
+          status: 'active',
+          metadataSnapshot: { source: 'boss-copilot-compat', salary: job.salary || null },
+        }],
+      }] });
+      jobId = result.items[0]?.jobId ?? null;
+    }
+    if (!jobId) return null;
+    const detail = options.client.workspace ? await options.client.workspace.getJobDetail(jobId) : null;
+    const listing = detail?.job.listings.find((item) => item.sourceKind === 'boss' && (job.externalId ? item.externalId === job.externalId : item.url === job.jobUrl))
+      ?? detail?.job.listings.find((item) => item.sourceKind === 'boss')
+      ?? null;
+    return { jobId, listingId: listing?.id ?? null };
+  };
+
+  const rememberDecision = (job: ParsedBossJob, decision: BossJobDecision): void => {
+    recentDecisions.set(job.title, decision);
+    if (decision.jobId) recentDecisionsByJobId.set(decision.jobId, decision);
+  };
+
+  const persistOutreachAction = async (body: Record<string, unknown>, decision: BossJobDecision | null): Promise<void> => {
+    if (!options.client.outreach) return;
+    const action = typeof body.action === 'string' ? body.action : '';
+    const type = action === 'greet_sent' || action === 'chat_greet_sent' ? 'greeting_sent'
+      : action === 'recruiter_replied' ? 'recruiter_replied'
+        : action === 'resume_sent' ? 'resume_sent'
+          : action === 'job_already_talked' ? 'already_contacted'
+            : null;
+    if (!type) return;
+    const jobId = typeof body.jobId === 'string' ? body.jobId : decision?.jobId ?? null;
+    if (!jobId) return;
+    const listingId = typeof body.listingId === 'string' ? body.listingId : decision?.listingId ?? null;
+    const thread = typeof body.chatUrl === 'string' ? canonicalBossJobUrl(body.chatUrl) ?? (() => {
+      try { return new URL(body.chatUrl as string, 'https://www.zhipin.com').toString(); } catch { return null; }
+    })() : null;
+    const resumeIndex = typeof body.resumeIndex === 'number' ? body.resumeIndex : decision?.resumeIndex ?? null;
+    await options.client.outreach.record({
+      jobId,
+      listingId,
+      channel: 'boss',
+      type,
+      occurredAt: new Date().toISOString(),
+      actor: 'system',
+      resumeProfileId: decision?.profileId ?? null,
+      message: type === 'greeting_sent' ? decision?.introduce ?? null : null,
+      externalThreadUrl: thread,
+      metadata: {
+        source: 'boss-copilot-compat',
+        scene: typeof body.scene === 'string' ? body.scene : null,
+        resumeIndex,
+        score: decision?.score ?? null,
+      },
+      idempotencyKey: `boss-outreach:${jobId}:${type}`,
+    });
   };
 
   const createPendingGreeting = async (
@@ -470,7 +622,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         return sendJson(res, 200, { ok: true, id, action: resolution.action, source });
       }
 
-      const match = /^\/p\/([A-Za-z0-9._-]+)\/(client-config|tags|get-introduce|get-job-score|log-action|reply|is-need-resume|is-need-works)$/.exec(url.pathname);
+      const match = /^\/p\/([A-Za-z0-9._-]+)\/(client-config|tags|get-introduce|observe-job|get-job-score|log-action|reply|is-need-resume|is-need-works)$/.exec(url.pathname);
       if (!match) return sendJson(res, 404, { error: 'not_found' });
       const requestedProfileId = match[1]!;
       const action = match[2]!;
@@ -511,10 +663,37 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
       if (req.method === 'GET' && action === 'tags') return sendJson(res, 200, { tags: applicant.profile.targetRoles.slice(0, 10) });
       if (req.method === 'GET' && action === 'get-introduce') return sendJson(res, 200, { introduce: '' });
 
-      if (req.method === 'POST' && action === 'get-job-score') {
+      if (req.method === 'POST' && action === 'observe-job') {
         const raw = await readJsonBody(req);
         const job = parseLegacyBossJobPayload(raw);
         const scored = await decideBossJob(options.client, raw);
+        const persisted = await persistBossJob(job, scored);
+        await appendEvent(options.logPath, {
+          loggedAt: new Date().toISOString(),
+          action: 'job_observed',
+          requestedProfileId,
+          title: job.title,
+          company: job.company,
+          city: job.city,
+          jobUrl: job.jobUrl,
+          jobId: persisted?.jobId ?? null,
+          listingId: persisted?.listingId ?? null,
+        });
+        return sendJson(res, 200, {
+          success: true,
+          jobId: persisted?.jobId ?? null,
+          listingId: persisted?.listingId ?? null,
+          profileId: scored.profileId,
+          resumeIndex: scored.resumeIndex,
+        });
+      }
+
+      if (req.method === 'POST' && action === 'get-job-score') {
+        const raw = await readJsonBody(req);
+        const job = parseLegacyBossJobPayload(raw);
+        const scoredBase = await decideBossJob(options.client, raw);
+        const persisted = await persistBossJob(job, scoredBase);
+        const scored: BossJobDecision = persisted ? { ...scoredBase, ...persisted } : scoredBase;
         const hardRequirement = blocksEarlyCareerOutreach(await getCampaign(), job);
         const jitter = delayJitterMs ? Math.round((random() * 2 - 1) * delayJitterMs) : 0;
         const delay = Math.max(0, baseDelayMs + jitter);
@@ -530,6 +709,11 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           profileLabel: scored.profileLabel,
           decision: scored.decision,
           signals: scored.signals,
+          jobId: scored.jobId ?? null,
+          listingId: scored.listingId ?? null,
+          company: job.company,
+          city: job.city,
+          jobUrl: job.jobUrl,
           policyBlocked: hardRequirement.blocked,
           minimumExperienceYears: hardRequirement.minimumYears,
           delayMs: delay,
@@ -544,7 +728,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
             policyBlocked: true,
             policyReason: `explicit-minimum-experience-${hardRequirement.minimumYears}-years`,
           };
-          recentDecisions.set(job.title, decision);
+          rememberDecision(job, decision);
           await appendEvent(options.logPath, {
             loggedAt: new Date().toISOString(),
             action: 'job_hard_requirement_blocked',
@@ -586,24 +770,39 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
             decision = { ...scored, introduce: resolution.message, greetingRequestId: pending.request.id };
           }
         }
-        recentDecisions.set(job.title, decision);
+        rememberDecision(job, decision);
         return sendJson(res, 200, decision);
       }
 
       if (req.method === 'POST' && action === 'log-action') {
         const body = safeActionPayload(await readJsonBody(req));
         const title = typeof body.title === 'string' ? body.title : '';
-        const decision = title ? recentDecisions.get(title) : null;
+        const bodyJobId = typeof body.jobId === 'string' ? body.jobId : '';
+        const decision = (bodyJobId ? recentDecisionsByJobId.get(bodyJobId) : null) ?? (title ? recentDecisions.get(title) : null) ?? null;
         const discoveryDecision = parseBossDiscoveryDecision(body, decision ? { profileId: decision.profileId, profileLabel: decision.profileLabel } : null);
-        if (discoveryDecision && options.discovery) {
+        if (discoveryDecision && options.discovery && !bodyJobId) {
           await options.discovery.decision(discoveryDecision);
         }
+        const loggedAt = new Date().toISOString();
         await appendEvent(options.logPath, {
-          loggedAt: new Date().toISOString(),
+          loggedAt,
           requestedProfileId,
           ...(decision ? { recommendedProfileId: decision.profileId, recommendedProfileLabel: decision.profileLabel } : {}),
           ...body,
         });
+        try {
+          await persistOutreachAction(body, decision);
+        } catch (error) {
+          await appendEvent(options.logPath, {
+            loggedAt: new Date().toISOString(),
+            action: 'outreach_persistence_failed',
+            requestedProfileId,
+            jobId: bodyJobId || decision?.jobId || null,
+            sourceAction: body.action ?? null,
+            reason: error instanceof Error ? error.message.slice(0, 1000) : String(error).slice(0, 1000),
+          });
+          return sendJson(res, 503, { success: false, error: 'outreach_persistence_failed' });
+        }
         return sendJson(res, 200, { success: true });
       }
 

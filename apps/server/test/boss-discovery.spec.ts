@@ -47,7 +47,7 @@ describe('BOSS Discovery coordinator', () => {
     dir = await mkdtemp(join(tmpdir(), 'jh-boss-discovery-'));
     const h = harness();
     const coordinator = new BossDiscoveryCoordinator({ client: h.client, campaignId: campaign.id, stateLogPath: join(dir, 'state.jsonl'), now: () => '2026-09-18T08:00:02.000Z' });
-    expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: false });
+    expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: false, jobId: 'job-1' });
     expect(await coordinator.decision(decision)).toEqual({ correlated: false });
     await coordinator.completeAll();
 
@@ -71,7 +71,7 @@ describe('BOSS Discovery coordinator', () => {
     const h = harness();
     const coordinator = new BossDiscoveryCoordinator({ client: h.client, campaignId: campaign.id, stateLogPath: join(dir, 'state.jsonl') });
     expect(await coordinator.decision(decision)).toEqual({ correlated: false });
-    expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: true });
+    expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: true, jobId: 'job-1' });
     await coordinator.completeAll();
     expect(h.upserts).toHaveLength(1);
   });
@@ -80,7 +80,7 @@ describe('BOSS Discovery coordinator', () => {
     dir = await mkdtemp(join(tmpdir(), 'jh-boss-discovery-standalone-'));
     const h = harness();
     const coordinator = new BossDiscoveryCoordinator({ client: h.client, campaignId: campaign.id, stateLogPath: join(dir, 'state.jsonl') });
-    expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: false });
+    expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: false, jobId: 'job-1' });
     await coordinator.completeAll();
     expect(h.began).toHaveLength(1);
     expect(h.began[0]).toMatchObject({ contextSnapshot: { screeningSessionId: 'boss-browser-daily-20260918' } });

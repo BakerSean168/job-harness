@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 15;
+export const SQLITE_SCHEMA_VERSION = 16;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -397,6 +397,7 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
   migrateEmailSendAuthorizationsV13(db);
   migrateSiteResumeBindingsV14(db);
   migrateCampaignEducationV15(db);
+  migrateJobOutreachEventsV16(db);
 }
 
 const PERFORMANCE_INDEXES_SCHEMA_V4 = `
@@ -988,6 +989,45 @@ function migrateCampaignEducationV15(db: DatabaseSync): void {
       db.exec("ALTER TABLE campaigns ADD COLUMN education_json TEXT NOT NULL DEFAULT '[]'");
     }
     db.exec('PRAGMA user_version = 15');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+const JOB_OUTREACH_EVENTS_SCHEMA_V16 = `
+CREATE TABLE IF NOT EXISTS job_outreach_events (
+  id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  listing_id TEXT REFERENCES job_listings(id) ON DELETE SET NULL,
+  channel TEXT NOT NULL CHECK(channel IN ('official','boss','zhilian','liepin','moka','greenhouse','lever','ashby','email','referral','manual','other')),
+  type TEXT NOT NULL CHECK(type IN ('greeting_sent','recruiter_replied','resume_sent','already_contacted')),
+  occurred_at TEXT NOT NULL,
+  actor TEXT NOT NULL CHECK(actor IN ('user','chatgpt-web','import','system','other')),
+  resume_profile_id TEXT,
+  message TEXT,
+  external_thread_url TEXT,
+  metadata_json TEXT NOT NULL DEFAULT '{}',
+  idempotency_key TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS job_outreach_events_job_occurred_idx
+  ON job_outreach_events(job_id, occurred_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS job_outreach_events_channel_occurred_idx
+  ON job_outreach_events(channel, occurred_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS job_outreach_events_type_occurred_idx
+  ON job_outreach_events(type, occurred_at DESC, id DESC);
+`;
+
+function migrateJobOutreachEventsV16(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 16) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(JOB_OUTREACH_EVENTS_SCHEMA_V16);
+    db.exec('PRAGMA user_version = 16');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

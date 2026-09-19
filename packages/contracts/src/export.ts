@@ -7,6 +7,7 @@ import {
   DiscoveryRunSchema,
   IsoDateTimeSchema,
   JobObservationSchema,
+  JobOutreachEventSchema,
   JobSchema,
   JobSearchCampaignSchema,
   ResumeProfileRefSchema,
@@ -21,11 +22,12 @@ export const CareerExportApplicationSchema = z.object({
 
 export const CareerExportSnapshotSchema = z.object({
   format: z.literal('job-harness-career-export'),
-  schemaVersion: z.literal(3),
+  schemaVersion: z.literal(4),
   exportedAt: IsoDateTimeSchema,
   companies: z.array(CompanySchema),
   jobs: z.array(JobSchema),
   observations: z.array(JobObservationSchema),
+  outreachEvents: z.array(JobOutreachEventSchema),
   applications: z.array(CareerExportApplicationSchema),
   campaigns: z.array(JobSearchCampaignSchema),
   resumes: z.array(ResumeProfileRefSchema),

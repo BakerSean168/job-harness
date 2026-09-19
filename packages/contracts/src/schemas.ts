@@ -8,6 +8,7 @@ import {
   EVENT_ACTORS,
   JOB_LISTING_IDENTITY_KINDS,
   JOB_LISTING_STATUSES,
+  JOB_OUTREACH_EVENT_TYPES,
   JOB_SOURCE_KINDS,
   JOB_STATES,
   SUBMISSION_INTENT_EXECUTORS,
@@ -25,6 +26,7 @@ export const JobListingStatusSchema = z.enum(JOB_LISTING_STATUSES);
 export const JobListingIdentityKindSchema = z.enum(JOB_LISTING_IDENTITY_KINDS);
 export const ApplicationStageSchema = z.enum(APPLICATION_STAGES);
 export const ApplicationEventTypeSchema = z.enum(APPLICATION_EVENT_TYPES);
+export const JobOutreachEventTypeSchema = z.enum(JOB_OUTREACH_EVENT_TYPES);
 export const ApplicationSubmissionChannelSchema = z.enum(APPLICATION_SUBMISSION_CHANNELS);
 export const CampaignStatusSchema = z.enum(CAMPAIGN_STATUSES);
 export const DiscoveryExecutorSchema = z.enum(DISCOVERY_EXECUTORS);
@@ -110,6 +112,24 @@ export const JobObservationSchema = z
     discoveryRunId: EntityIdSchema.nullable().default(null),
     observedAt: IsoDateTimeSchema,
     availability: JobListingStatusSchema,
+  })
+  .strict();
+
+export const JobOutreachEventSchema = z
+  .object({
+    id: EntityIdSchema,
+    jobId: EntityIdSchema,
+    listingId: EntityIdSchema.nullable().default(null),
+    channel: ApplicationSubmissionChannelSchema,
+    type: JobOutreachEventTypeSchema,
+    occurredAt: IsoDateTimeSchema,
+    actor: EventActorSchema,
+    resumeProfileId: EntityIdSchema.nullable().default(null),
+    message: z.string().trim().max(4000).nullable().default(null),
+    externalThreadUrl: z.url().nullable().default(null),
+    metadata: z.record(z.string(), z.unknown()).default({}),
+    idempotencyKey: IdempotencyKeySchema,
+    createdAt: IsoDateTimeSchema,
   })
   .strict();
 
@@ -259,6 +279,7 @@ export type Company = z.infer<typeof CompanySchema>;
 export type JobListing = z.infer<typeof JobListingSchema>;
 export type Job = z.infer<typeof JobSchema>;
 export type JobObservation = z.infer<typeof JobObservationSchema>;
+export type JobOutreachEvent = z.infer<typeof JobOutreachEventSchema>;
 export type Application = z.infer<typeof ApplicationSchema>;
 export type ApplicationSubmission = z.infer<typeof ApplicationSubmissionSchema>;
 export type ApplicationEvent = z.infer<typeof ApplicationEventSchema>;

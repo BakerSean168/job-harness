@@ -56,7 +56,7 @@ describe('data export and backup', () => {
     expect(exportResponse.status).toBe(200);
     expect(exportResponse.headers.get('content-disposition')).toMatch(/attachment; filename="job-harness-export-.*\.json"/);
     const exported = CareerExportSnapshotSchema.parse(await exportResponse.json());
-    expect(exported).toMatchObject({ format: 'job-harness-career-export', schemaVersion: 3 });
+    expect(exported).toMatchObject({ format: 'job-harness-career-export', schemaVersion: 4, outreachEvents: [] });
     expect(exported.companies).toHaveLength(1);
     expect(exported.jobs).toHaveLength(1);
     expect(exported.jobs[0]?.listings).toHaveLength(1);

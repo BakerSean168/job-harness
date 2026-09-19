@@ -43,6 +43,10 @@ import {
   ListDiscoveryRunsOutputSchema,
   ListResumeUsageOutputSchema,
   ListSavedViewsOutputSchema,
+  JobOutreachEventSchema,
+  ListJobOutreachEventsInputSchema,
+  ListJobOutreachEventsOutputSchema,
+  RecordJobOutreachEventInputSchema,
   PipelineStatsOutputSchema,
   RestErrorEnvelopeSchema,
   SavedViewSchema,
@@ -71,6 +75,10 @@ import {
   type ListResumeUsageOutput,
   type ListSavedViewsInput,
   type ListSavedViewsOutput,
+  type ListJobOutreachEventsInput,
+  type ListJobOutreachEventsOutput,
+  type RecordJobOutreachEventInput,
+  type JobOutreachEvent,
   type PipelineStatsInput,
   type PipelineStatsOutput,
   type RecordApplicationInput,
@@ -653,6 +661,23 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
       async revoke(bindingId: string, input: RevokeSiteResumeBindingInput): Promise<SiteResumeBinding> {
         const parsed = RevokeSiteResumeBindingInputSchema.parse(input);
         return SiteResumeBindingSchema.parse(await request(`/site-resume-bindings/${encodeURIComponent(bindingId)}/revoke`, { method: 'POST', body: JSON.stringify(parsed) }));
+      },
+    },
+    outreach: {
+      async list(input: ListJobOutreachEventsInput = {}): Promise<ListJobOutreachEventsOutput> {
+        const parsed = ListJobOutreachEventsInputSchema.parse(input);
+        const query = new URLSearchParams();
+        append(query, 'limit', parsed.limit);
+        append(query, 'offset', parsed.offset);
+        append(query, 'jobId', parsed.jobId);
+        append(query, 'channel', parsed.channel);
+        appendMany(query, 'types', parsed.types);
+        const suffix = query.toString();
+        return ListJobOutreachEventsOutputSchema.parse(await request(`/outreach-events${suffix ? `?${suffix}` : ''}`));
+      },
+      async record(input: RecordJobOutreachEventInput): Promise<JobOutreachEvent> {
+        const parsed = RecordJobOutreachEventInputSchema.parse(input);
+        return JobOutreachEventSchema.parse(await request('/outreach-events', { method: 'POST', body: JSON.stringify(parsed) }));
       },
     },
     applications: {

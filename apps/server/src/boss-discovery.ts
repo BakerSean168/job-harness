@@ -150,6 +150,7 @@ export class BossDiscoveryCoordinator {
   private readonly logger: Pick<Console, 'info' | 'warn' | 'error'>;
   private readonly reports = new Map<string, BossDiscoveryReport>();
   private readonly decisions = new Map<string, BossDiscoveryDecision>();
+  private readonly jobIds = new Map<string, string>();
   private readonly sessions = new Map<string, SessionState>();
   private campaignValidated = false;
 
@@ -205,7 +206,7 @@ export class BossDiscoveryCoordinator {
     }
   }
 
-  async report(raw: unknown): Promise<{ accepted: true; correlated: boolean }> {
+  async report(raw: unknown): Promise<{ accepted: true; correlated: boolean; jobId: string | null }> {
     const report = BossDiscoveryReportSchema.parse(raw);
     const canonical = canonicalJobUrl(report.jobUrl);
     const normalized = BossDiscoveryReportSchema.parse({ ...report, jobUrl: canonical, observedAt: report.observedAt ?? this.now() });
@@ -213,12 +214,12 @@ export class BossDiscoveryCoordinator {
     this.trimCache(this.reports);
     const decision = this.decisions.get(canonical);
     if (decision) {
-      await this.ingest(normalized, decision);
-      return { accepted: true, correlated: true };
+      const result = await this.ingest(normalized, decision);
+      return { accepted: true, correlated: true, jobId: result?.jobId ?? this.jobIds.get(canonical) ?? null };
     }
     const observedAt = normalized.observedAt ?? this.now();
     const day = observedAt.slice(0, 10).replace(/-/g, '');
-    await this.ingest(normalized, {
+    const result = await this.ingest(normalized, {
       screeningSessionId: normalized.discoverySessionId ?? `boss-browser-daily-${day}`,
       jobUrl: normalized.jobUrl,
       title: normalized.title,
@@ -230,7 +231,7 @@ export class BossDiscoveryCoordinator {
       recommendedProfileLabel: null,
       observedAt,
     });
-    return { accepted: true, correlated: false };
+    return { accepted: true, correlated: false, jobId: result?.jobId ?? this.jobIds.get(canonical) ?? null };
   }
 
   async decision(decision: BossDiscoveryDecision): Promise<{ correlated: boolean }> {
@@ -284,9 +285,9 @@ export class BossDiscoveryCoordinator {
     return state;
   }
 
-  private async ingest(report: BossDiscoveryReport, decision: BossDiscoveryDecision): Promise<void> {
+  private async ingest(report: BossDiscoveryReport, decision: BossDiscoveryDecision): Promise<UpsertJobsBatchOutput['items'][number] | null> {
     const state = await this.ensureSession(decision.screeningSessionId, decision.observedAt ?? report.observedAt ?? this.now());
-    if (state.seenUrls.has(report.jobUrl)) return;
+    if (state.seenUrls.has(report.jobUrl)) return null;
     const externalId = externalJobId(report.jobUrl);
     const candidate: UpsertJobsBatchInput['jobs'][number] = {
       companyName: report.companyName,
@@ -315,6 +316,10 @@ export class BossDiscoveryCoordinator {
     };
     const result = (await this.client.jobs.upsertJobsBatch({ jobs: [candidate] })).items[0];
     if (!result) throw new Error('BOSS discovery upsert returned no item');
+    if (result.jobId) {
+      this.jobIds.set(report.jobUrl, result.jobId);
+      this.trimCache(this.jobIds);
+    }
     state.seenUrls.add(report.jobUrl);
     state.lastAt = this.now();
     state.candidateCount += 1;
@@ -325,6 +330,7 @@ export class BossDiscoveryCoordinator {
     this.scheduleCompletion(state);
     this.reports.delete(report.jobUrl);
     this.decisions.delete(report.jobUrl);
+    return result;
   }
 
   private scheduleCompletion(state: SessionState): void {

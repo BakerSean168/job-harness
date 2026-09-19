@@ -113,6 +113,32 @@ export function JobDetailContent({
       ) : null}
 
       <section className="detail-section">
+        <div className="section-title-row">
+          <h3>{copy.detail.outreach}</h3>
+          <span>{detail.outreach.length}</span>
+        </div>
+        {detail.outreach.length ? (
+          <ol className="timeline-list">
+            {detail.outreach.slice(0, compact ? 8 : 30).map((event) => (
+              <li key={event.id}>
+                <span className="timeline-dot" aria-hidden="true" />
+                <div className="timeline-body">
+                  <div className="timeline-title-row">
+                    <strong>{copy.outreachTypes[event.type]}</strong>
+                    <time>{formatDateTime(locale, event.occurredAt)}</time>
+                  </div>
+                  {event.message ? <p>{event.message}</p> : null}
+                  {event.externalThreadUrl ? (
+                    <a href={event.externalThreadUrl} target="_blank" rel="noreferrer" className="text-link">{copy.detail.openOriginal}</a>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : <p className="muted-copy">{copy.detail.noOutreach}</p>}
+      </section>
+
+      <section className="detail-section">
         <h3>{copy.detail.application}</h3>
         {detail.application ? (
           <div className="application-summary">

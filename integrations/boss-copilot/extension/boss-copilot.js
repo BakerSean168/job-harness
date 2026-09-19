@@ -54,6 +54,8 @@
                 JOBNAME: 'h1', // 职位名称
                 SALARY: '.salary', // 职位薪资
                 DETAIL: '.job-sec-text', // 职位详情
+                COMPANY: '.sider-company .company-info', // 公司信息
+                CITY: '.text-desc.text-city', // 职位城市
                 CHATURL: 'redirect-url', // 聊天链接
             },
             CHAT: {
@@ -519,11 +521,30 @@
          * @param {string} salary 薪资范围
          * @param {string} detail 职位描述
          */
-        getJobScore(title, salary, detail) {
-            const data = `# 职位名称\n${title}\n\n# 薪资范围\n${salary}\n\n# 职位描述\n${detail}`;
+        getJobScore(title, salary, detail, context = {}) {
+            const data = this.__jobPayload(title, salary, detail, context);
             return new Promise((resolve, reject) => {
                 this.__http('/get-job-score', 'POST', JSON.stringify(data)).then(resolve).catch(reject);
             });
+        }
+
+        observeJob(title, salary, detail, context = {}) {
+            const data = this.__jobPayload(title, salary, detail, context);
+            return new Promise((resolve, reject) => {
+                this.__http('/observe-job', 'POST', JSON.stringify(data)).then(resolve).catch(reject);
+            });
+        }
+
+        __jobPayload(title, salary, detail, context = {}) {
+            return {
+                job: `# 职位名称\n${title}\n\n# 薪资范围\n${salary}\n\n# 职位描述\n${detail}`,
+                title,
+                salary,
+                company: context.company || '',
+                city: context.city || '',
+                jobUrl: context.jobUrl || '',
+                screeningSessionId: context.screeningSessionId || '',
+            };
         }
 
         /**
@@ -994,6 +1015,8 @@
                             {
                                 introduce: pendingGreetDecision?.introduce || this.introduce,
                                 resumeIndex: pendingGreetDecision?.resumeIndex ?? OPTIONS.resumeIndex,
+                                jobId: pendingGreetDecision?.jobId || null,
+                                listingId: pendingGreetDecision?.listingId || null,
                             },
                             data.requestId,
                             data.responseType
@@ -1010,6 +1033,8 @@
                             action: 'greet_sent',
                             scene: 'search',
                             title: finalTitle,
+                            jobId: finalDecision?.jobId || null,
+                            listingId: finalDecision?.listingId || null,
                             resumeIndex: finalDecision?.resumeIndex ?? OPTIONS.resumeIndex,
                         });
                     }
@@ -1020,6 +1045,8 @@
                             action: 'greet_failed',
                             scene: 'search',
                             title: finalTitle,
+                            jobId: finalDecision?.jobId || null,
+                            listingId: finalDecision?.listingId || null,
                             resumeIndex: finalDecision?.resumeIndex ?? OPTIONS.resumeIndex,
                         });
                     }
@@ -1091,12 +1118,22 @@
                     const jobInfo = await getJobInfo(href);
                     if (jobInfo.skip) {
                         logger.add(`职位跳过: ${jobInfo.skipReason}`);
+                        const observed = await api.observeJob(jobInfo.title || '未知岗位', jobInfo.salary || '', jobInfo.detail || jobInfo.skipReason, {
+                            company: jobInfo.company,
+                            city: jobInfo.city,
+                            jobUrl: href || jobInfo.jobUrl,
+                            screeningSessionId,
+                        }).catch(() => ({}));
                         await logAction({
                             action: 'job_skip',
                             scene: 'search',
                             title: jobInfo.title || null,
+                            company: jobInfo.company || null,
+                            city: jobInfo.city || null,
+                            jobUrl: href || jobInfo.jobUrl || null,
+                            jobId: observed.jobId || null,
+                            listingId: observed.listingId || null,
                             salary: jobInfo.salary || null,
-                            detail: jobInfo.detail || null,
                             reason: jobInfo.skipReason,
                         });
                         return loop();
@@ -1105,24 +1142,44 @@
                     // 如果聊过，下一个
                     if (jobInfo.talked) {
                         logger.add(`职位 [${jobInfo.title}] 已经聊过，下一个`);
+                        const observed = await api.observeJob(jobInfo.title, jobInfo.salary, jobInfo.detail, {
+                            company: jobInfo.company,
+                            city: jobInfo.city,
+                            jobUrl: href || jobInfo.jobUrl,
+                            screeningSessionId,
+                        });
                         await logAction({
                             action: 'job_already_talked',
                             scene: 'search',
                             title: jobInfo.title,
+                            company: jobInfo.company || null,
+                            city: jobInfo.city || null,
+                            jobUrl: href || jobInfo.jobUrl || null,
+                            jobId: observed.jobId || null,
+                            listingId: observed.listingId || null,
                             salary: jobInfo.salary,
                         });
                         return loop();
                     }
                     // 否则发送消息计算匹配度
                     logger.add(`开始计算职位 [${jobInfo.title}] 的匹配度`);
-                    const decision = await api.getJobScore(jobInfo.title, jobInfo.salary, jobInfo.detail);
+                    const decision = await api.getJobScore(jobInfo.title, jobInfo.salary, jobInfo.detail, {
+                        company: jobInfo.company,
+                        city: jobInfo.city,
+                        jobUrl: href || jobInfo.jobUrl,
+                        screeningSessionId,
+                    });
                     logger.add(`匹配度: ${decision.score} | 简历索引: ${decision.resumeIndex}`);
                     await logAction({
                         action: 'job_decision_consumed',
                         scene: 'search',
                         screeningSessionId,
                         jobUrl: href,
+                        jobId: decision.jobId || null,
+                        listingId: decision.listingId || null,
                         title: jobInfo.title,
+                        company: jobInfo.company || null,
+                        city: jobInfo.city || null,
                         salary: jobInfo.salary,
                         score: decision.score,
                         threshold: OPTIONS.thread,
@@ -1140,6 +1197,8 @@
                             action: 'greet_queued',
                             scene: 'search',
                             title: jobInfo.title,
+                            jobId: decision.jobId || null,
+                            listingId: decision.listingId || null,
                             salary: jobInfo.salary,
                             resumeIndex: decision.resumeIndex,
                             score: decision.score,
@@ -1150,6 +1209,8 @@
                                 action: 'chat_open_requested',
                                 scene: 'search',
                                 title: jobInfo.title,
+                                jobId: decision.jobId || null,
+                                listingId: decision.listingId || null,
                                 chatUrl: jobInfo.chatUrl,
                                 resumeIndex: decision.resumeIndex,
                             });
@@ -1160,6 +1221,8 @@
                                 action: 'greet_queue_failed',
                                 scene: 'search',
                                 title: jobInfo.title,
+                                jobId: decision.jobId || null,
+                                listingId: decision.listingId || null,
                                 resumeIndex: decision.resumeIndex,
                                 addUrl: jobInfo.addUrl,
                                 chatUrl: jobInfo.chatUrl,
@@ -1319,6 +1382,12 @@
                 const title = nameBox.querySelector(SELECTORS.ZHIPIN.DETAIL.JOBNAME).innerText;
                 const salary = nameBox.querySelector(SELECTORS.ZHIPIN.DETAIL.SALARY).innerText;
                 const detail = document.querySelector(SELECTORS.ZHIPIN.DETAIL.DETAIL).innerText;
+                const companyBox = document.querySelector(SELECTORS.ZHIPIN.DETAIL.COMPANY);
+                const company = companyBox
+                    ? Array.from(companyBox.querySelectorAll('a')).map(el => el.innerText.trim()).find(Boolean) || companyBox.innerText.trim().split('\n')[0]
+                    : '';
+                const city = document.querySelector(SELECTORS.ZHIPIN.DETAIL.CITY)?.innerText?.trim() || '';
+                const jobUrl = location.href;
                 const actionText = chatBtn ? chatBtn.innerText.trim() : '';
                 const chatUrl = chatBtn && chatBtn.getAttribute(SELECTORS.ZHIPIN.DETAIL.CHATURL);
                 const addUrl = chatBtn && chatBtn.dataset.url;
@@ -1340,6 +1409,9 @@
                     title,
                     salary,
                     detail,
+                    company,
+                    city,
+                    jobUrl,
                     actionText,
                     chatUrl,
                     addUrl,
@@ -1447,6 +1519,8 @@
                     await logAction({
                         action: 'greet_message_sent',
                         scene: 'chat_greet',
+                        jobId: greetDecision.jobId || null,
+                        listingId: greetDecision.listingId || null,
                         resumeIndex: greetDecision.resumeIndex ?? OPTIONS.resumeIndex,
                     });
                     this.broadcast.send(this.targets.search, this.bcTypes.SAY_HI, { success: true }).then(() => {
@@ -1681,12 +1755,21 @@
                                 const jobInfo = await this.broadcast.receive(this.targets.detail, this.bcTypes.GET_JOB_INFO);
                                 // 获取职位匹配度
                                 status(`开始计算职位 [${jobInfo.title}] 的匹配度`);
-                                const decision = await api.getJobScore(jobInfo.title, jobInfo.salary, jobInfo.detail);
+                                const decision = await api.getJobScore(jobInfo.title, jobInfo.salary, jobInfo.detail, {
+                                    company: jobInfo.company || company,
+                                    city: jobInfo.city,
+                                    jobUrl: jobInfo.jobUrl,
+                                });
                                 status(`匹配度: ${decision.score} | 简历索引: ${decision.resumeIndex}`);
                                 await logAction({
                                     action: 'job_decision_consumed',
                                     scene: 'chat',
+                                    jobUrl: jobInfo.jobUrl,
+                                    jobId: decision.jobId || null,
+                                    listingId: decision.listingId || null,
                                     title: jobInfo.title,
+                                    company: jobInfo.company || company,
+                                    city: jobInfo.city || null,
                                     salary: jobInfo.salary,
                                     score: decision.score,
                                     resumeIndex: decision.resumeIndex,
@@ -1700,6 +1783,8 @@
                                             action: 'chat_greet_sent',
                                             scene: 'chat',
                                             title: jobInfo.title,
+                                            jobId: decision.jobId || null,
+                                            listingId: decision.listingId || null,
                                             resumeIndex: decision.resumeIndex,
                                         });
                                         status(`打招呼成功`);
@@ -1721,9 +1806,11 @@
                                         action: 'chat_rejected_below_threshold',
                                         scene: 'chat',
                                         title: jobInfo.title,
+                                        jobId: decision.jobId || null,
+                                        listingId: decision.listingId || null,
                                         score: decision.score,
-                                        threshold: OPTIONS.thread,
-                                        resumeIndex: decision.resumeIndex,
+                                    threshold: OPTIONS.thread,
+                                    resumeIndex: decision.resumeIndex,
                                     });
                                     status('岗位低于阈值，Job Harness follow-up mode 不自动发送拒绝消息');
                                     continue;
@@ -1737,7 +1824,23 @@
                                 chatInfo.jobEl.click();
                                 status(`正在获取职位详情（用于确定简历）`);
                                 const jobInfo = await this.broadcast.receive(this.targets.detail, this.bcTypes.GET_JOB_INFO);
-                                const decision = await api.getJobScore(jobInfo.title, jobInfo.salary, jobInfo.detail);
+                                const decision = await api.getJobScore(jobInfo.title, jobInfo.salary, jobInfo.detail, {
+                                    company: jobInfo.company || company,
+                                    city: jobInfo.city,
+                                    jobUrl: jobInfo.jobUrl,
+                                });
+                                await logAction({
+                                    action: 'recruiter_replied',
+                                    scene: 'chat',
+                                    jobUrl: jobInfo.jobUrl,
+                                    jobId: decision.jobId || null,
+                                    listingId: decision.listingId || null,
+                                    title: jobInfo.title,
+                                    company: jobInfo.company || company,
+                                    city: jobInfo.city || null,
+                                    salary: jobInfo.salary,
+                                    resumeIndex: decision.resumeIndex,
+                                });
                                 const resumeAllowed = await api.isNeedResume({
                                     msgs: chatInfo.msgs,
                                     needResume: chatInfo.needResume,
@@ -1765,7 +1868,12 @@
                                 await logAction({
                                     action: 'resume_sent',
                                     scene: 'chat',
+                                    jobUrl: jobInfo.jobUrl,
+                                    jobId: decision.jobId || null,
+                                    listingId: decision.listingId || null,
                                     title: jobInfo.title,
+                                    company: jobInfo.company || company,
+                                    city: jobInfo.city || null,
                                     salary: jobInfo.salary,
                                     requestedResumeIndex: decision.resumeIndex,
                                     selectedResumeIndex: resumeResult?.selectedResumeIndex ?? decision.resumeIndex,

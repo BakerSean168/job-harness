@@ -21,8 +21,11 @@ import {
   ListCompaniesInputSchema,
   ListResumesInputSchema,
   ListSavedViewsInputSchema,
+  ListJobOutreachEventsInputSchema,
+  ListJobOutreachEventsOutputSchema,
   PipelineStatsInputSchema,
   RecordApplicationInputSchema,
+  RecordJobOutreachEventInputSchema,
   ResumeProfileRefSchema,
   SavedViewSchema,
   SearchJobListItemsInputSchema,
@@ -34,6 +37,7 @@ import {
   UpsertJobsBatchInputSchema,
   UpsertJobsBatchOutputSchema,
   ApplicationSubmissionSchema,
+  JobOutreachEventSchema,
   BeginSubmissionIntentInputSchema,
   ConfirmSubmissionIntentInputSchema,
   FailSubmissionIntentInputSchema,
@@ -51,6 +55,7 @@ import {
   type DuplicateCheckInput,
   type Job,
   type JobObservation,
+  type JobOutreachEvent,
   type ResumeProfileRef,
   type SubmissionIntent,
   type UpsertJobCandidate,
@@ -828,6 +833,42 @@ export function createCareerApplicationService(
     listResumeProfiles: (input = {}) => store.listResumeProfiles(ListResumesInputSchema.parse(input)),
   };
 
+  const outreach: CareerRuntimePorts['outreach'] = {
+    list: (input = {}) => store.listOutreachEvents(ListJobOutreachEventsInputSchema.parse(input)),
+    async record(input) {
+      const parsed = RecordJobOutreachEventInputSchema.parse(input);
+      return store.transaction(async (tx) => {
+        const scope = 'career_job_outreach_record';
+        const cached = await loadReceipt(tx, scope, parsed.idempotencyKey, parsed, (value) => JobOutreachEventSchema.parse(value));
+        if (cached) return cached;
+        const job = await tx.getJob(parsed.jobId);
+        if (!job) throw new CareerNotFoundError('Job', parsed.jobId);
+        if (parsed.listingId && !job.listings.some((listing) => listing.id === parsed.listingId)) {
+          throw new CareerNotFoundError('JobListing', parsed.listingId);
+        }
+        const timestamp = now();
+        const event: JobOutreachEvent = JobOutreachEventSchema.parse({
+          id: idFactory(),
+          jobId: parsed.jobId,
+          listingId: parsed.listingId ?? null,
+          channel: parsed.channel,
+          type: parsed.type,
+          occurredAt: parsed.occurredAt,
+          actor: parsed.actor,
+          resumeProfileId: parsed.resumeProfileId ?? null,
+          message: parsed.message ?? null,
+          externalThreadUrl: parsed.externalThreadUrl ?? null,
+          metadata: parsed.metadata ?? {},
+          idempotencyKey: parsed.idempotencyKey,
+          createdAt: timestamp,
+        });
+        await tx.insertOutreachEvent(event);
+        await saveReceipt(tx, scope, parsed.idempotencyKey, parsed, event, timestamp);
+        return event;
+      });
+    },
+  };
+
   const savedViews: CareerApplicationPorts['savedViews'] = {
     listSavedViews: (input = {}) => store.listSavedViews(ListSavedViewsInputSchema.parse(input)),
 
@@ -889,5 +930,5 @@ export function createCareerApplicationService(
     },
   };
 
-  return { jobs, applications, submissionIntents, campaigns, discovery, resumes, analytics, workspace, savedViews, resumeRegistry };
+  return { jobs, applications, submissionIntents, campaigns, discovery, resumes, analytics, workspace, savedViews, resumeRegistry, outreach };
 }

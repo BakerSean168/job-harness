@@ -14,6 +14,7 @@ import {
   IsoDateTimeSchema,
   JobListingSchema,
   JobObservationSchema,
+  JobOutreachEventSchema,
   JobSchema,
   JobSearchCampaignSchema,
   JobSourceKindSchema,
@@ -79,6 +80,8 @@ export const JobListItemSchema = z.object({
   sourceKinds: z.array(JobSourceKindSchema),
   campaigns: z.array(CampaignRefSchema),
   resume: ResumeUsageProfileSchema.nullable(),
+  outreachCount: z.number().int().nonnegative().default(0),
+  latestOutreach: JobOutreachEventSchema.nullable().default(null),
   firstSeenAt: IsoDateTimeSchema,
   lastSeenAt: IsoDateTimeSchema,
 }).strict();
@@ -118,6 +121,7 @@ export const JobDetailSchema = z.object({
   campaigns: z.array(CampaignRefSchema),
   application: JobApplicationViewSchema.nullable(),
   observations: z.array(JobObservationViewSchema),
+  outreach: z.array(JobOutreachEventSchema).default([]),
 }).strict();
 
 export const GetJobDetailInputSchema = z.object({ jobId: EntityIdSchema }).strict();

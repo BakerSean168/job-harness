@@ -24,6 +24,7 @@ import type {
   Job,
   JobListing,
   JobObservation,
+  JobOutreachEvent,
   JobSearchCampaign,
   ListApplicationBoardInput,
   ListApplicationBoardOutput,
@@ -37,6 +38,8 @@ import type {
   ListResumesOutput,
   ListSavedViewsInput,
   ListSavedViewsOutput,
+  ListJobOutreachEventsInput,
+  ListJobOutreachEventsOutput,
   PipelineStatsInput,
   PipelineStatsOutput,
   ResumeProfileRef,
@@ -63,6 +66,7 @@ export interface CareerStoreReadPort {
   searchJobs(input: SearchJobsInput): Promise<SearchJobsOutput>;
   getJob(jobId: string): Promise<Job | null>;
   findDuplicate(input: DuplicateCheckInput): Promise<DuplicateCheckOutput>;
+  listOutreachEvents(input: ListJobOutreachEventsInput): Promise<ListJobOutreachEventsOutput>;
   listApplications(input: ListApplicationsInput): Promise<ListApplicationsOutput>;
   getApplication(applicationId: string): Promise<ApplicationDetail | null>;
   getSubmissionIntent(intentId: string): Promise<SubmissionIntent | null>;
@@ -98,6 +102,7 @@ export interface CareerStoreTransactionPort extends CareerStoreReadPort {
   insertJob(job: Job): Promise<void>;
   mergeJobCandidate(jobId: string, candidate: UpsertJobCandidate, now: string): Promise<{ job: Job; metadataChanged: boolean; touchedListings: JobListing[] }>;
   insertObservation(observation: JobObservation): Promise<void>;
+  insertOutreachEvent(event: JobOutreachEvent): Promise<void>;
   updateJobState(jobId: string, state: JobState, now: string): Promise<Job>;
   insertApplication(application: Application): Promise<void>;
   reconcileApplicationRecord(applicationId: string, appliedAt: string, resumeProfileId: string | null, now: string): Promise<Application>;

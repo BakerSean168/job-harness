@@ -20,6 +20,7 @@ import type {
   JobListing,
   JobListingCandidate,
   JobObservation,
+  JobOutreachEvent,
   JobDetail,
   JobListItem,
   JobSearchCampaign,
@@ -41,6 +42,8 @@ import type {
   PipelineStatsOutput,
   ListSavedViewsInput,
   ListSavedViewsOutput,
+  ListJobOutreachEventsInput,
+  ListJobOutreachEventsOutput,
   ResumeProfileRef,
   ResumeUsageProfile,
   ResumeRevisionUsageSummary,
@@ -74,12 +77,14 @@ import {
   JobListItemSchema,
   JobListingSchema,
   JobObservationSchema,
+  JobOutreachEventSchema,
   JobSchema,
   JobSearchCampaignSchema,
   ListApplicationBoardOutputSchema,
   ListCompaniesOutputSchema,
   ListDiscoveryRunsOutputSchema,
   ListResumeUsageOutputSchema,
+  ListJobOutreachEventsOutputSchema,
   ResumeProfileRefSchema,
   ResumeUsageProfileSchema,
   ResumeRevisionUsageSummarySchema,
@@ -170,6 +175,24 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       lastSeenAt: row.last_seen_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+    });
+  }
+
+  private outreachEventFromRow(row: Row): JobOutreachEvent {
+    return JobOutreachEventSchema.parse({
+      id: row.id,
+      jobId: row.job_id,
+      listingId: row.listing_id,
+      channel: row.channel,
+      type: row.type,
+      occurredAt: row.occurred_at,
+      actor: row.actor,
+      resumeProfileId: row.resume_profile_id,
+      message: row.message,
+      externalThreadUrl: row.external_thread_url,
+      metadata: json(row.metadata_json),
+      idempotencyKey: row.idempotency_key,
+      createdAt: row.created_at,
     });
   }
 
@@ -266,6 +289,18 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       campaignsByJobId.set(jobId, list);
     }
 
+    const outreachByJobId = new Map<string, { count: number; latest: JobOutreachEvent | null }>();
+    const outreachRows = this.db.prepare(`
+      SELECT e.* FROM job_outreach_events e
+      WHERE e.job_id IN (${placeholders})
+      ORDER BY e.job_id, e.occurred_at DESC, e.id DESC
+    `).all(...jobIds) as Row[];
+    for (const row of outreachRows) {
+      const event = this.outreachEventFromRow(row);
+      const current = outreachByJobId.get(event.jobId) ?? { count: 0, latest: null };
+      outreachByJobId.set(event.jobId, { count: current.count + 1, latest: current.latest ?? event });
+    }
+
     return jobs.map((job) => {
       const application = applicationByJobId.get(job.id) ?? null;
       const effectiveResumeId = application
@@ -291,6 +326,8 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
         sourceKinds: [...new Set(job.listings.map((listing) => listing.sourceKind))].sort(),
         campaigns: campaignsByJobId.get(job.id) ?? [],
         resume,
+        outreachCount: outreachByJobId.get(job.id)?.count ?? 0,
+        latestOutreach: outreachByJobId.get(job.id)?.latest ?? null,
         firstSeenAt: job.firstSeenAt,
         lastSeenAt: job.lastSeenAt,
       });
@@ -418,6 +455,24 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       potentialMatches: rows.map((row) => this.jobFromRow(row)),
       identityConflict: false,
     };
+  }
+
+  async listOutreachEvents(input: ListJobOutreachEventsInput): Promise<ListJobOutreachEventsOutput> {
+    const where: string[] = [];
+    const params: Array<string | number> = [];
+    if (input.jobId) { where.push('job_id = ?'); params.push(input.jobId); }
+    if (input.channel) { where.push('channel = ?'); params.push(input.channel); }
+    if (input.types?.length) {
+      where.push(`type IN (${input.types.map(() => '?').join(',')})`);
+      params.push(...input.types);
+    }
+    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM job_outreach_events ${clause}`).get(...params) as Row).n);
+    const rows = this.db.prepare(`
+      SELECT * FROM job_outreach_events ${clause}
+      ORDER BY occurred_at DESC, id DESC LIMIT ? OFFSET ?
+    `).all(...params, input.limit ?? 50, input.offset ?? 0) as Row[];
+    return ListJobOutreachEventsOutputSchema.parse({ items: rows.map((row) => this.outreachEventFromRow(row)), total });
   }
 
   async listApplications(input: ListApplicationsInput): Promise<ListApplicationsOutput> {
@@ -807,6 +862,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
         submissionCount: applicationDetail.submissions.length,
       } : null,
       observations,
+      outreach: (await this.listOutreachEvents({ jobId, limit: 200, offset: 0 })).items,
     });
   }
 
@@ -1573,6 +1629,26 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     );
   }
 
+  async insertOutreachEvent(event: JobOutreachEvent): Promise<void> {
+    this.db.prepare(`INSERT INTO job_outreach_events(
+      id,job_id,listing_id,channel,type,occurred_at,actor,resume_profile_id,message,external_thread_url,metadata_json,idempotency_key,created_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      event.id,
+      event.jobId,
+      event.listingId,
+      event.channel,
+      event.type,
+      event.occurredAt,
+      event.actor,
+      event.resumeProfileId,
+      event.message,
+      event.externalThreadUrl,
+      JSON.stringify(event.metadata),
+      event.idempotencyKey,
+      event.createdAt,
+    );
+  }
+
   async updateJobState(jobId: string, state: JobState, now: string): Promise<Job> {
     this.db.prepare('UPDATE jobs SET state=?, updated_at=? WHERE id=?').run(state, now, jobId);
     const job = await this.getJob(jobId);
@@ -1702,6 +1778,7 @@ export class SqliteCareerStore implements CareerStorePort {
   searchJobs(input: SearchJobsInput) { return this.readSession().searchJobs(input); }
   getJob(jobId: string) { return this.readSession().getJob(jobId); }
   findDuplicate(input: DuplicateCheckInput) { return this.readSession().findDuplicate(input); }
+  listOutreachEvents(input: ListJobOutreachEventsInput) { return this.readSession().listOutreachEvents(input); }
   listApplications(input: ListApplicationsInput) { return this.readSession().listApplications(input); }
   getApplication(applicationId: string) { return this.readSession().getApplication(applicationId); }
   getSubmissionIntent(intentId: string) { return this.readSession().getSubmissionIntent(intentId); }

@@ -27,6 +27,14 @@ export const APPLICATION_EVENT_TYPES = [
 ] as const;
 export type ApplicationEventType = (typeof APPLICATION_EVENT_TYPES)[number];
 
+export const JOB_OUTREACH_EVENT_TYPES = [
+  'greeting_sent',
+  'recruiter_replied',
+  'resume_sent',
+  'already_contacted',
+] as const;
+export type JobOutreachEventType = (typeof JOB_OUTREACH_EVENT_TYPES)[number];
+
 
 export const APPLICATION_SUBMISSION_CHANNELS = [
   'official',

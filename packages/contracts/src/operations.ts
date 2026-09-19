@@ -10,6 +10,8 @@ import {
   IdempotencyKeySchema,
   IsoDateTimeSchema,
   JobSchema,
+  JobOutreachEventSchema,
+  JobOutreachEventTypeSchema,
   JobSourceKindSchema,
   JobStateSchema,
   JobSearchCampaignSchema,
@@ -118,6 +120,31 @@ export const SetJobStateInputSchema = z
   .object({ jobId: EntityIdSchema, state: JobStateSchema, idempotencyKey: IdempotencyKeySchema })
   .strict();
 export const SetJobStateOutputSchema = JobSchema;
+
+export const RecordJobOutreachEventInputSchema = z.object({
+  jobId: EntityIdSchema,
+  listingId: EntityIdSchema.nullable().optional(),
+  channel: ApplicationSubmissionChannelSchema,
+  type: JobOutreachEventTypeSchema,
+  occurredAt: IsoDateTimeSchema,
+  actor: z.enum(['user', 'chatgpt-web', 'import', 'system', 'other']),
+  resumeProfileId: EntityIdSchema.nullable().optional(),
+  message: z.string().trim().max(4000).nullable().optional(),
+  externalThreadUrl: z.url().nullable().optional(),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+  idempotencyKey: IdempotencyKeySchema,
+}).strict();
+export const RecordJobOutreachEventOutputSchema = JobOutreachEventSchema;
+
+export const ListJobOutreachEventsInputSchema = PageSchema.extend({
+  jobId: EntityIdSchema.optional(),
+  channel: ApplicationSubmissionChannelSchema.optional(),
+  types: z.array(JobOutreachEventTypeSchema).optional(),
+}).strict();
+export const ListJobOutreachEventsOutputSchema = z.object({
+  items: z.array(JobOutreachEventSchema),
+  total: z.number().int().nonnegative(),
+}).strict();
 
 export const ListApplicationsInputSchema = PageSchema.extend({
   stages: z.array(ApplicationStageSchema).optional(),
@@ -483,6 +510,9 @@ export type UpsertJobCandidate = z.input<typeof UpsertJobCandidateSchema>;
 export type UpsertJobsBatchInput = z.input<typeof UpsertJobsBatchInputSchema>;
 export type UpsertJobsBatchOutput = z.output<typeof UpsertJobsBatchOutputSchema>;
 export type SetJobStateInput = z.input<typeof SetJobStateInputSchema>;
+export type RecordJobOutreachEventInput = z.input<typeof RecordJobOutreachEventInputSchema>;
+export type ListJobOutreachEventsInput = z.input<typeof ListJobOutreachEventsInputSchema>;
+export type ListJobOutreachEventsOutput = z.output<typeof ListJobOutreachEventsOutputSchema>;
 export type ListApplicationsInput = z.input<typeof ListApplicationsInputSchema>;
 export type RecordApplicationInput = z.input<typeof RecordApplicationInputSchema>;
 export type TransitionApplicationInput = z.input<typeof TransitionApplicationInputSchema>;
