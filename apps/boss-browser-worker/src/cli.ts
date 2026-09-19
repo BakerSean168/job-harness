@@ -17,7 +17,12 @@ const result = await runBossBrowserDiscovery({
   loginTimeoutMs: config.loginTimeoutMs,
 });
 console.log(JSON.stringify(result, null, 2));
-if (result.status !== 'completed') process.exitCode = 2;
+// A retained Steel human-handoff intentionally keeps the remote browser session
+// alive. Force the one-shot worker process to drop its local CDP/WebSocket handles
+// after stdout has had a short flush window, without releasing the remote session.
+const exitCode = result.status === 'completed' ? 0 : 2;
+await new Promise((resolve) => setTimeout(resolve, 20));
+process.exit(exitCode);
 
 function createBackend(config: ReturnType<typeof readConfig>): BrowserBackendPort {
   if (config.provider === 'local-cdp') {
