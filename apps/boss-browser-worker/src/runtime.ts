@@ -194,6 +194,23 @@ export async function runBossBrowserDiscovery(options: BossBrowserRunOptions): P
         const passed = decision.score >= threshold;
         if (passed) passedJobs += 1;
 
+        // Correlate the deterministic Job Harness score/resume decision before
+        // reporting the discovery. BossDiscoveryCoordinator can then persist the
+        // score/profile metadata atomically with the canonical JobObservation
+        // instead of first ingesting an unscored listing and losing the decision.
+        await options.bridge.logDecision(options.profileId, {
+          action: 'job_decision_consumed',
+          scene: 'boss-browser-worker',
+          screeningSessionId: sessionId,
+          jobUrl: url,
+          title,
+          salary,
+          score: decision.score,
+          threshold,
+          screeningPassed: passed,
+          resumeIndex: decision.resumeIndex,
+        });
+
         let reported = false;
         if (company) {
           await options.bridge.reportDiscovery({
@@ -209,19 +226,6 @@ export async function runBossBrowserDiscovery(options: BossBrowserRunOptions): P
           reported = true;
           reportedJobs += 1;
         }
-
-        await options.bridge.logDecision(options.profileId, {
-          action: 'job_decision_consumed',
-          scene: 'boss-browser-worker',
-          screeningSessionId: sessionId,
-          jobUrl: url,
-          title,
-          salary,
-          score: decision.score,
-          threshold,
-          screeningPassed: passed,
-          resumeIndex: decision.resumeIndex,
-        });
 
         jobs.push({
           url,

@@ -96,16 +96,17 @@ function bridge() {
   const reports: any[] = [];
   const logs: any[] = [];
   const scores: string[] = [];
+  const calls: string[] = [];
   const value: BossBrowserBridgePort = {
     async listKeywords() { return ['AI Agent', '前端开发']; },
     async score(_profileId, jobText) {
       scores.push(jobText);
       return { score: 88, introduce: 'hello', resumeIndex: 0, profileId: 'ai-agent-forgeflow', profileLabel: 'ForgeFlow', decision: 'strong-match' };
     },
-    async reportDiscovery(input) { reports.push(input); },
-    async logDecision(_profileId, input) { logs.push(input); },
+    async reportDiscovery(input) { calls.push('report'); reports.push(input); },
+    async logDecision(_profileId, input) { calls.push('decision'); logs.push(input); },
   };
-  return { bridge: value, reports, logs, scores };
+  return { bridge: value, reports, logs, scores, calls };
 }
 
 describe('BOSS browser provider recovery', () => {
@@ -147,6 +148,7 @@ describe('BOSS browser provider recovery', () => {
       salary: '15-25K',
       discoverySessionId: 'boss-browser-20260919080000',
     });
+    expect(c.calls).toEqual(['decision', 'report']);
     expect(c.logs[0]).toMatchObject({
       action: 'job_decision_consumed',
       scene: 'boss-browser-worker',
