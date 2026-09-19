@@ -16,7 +16,7 @@ import {
 import { writeCommonRestError, writeInternalRestError, writeRestError } from './http-errors';
 
 const ValidationRunIdSchema = z.string().trim().min(1).max(200);
-const ValidationModeSchema = z.enum(['synthetic-canary', 'site-readonly', 'site-staged-readonly', 'site-resume-sync']);
+const ValidationModeSchema = z.enum(['synthetic-canary', 'site-readonly', 'site-staged-readonly', 'site-resume-sync', 'boss-discovery']);
 const ReadonlySiteFamilySchema = z.enum(['zhilian', 'liepin']);
 type ReadonlySiteFamily = z.infer<typeof ReadonlySiteFamilySchema>;
 const CreateValidationRunInputSchema = z.object({
@@ -73,6 +73,13 @@ const RESUME_SYNC_SITE_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>
   'fill', 'select', 'set_checked', 'upload', 'click', 'wait', 'scroll', 'scan_controls', 'scan_actions', 'form_state_hash',
 ]);
 const RESUME_SYNC_FORBIDDEN_CLICK_TEXT = /(?:投简历|立即投递|确认投递|投递简历|立即申请|提交申请|申请职位|提交职位申请|聊一聊|发送)/i;
+const BOSS_DISCOVERY_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
+  'session_acquire', 'navigate', 'current_url', 'title', 'body_text', 'exists', 'text',
+  'fill', 'click', 'wait', 'scroll', 'scan_controls', 'scan_actions', 'form_state_hash',
+]);
+const BOSS_SEARCH_INPUT_SELECTORS = new Set(['.search-form input', 'input[placeholder*="搜索"]', 'input[type="search"]']);
+const BOSS_SEARCH_BUTTON_SELECTORS = new Set(['.search-btn']);
+const BOSS_SCANNED_ACTION_SELECTOR = /^\[data-job-harness-action-id="[A-Za-z0-9._:-]+"\]$/;
 const WRITE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(['fill', 'select', 'set_checked', 'upload', 'click']);
 
 export interface BrowserExtensionCharacterizationEvidence {
@@ -159,6 +166,9 @@ export class BrowserExtensionValidationRegistry {
     if (input.mode === 'site-resume-sync' && !versionAtLeast(agent.version, '0.2.0')) {
       throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Site Resume Sync requires Browser Bridge >= 0.2.0; agent '${input.agentId}' reports '${agent.version}'`, 409);
     }
+    if (input.mode === 'boss-discovery' && !versionAtLeast(agent.version, '0.2.2')) {
+      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `BOSS discovery requires Browser Bridge >= 0.2.2; agent '${input.agentId}' reports '${agent.version}'`, 409);
+    }
     const createdAt = this.now().toISOString();
     const run: MutableValidationRun = {
       id: randomUUID(),
@@ -195,9 +205,11 @@ export class BrowserExtensionValidationRegistry {
     const input = InvokeValidationCommandInputSchema.parse(raw);
     const allowedCommands = run.mode === 'site-resume-sync'
       ? RESUME_SYNC_SITE_COMMANDS
-      : run.mode === 'site-readonly' || run.mode === 'site-staged-readonly'
-        ? READONLY_SITE_COMMANDS
-        : SAFE_VALIDATION_COMMANDS;
+      : run.mode === 'boss-discovery'
+        ? BOSS_DISCOVERY_COMMANDS
+        : run.mode === 'site-readonly' || run.mode === 'site-staged-readonly'
+          ? READONLY_SITE_COMMANDS
+          : SAFE_VALIDATION_COMMANDS;
     if (!allowedCommands.has(input.command.type)) {
       throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', `Browser validation mode '${run.mode}' does not allow '${input.command.type}'`, 403);
     }
@@ -210,6 +222,7 @@ export class BrowserExtensionValidationRegistry {
         throw new BrowserExtensionBridgeError('VALIDATION_UPLOAD_DENIED', 'Synthetic browser validation upload is restricted to #resume', 403);
       }
     }
+    if (run.mode === 'boss-discovery') this.authorizeBossDiscoveryCommand(run, input.command);
     if (run.mode === 'site-resume-sync' && input.command.type === 'click') {
       const expected = input.command.payload.expectedText?.trim() ?? '';
       const scannedFieldSelector = /^\[data-job-harness-(?:field-id|radio-group)=\"[A-Za-z0-9._:-]+\"\]$/.test(input.command.payload.selector);
@@ -222,7 +235,12 @@ export class BrowserExtensionValidationRegistry {
       if (run.sessionRef) throw new BrowserExtensionBridgeError('VALIDATION_SESSION_EXISTS', 'Browser validation run already owns a session', 409);
       const preferred = input.command.payload.preferredUrl;
       const sync = run.mode === 'site-resume-sync';
-      if (sync) {
+      const bossDiscovery = run.mode === 'boss-discovery';
+      if (bossDiscovery) {
+        if (!preferred || this.validateTarget(preferred, run.mode) !== run.targetUrl || input.command.payload.requireLiveSession !== false) {
+          throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'BOSS discovery must acquire the frozen BOSS search page in the user-owned Chrome profile', 409);
+        }
+      } else if (sync) {
         const reuse = input.command.payload.reuseLiveSession;
         const openExactResumePage = reuse === false && isSafeResumeManagementTarget(run.targetUrl);
         if (!preferred || this.validateTarget(preferred, run.mode) !== run.targetUrl || input.command.payload.requireLiveSession !== false || (reuse !== true && !openExactResumePage)) {
@@ -236,7 +254,7 @@ export class BrowserExtensionValidationRegistry {
         throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'Browser validation session must acquire the frozen canary URL', 409);
       }
       const staged = run.mode === 'site-staged-readonly';
-      if (!sync && !staged && input.command.payload.reuseLiveSession) {
+      if (!sync && !staged && !bossDiscovery && input.command.payload.reuseLiveSession) {
         throw new BrowserExtensionBridgeError('VALIDATION_REUSE_DENIED', 'This browser validation mode must create an isolated Chrome tab', 403);
       }
       if (staged && (!input.command.payload.reuseLiveSession || input.command.payload.requireLiveSession !== true)) {
@@ -251,8 +269,9 @@ export class BrowserExtensionValidationRegistry {
       const result = requireRecord(output.result, 'session_acquire');
       const sessionRef = requireString(result.sessionRef, 'sessionRef');
       const currentUrl = requireString(result.currentUrl, 'currentUrl');
-      if (!(sync ? this.sameSite(currentUrl, run.targetUrl) : this.sameTarget(currentUrl, run.targetUrl, run.mode))) {
-        throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', staged ? 'Staged characterization requires an already-open tab on this exact job. Open the target job, manually enter its resume-selection/final-confirmation layer, and retry.' : sync ? 'Site Resume Sync must acquire an active tab on the configured recruiting site' : 'Browser validation Chrome tab opened an unexpected job URL', 409);
+      const acquiredTargetOk = bossDiscovery ? isBossDiscoveryCurrentUrl(currentUrl) : sync ? this.sameSite(currentUrl, run.targetUrl) : this.sameTarget(currentUrl, run.targetUrl, run.mode);
+      if (!acquiredTargetOk) {
+        throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', staged ? 'Staged characterization requires an already-open tab on this exact job. Open the target job, manually enter its resume-selection/final-confirmation layer, and retry.' : sync ? 'Site Resume Sync must acquire an active tab on the configured recruiting site' : bossDiscovery ? 'BOSS discovery did not acquire a safe BOSS search/login tab' : 'Browser validation Chrome tab opened an unexpected job URL', 409);
       }
       run.sessionRef = sessionRef;
       run.commandCount += 1;
@@ -273,8 +292,16 @@ export class BrowserExtensionValidationRegistry {
       timeoutMs: Math.min(input.timeoutMs, 10_000),
     });
     const currentUrl = requireString(current.result, 'current_url');
-    if (!(run.mode === 'site-resume-sync' ? this.sameSite(currentUrl, run.targetUrl) : this.sameTarget(currentUrl, run.targetUrl, run.mode))) {
-      throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DRIFT', run.mode === 'site-resume-sync' ? 'Site Resume Sync tab left the configured recruiting site' : 'Browser validation tab navigated away from the frozen canary URL', 409);
+    const targetStillSafe = run.mode === 'boss-discovery'
+      ? isBossDiscoveryCurrentUrl(currentUrl)
+      : run.mode === 'site-resume-sync'
+        ? this.sameSite(currentUrl, run.targetUrl)
+        : this.sameTarget(currentUrl, run.targetUrl, run.mode);
+    if (!targetStillSafe) {
+      throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DRIFT', run.mode === 'site-resume-sync' ? 'Site Resume Sync tab left the configured recruiting site' : run.mode === 'boss-discovery' ? 'BOSS discovery tab left the allowlisted BOSS search/detail/login surface' : 'Browser validation tab navigated away from the frozen canary URL', 409);
+    }
+    if (run.mode === 'boss-discovery' && (input.command.type === 'fill' || input.command.type === 'click') && !isBossSearchTarget(new URL(currentUrl))) {
+      throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', `BOSS discovery '${input.command.type}' is allowed only on the BOSS search page`, 403);
     }
 
     const output = await this.bridge.invoke(InvokeBrowserExtensionCommandInputSchema.parse({
@@ -558,6 +585,12 @@ export class BrowserExtensionValidationRegistry {
 
   private validateTarget(raw: string, mode: z.infer<typeof ValidationModeSchema>): string {
     const url = new URL(raw);
+    if (mode === 'boss-discovery') {
+      if (!isBossSearchTarget(url)) throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'BOSS discovery target must be the HTTPS BOSS Geek search page', 403);
+      url.search = '';
+      url.hash = '';
+      return url.toString();
+    }
     if (mode === 'site-resume-sync') {
       if (url.protocol !== 'https:' || url.username || url.password) throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Site Resume Sync requires an HTTPS recruiting-site URL without credentials', 403);
       const host = url.hostname.toLowerCase();
@@ -607,6 +640,30 @@ export class BrowserExtensionValidationRegistry {
   private sameTarget(left: string, right: string, mode: z.infer<typeof ValidationModeSchema>): boolean {
     try { return this.validateTarget(left, mode) === this.validateTarget(right, mode); }
     catch { return false; }
+  }
+
+  private authorizeBossDiscoveryCommand(run: MutableValidationRun, command: BrowserExtensionDriverCommand): void {
+    if (run.mode !== 'boss-discovery') return;
+    if (command.type === 'navigate') {
+      if (!isBossDiscoveryNavigableUrl(command.payload.url)) {
+        throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'BOSS discovery navigation is restricted to the Geek search page and job-detail pages', 403);
+      }
+      return;
+    }
+    if (command.type === 'fill') {
+      if (!BOSS_SEARCH_INPUT_SELECTORS.has(command.payload.selector)) {
+        throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', 'BOSS discovery may fill only the allowlisted search input', 403);
+      }
+      return;
+    }
+    if (command.type === 'click') {
+      const expected = command.payload.expectedText?.trim() ?? '';
+      const fixedSearchButton = BOSS_SEARCH_BUTTON_SELECTORS.has(command.payload.selector) && (!expected || expected === '搜索');
+      const scannedSearchAction = BOSS_SCANNED_ACTION_SELECTOR.test(command.payload.selector) && expected === '搜索';
+      if (!fixedSearchButton && !scannedSearchAction) {
+        throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', 'BOSS discovery may click only the explicit search action', 403);
+      }
+    }
   }
 
   private sameSite(left: string, right: string): boolean {
@@ -735,6 +792,42 @@ function uniqueActionByText(actions: readonly RawAction[], text: string): RawAct
   const matches = actions.filter((action) => !action.disabled && !action.ariaDisabled && action.text.replace(/\s+/g, ' ').trim() === expected);
   return matches.length === 1 ? matches[0]! : null;
 }
+function isBossSearchTarget(url: URL): boolean {
+  const host = url.hostname.toLowerCase();
+  return url.protocol === 'https:'
+    && !url.username
+    && !url.password
+    && (host === 'zhipin.com' || host === 'www.zhipin.com')
+    && /^\/web\/geek\/jobs?\/?$/i.test(url.pathname);
+}
+
+function isBossDiscoveryNavigableUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase();
+    if (url.protocol !== 'https:' || url.username || url.password || (host !== 'zhipin.com' && host !== 'www.zhipin.com')) return false;
+    return /^\/web\/geek\/jobs?\/?$/i.test(url.pathname)
+      || /^\/job_detail\/[A-Za-z0-9._%-]+\.html$/i.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function isBossDiscoveryCurrentUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase();
+    if (url.protocol !== 'https:' || url.username || url.password || (host !== 'zhipin.com' && host !== 'www.zhipin.com')) return false;
+    return /^\/web\/geek\/jobs?\/?$/i.test(url.pathname)
+      || /^\/job_detail\/[A-Za-z0-9._%-]+\.html$/i.test(url.pathname)
+      || /^\/web\/passport(?:\/|$)/i.test(url.pathname)
+      || /^\/web\/user(?:\/|$)/i.test(url.pathname)
+      || url.pathname === '/';
+  } catch {
+    return false;
+  }
+}
+
 function isSafeResumeManagementTarget(raw: string): boolean {
   try {
     const url = new URL(raw);

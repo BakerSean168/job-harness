@@ -1,4 +1,5 @@
 import { LocalCdpBrowserBackend, SteelBrowserBackend, type BrowserBackendPort } from '@job-harness/apply-browser';
+import { BossExtensionValidationBackend } from './extension-backend';
 import { runBossBrowserDiscovery, type BossBrowserBridgePort, type BossBrowserScoreDecision } from './runtime';
 
 const config = readConfig(process.env);
@@ -27,6 +28,14 @@ process.exit(exitCode);
 function createBackend(config: ReturnType<typeof readConfig>): BrowserBackendPort {
   if (config.provider === 'local-cdp') {
     return new LocalCdpBrowserBackend({ endpoint: config.localCdpUrl });
+  }
+  if (config.provider === 'extension') {
+    return new BossExtensionValidationBackend({
+      apiUrl: config.jobHarnessApiUrl,
+      authToken: config.jobHarnessAuthToken,
+      agentId: config.browserExtensionAgentId,
+      commandTimeoutMs: 30_000,
+    });
   }
   return new SteelBrowserBackend({
     baseUrl: config.steelBaseUrl,
@@ -75,11 +84,14 @@ function createBridge(baseUrl: string): BossBrowserBridgePort {
 }
 
 function readConfig(env: NodeJS.ProcessEnv) {
-  const provider = (env.JOB_HARNESS_BOSS_BROWSER_PROVIDER?.trim() || 'steel') as 'steel' | 'local-cdp';
-  if (!['steel', 'local-cdp'].includes(provider)) throw new Error("JOB_HARNESS_BOSS_BROWSER_PROVIDER must be 'steel' or 'local-cdp'");
+  const provider = (env.JOB_HARNESS_BOSS_BROWSER_PROVIDER?.trim() || 'extension') as 'steel' | 'local-cdp' | 'extension';
+  if (!['steel', 'local-cdp', 'extension'].includes(provider)) throw new Error("JOB_HARNESS_BOSS_BROWSER_PROVIDER must be 'steel', 'local-cdp', or 'extension'");
   return {
     provider,
     bridgeUrl: httpUrl(env.JOB_HARNESS_BOSS_BRIDGE_URL?.trim() || 'http://127.0.0.1:18788', 'JOB_HARNESS_BOSS_BRIDGE_URL'),
+    jobHarnessApiUrl: httpUrl(env.JOB_HARNESS_API_URL?.trim() || 'http://127.0.0.1:20901', 'JOB_HARNESS_API_URL'),
+    jobHarnessAuthToken: env.JOB_HARNESS_AUTH_TOKEN?.trim() || '',
+    browserExtensionAgentId: env.JOB_HARNESS_BROWSER_EXTENSION_AGENT_ID?.trim() || 'windows-chrome-primary',
     profileId: env.JOB_HARNESS_BOSS_BROWSER_PROFILE_ID?.trim() || 'ai-agent-app',
     keywords: csv(env.JOB_HARNESS_BOSS_BROWSER_KEYWORDS),
     maxKeywords: integer(env.JOB_HARNESS_BOSS_BROWSER_MAX_KEYWORDS, 8, 1, 20, 'JOB_HARNESS_BOSS_BROWSER_MAX_KEYWORDS'),

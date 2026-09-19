@@ -312,7 +312,7 @@ async function firstText(driver: BrowserDriverPort, selectors: readonly string[]
 async function clickSearch(driver: BrowserDriverPort): Promise<boolean> {
   for (const selector of SEARCH_BUTTON_SELECTORS) {
     if (!await driver.exists(selector)) continue;
-    await driver.click(selector);
+    await driver.click(selector, { expectedText: '搜索' });
     return true;
   }
   const exact = (await driver.scanActions())

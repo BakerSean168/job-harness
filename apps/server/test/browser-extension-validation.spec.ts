@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BrowserExtensionBridge } from '../src/browser-extension-bridge';
 import { BrowserExtensionValidationRegistry } from '../src/browser-extension-validation';
 
-function register(bridge: BrowserExtensionBridge, version = '0.2.0') {
+function register(bridge: BrowserExtensionBridge, version = '0.2.2') {
   bridge.register({
     agentId: 'windows-chrome-primary',
     name: 'Windows Chrome',
@@ -14,7 +14,7 @@ function register(bridge: BrowserExtensionBridge, version = '0.2.0') {
       persistentSession: true,
       resumeUpload: true,
       screenshots: true,
-      driverCommands: ['session_acquire','current_url','title','body_text','wait','value_matches','fill','select','set_checked','click','upload','screenshot','scan_controls','scan_actions','form_state_hash'],
+      driverCommands: ['session_acquire','navigate','current_url','title','body_text','exists','text','wait','scroll','value_matches','fill','select','set_checked','click','upload','screenshot','scan_controls','scan_actions','form_state_hash'],
     },
   });
 }
@@ -53,6 +53,86 @@ describe('browser-extension validation scope', () => {
     await expect(registry.invoke(run.id, {
       sessionRef: 'chrome-tab:17', command: { type: 'upload', payload: { selector: '#other', file: { name: 'resume.pdf', mimeType: 'application/pdf', bytesBase64: 'AA==' } } }, timeoutMs: 5_000,
     })).rejects.toMatchObject({ code: 'VALIDATION_UPLOAD_DENIED' });
+    bridge.close();
+  });
+
+  it('bounds BOSS discovery to search/query navigation and read-only job detail inspection', async () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge, '0.2.2');
+    const registry = new BrowserExtensionValidationRegistry(bridge, { allowedOrigin: 'https://job-harness.test:20900' });
+    const target = 'https://www.zhipin.com/web/geek/job';
+    const run = registry.create({ agentId: 'windows-chrome-primary', targetUrl: target, mode: 'boss-discovery' });
+    expect(run).toMatchObject({ mode: 'boss-discovery', targetUrl: 'https://www.zhipin.com/web/geek/job', writeCount: 0 });
+
+    const acquirePromise = registry.invoke(run.id, {
+      sessionRef: null,
+      command: { type: 'session_acquire', payload: { preferredUrl: target, reuseLiveSession: true, requireLiveSession: false } },
+      timeoutMs: 5_000,
+    });
+    const acquire = await answerOne(bridge, { sessionRef: 'chrome-tab:boss', currentUrl: target });
+    expect(acquire.command).toMatchObject({ type: 'session_acquire', payload: { reuseLiveSession: true } });
+    await expect(acquirePromise).resolves.toMatchObject({ run: { sessionRef: 'chrome-tab:boss', commandCount: 1, writeCount: 0 } });
+
+    const fillPromise = registry.invoke(run.id, {
+      sessionRef: 'chrome-tab:boss',
+      command: { type: 'fill', payload: { selector: '.search-form input', value: '前端开发工程师' } },
+      timeoutMs: 5_000,
+    });
+    await answerOne(bridge, target);
+    const fillCommand = await answerOne(bridge, null);
+    expect(fillCommand.command).toMatchObject({ type: 'fill', payload: { selector: '.search-form input', value: '前端开发工程师' } });
+    await expect(fillPromise).resolves.toMatchObject({ run: { writeCount: 1 } });
+
+    const clickPromise = registry.invoke(run.id, {
+      sessionRef: 'chrome-tab:boss',
+      command: { type: 'click', payload: { selector: '.search-btn', expectedText: '搜索' } },
+      timeoutMs: 5_000,
+    });
+    await answerOne(bridge, target);
+    await answerOne(bridge, null);
+    await expect(clickPromise).resolves.toMatchObject({ run: { writeCount: 2 } });
+
+    const jobUrl = 'https://www.zhipin.com/job_detail/abc123.html?ka=search_list_jname_1';
+    const navigatePromise = registry.invoke(run.id, {
+      sessionRef: 'chrome-tab:boss',
+      command: { type: 'navigate', payload: { url: jobUrl } },
+      timeoutMs: 5_000,
+    });
+    await answerOne(bridge, target);
+    const navigateCommand = await answerOne(bridge, null);
+    expect(navigateCommand.command).toMatchObject({ type: 'navigate', payload: { url: jobUrl } });
+    await expect(navigatePromise).resolves.toBeTruthy();
+
+    const bodyPromise = registry.invoke(run.id, {
+      sessionRef: 'chrome-tab:boss',
+      command: { type: 'body_text', payload: { limit: 5000 } },
+      timeoutMs: 5_000,
+    });
+    await answerOne(bridge, jobUrl);
+    await answerOne(bridge, '岗位详情');
+    await expect(bodyPromise).resolves.toMatchObject({ result: '岗位详情' });
+
+    await expect(registry.invoke(run.id, {
+      sessionRef: 'chrome-tab:boss',
+      command: { type: 'click', payload: { selector: '[data-job-harness-action-id="jha-chat"]', expectedText: '立即沟通' } },
+      timeoutMs: 5_000,
+    })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
+    await expect(registry.invoke(run.id, {
+      sessionRef: 'chrome-tab:boss',
+      command: { type: 'navigate', payload: { url: 'https://www.zhipin.com/web/geek/chat' } },
+      timeoutMs: 5_000,
+    })).rejects.toMatchObject({ code: 'VALIDATION_TARGET_DENIED' });
+    bridge.close();
+  });
+
+  it('requires Browser Bridge 0.2.2 before BOSS discovery is created', () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge, '0.2.1');
+    const registry = new BrowserExtensionValidationRegistry(bridge, { allowedOrigin: 'https://job-harness.test:20900' });
+    expect(() => registry.create({
+      agentId: 'windows-chrome-primary', targetUrl: 'https://www.zhipin.com/web/geek/job', mode: 'boss-discovery',
+    })).toThrow(/Browser Bridge >= 0.2.2/);
+    expect(bridge.status('windows-chrome-primary')?.queuedCommands).toBe(0);
     bridge.close();
   });
 
