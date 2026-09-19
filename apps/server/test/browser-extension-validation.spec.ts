@@ -251,6 +251,8 @@ describe('browser-extension validation scope', () => {
       { actionRef:'[data-job-harness-action-id="jha-7"]', tag:'other', text:'我是学生', href:null, type:null, role:null, disabled:false, ariaDisabled:false },
     ];
     const writes: any[] = [];
+    let identitySelected = false;
+    let statusOpened = false;
     let settled = false;
     void pending.finally(() => { settled = true; });
     for (let i=0;i<60 && !settled;i++) {
@@ -260,24 +262,37 @@ describe('browser-extension validation scope', () => {
       if (command.command.type === 'session_acquire') result = { sessionRef:'chrome-tab:onboarding', currentUrl:pageUrl };
       else if (command.command.type === 'current_url') result = pageUrl;
       else if (command.command.type === 'title') result = '完善简历 - 猎聘';
-      else if (command.command.type === 'body_text') result = '邀请你完善求职名片 姓名 性别 出生年月 求职身份 当前城市 浙江·金华 当前求职状态 在职，看看新机会 邮箱 下一步';
-      else if (command.command.type === 'scan_actions') result = actions;
+      else if (command.command.type === 'body_text') result = identitySelected
+        ? '邀请你完善求职名片 姓名 性别 出生年月 求职身份 当前城市 浙江·金华 当前求职状态 在校，看看机会 邮箱 下一步'
+        : '邀请你完善求职名片 姓名 性别 出生年月 求职身份 当前城市 浙江·金华 当前求职状态 在职，看看新机会 邮箱 下一步';
+      else if (command.command.type === 'scan_actions') result = statusOpened
+        ? [...actions, { actionRef:'[data-job-harness-action-id="jha-8"]', tag:'other', text:'离校，在找工作', href:null, type:null, role:null, disabled:false, ariaDisabled:false }]
+        : actions;
       else if (command.command.type === 'scan_controls') result = controls;
       else if (command.command.type === 'form_state_hash') result = 'b'.repeat(64);
-      else if (command.command.type === 'fill' || command.command.type === 'click') { writes.push(command.command); result = null; }
+      else if (command.command.type === 'fill' || command.command.type === 'click') {
+        writes.push(command.command);
+        if (command.command.type === 'click' && command.command.payload.expectedText === '我是学生') identitySelected = true;
+        if (command.command.type === 'click' && command.command.payload.selector === '[data-job-harness-field-id="jh-3"]') statusOpened = true;
+        if (command.command.type === 'click' && command.command.payload.expectedText === '离校，在找工作') statusOpened = false;
+        result = null;
+      }
       bridge.complete('windows-chrome-primary', { commandId:command.commandId, ok:true, result });
     }
     const completed = await pending;
     expect(completed).toMatchObject({
       state:'profile_onboarding_required',
       missingFacts:['gender','birthDate'],
-      manualFacts:['careerIdentity'],
-      appliedFacts:['displayName','email'],
-      run:{ writeCount:2 },
+      manualFacts:[],
+      appliedFacts:['displayName','email','careerIdentity','jobSearchStatus'],
+      run:{ writeCount:5 },
     });
     expect(writes).toEqual([
       expect.objectContaining({ type:'fill', payload:expect.objectContaining({ value:'Candidate Name' }) }),
       expect.objectContaining({ type:'fill', payload:expect.objectContaining({ value:'candidate@example.test' }) }),
+      expect.objectContaining({ type:'click', payload:expect.objectContaining({ expectedText:'我是学生' }) }),
+      expect.objectContaining({ type:'click', payload:expect.objectContaining({ selector:'[data-job-harness-field-id="jh-3"]' }) }),
+      expect.objectContaining({ type:'click', payload:expect.objectContaining({ expectedText:'离校，在找工作' }) }),
     ]);
     expect(JSON.stringify(writes)).not.toContain('下一步');
     bridge.close();

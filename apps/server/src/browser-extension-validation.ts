@@ -346,14 +346,29 @@ export class BrowserExtensionValidationRegistry {
       await this.invoke(id, { sessionRef, command: { type: 'fill', payload: { selector: emailControl.controlRef, value: profile.email } }, timeoutMs: 15_000 });
       appliedFacts.push('email');
     }
-    if (profile.careerIdentity === 'student' || profile.careerIdentity === 'professional') {
-      const identityText = profile.careerIdentity === 'student' ? '我是学生' : '我是职场人';
+    if (profile.careerIdentity) {
+      const identityText = profile.careerIdentity === 'professional' ? '我是职场人' : '我是学生';
       const identityAction = uniqueActionByText(observed.rawActions, identityText);
       if (identityAction) {
         await this.invoke(id, { sessionRef, command: { type: 'click', payload: { selector: identityAction.actionRef, expectedText: identityText } }, timeoutMs: 15_000 });
         appliedFacts.push('careerIdentity');
+        if (profile.careerIdentity === 'new_graduate') {
+          if (profile.jobSearchStatus === 'actively_looking') {
+            observed = await capture();
+            const statusControl = uniqueSectionControl(observed.rawControls, '当前求职状态', true);
+            if (statusControl) {
+              await this.invoke(id, { sessionRef, command: { type: 'click', payload: { selector: statusControl.controlRef, expectedText: null } }, timeoutMs: 15_000 });
+              const statusActionsRaw = await this.invoke(id, { sessionRef, command: { type: 'scan_actions', payload: {} }, timeoutMs: 15_000 });
+              const statusAction = uniqueActionByText(parseRawActions(statusActionsRaw.result), '离校，在找工作');
+              if (statusAction) {
+                await this.invoke(id, { sessionRef, command: { type: 'click', payload: { selector: statusAction.actionRef, expectedText: '离校，在找工作' } }, timeoutMs: 15_000 });
+                appliedFacts.push('jobSearchStatus');
+              } else manualFacts.push('jobSearchStatus');
+            } else manualFacts.push('jobSearchStatus');
+          } else manualFacts.push('jobSearchStatus');
+        }
       } else manualFacts.push('careerIdentity');
-    } else if (profile.careerIdentity === 'new_graduate') manualFacts.push('careerIdentity');
+    }
     if (profile.gender) {
       const genderText = profile.gender === 'male' ? '男' : '女';
       const genderAction = uniqueActionByText(observed.rawActions, genderText);
@@ -597,8 +612,8 @@ function selectResumeUploadControl(raw: unknown): { controlRef: string; label: s
   if (!selected) throw new BrowserExtensionBridgeError('VALIDATION_UPLOAD_AMBIGUOUS', 'Site Resume Sync requires one unambiguous resume file input', 409);
   return { controlRef: selected.controlRef, label: selected.label, name: selected.name ?? null, accept: selected.accept ?? null };
 }
-function uniqueSectionControl(controls: readonly RawControl[], sectionLabel: string): RawControl | null {
-  const matches = controls.filter((control) => !control.disabled && !control.readOnly && (control.sectionLabel ?? '').replace(/\s+/g, '') === sectionLabel.replace(/\s+/g, ''));
+function uniqueSectionControl(controls: readonly RawControl[], sectionLabel: string, allowReadOnly = false): RawControl | null {
+  const matches = controls.filter((control) => !control.disabled && (allowReadOnly || !control.readOnly) && (control.sectionLabel ?? '').replace(/\s+/g, '') === sectionLabel.replace(/\s+/g, ''));
   return matches.length === 1 ? matches[0]! : null;
 }
 function uniqueActionByText(actions: readonly RawAction[], text: string): RawAction | null {
