@@ -33,19 +33,21 @@ function client() {
   });
   return {
     applicant: { async getProfile() { return applicant; } },
-    resume: { async listProfiles() { return profiles; } },
+    resume: {
+      async listProfiles() { return profiles; },
+      async getProfileContext() { return null; },
+    },
   };
 }
 
 const payload = '# 职位名称\nAgent开发工程师\n\n# 薪资范围\n15-25K\n\n# 职位描述\n负责 Agent Harness、Orchestration、Tool Calling、Memory、Planning、MCP、多智能体 Supervisor 系统。';
 
 describe('Job Harness BOSS outreach bridge', () => {
-  it('keeps the legacy score response shape while dynamically selecting the best of five resumes', async () => {
+  it('keeps deterministic scoring separate from recruiter-facing copy generation', async () => {
     const decision = await decideBossJob(client(), payload);
-    expect(decision).toMatchObject({ profileId: 'ai-agent-forgeflow', resumeIndex: 0, decision: 'strong-match' });
+    expect(decision).toMatchObject({ profileId: 'ai-agent-forgeflow', resumeIndex: 0, decision: 'strong-match', introduce: '' });
     expect(decision.score).toBeGreaterThanOrEqual(80);
-    expect(decision.introduce).toContain('测试大学');
-    expect(decision.introduce).toContain('Agent Harness');
+    expect(decision.signals).toContain('Agent Harness');
   });
 
   it('serves the existing userscript endpoints and keeps resume-send/multiturn paths blocked', async () => {
@@ -67,14 +69,19 @@ async function x(){
                                     await sendMsg('不好意思，不太合适哈，祝早日找到合适的人选。')
 }`;
     const resumeFollowupUserscript = patchBossResumeFollowupUserscript(followupSource, { publicUrl: 'https://boss-bridge.example.test/boss-resume-followup.user.js' });
-    const server = createBossOutreachBridge({ client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0, resumeFollowupUserscript });
+    const server = createBossOutreachBridge({ client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0, greetingWaitMs: 5_000, resumeFollowupUserscript });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     try {
       const address = server.address();
       if (!address || typeof address === 'string') throw new Error('missing server address');
       const base = `http://127.0.0.1:${address.port}`;
       const health = await fetch(`${base}/api/health`);
-      expect(await health.json()).toMatchObject({ ok: true, service: 'job-harness-boss-outreach-bridge', mode: 'auto-resume-followup', discovery: false, resumeFollowup: true });
+      expect(await health.json()).toMatchObject({ ok: true, service: 'job-harness-boss-outreach-bridge', mode: 'auto-resume-followup', discovery: false, resumeFollowup: true, greetingMode: 'chatgpt-assisted', greetingWaitMs: 5_000 });
+      const clientConfig = await fetch(`${base}/p/ai-agent-app/client-config`);
+      expect(await clientConfig.json()).toMatchObject({
+        frontend: { preloadStableRoundsLimit: 8, preloadMaxRounds: 30 },
+      });
+
       const reporter = await fetch(`${base}/boss-discovery-reporter.user.js`);
       expect(reporter.status).toBe(200);
       expect(reporter.headers.get('content-type')).toContain('text/javascript');
@@ -83,8 +90,28 @@ async function x(){
       expect(followup.status).toBe(200);
       expect(await followup.text()).toContain('const JAC_HARD_ONLY_GREET = false;');
 
-      const score = await fetch(`${base}/p/ai-agent-app/get-job-score`, { method: 'POST', body: JSON.stringify(payload), headers: { 'content-type': 'application/json' } });
-      expect(await score.json()).toMatchObject({ profileId: 'ai-agent-forgeflow', resumeIndex: 0 });
+      const scorePromise = fetch(`${base}/p/ai-agent-app/get-job-score`, { method: 'POST', body: JSON.stringify(payload), headers: { 'content-type': 'application/json' } });
+      let pending: { total: number; items: Array<{ id: string; job: { title: string }; candidate: Record<string, unknown>; guidance: string[] }> } | null = null;
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        const response = await fetch(`${base}/api/greetings/pending`);
+        const body = await response.json() as typeof pending;
+        if (body && body.total > 0) { pending = body; break; }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(pending?.total).toBe(1);
+      expect(pending?.items[0]).toMatchObject({ job: { title: 'Agent开发工程师' } });
+      expect(pending?.items[0]?.candidate).toMatchObject({ displayName: '测试候选人' });
+      expect(pending?.items[0]?.guidance.join(' ')).toContain('不使用固定文案模板');
+      const greetingRequestId = pending!.items[0]!.id;
+      const greeting = '您好，我是测试大学物联网工程专业的应届生，做过 Agent Harness 与多智能体编排相关项目，和贵司岗位方向比较契合，想进一步了解一下岗位，谢谢。';
+      const resolved = await fetch(`${base}/api/greetings/${greetingRequestId}/resolve`, {
+        method: 'POST',
+        body: JSON.stringify({ message: greeting, source: 'chatgpt-web-test' }),
+        headers: { 'content-type': 'application/json' },
+      });
+      expect(await resolved.json()).toMatchObject({ ok: true, id: greetingRequestId, source: 'chatgpt-web-test' });
+      const score = await scorePromise;
+      expect(await score.json()).toMatchObject({ profileId: 'ai-agent-forgeflow', resumeIndex: 0, introduce: greeting, greetingRequestId });
 
       const logged = await fetch(`${base}/p/ai-agent-app/log-action`, { method: 'POST', body: JSON.stringify({ action: 'greet_sent', scene: 'search', title: 'Agent开发工程师', resumeIndex: 0, unexpectedSecret: 'must-not-persist' }), headers: { 'content-type': 'application/json' } });
       expect(await logged.json()).toEqual({ success: true });

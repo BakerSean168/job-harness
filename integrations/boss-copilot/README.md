@@ -32,6 +32,17 @@ and loads the unpacked extension from `extension/`.
 
 The page overlay starts paused. Clicking **开始** enables the proven Copilot loop. The Job Harness bridge supplies current target roles, scores every job across active Resume Profiles, returns the selected BOSS resume index and policy-gates resume follow-up.
 
+First-contact copy is **not** a fixed server-side template. For jobs that pass the outreach threshold, the bridge creates a short-lived `chatgpt-assisted` greeting request containing the current JD plus a privacy-reduced view of the selected Resume Profile. The score request waits for ChatGPT to resolve that request. If no generated greeting arrives before the deadline, the bridge fails closed and the compatibility runtime moves on without contacting the recruiter. This keeps wording generation in the ChatGPT control plane while the mature Copilot remains only the browser executor.
+
+Control endpoints used by the ChatGPT/operator loop:
+
+```text
+GET  /api/greetings/pending
+POST /api/greetings/:requestId/resolve
+```
+
+The resolve payload is `{ "message": "...", "source": "chatgpt-web" }`. The message must be a single 12-320 character greeting. `JOB_HARNESS_BOSS_GREETING_WAIT_MS` controls the bounded wait and `JOB_HARNESS_BOSS_GREETING_THRESHOLD` defaults to `58`.
+
 ## Compatibility boundary
 
 The following legacy browser behavior is intentionally retained rather than rewritten:

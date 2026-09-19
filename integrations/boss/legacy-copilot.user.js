@@ -1384,6 +1384,18 @@
 
         // 聊天页
         async __chat() {
+            // Chat greeting and recruiter-followup paths share the same Job Harness
+            // telemetry client. Keep it at __chat scope so the one-shot sayHi path
+            // can acknowledge a successful send instead of throwing after the click.
+            const api = new Api();
+            const logAction = async (payload) => {
+                try {
+                    await api.logAction(payload);
+                } catch (e) {
+                    console.log('logAction failed', e);
+                }
+            };
+
             // 注册广播
             const startBroadcast = (target = this.targets.chat) => {
                 this.__broadcast(target);
@@ -1604,15 +1616,6 @@
 
             // 聊天
             const chat = async () => {
-                // api
-                const api = new Api();
-                const logAction = async (payload) => {
-                    try {
-                        await api.logAction(payload);
-                    } catch (e) {
-                        console.log('logAction failed', e);
-                    }
-                };
                 // 开始广播
                 startBroadcast(this.targets.chat);
                 // 获取默认自我介绍（兜底）

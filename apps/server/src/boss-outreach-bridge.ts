@@ -1,15 +1,19 @@
+import { randomUUID } from 'node:crypto';
 import { mkdir, appendFile, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { rankResumeProfilesForJob, type ResumeJobMatch } from '@job-harness/resume-application';
 import type { ApplicantProfileContext } from '@job-harness/applicant-contracts';
-import type { ListResumeProfilesOutput } from '@job-harness/resume-contracts';
+import type { ListResumeProfilesOutput, ResumeProfileContext } from '@job-harness/resume-contracts';
 import { BossDiscoveryReportSchema, parseBossDiscoveryDecision, renderBossDiscoveryReporter, type BossDiscoveryCoordinator } from './boss-discovery';
 import { BossResumeFollowupRequestSchema, decideBossResumeFollowup } from './boss-resume-followup';
 
 export interface BossOutreachBridgeClient {
   readonly applicant: { getProfile(): Promise<ApplicantProfileContext> };
-  readonly resume: { listProfiles(): Promise<ListResumeProfilesOutput> };
+  readonly resume: {
+    listProfiles(): Promise<ListResumeProfilesOutput>;
+    getProfileContext?(profileId: string): Promise<ResumeProfileContext | null>;
+  };
 }
 
 export interface BossOutreachBridgeOptions {
@@ -21,6 +25,8 @@ export interface BossOutreachBridgeOptions {
   readonly random?: () => number;
   readonly discovery?: BossDiscoveryCoordinator | null;
   readonly resumeFollowupUserscript?: string | null;
+  readonly greetingWaitMs?: number;
+  readonly greetingThreshold?: number;
 }
 
 export interface ParsedBossJob {
@@ -37,6 +43,25 @@ export interface BossJobDecision {
   readonly profileLabel: string;
   readonly decision: ResumeJobMatch['decision'];
   readonly signals: readonly string[];
+  readonly greetingRequestId?: string | null;
+}
+
+export interface BossGreetingRequest {
+  readonly id: string;
+  readonly createdAt: string;
+  readonly expiresAt: string;
+  readonly requestedProfileId: string;
+  readonly job: ParsedBossJob;
+  readonly match: {
+    readonly score: number;
+    readonly profileId: string;
+    readonly profileLabel: string;
+    readonly resumeIndex: number;
+    readonly decision: BossJobDecision['decision'];
+    readonly signals: readonly string[];
+  };
+  readonly candidate: Record<string, unknown>;
+  readonly guidance: readonly string[];
 }
 
 export function parseLegacyBossJobPayload(raw: unknown): ParsedBossJob {
@@ -63,34 +88,64 @@ function compactSignal(value: string): string {
   return value.replace(/\s+/g, ' ').trim().slice(0, 80);
 }
 
-export function buildBossGreeting(applicant: ApplicantProfileContext['profile'], match: ResumeJobMatch): string {
-  const education = applicant.education[0];
-  const identity = [education?.school, education?.major].filter(Boolean).join(' · ');
-  const signals = [
-    ...match.matches.specialization,
-    ...match.matches.titleStrong,
-    ...match.matches.detailStrong,
-    ...match.matches.detailSupport,
-  ]
-    .map((item) => compactSignal(item.keyword))
-    .filter(Boolean)
-    .filter((item, index, all) => all.indexOf(item) === index)
-    .slice(0, 3);
-  const introduction = identity ? `我是${identity}方向的${applicant.displayName}` : `我是${applicant.displayName}`;
-  const role = match.targetRole || match.profileName;
-  const evidence = signals.length ? `，相关实践覆盖 ${signals.join('、')}` : '';
-  return `${introduction}，目前主要关注${role}${evidence}。看到这个岗位方向比较匹配，希望有机会进一步沟通，谢谢。`;
+function compactText(value: string | null | undefined, max = 600): string | null {
+  const normalized = value?.replace(/\s+/g, ' ').trim();
+  return normalized ? normalized.slice(0, max) : null;
+}
+
+function buildGreetingCandidateContext(
+  applicant: ApplicantProfileContext['profile'],
+  resume: ResumeProfileContext | null,
+  decision: BossJobDecision,
+): Record<string, unknown> {
+  const resolved = resume?.resolved;
+  return {
+    displayName: applicant.displayName,
+    education: applicant.education.slice(0, 2).map((item) => ({
+      school: item.school,
+      major: item.major,
+      degree: item.degree,
+      endMonth: item.endMonth,
+    })),
+    targetRole: resolved?.positioning ?? decision.profileLabel,
+    matchedSignals: decision.signals,
+    skills: resolved?.skills.slice(0, 8).map((item) => ({
+      label: item.label,
+      content: compactText(item.content, 500),
+      keywords: item.keywords.slice(0, 12),
+    })) ?? [],
+    projects: resolved?.projects.slice(0, 4).map((item) => ({
+      name: item.name,
+      role: item.role,
+      description: compactText(item.description, 500),
+      stack: compactText(item.stack, 240),
+      highlights: item.highlights.slice(0, 4).map((highlight) => compactText(highlight.detail, 360)).filter(Boolean),
+    })) ?? [],
+    workExperiences: resolved?.workExperiences.slice(0, 3).map((item) => ({
+      company: item.company,
+      role: item.role,
+      bullets: item.bullets.slice(0, 4).map((bullet) => compactText(bullet.content, 360)).filter(Boolean),
+    })) ?? [],
+    summaries: resolved?.summaries.slice(0, 3).map((item) => compactText(item.detail, 500)).filter(Boolean) ?? [],
+  };
+}
+
+function normalizeGreetingMessage(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const message = value.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (message.length < 12 || message.length > 320) return null;
+  return message;
 }
 
 export async function decideBossJob(client: BossOutreachBridgeClient, raw: unknown): Promise<BossJobDecision> {
   const job = parseLegacyBossJobPayload(raw);
-  const [profiles, applicant] = await Promise.all([client.resume.listProfiles(), client.applicant.getProfile()]);
+  const profiles = await client.resume.listProfiles();
   const ranked = rankResumeProfilesForJob({ title: job.title, description: job.description }, profiles.items);
   const selected = ranked[0];
   if (!selected) throw new Error('Job Harness has no active Resume Profile for BOSS outreach');
   return {
     score: selected.score,
-    introduce: buildBossGreeting(applicant.profile, selected),
+    introduce: '',
     resumeIndex: bossResumeIndex(selected.profileId),
     profileId: selected.profileId,
     profileLabel: selected.profileName,
@@ -100,7 +155,7 @@ export async function decideBossJob(client: BossOutreachBridgeClient, raw: unkno
       ...selected.matches.titleStrong,
       ...selected.matches.detailStrong,
       ...selected.matches.detailSupport,
-    ].map((item) => item.keyword).filter((value, index, all) => all.indexOf(value) === index).slice(0, 8),
+    ].map((item) => compactSignal(item.keyword)).filter(Boolean).filter((value, index, all) => all.indexOf(value) === index).slice(0, 8),
   };
 }
 
@@ -171,6 +226,22 @@ async function readEvents(path: string): Promise<Record<string, unknown>[]> {
   } catch { return []; }
 }
 
+interface PendingBossGreeting {
+  readonly request: BossGreetingRequest;
+  readonly wait: Promise<string | null>;
+  readonly resolve: (message: string) => void;
+  readonly timer: ReturnType<typeof setTimeout>;
+}
+
+const BOSS_GREETING_GUIDANCE = Object.freeze([
+  '根据岗位 JD 和候选人真实简历内容临时生成 BOSS 首次招呼语，不使用固定文案模板。',
+  '用中文，1-3 句，简洁自然，像真人求职者；通常控制在 50-120 个汉字左右。',
+  '优先挑选与当前 JD 最相关的 1-2 个真实经历、项目或技术点，不要机械堆砌匹配关键词。',
+  '不得编造候选人未提供的经历、年限、公司、奖项或技能熟练度。',
+  '可以自然提到学校、专业、应届身份；无需重复姓名，结尾自然表达希望进一步沟通。',
+  '只提交最终要发送给招聘方的招呼语，不要解释生成过程。',
+]);
+
 function screeningSummary(rows: readonly Record<string, unknown>[]) {
   const decisions = rows.filter((row) => row.action === 'job_decision_consumed' && typeof row.screeningSessionId === 'string');
   const sessions = new Map<string, Record<string, unknown>[]>();
@@ -202,7 +273,73 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
   const baseDelayMs = Math.max(0, options.baseDelayMs ?? 2500);
   const delayJitterMs = Math.max(0, options.delayJitterMs ?? 400);
   const random = options.random ?? Math.random;
+  const greetingThreshold = Math.max(0, Math.min(100, options.greetingThreshold ?? 58));
+  const greetingWaitMs = Math.max(5_000, Math.min(9 * 60_000, options.greetingWaitMs ?? 120_000));
   const recentDecisions = new Map<string, BossJobDecision>();
+  const pendingGreetings = new Map<string, PendingBossGreeting>();
+
+  const createPendingGreeting = async (
+    requestedProfileId: string,
+    job: ParsedBossJob,
+    decision: BossJobDecision,
+    applicant: ApplicantProfileContext['profile'],
+  ): Promise<PendingBossGreeting> => {
+    const id = randomUUID();
+    const createdAt = new Date();
+    const expiresAt = new Date(createdAt.getTime() + greetingWaitMs);
+    const resume = options.client.resume.getProfileContext
+      ? await options.client.resume.getProfileContext(decision.profileId)
+      : null;
+    const request: BossGreetingRequest = {
+      id,
+      createdAt: createdAt.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      requestedProfileId,
+      job,
+      match: {
+        score: decision.score,
+        profileId: decision.profileId,
+        profileLabel: decision.profileLabel,
+        resumeIndex: decision.resumeIndex,
+        decision: decision.decision,
+        signals: decision.signals,
+      },
+      candidate: buildGreetingCandidateContext(applicant, resume, decision),
+      guidance: BOSS_GREETING_GUIDANCE,
+    };
+
+    let resolveWait!: (message: string | null) => void;
+    const wait = new Promise<string | null>((resolve) => { resolveWait = resolve; });
+    const timer = setTimeout(() => {
+      pendingGreetings.delete(id);
+      resolveWait(null);
+      void appendEvent(options.logPath, {
+        loggedAt: new Date().toISOString(),
+        action: 'greeting_generation_timeout',
+        greetingRequestId: id,
+        requestedProfileId,
+        title: job.title,
+        salary: job.salary,
+        score: decision.score,
+        resumeIndex: decision.resumeIndex,
+      }).catch(() => undefined);
+    }, greetingWaitMs);
+    const pending: PendingBossGreeting = { request, wait, resolve: resolveWait, timer };
+    pendingGreetings.set(id, pending);
+    await appendEvent(options.logPath, {
+      loggedAt: createdAt.toISOString(),
+      action: 'greeting_requested',
+      greetingRequestId: id,
+      requestedProfileId,
+      title: job.title,
+      salary: job.salary,
+      score: decision.score,
+      resumeIndex: decision.resumeIndex,
+      recommendedProfileId: decision.profileId,
+      recommendedProfileLabel: decision.profileLabel,
+    });
+    return pending;
+  };
 
   return createServer(async (req, res) => {
     try {
@@ -219,6 +356,9 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           reporterUrl: `${options.publicBaseUrl.replace(/\/+$/, '')}/boss-discovery-reporter.user.js`,
           resumeFollowup: Boolean(options.resumeFollowupUserscript),
           resumeFollowupUrl: options.resumeFollowupUserscript ? `${options.publicBaseUrl.replace(/\/+$/, '')}/boss-resume-followup.user.js` : null,
+          greetingMode: 'chatgpt-assisted',
+          greetingWaitMs,
+          pendingGreetings: pendingGreetings.size,
           profiles: profiles.items.map((p) => ({ id: p.id, name: p.name })),
           applicantProfileVersion: applicant.profile.version,
         });
@@ -238,6 +378,41 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
       if (req.method === 'GET' && url.pathname === '/api/screening-summary') {
         return sendJson(res, 200, screeningSummary(await readEvents(options.logPath)));
       }
+      if (req.method === 'GET' && url.pathname === '/api/greetings/pending') {
+        const items = [...pendingGreetings.values()]
+          .map((item) => item.request)
+          .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+        return sendJson(res, 200, { ok: true, mode: 'chatgpt-assisted', total: items.length, items });
+      }
+      const greetingResolveMatch = /^\/api\/greetings\/([A-Za-z0-9-]+)\/resolve$/.exec(url.pathname);
+      if (req.method === 'POST' && greetingResolveMatch) {
+        const id = greetingResolveMatch[1]!;
+        const pending = pendingGreetings.get(id);
+        if (!pending) return sendJson(res, 404, { error: 'greeting_request_not_found', id });
+        const body = await readJsonBody(req);
+        const source = body && typeof body === 'object' && !Array.isArray(body) && typeof (body as { source?: unknown }).source === 'string'
+          ? String((body as { source: string }).source).trim().slice(0, 80)
+          : 'chatgpt-web';
+        const message = normalizeGreetingMessage(
+          body && typeof body === 'object' && !Array.isArray(body) ? (body as { message?: unknown }).message : null,
+        );
+        if (!message) return sendJson(res, 400, { error: 'invalid_greeting', message: 'Greeting must be a single 12-320 character message.' });
+        clearTimeout(pending.timer);
+        pendingGreetings.delete(id);
+        await appendEvent(options.logPath, {
+          loggedAt: new Date().toISOString(),
+          action: 'greeting_resolved',
+          greetingRequestId: id,
+          requestedProfileId: pending.request.requestedProfileId,
+          title: pending.request.job.title,
+          salary: pending.request.job.salary,
+          score: pending.request.match.score,
+          resumeIndex: pending.request.match.resumeIndex,
+          source,
+        });
+        pending.resolve(message);
+        return sendJson(res, 200, { ok: true, id, source });
+      }
 
       const match = /^\/p\/([A-Za-z0-9._-]+)\/(client-config|tags|get-introduce|get-job-score|log-action|reply|is-need-resume|is-need-works)$/.exec(url.pathname);
       if (!match) return sendJson(res, 404, { error: 'not_found' });
@@ -246,18 +421,16 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
       const [profiles, applicant] = await Promise.all([options.client.resume.listProfiles(), options.client.applicant.getProfile()]);
       const requested = profiles.items.find((profile) => profile.id === requestedProfileId) ?? profiles.items[0] ?? null;
       if (!requested) return sendJson(res, 503, { error: 'no_resume_profiles' });
-      const fallbackMatch = rankResumeProfilesForJob({ title: requested.targetRole['zh-CN'] ?? requested.targetRole.en ?? requested.id, description: '' }, [requested])[0]!;
-      const fallbackGreeting = buildBossGreeting(applicant.profile, fallbackMatch);
 
       if (req.method === 'GET' && action === 'client-config') {
         return sendJson(res, 200, {
-          introduce: fallbackGreeting,
-          character: '简洁 直接 礼貌',
+          introduce: '',
+          character: '由 ChatGPT 根据当前 JD 和真实简历上下文临时生成',
           tags: applicant.profile.targetRoles.slice(0, 10),
           frontend: {
             serverHost: `${options.publicBaseUrl.replace(/\/+$/, '')}/p/${requestedProfileId}`,
             resumeIndex: bossResumeIndex(requestedProfileId),
-            thread: 58,
+            thread: greetingThreshold,
             timestampTimeout: 3000,
             onlyGreet: false,
             resumeFollowup: true,
@@ -268,25 +441,59 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
             greetTimeout: 12000,
             preloadScrollPixels: 180,
             preloadScrollWaitMs: 450,
-            preloadStableRoundsLimit: 24,
-            preloadMaxRounds: 300,
+            // The legacy Copilot used a very deep preload sweep. On the current
+            // BOSS infinite list this can spend close to a minute scrolling before
+            // the first score. Keep production bounded to the canary-proven window:
+            // enough time for lazy cards to settle without delaying outreach.
+            preloadStableRoundsLimit: 8,
+            preloadMaxRounds: 30,
             preloadActivateCardEvery: 0,
             preloadActivateCardWaitMs: 250,
           },
         });
       }
       if (req.method === 'GET' && action === 'tags') return sendJson(res, 200, { tags: applicant.profile.targetRoles.slice(0, 10) });
-      if (req.method === 'GET' && action === 'get-introduce') return sendJson(res, 200, { introduce: fallbackGreeting });
+      if (req.method === 'GET' && action === 'get-introduce') return sendJson(res, 200, { introduce: '' });
 
       if (req.method === 'POST' && action === 'get-job-score') {
         const raw = await readJsonBody(req);
         const job = parseLegacyBossJobPayload(raw);
-        const decision = await decideBossJob(options.client, raw);
-        recentDecisions.set(job.title, decision);
+        const scored = await decideBossJob(options.client, raw);
         const jitter = delayJitterMs ? Math.round((random() * 2 - 1) * delayJitterMs) : 0;
         const delay = Math.max(0, baseDelayMs + jitter);
-        await appendEvent(options.logPath, { loggedAt: new Date().toISOString(), action: 'job_scored', requestedProfileId, title: job.title, salary: job.salary, ...decision, delayMs: delay });
+        await appendEvent(options.logPath, {
+          loggedAt: new Date().toISOString(),
+          action: 'job_scored',
+          requestedProfileId,
+          title: job.title,
+          salary: job.salary,
+          score: scored.score,
+          resumeIndex: scored.resumeIndex,
+          profileId: scored.profileId,
+          profileLabel: scored.profileLabel,
+          decision: scored.decision,
+          signals: scored.signals,
+          delayMs: delay,
+        });
         if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+
+        let decision = scored;
+        if (scored.score >= greetingThreshold) {
+          const pending = await createPendingGreeting(requestedProfileId, job, scored, applicant.profile);
+          const introduce = await pending.wait;
+          if (!introduce) {
+            return sendJson(res, 409, {
+              error: 'greeting_not_resolved',
+              message: 'ChatGPT did not resolve the BOSS greeting before the compatibility-runtime deadline; no greeting was sent.',
+              greetingRequestId: pending.request.id,
+              score: scored.score,
+              profileId: scored.profileId,
+              resumeIndex: scored.resumeIndex,
+            });
+          }
+          decision = { ...scored, introduce, greetingRequestId: pending.request.id };
+        }
+        recentDecisions.set(job.title, decision);
         return sendJson(res, 200, decision);
       }
 
