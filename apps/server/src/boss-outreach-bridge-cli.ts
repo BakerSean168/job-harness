@@ -41,6 +41,7 @@ const server = createBossOutreachBridge({
   delayJitterMs: Number(process.env.JOB_HARNESS_BOSS_SCORE_DELAY_JITTER_MS ?? 400),
   greetingWaitMs: Number(process.env.JOB_HARNESS_BOSS_GREETING_WAIT_MS ?? 120_000),
   greetingThreshold: Number(process.env.JOB_HARNESS_BOSS_GREETING_THRESHOLD ?? 58),
+  campaignId,
   discovery,
   resumeFollowupUserscript,
 });

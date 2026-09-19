@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ApplicantProfileContextSchema } from '@job-harness/applicant-contracts';
+import { JobSearchCampaignSchema } from '@job-harness/contracts';
 import { ListResumeProfilesOutputSchema, ResumeProfileSchema } from '@job-harness/resume-contracts';
 import { createBossOutreachBridge, decideBossJob } from '../src/boss-outreach-bridge';
 import { patchBossResumeFollowupUserscript } from '../src/boss-resume-followup';
@@ -31,12 +32,17 @@ function client() {
     profile: { id: 'default', version: 1, displayName: '测试候选人', phone: null, email: 'candidate@example.test', location: null, website: null, github: null, education: [{ id: 'edu-1', school: '测试大学', major: '物联网工程', degree: '本科', department: null, location: null, startMonth: '2022-09', endMonth: '2026-06' }], targetRoles: ['AI Agent'], targetCities: ['杭州'], availableFrom: '立即', notes: null, createdAt: at, updatedAt: at },
     latestRevision: { id: 'applicant-rev-1', profileId: 'default', revisionNumber: 1, profileVersion: 1, snapshot: { id: 'default', version: 1, displayName: '测试候选人', phone: null, email: 'candidate@example.test', location: null, website: null, github: null, education: [{ id: 'edu-1', school: '测试大学', major: '物联网工程', degree: '本科', department: null, location: null, startMonth: '2022-09', endMonth: '2026-06' }], targetRoles: ['AI Agent'], targetCities: ['杭州'], availableFrom: '立即', notes: null, createdAt: at, updatedAt: at }, contentHash: 'a'.repeat(64), createdAt: at, createdBy: 'system' },
   });
+  const campaign = JobSearchCampaignSchema.parse({
+    id: 'campaign-1', name: '2026届前端', targetRoles: ['前端开发'], cities: ['杭州'], graduationYears: [2026],
+    experience: ['经验不限', '无经验', '应届生', '实习生', '1年以内', '1-3年'], education: ['本科'], keywords: ['Vue3', 'React'], exclusions: [], sources: ['boss'], resumeProfileIds: profiles.items.map((item) => item.id), status: 'active', createdAt: at, updatedAt: at,
+  });
   return {
     applicant: { async getProfile() { return applicant; } },
     resume: {
       async listProfiles() { return profiles; },
       async getProfileContext() { return null; },
     },
+    campaigns: { async get() { return campaign; } },
   };
 }
 
@@ -48,6 +54,67 @@ describe('Job Harness BOSS outreach bridge', () => {
     expect(decision).toMatchObject({ profileId: 'ai-agent-forgeflow', resumeIndex: 0, decision: 'strong-match', introduce: '' });
     expect(decision.score).toBeGreaterThanOrEqual(80);
     expect(decision.signals).toContain('Agent Harness');
+  });
+
+  it('blocks explicit 3+ year requirements for an early-career campaign before creating a greeting request', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
+    const logPath = join(dir, 'events.jsonl');
+    const server = createBossOutreachBridge({ client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0, greetingWaitMs: 5_000, campaignId: 'campaign-1' });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('missing server address');
+      const base = `http://127.0.0.1:${address.port}`;
+      const seniorPayload = '# 职位名称\n前端开发工程师\n\n# 薪资范围\n20-40K\n\n# 职位描述\n我们正在寻找拥有3年以上经验的前端工程师，要求 React、TypeScript、Vue、Vite。';
+      const score = await fetch(`${base}/p/ai-agent-app/get-job-score`, { method: 'POST', body: JSON.stringify(seniorPayload), headers: { 'content-type': 'application/json' } });
+      const blocked = await score.json() as { score: number; policyBlocked?: boolean; policyReason?: string; introduce?: string };
+      expect(blocked).toMatchObject({ policyBlocked: true, policyReason: 'explicit-minimum-experience-3-years', introduce: '' });
+      expect(blocked.score).toBeLessThan(58);
+      const pending = await fetch(`${base}/api/greetings/pending`);
+      expect(await pending.json()).toMatchObject({ total: 0, items: [] });
+      const rows = (await readFile(logPath, 'utf8')).trim().split(/\n/).map((line) => JSON.parse(line));
+      expect(rows.at(-1)).toMatchObject({ action: 'job_hard_requirement_blocked', minimumExperienceYears: 3 });
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
+  it('lets ChatGPT skip a semantic mismatch without sending a recruiter-facing greeting', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
+    const logPath = join(dir, 'events.jsonl');
+    const server = createBossOutreachBridge({ client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0, greetingWaitMs: 5_000, campaignId: 'campaign-1' });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('missing server address');
+      const base = `http://127.0.0.1:${address.port}`;
+      const scorePromise = fetch(`${base}/p/ai-agent-app/get-job-score`, { method: 'POST', body: JSON.stringify(payload), headers: { 'content-type': 'application/json' } });
+      let requestId = '';
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        const pending = await fetch(`${base}/api/greetings/pending`);
+        const body = await pending.json() as { items?: Array<{ id?: string }> };
+        requestId = body.items?.[0]?.id ?? '';
+        if (requestId) break;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(requestId).not.toBe('');
+      const resolved = await fetch(`${base}/api/greetings/${requestId}/resolve`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'skip', reason: '核心技术栈与当前真实经历明显不匹配', source: 'chatgpt-web-test' }),
+        headers: { 'content-type': 'application/json' },
+      });
+      expect(await resolved.json()).toMatchObject({ ok: true, id: requestId, action: 'skip', source: 'chatgpt-web-test' });
+      const score = await scorePromise;
+      const decision = await score.json() as { score: number; introduce?: string; policyBlocked?: boolean; policyReason?: string };
+      expect(decision.policyBlocked).toBe(true);
+      expect(decision.score).toBeLessThan(58);
+      expect(decision.introduce).toBe('');
+      expect(decision.policyReason).toContain('chatgpt-skip:');
+      const rows = (await readFile(logPath, 'utf8')).trim().split(/\n/).map((line) => JSON.parse(line));
+      expect(rows.some((row) => row.action === 'greeting_skipped' && row.greetingRequestId === requestId)).toBe(true);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
   });
 
   it('serves the existing userscript endpoints and keeps resume-send/multiturn paths blocked', async () => {
@@ -69,7 +136,7 @@ async function x(){
                                     await sendMsg('不好意思，不太合适哈，祝早日找到合适的人选。')
 }`;
     const resumeFollowupUserscript = patchBossResumeFollowupUserscript(followupSource, { publicUrl: 'https://boss-bridge.example.test/boss-resume-followup.user.js' });
-    const server = createBossOutreachBridge({ client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0, greetingWaitMs: 5_000, resumeFollowupUserscript });
+    const server = createBossOutreachBridge({ client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0, greetingWaitMs: 5_000, campaignId: 'campaign-1', resumeFollowupUserscript });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     try {
       const address = server.address();
@@ -109,7 +176,7 @@ async function x(){
         body: JSON.stringify({ message: greeting, source: 'chatgpt-web-test' }),
         headers: { 'content-type': 'application/json' },
       });
-      expect(await resolved.json()).toMatchObject({ ok: true, id: greetingRequestId, source: 'chatgpt-web-test' });
+      expect(await resolved.json()).toMatchObject({ ok: true, id: greetingRequestId, action: 'send', source: 'chatgpt-web-test' });
       const score = await scorePromise;
       expect(await score.json()).toMatchObject({ profileId: 'ai-agent-forgeflow', resumeIndex: 0, introduce: greeting, greetingRequestId });
 

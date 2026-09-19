@@ -41,7 +41,7 @@ GET  /api/greetings/pending
 POST /api/greetings/:requestId/resolve
 ```
 
-The resolve payload is `{ "message": "...", "source": "chatgpt-web" }`. The message must be a single 12-320 character greeting. `JOB_HARNESS_BOSS_GREETING_WAIT_MS` controls the bounded wait and `JOB_HARNESS_BOSS_GREETING_THRESHOLD` defaults to `58`.
+The resolver supports two outcomes. Use `{ "action": "send", "message": "...", "source": "chatgpt-web" }` (or omit `action` for backward compatibility) to return a single 12-320 character greeting. Use `{ "action": "skip", "reason": "...", "source": "chatgpt-web" }` when the JD has a core requirement that the real Resume evidence does not support; the bridge then returns a below-threshold compatibility decision so the legacy runtime moves on without contacting the recruiter. `JOB_HARNESS_BOSS_GREETING_WAIT_MS` controls the bounded wait and `JOB_HARNESS_BOSS_GREETING_THRESHOLD` defaults to `58`. Early-career campaigns also fail closed on explicit 3+ year minimum-experience requirements before a greeting request is created.
 
 ## Compatibility boundary
 

@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { rankResumeProfilesForJob, type ResumeJobMatch } from '@job-harness/resume-application';
 import type { ApplicantProfileContext } from '@job-harness/applicant-contracts';
+import type { JobSearchCampaign } from '@job-harness/contracts';
 import type { ListResumeProfilesOutput, ResumeProfileContext } from '@job-harness/resume-contracts';
 import { BossDiscoveryReportSchema, parseBossDiscoveryDecision, renderBossDiscoveryReporter, type BossDiscoveryCoordinator } from './boss-discovery';
 import { BossResumeFollowupRequestSchema, decideBossResumeFollowup } from './boss-resume-followup';
@@ -14,6 +15,7 @@ export interface BossOutreachBridgeClient {
     listProfiles(): Promise<ListResumeProfilesOutput>;
     getProfileContext?(profileId: string): Promise<ResumeProfileContext | null>;
   };
+  readonly campaigns?: { get(campaignId: string): Promise<JobSearchCampaign | null> };
 }
 
 export interface BossOutreachBridgeOptions {
@@ -27,6 +29,7 @@ export interface BossOutreachBridgeOptions {
   readonly resumeFollowupUserscript?: string | null;
   readonly greetingWaitMs?: number;
   readonly greetingThreshold?: number;
+  readonly campaignId?: string | null;
 }
 
 export interface ParsedBossJob {
@@ -44,6 +47,8 @@ export interface BossJobDecision {
   readonly decision: ResumeJobMatch['decision'];
   readonly signals: readonly string[];
   readonly greetingRequestId?: string | null;
+  readonly policyBlocked?: boolean;
+  readonly policyReason?: string | null;
 }
 
 export interface BossGreetingRequest {
@@ -137,6 +142,33 @@ function normalizeGreetingMessage(value: unknown): string | null {
   return message;
 }
 
+function inferMinimumExperienceYears(text: string): number | null {
+  const values: number[] = [];
+  const patterns = [
+    /(?:至少|不少于)\s*(\d{1,2})\s*年/gi,
+    /(\d{1,2})\s*年\s*(?:以上|及以上|及其以上)/gi,
+    /(\d{1,2})\s*[-~～至—–]\s*\d{1,2}\s*年(?:[^。；;\n]{0,24})?(?:经验|开发|研发|工作)/gi,
+    /(\d{1,2})\s*年(?:[^。；;\n]{0,24})?(?:工作|开发|研发)?经验/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const years = Number(match[1]);
+      if (Number.isFinite(years) && years >= 0 && years <= 50) values.push(years);
+    }
+  }
+  return values.length ? Math.max(...values) : null;
+}
+
+function blocksEarlyCareerOutreach(campaign: JobSearchCampaign | null, job: ParsedBossJob): { blocked: boolean; minimumYears: number | null } {
+  const minimumYears = inferMinimumExperienceYears(job.description);
+  if (minimumYears === null) return { blocked: false, minimumYears };
+  const earlyCareer = Boolean(
+    campaign?.graduationYears.length
+    && campaign.experience.some((value) => /(?:应届|实习|在校|无经验|经验不限|1年以内)/.test(value)),
+  );
+  return { blocked: earlyCareer && minimumYears >= 3, minimumYears };
+}
+
 export async function decideBossJob(client: BossOutreachBridgeClient, raw: unknown): Promise<BossJobDecision> {
   const job = parseLegacyBossJobPayload(raw);
   const profiles = await client.resume.listProfiles();
@@ -226,10 +258,14 @@ async function readEvents(path: string): Promise<Record<string, unknown>[]> {
   } catch { return []; }
 }
 
+type BossGreetingResolution =
+  | { readonly action: 'send'; readonly message: string; readonly source: string }
+  | { readonly action: 'skip'; readonly reason: string; readonly source: string };
+
 interface PendingBossGreeting {
   readonly request: BossGreetingRequest;
-  readonly wait: Promise<string | null>;
-  readonly resolve: (message: string) => void;
+  readonly wait: Promise<BossGreetingResolution | null>;
+  readonly resolve: (resolution: BossGreetingResolution) => void;
   readonly timer: ReturnType<typeof setTimeout>;
 }
 
@@ -238,8 +274,9 @@ const BOSS_GREETING_GUIDANCE = Object.freeze([
   '用中文，1-3 句，简洁自然，像真人求职者；通常控制在 50-120 个汉字左右。',
   '优先挑选与当前 JD 最相关的 1-2 个真实经历、项目或技术点，不要机械堆砌匹配关键词。',
   '不得编造候选人未提供的经历、年限、公司、奖项或技能熟练度。',
+  '如果 JD 的核心必备要求与候选人真实经历明显不符（例如岗位核心是候选人没有实践的专用技术栈），应选择 skip，而不是勉强生成招呼语。',
   '可以自然提到学校、专业、应届身份；无需重复姓名，结尾自然表达希望进一步沟通。',
-  '只提交最终要发送给招聘方的招呼语，不要解释生成过程。',
+  'send 时只提交最终要发送给招聘方的招呼语，不要解释生成过程；skip 时给出简短原因。',
 ]);
 
 function screeningSummary(rows: readonly Record<string, unknown>[]) {
@@ -277,6 +314,12 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
   const greetingWaitMs = Math.max(5_000, Math.min(9 * 60_000, options.greetingWaitMs ?? 120_000));
   const recentDecisions = new Map<string, BossJobDecision>();
   const pendingGreetings = new Map<string, PendingBossGreeting>();
+  let campaignPromise: Promise<JobSearchCampaign | null> | null = null;
+  const getCampaign = (): Promise<JobSearchCampaign | null> => {
+    if (!options.campaignId || !options.client.campaigns) return Promise.resolve(null);
+    campaignPromise ??= options.client.campaigns.get(options.campaignId).catch(() => null);
+    return campaignPromise;
+  };
 
   const createPendingGreeting = async (
     requestedProfileId: string,
@@ -308,8 +351,8 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
       guidance: BOSS_GREETING_GUIDANCE,
     };
 
-    let resolveWait!: (message: string | null) => void;
-    const wait = new Promise<string | null>((resolve) => { resolveWait = resolve; });
+    let resolveWait!: (resolution: BossGreetingResolution | null) => void;
+    const wait = new Promise<BossGreetingResolution | null>((resolve) => { resolveWait = resolve; });
     const timer = setTimeout(() => {
       pendingGreetings.delete(id);
       resolveWait(null);
@@ -393,15 +436,27 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         const source = body && typeof body === 'object' && !Array.isArray(body) && typeof (body as { source?: unknown }).source === 'string'
           ? String((body as { source: string }).source).trim().slice(0, 80)
           : 'chatgpt-web';
-        const message = normalizeGreetingMessage(
-          body && typeof body === 'object' && !Array.isArray(body) ? (body as { message?: unknown }).message : null,
-        );
-        if (!message) return sendJson(res, 400, { error: 'invalid_greeting', message: 'Greeting must be a single 12-320 character message.' });
+        const requestedAction = body && typeof body === 'object' && !Array.isArray(body) && (body as { action?: unknown }).action === 'skip'
+          ? 'skip'
+          : 'send';
+        let resolution: BossGreetingResolution;
+        if (requestedAction === 'skip') {
+          const reasonRaw = body && typeof body === 'object' && !Array.isArray(body) ? (body as { reason?: unknown }).reason : null;
+          const reason = typeof reasonRaw === 'string' ? reasonRaw.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240) : '';
+          if (reason.length < 3) return sendJson(res, 400, { error: 'invalid_skip_reason', message: 'Skip reason must be at least 3 characters.' });
+          resolution = { action: 'skip', reason, source };
+        } else {
+          const message = normalizeGreetingMessage(
+            body && typeof body === 'object' && !Array.isArray(body) ? (body as { message?: unknown }).message : null,
+          );
+          if (!message) return sendJson(res, 400, { error: 'invalid_greeting', message: 'Greeting must be a single 12-320 character message.' });
+          resolution = { action: 'send', message, source };
+        }
         clearTimeout(pending.timer);
         pendingGreetings.delete(id);
         await appendEvent(options.logPath, {
           loggedAt: new Date().toISOString(),
-          action: 'greeting_resolved',
+          action: resolution.action === 'send' ? 'greeting_resolved' : 'greeting_skipped',
           greetingRequestId: id,
           requestedProfileId: pending.request.requestedProfileId,
           title: pending.request.job.title,
@@ -409,9 +464,10 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           score: pending.request.match.score,
           resumeIndex: pending.request.match.resumeIndex,
           source,
+          ...(resolution.action === 'skip' ? { reason: resolution.reason } : {}),
         });
-        pending.resolve(message);
-        return sendJson(res, 200, { ok: true, id, source });
+        pending.resolve(resolution);
+        return sendJson(res, 200, { ok: true, id, action: resolution.action, source });
       }
 
       const match = /^\/p\/([A-Za-z0-9._-]+)\/(client-config|tags|get-introduce|get-job-score|log-action|reply|is-need-resume|is-need-works)$/.exec(url.pathname);
@@ -459,6 +515,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         const raw = await readJsonBody(req);
         const job = parseLegacyBossJobPayload(raw);
         const scored = await decideBossJob(options.client, raw);
+        const hardRequirement = blocksEarlyCareerOutreach(await getCampaign(), job);
         const jitter = delayJitterMs ? Math.round((random() * 2 - 1) * delayJitterMs) : 0;
         const delay = Math.max(0, baseDelayMs + jitter);
         await appendEvent(options.logPath, {
@@ -473,15 +530,40 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           profileLabel: scored.profileLabel,
           decision: scored.decision,
           signals: scored.signals,
+          policyBlocked: hardRequirement.blocked,
+          minimumExperienceYears: hardRequirement.minimumYears,
           delayMs: delay,
         });
         if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
 
+        if (hardRequirement.blocked) {
+          const decision: BossJobDecision = {
+            ...scored,
+            score: Math.min(scored.score, Math.max(0, greetingThreshold - 1)),
+            decision: 'low-match',
+            policyBlocked: true,
+            policyReason: `explicit-minimum-experience-${hardRequirement.minimumYears}-years`,
+          };
+          recentDecisions.set(job.title, decision);
+          await appendEvent(options.logPath, {
+            loggedAt: new Date().toISOString(),
+            action: 'job_hard_requirement_blocked',
+            requestedProfileId,
+            title: job.title,
+            salary: job.salary,
+            originalScore: scored.score,
+            returnedScore: decision.score,
+            minimumExperienceYears: hardRequirement.minimumYears,
+            policyReason: decision.policyReason,
+          });
+          return sendJson(res, 200, decision);
+        }
+
         let decision = scored;
         if (scored.score >= greetingThreshold) {
           const pending = await createPendingGreeting(requestedProfileId, job, scored, applicant.profile);
-          const introduce = await pending.wait;
-          if (!introduce) {
+          const resolution = await pending.wait;
+          if (!resolution) {
             return sendJson(res, 409, {
               error: 'greeting_not_resolved',
               message: 'ChatGPT did not resolve the BOSS greeting before the compatibility-runtime deadline; no greeting was sent.',
@@ -491,7 +573,18 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
               resumeIndex: scored.resumeIndex,
             });
           }
-          decision = { ...scored, introduce, greetingRequestId: pending.request.id };
+          if (resolution.action === 'skip') {
+            decision = {
+              ...scored,
+              score: Math.min(scored.score, Math.max(0, greetingThreshold - 1)),
+              decision: 'low-match',
+              greetingRequestId: pending.request.id,
+              policyBlocked: true,
+              policyReason: `chatgpt-skip:${resolution.reason}`,
+            };
+          } else {
+            decision = { ...scored, introduce: resolution.message, greetingRequestId: pending.request.id };
+          }
         }
         recentDecisions.set(job.title, decision);
         return sendJson(res, 200, decision);
