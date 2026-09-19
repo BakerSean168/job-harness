@@ -15,11 +15,11 @@ The goal is **functional recovery without restoring the old ownership model**. T
 | Multiple resume profiles | Resume Domain | recovered and expanded |
 | Per-job resume recommendation | `@job-harness/resume-application` | recovered and canonical |
 | Browser-local application ledger | Career/Application domain | superseded |
-| BOSS keyword rotation/search and job-list traversal | `@job-harness/boss-browser-worker` + Browser Bridge `boss-discovery` scope | recovered |
+| BOSS keyword rotation/search and job-list traversal | dedicated BOSS Copilot compatibility runtime (proven legacy DOM loop) | recovered; preferred production path |
 | BOSS rule scoring | Job Harness resume/job scoring through Outreach Bridge | recovered |
-| BOSS first greeting | Browser Bridge semantic BOSS driver + exact-message `boss-outreach` grant | recovered; production feature gate defaults off |
-| BOSS recruiter follow-up resume send | read-only unread-chat inspection + existing follow-up policy + exact job/resume `boss-outreach` grant | recovered; production feature gate defaults off |
-| BOSS direct Browser Provider (Windows Chrome / Steel / Local CDP search-detail-score) | `@job-harness/boss-browser-worker` + shared BrowserBackendPort + canonical BOSS bridge | recovered |
+| BOSS first greeting | dedicated Copilot compatibility runtime + Job Harness-generated greeting | recovered; preferred production path |
+| BOSS recruiter follow-up resume send | dedicated Copilot compatibility runtime + Job Harness follow-up policy / resumeIndex | recovered; preferred production path |
+| BOSS direct Browser Provider (Windows Chrome / Steel / Local CDP search-detail-score) | retained source snapshot + Browser Bridge migration path | recovered; migration/fallback path |
 | BOSS autonomous multi-turn LLM chat | deliberately not enabled; old public mainline did not require it | not part of production parity |
 | OpenJobAutofill optional AI semantic field mapping | value-free OpenAI-compatible semantic mapper with typed proposal validation, protected/legal exclusion and deterministic fallback | recovered; opt-in runtime credential |
 | Popup quick-copy/profile-reference panel | authenticated Web reference panel + Browser Bridge popup deep-link; canonical Applicant/AnswerSet stays server-owned | recovered |
@@ -55,9 +55,11 @@ This restores the old Copilot's practical automatic-fill coverage without silent
 
 ## BOSS ownership
 
-The mature czc-good-job-derived compatibility source remains owned by Job Harness at `integrations/boss/legacy-copilot.user.js` as a parity/reference implementation, but the production client path no longer requires Tampermonkey. BOSS-specific DOM behavior needed by Browser Bridge lives in `integrations/browser-extension/boss-driver.js`, while Job Harness Server owns the narrow authority scopes and the Tailnet-only Outreach Bridge supplies current target roles, deterministic job scoring, selected resume lane, greeting copy, event logging and resume-follow-up policy.
+The mature czc-good-job-derived BOSS implementation remains owned by Job Harness at `integrations/boss/legacy-copilot.user.js` and is now the preferred production compatibility path. `pnpm build:boss-copilot-compat` patches that source with the current Job Harness follow-up policy and emits an unpacked MV3 extension under `integrations/boss-copilot/extension`. The old userscript therefore runs directly inside a dedicated Edge/Chrome profile and no longer requires Tampermonkey. Its request helper keeps the GM request path for userscript compatibility but falls back to normal CORS `fetch`, which the Tailnet-only Outreach Bridge explicitly allows from `https://www.zhipin.com`.
 
-The BOSS browser layer is intentionally separate from generic ATS Form Engine because BOSS is a search/list/detail/chat workflow rather than a normal application form. Site-specific DOM code may describe/execute one semantic BOSS operation, but it cannot choose whether that operation is allowed: the Server must issue a matching typed validation run first.
+Job Harness keeps ownership of current target roles, ApplicantProfile, Resume Profiles, per-job ranking, greeting copy, resumeIndex selection, DiscoveryRun ingestion and action logs. The compatibility runtime deliberately keeps the already-characterized BOSS-specific search/detail/chat/resume DOM state machine instead of rewriting it. A source snapshot from retired `job-application-copilot` commit `005eda98841b3671ead615ebfde5922f0dfd7c36` is vendored under `integrations/boss-copilot/legacy/source-snapshot`; `.git`, `node_modules`, runtime state and stale `profile-bundle.json` applicant values are intentionally excluded.
+
+The Browser Bridge 0.2.3 semantic BOSS implementation remains in-tree as a gradual-replacement path. It is no longer the production default for BOSS, so future migration can replace individual Copilot capabilities after real-site proof instead of requiring an all-at-once rewrite.
 
 ## Regression guard
 
@@ -72,13 +74,11 @@ The BOSS browser layer is intentionally separate from generic ATS Form Engine be
 - automatic dispatch stops being `fill_only` / `submitAllowed=false`;
 - third-party attribution disappears.
 
-## BOSS direct Browser Provider
+## BOSS dedicated compatibility browser
 
-`@job-harness/boss-browser-worker` restores the old Copilot's BOSS Browser Provider without reviving its separate profile bundle or scoring implementation. The preferred production backend is the user-owned Windows Chrome through Browser Bridge; Steel and Local CDP remain fallback/debug backends. The discovery runtime rotates current target-role keywords supplied by the BOSS bridge, scans result links, visits bounded job-detail pages, and sends those details back through the canonical BOSS bridge for Resume ranking and `DiscoveryRun -> JobObservation` ingestion. Login/human-verification states fail closed and surface the backend human-control path when available. Recruiter-facing operations are separate optional ports and are disabled by default.
+`integrations/boss-copilot/windows/start-boss-copilot.ps1` starts an isolated persistent browser profile at `%LOCALAPPDATA%\JobHarness\BossCopilot\Profile`, prefers Edge and falls back to Chrome, exposes localhost CDP on port 9222 for inspection, and loads only the Job Harness-owned unpacked compatibility extension. This recreates the proven old Copilot operating model: the job automation runs in a dedicated browser window rather than injecting tabs into the user's normal Chrome profile. The Copilot overlay starts paused; clicking `开始` starts the legacy keyword/search/detail/greet loop.
 
-The Browser Bridge path separates authority into three scopes. `boss-discovery` requires Bridge >=0.2.2 and permits only search/query navigation plus read-only job-detail inspection; it cannot enter chat or perform recruiter-facing effects. `boss-chat-inspect` requires Bridge >=0.2.3 and can only inspect/open unread conversations and extract structural chat/job evidence; it cannot send messages or resumes. `boss-outreach` requires Bridge >=0.2.3 plus a server-frozen intent. A greet intent binds one exact scored job, score threshold, Resume lane and exact greeting text, then allows at most one chat preparation and one exact text send. A resume-followup intent binds one exact conversation job, policy authorization reason and Resume index, then allows at most one chooser preparation and one exact-index confirmation. Job mismatch, altered greeting text, altered Resume index, repeated sends, unsupported dialogs and ambiguous selection all fail closed.
-
-`JOB_HARNESS_BOSS_GREET_ENABLED` and `JOB_HARNESS_BOSS_RESUME_FOLLOWUP_ENABLED` default to false. Restoring the legacy capability therefore does not silently activate recruiter-facing side effects. LLM multi-turn recruiter chat, rejection messages and portfolio auto-send remain disabled. The shared BrowserDriverPort still provides bounded `scroll(deltaY)` for search traversal; site-specific recruiter actions use typed semantic commands instead of exposing arbitrary `click`/`fill` authority.
+The Browser Bridge path is retained as a migration/fallback implementation. Its scopes remain `boss-discovery`, `boss-chat-inspect` and `boss-outreach`, and its recruiter-facing feature gates remain off by default. The compatibility runtime does not use those micro-grants for each DOM click; instead it relies on the mature site-specific state machine plus coarser boundaries: dedicated profile, zhipin-only content-script match, Job Harness scoring/resume selection, follow-up policy, duplicate checks in the legacy flow and centralized action logging. LLM multi-turn recruiter chat, automatic rejection messages and portfolio auto-send remain disabled.
 
 ## Applicant reference / quick copy
 
@@ -86,6 +86,6 @@ The old browser-local profile reference panel is recovered as an authenticated J
 
 ## Remaining parity work
 
-The remaining legacy recovery is now limited to real-site proof and distribution ergonomics. Formal ATS canaries still need broader Moka / Beisen / Feishu / HotJob / Zhiye coverage, and unpacked-extension delivery still requires a manual Chrome reload. BOSS discovery has a live production proof; recruiter greeting/resume-followup now have synthetic semantic/policy coverage but remain feature-gated until an explicitly authorized live canary is performed.
+BOSS compatibility recovery is now code-complete: the mature Copilot code is vendored, can run without Tampermonkey in a dedicated Chromium profile, and consumes Job Harness scoring/resume/policy data. The remaining BOSS work is operational proof only: one paused real-browser launch, login persistence, then a deliberately bounded live run when recruiter-facing effects are intended. Browser Bridge 0.2.3 is frozen as the future migration path rather than blocking production parity. Formal ATS canaries still need broader Moka / Beisen / Feishu / HotJob / Zhiye coverage.
 
 The semantic mapper is intentionally optional at runtime. It receives only `SemanticMappingView` metadata (field structure and value-free catalog labels/aliases), never resolved Applicant values. Protected/legal catalog entries and any entry with `allowAiMapping=false` are excluded before the network request; returned field/key IDs are checked against the same allowlist and only high-confidence proposals can enter `buildFillPlan`. Provider outages fail back to deterministic local mapping rather than failing the application attempt.

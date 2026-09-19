@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Job Application Copilot",
+  "version": "1.0.4",
+  "version_name": "0.3.1-copilot (OpenJobAutofill 1.0.2 base)",
+  "description": "Local-first job application copilot with resume variants, autofill, job scoring and application tracking.",
+  "permissions": [
+    "activeTab",
+    "alarms",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://api.github.com/*",
+    "https://oracle.taile92a8e.ts.net/*"
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Job Application Copilot",
+    "default_popup": "src/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "src/options.html"
+}

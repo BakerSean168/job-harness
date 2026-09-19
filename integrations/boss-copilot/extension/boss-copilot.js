@@ -1,9 +1,11 @@
 // ==UserScript==
 // @name         Job Application Copilot BOSS
 // @namespace    https://oracle.taile92a8e.ts.net/job-application-copilot
-// @version      2026.08.20.5
-// @description  AI Agent / 大模型应用 · Oracle2 only-greet · 人工控制最终投递
+// @version      2026.09.19.1
+// @description  Job Harness · 自动筛岗/首次打招呼 + 招聘方回复后按岗位自动发送对应简历；禁用多轮自动聊天
 // @match        https://www.zhipin.com/*
+// @updateURL    https://oracle.taile92a8e.ts.net:10444/boss-resume-followup.user.js
+// @downloadURL  https://oracle.taile92a8e.ts.net:10444/boss-resume-followup.user.js
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=zhipin.com
 // @grant        GM_xmlhttpRequest
 // @grant        GM.xmlHttpRequest
@@ -21,7 +23,7 @@
         serverHost: 'https://oracle.taile92a8e.ts.net:10444/p/ai-agent-app', // 本地服务的主机地址
         thread: 58, // 分数阈值，低于这个就不发消息了
         timestampTimeout: 3000, // 时间戳过期时间，单位毫秒，根据当前网络设定，建议不要太大。
-        onlyGreet: true, // 是否只打招呼，默认为false，即打招呼和代聊天
+        onlyGreet: false, // Job Harness follow-up mode: 允许处理招聘方新消息，但仍禁用 LLM 多轮自动聊天
         manualFilterWaitMs: 10000, // 每轮搜索后留给用户手动筛选的时间
         roundRestartDelayMs: 2000, // 本轮结束后，启动下一轮前的缓冲时间
         maxEmptyRounds: 3, // 连续多少轮没有拿到新岗位后停止，避免空转
@@ -407,7 +409,7 @@
     }
 
 
-    const JAC_HARD_ONLY_GREET = true;
+    const JAC_HARD_ONLY_GREET = false;
     const JAC_SCREENING_ONLY = false;
     const JAC_SCREENING_THRESHOLD = 58;
     const JAC_SCREENING_MAX_JOBS = 20;
@@ -1720,7 +1722,7 @@
                                         threshold: OPTIONS.thread,
                                         resumeIndex: decision.resumeIndex,
                                     });
-                                    await sendMsg('不好意思，不太合适哈，祝早日找到合适的人选。')
+                                    status('岗位低于阈值，Job Harness follow-up mode 不自动发送拒绝消息');
                                     continue;
                                 }
                             }
@@ -1733,7 +1735,29 @@
                                 status(`正在获取职位详情（用于确定简历）`);
                                 const jobInfo = await this.broadcast.receive(this.targets.detail, this.bcTypes.GET_JOB_INFO);
                                 const decision = await api.getJobScore(jobInfo.title, jobInfo.salary, jobInfo.detail);
-                                status(`检测到新消息，直接发送简历（简历索引 ${decision.resumeIndex}）`);
+                                const resumeAllowed = await api.isNeedResume({
+                                    msgs: chatInfo.msgs,
+                                    needResume: chatInfo.needResume,
+                                    resumeSended: chatInfo.resumeSended,
+                                    title: jobInfo.title,
+                                    company,
+                                    salary: jobInfo.salary,
+                                    score: decision.score,
+                                    resumeIndex: decision.resumeIndex,
+                                });
+                                if (!resumeAllowed) {
+                                    await logAction({
+                                        action: 'resume_followup_blocked',
+                                        scene: 'chat',
+                                        title: jobInfo.title,
+                                        salary: jobInfo.salary,
+                                        score: decision.score,
+                                        resumeIndex: decision.resumeIndex,
+                                    });
+                                    status('检测到新消息，但 Job Harness policy 未授权自动发送简历');
+                                    continue;
+                                }
+                                status(`检测到新消息，Job Harness 已授权发送简历（简历索引 ${decision.resumeIndex}）`);
                                 const resumeResult = await sendResume(decision.resumeIndex);
                                 await logAction({
                                     action: 'resume_sent',

@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Job Harness BOSS Copilot Compatibility Runtime",
+  "version": "1.0.0",
+  "description": "Runs the proven legacy BOSS Copilot flow inside a dedicated Chromium profile while Job Harness owns scoring, resume selection and records.",
+  "host_permissions": [
+    "https://www.zhipin.com/*",
+    "https://zhipin.com/*",
+    "https://oracle.taile92a8e.ts.net/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.zhipin.com/*",
+        "https://zhipin.com/*"
+      ],
+      "js": [
+        "runtime-marker.js",
+        "boss-copilot.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

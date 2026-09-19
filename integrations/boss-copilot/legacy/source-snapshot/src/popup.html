@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Job Application Copilot</title>
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1>Job Application Copilot</h1>
+          <p class="repo-note">本地优先的网申助手：简历切换、自动填表、岗位评分、投递记录。</p>
+          <a class="repo-link" href="https://github.com/Br1an67/OpenJobAutofill" target="_blank" rel="noopener">表单引擎基于 OpenJobAutofill (MIT)</a>
+        </div>
+        <button id="openOptions" class="ghost" type="button">设置</button>
+      </header>
+
+      <section class="panel">
+        <h2>当前简历</h2>
+        <label class="field-label" for="profileVariantSelect">投递方向</label>
+        <select id="profileVariantSelect"></select>
+        <div id="profileMeta" class="profile-meta">正在读取简历资料包...</div>
+        <button id="reloadProfileBundleBtn" class="ghost full" type="button">从 Oracle2 同步资料</button>
+        <button id="openPrivateChannelBtn" class="ghost full" type="button">打开私有下载页</button>
+      </section>
+
+      <section class="panel">
+        <h2>网申填表</h2>
+        <button id="startAutofillBtn" type="button">开始填写当前页面</button>
+        <button id="attachResumeBtn" class="secondary" type="button">上传当前简历附件</button>
+        <button id="showProfilePanelBtn" class="secondary" type="button">打开资料面板</button>
+        <button id="clearMarksBtn" class="ghost full" type="button">清除颜色标记</button>
+        <p class="hint">附件只处理明确的简历 / Resume / CV PDF 上传框；证件照、身份证、作品集等不会自动上传。</p>
+      </section>
+
+      <section class="panel">
+        <h2>岗位 Copilot</h2>
+        <button id="scoreJobBtn" type="button">评估当前岗位</button>
+        <div id="jobScoreResult" class="job-score empty">打开岗位详情页后点击评估。</div>
+        <button id="switchRecommendedBtn" class="secondary" type="button" disabled>当前简历已是推荐版本</button>
+        <button id="copyGreetingBtn" class="secondary" type="button" disabled>复制打招呼文案</button>
+        <button id="recordAppliedBtn" class="ghost full" type="button" disabled>记录为已投递</button>
+        <div id="applicationCount" class="application-count">已记录 0 条投递</div>
+      </section>
+
+      <section class="panel muted">
+        <div id="status">资料、岗位评分与投递记录均保存在本机浏览器。</div>
+      </section>
+
+      <section class="panel">
+        <h2>边界</h2>
+        <p class="hint">自动填表不会自动提交；岗位评分用于筛选，不替代人工阅读 JD。BOSS 自动打招呼作为后续可选模块接入。</p>
+      </section>
+    </main>
+
+    <script src="./popup.js"></script>
+  </body>
+</html>

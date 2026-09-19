@@ -41,7 +41,7 @@ async function main(): Promise<void> {
     }
   }
 
-  const [formEngine, semanticMapper, bossSource, bossCli, bossBrowserWorker, bossSemanticDriver, bossFollowupRuntime, applicantReference, dispatcher, notice] = await Promise.all([
+  const [formEngine, semanticMapper, bossSource, bossCli, bossBrowserWorker, bossSemanticDriver, bossFollowupRuntime, compatManifest, compatRuntime, compatLauncher, applicantReference, dispatcher, notice] = await Promise.all([
     readFile(resolve(root, 'packages/browser-form-engine/browser/runtime.js'), 'utf8'),
     readFile(resolve(root, 'apps/apply-worker/src/semantic-mapper.ts'), 'utf8'),
     readFile(resolve(root, 'integrations/boss/legacy-copilot.user.js'), 'utf8'),
@@ -49,6 +49,9 @@ async function main(): Promise<void> {
     readFile(resolve(root, 'apps/boss-browser-worker/src/runtime.ts'), 'utf8'),
     readFile(resolve(root, 'integrations/browser-extension/boss-driver.js'), 'utf8'),
     readFile(resolve(root, 'apps/boss-browser-worker/src/followup-runtime.ts'), 'utf8'),
+    readFile(resolve(root, 'integrations/boss-copilot/extension/manifest.json'), 'utf8'),
+    readFile(resolve(root, 'integrations/boss-copilot/extension/boss-copilot.js'), 'utf8'),
+    readFile(resolve(root, 'integrations/boss-copilot/windows/start-boss-copilot.ps1'), 'utf8'),
     readFile(resolve(root, 'apps/web/src/components/management/applicant-reference-panel.tsx'), 'utf8'),
     readFile(resolve(root, 'apps/intent-dispatch-worker/src/runtime.ts'), 'utf8'),
     readFile(resolve(root, 'NOTICE.md'), 'utf8'),
@@ -93,6 +96,15 @@ async function main(): Promise<void> {
   for (const marker of ['authorizeResumeFollowup', 'sendResumeFollowup', 'latestRole', 'resumeSended', 'explicit-request', 'qualified-followup']) {
     if (!bossFollowupRuntime.includes(marker)) throw new Error(`BOSS resume-followup parity lost policy marker '${marker}'`);
   }
+  for (const marker of ['Job Harness BOSS Copilot Compatibility Runtime', 'boss-copilot.js', 'https://www.zhipin.com/*']) {
+    if (!compatManifest.includes(marker)) throw new Error(`BOSS Copilot compatibility extension lost manifest marker '${marker}'`);
+  }
+  for (const marker of ['SEARCHBTN', 'STARTCHAT', 'RESUMESEND', 'sendResume', 'fetch(details.url', 'const JAC_HARD_ONLY_GREET = false;']) {
+    if (!compatRuntime.includes(marker)) throw new Error(`BOSS Copilot compatibility runtime lost proven marker '${marker}'`);
+  }
+  for (const marker of ['JobHarness\\BossCopilot', '--remote-debugging-port', '--load-extension', "[ValidateSet('auto','edge','chrome')]"]) {
+    if (!compatLauncher.includes(marker)) throw new Error(`BOSS Copilot dedicated-browser launcher lost marker '${marker}'`);
+  }
   for (const marker of ['navigator.clipboard.writeText', 'ApplicantProfileContext', 'ApplicationAnswerSetContext', 'copyVisible']) {
     if (!applicantReference.includes(marker)) throw new Error(`Applicant reference/quick-copy parity lost marker '${marker}'`);
   }
@@ -110,7 +122,7 @@ async function main(): Promise<void> {
     throw new Error('Third-party attribution is incomplete');
   }
 
-  console.log(`legacy copilot parity ok: ${requiredAdapters.size} observed ATS adapters + BOSS discovery/greet/resume-followup Browser Bridge parity + quick-copy reference + shared form/resume/semantic engine`);
+  console.log(`legacy copilot parity ok: ${requiredAdapters.size} observed ATS adapters + dedicated BOSS Copilot compatibility runtime + Browser Bridge migration path + quick-copy reference + shared form/resume/semantic engine`);
 }
 
 main().catch((error) => {
