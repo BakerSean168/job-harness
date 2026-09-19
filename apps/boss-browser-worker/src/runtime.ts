@@ -68,7 +68,7 @@ export interface BossBrowserRunOptions {
 
 export interface BossBrowserRunResult {
   readonly sessionId: string;
-  readonly status: 'completed' | 'login_required' | 'human_verification_required';
+  readonly status: 'completed' | 'login_required' | 'human_verification_required' | 'search_not_ready';
   readonly humanControlUrl: string | null;
   readonly keywords: readonly string[];
   readonly discoveredUrls: number;
@@ -110,17 +110,17 @@ export async function runBossBrowserDiscovery(options: BossBrowserRunOptions): P
     await driver.navigate(SEARCH_URL);
     await driver.wait(900);
 
-    let auth = await inspectBossAuth(driver);
-    if (!auth.loggedIn && options.waitLogin) {
+    let readiness = await waitForBossSearchReady(driver, 10_000);
+    if (!readiness.ready && readiness.reason !== 'boss_search_not_ready' && options.waitLogin) {
       const deadline = Date.now() + loginTimeoutMs;
-      while (!auth.loggedIn && Date.now() < deadline) {
+      while (!readiness.ready && readiness.reason !== 'boss_search_not_ready' && Date.now() < deadline) {
         await driver.wait(1_500);
-        auth = await inspectBossAuth(driver);
+        readiness = await waitForBossSearchReady(driver, 2_000);
       }
     }
-    if (!auth.loggedIn) {
+    if (!readiness.ready) {
       await session.persist().catch(() => undefined);
-      return emptyAuthResult(session, sessionId, keywords, auth.reason);
+      return emptyReadinessResult(session, sessionId, keywords, readiness.reason);
     }
 
     const jobUrls = new Set<string>();
@@ -128,16 +128,12 @@ export async function runBossBrowserDiscovery(options: BossBrowserRunOptions): P
       if (jobUrls.size >= maxTotalJobs) break;
       await driver.navigate(SEARCH_URL);
       await driver.wait(650);
-      const authAtSearch = await inspectBossAuth(driver);
-      if (!authAtSearch.loggedIn) {
+      const searchReady = await waitForBossSearchReady(driver, 10_000);
+      if (!searchReady.ready) {
         await session.persist().catch(() => undefined);
-        return emptyAuthResult(session, sessionId, keywords, authAtSearch.reason);
+        return emptyReadinessResult(session, sessionId, keywords, searchReady.reason);
       }
-      const inputSelector = await firstExisting(driver, SEARCH_INPUT_SELECTORS);
-      if (!inputSelector) {
-        logger.warn('BOSS search input was not found; stopping keyword rotation');
-        break;
-      }
+      const inputSelector = searchReady.inputSelector;
       await driver.fill(inputSelector, keyword);
       const clicked = await clickSearch(driver);
       if (!clicked) {
@@ -283,6 +279,21 @@ async function inspectBossAuth(driver: BrowserDriverPort): Promise<{ loggedIn: t
     : { loggedIn: true, reason: 'ok' };
 }
 
+async function waitForBossSearchReady(
+  driver: BrowserDriverPort,
+  timeoutMs: number,
+): Promise<{ ready: true; inputSelector: string } | { ready: false; reason: 'boss_login_required' | 'boss_human_verification_required' | 'boss_search_not_ready' }> {
+  const deadline = Date.now() + Math.max(1_000, timeoutMs);
+  do {
+    const auth = await inspectBossAuth(driver);
+    if (!auth.loggedIn) return { ready: false, reason: auth.reason };
+    const inputSelector = await firstExisting(driver, SEARCH_INPUT_SELECTORS);
+    if (inputSelector) return { ready: true, inputSelector };
+    await driver.wait(500);
+  } while (Date.now() < deadline);
+  return { ready: false, reason: 'boss_search_not_ready' };
+}
+
 async function firstExisting(driver: BrowserDriverPort, selectors: readonly string[]): Promise<string | null> {
   for (const selector of selectors) {
     if (await driver.exists(selector)) return selector;
@@ -331,15 +342,19 @@ function legacyJobText(title: string, salary: string | null, description: string
   return ['# 职位名称', title, '# 薪资范围', salary ?? '', '# 职位描述', description].join('\n');
 }
 
-function emptyAuthResult(
+function emptyReadinessResult(
   session: BrowserSessionPort,
   sessionId: string,
   keywords: readonly string[],
-  reason: 'boss_login_required' | 'boss_human_verification_required',
+  reason: 'boss_login_required' | 'boss_human_verification_required' | 'boss_search_not_ready',
 ): BossBrowserRunResult {
   return {
     sessionId,
-    status: reason === 'boss_human_verification_required' ? 'human_verification_required' : 'login_required',
+    status: reason === 'boss_human_verification_required'
+      ? 'human_verification_required'
+      : reason === 'boss_search_not_ready'
+        ? 'search_not_ready'
+        : 'login_required',
     humanControlUrl: session.humanControlUrl,
     keywords,
     discoveredUrls: 0,
