@@ -52,6 +52,7 @@ invariant(server.depends_on?.renderer?.condition === 'service_healthy', 'server 
 invariant(server.environment?.JOB_HARNESS_RESUME_RENDERER_URL === 'http://renderer:3002', 'server must reach renderer through the private compose network');
 invariant(server.environment?.JOB_HARNESS_RESUME_ARTIFACT_DIR === '/data/resume-artifacts', 'server must persist Resume artifacts in the durable data mount');
 invariant((server.group_add ?? []).map(String).includes('1234'), 'server must join the configured durable-data operator group');
+invariant((bossBridge.group_add ?? []).map(String).includes('1234'), 'BOSS bridge must join the configured durable-data operator group');
 invariant(web.depends_on?.server?.condition === 'service_healthy', 'web must wait for server health');
 invariant((renderer.security_opt ?? []).includes('no-new-privileges:true'), 'renderer must enable no-new-privileges');
 invariant(renderer.read_only === true, 'renderer filesystem must be read-only except tmpfs');

@@ -75,6 +75,8 @@ services:
     image: ${JOB_HARNESS_IMAGE:-job-harness:local}
     init: true
     restart: unless-stopped
+    group_add:
+      - "${JOB_HARNESS_DATA_GID:-1000}"
     command: ["pnpm", "--filter", "@job-harness/server", "boss:bridge"]
     depends_on:
       server:
