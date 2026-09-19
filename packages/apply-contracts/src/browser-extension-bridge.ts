@@ -23,6 +23,14 @@ export const BROWSER_EXTENSION_DRIVER_COMMANDS = [
   'scan_controls',
   'scan_actions',
   'form_state_hash',
+  'boss_detail_snapshot',
+  'boss_prepare_chat',
+  'boss_send_message',
+  'boss_scan_unread_contacts',
+  'boss_open_contact',
+  'boss_chat_snapshot',
+  'boss_prepare_resume',
+  'boss_confirm_resume',
 ] as const;
 export const BrowserExtensionDriverCommandTypeSchema = z.enum(BROWSER_EXTENSION_DRIVER_COMMANDS);
 
@@ -91,6 +99,26 @@ const ScreenshotCommandSchema = z.object({ type: z.literal('screenshot'), payloa
 const ScanControlsCommandSchema = z.object({ type: z.literal('scan_controls'), payload: z.object({}).strict() }).strict();
 const ScanActionsCommandSchema = z.object({ type: z.literal('scan_actions'), payload: z.object({}).strict() }).strict();
 const FormStateHashCommandSchema = z.object({ type: z.literal('form_state_hash'), payload: z.object({}).strict() }).strict();
+const BossDetailSnapshotCommandSchema = z.object({ type: z.literal('boss_detail_snapshot'), payload: z.object({}).strict() }).strict();
+const BossPrepareChatCommandSchema = z.object({ type: z.literal('boss_prepare_chat'), payload: z.object({}).strict() }).strict();
+const BossSendMessageCommandSchema = z.object({
+  type: z.literal('boss_send_message'),
+  payload: z.object({ message: z.string().trim().min(1).max(2_000) }).strict(),
+}).strict();
+const BossScanUnreadContactsCommandSchema = z.object({ type: z.literal('boss_scan_unread_contacts'), payload: z.object({ limit: z.number().int().min(1).max(100).default(30) }).strict() }).strict();
+const BossOpenContactCommandSchema = z.object({
+  type: z.literal('boss_open_contact'),
+  payload: z.object({ contactRef: z.string().regex(/^\[data-job-harness-boss-contact-id="[A-Za-z0-9._:-]+"\]$/) }).strict(),
+}).strict();
+const BossChatSnapshotCommandSchema = z.object({ type: z.literal('boss_chat_snapshot'), payload: z.object({}).strict() }).strict();
+const BossPrepareResumeCommandSchema = z.object({
+  type: z.literal('boss_prepare_resume'),
+  payload: z.object({ expectedJobUrl: z.url() }).strict(),
+}).strict();
+const BossConfirmResumeCommandSchema = z.object({
+  type: z.literal('boss_confirm_resume'),
+  payload: z.object({ resumeIndex: z.number().int().min(0).max(20), expectedJobUrl: z.url() }).strict(),
+}).strict();
 
 export const BrowserExtensionDriverCommandSchema = z.discriminatedUnion('type', [
   SessionAcquireCommandSchema,
@@ -112,6 +140,14 @@ export const BrowserExtensionDriverCommandSchema = z.discriminatedUnion('type', 
   ScanControlsCommandSchema,
   ScanActionsCommandSchema,
   FormStateHashCommandSchema,
+  BossDetailSnapshotCommandSchema,
+  BossPrepareChatCommandSchema,
+  BossSendMessageCommandSchema,
+  BossScanUnreadContactsCommandSchema,
+  BossOpenContactCommandSchema,
+  BossChatSnapshotCommandSchema,
+  BossPrepareResumeCommandSchema,
+  BossConfirmResumeCommandSchema,
 ]);
 
 

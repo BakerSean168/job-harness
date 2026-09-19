@@ -51,9 +51,14 @@ export interface BossBrowserBridgePort {
   }): Promise<void>;
 }
 
+export interface BossBrowserOutreachPort {
+  sendGreeting(input: { jobUrl: string; message: string; score: number; threshold: number; resumeIndex: number }): Promise<{ readonly status: string }>;
+}
+
 export interface BossBrowserRunOptions {
   readonly backend: BrowserBackendPort;
   readonly bridge: BossBrowserBridgePort;
+  readonly outreach?: BossBrowserOutreachPort | null;
   readonly profileId: string;
   readonly keywords?: readonly string[] | null;
   readonly maxKeywords?: number;
@@ -86,6 +91,7 @@ export interface BossBrowserRunResult {
     readonly profileId: string | null;
     readonly passed: boolean;
     readonly reported: boolean;
+    readonly greetStatus?: string | null;
     readonly reason: string | null;
   }[];
 }
@@ -189,7 +195,7 @@ export async function runBossBrowserDiscovery(options: BossBrowserRunOptions): P
           continue;
         }
 
-        const decision = await options.bridge.score(options.profileId, legacyJobText(title, salary, detail));
+        const decision = await options.bridge.score(options.profileId, buildBossLegacyJobText(title, salary, detail));
         scoredJobs += 1;
         const passed = decision.score >= threshold;
         if (passed) passedJobs += 1;
@@ -227,6 +233,23 @@ export async function runBossBrowserDiscovery(options: BossBrowserRunOptions): P
           reportedJobs += 1;
         }
 
+        let greetStatus: string | null = null;
+        if (passed && options.outreach) {
+          try {
+            const greeting = await options.outreach.sendGreeting({
+              jobUrl: url,
+              message: decision.introduce,
+              score: decision.score,
+              threshold,
+              resumeIndex: decision.resumeIndex,
+            });
+            greetStatus = greeting.status;
+          } catch (error) {
+            greetStatus = 'failed:' + sanitizeError(error);
+            logger.warn('BOSS greeting failed after successful discovery', sanitizeError(error));
+          }
+        }
+
         jobs.push({
           url,
           title,
@@ -236,6 +259,7 @@ export async function runBossBrowserDiscovery(options: BossBrowserRunOptions): P
           profileId: decision.profileId,
           passed,
           reported,
+          greetStatus,
           reason: company ? null : 'missing_company_for_discovery_report',
         });
       } catch (error) {
@@ -342,7 +366,7 @@ function canonicalBossJobUrl(value: string): string | null {
   }
 }
 
-function legacyJobText(title: string, salary: string | null, description: string): string {
+export function buildBossLegacyJobText(title: string, salary: string | null, description: string): string {
   return ['# 职位名称', title, '# 薪资范围', salary ?? '', '# 职位描述', description].join('\n');
 }
 
@@ -421,5 +445,5 @@ function sanitizeError(error: unknown): string {
 export const bossBrowserInternals = {
   SEARCH_URL,
   canonicalBossJobUrl,
-  legacyJobText,
+  legacyJobText: buildBossLegacyJobText,
 };

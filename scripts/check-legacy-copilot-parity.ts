@@ -41,12 +41,14 @@ async function main(): Promise<void> {
     }
   }
 
-  const [formEngine, semanticMapper, bossSource, bossCli, bossBrowserWorker, applicantReference, dispatcher, notice] = await Promise.all([
+  const [formEngine, semanticMapper, bossSource, bossCli, bossBrowserWorker, bossSemanticDriver, bossFollowupRuntime, applicantReference, dispatcher, notice] = await Promise.all([
     readFile(resolve(root, 'packages/browser-form-engine/browser/runtime.js'), 'utf8'),
     readFile(resolve(root, 'apps/apply-worker/src/semantic-mapper.ts'), 'utf8'),
     readFile(resolve(root, 'integrations/boss/legacy-copilot.user.js'), 'utf8'),
     readFile(resolve(root, 'apps/server/src/boss-outreach-bridge-cli.ts'), 'utf8'),
     readFile(resolve(root, 'apps/boss-browser-worker/src/runtime.ts'), 'utf8'),
+    readFile(resolve(root, 'integrations/browser-extension/boss-driver.js'), 'utf8'),
+    readFile(resolve(root, 'apps/boss-browser-worker/src/followup-runtime.ts'), 'utf8'),
     readFile(resolve(root, 'apps/web/src/components/management/applicant-reference-panel.tsx'), 'utf8'),
     readFile(resolve(root, 'apps/intent-dispatch-worker/src/runtime.ts'), 'utf8'),
     readFile(resolve(root, 'NOTICE.md'), 'utf8'),
@@ -82,8 +84,14 @@ async function main(): Promise<void> {
     if (!bossSource.includes(marker)) throw new Error(`Vendored BOSS compatibility source lost marker '${marker}'`);
   }
 
-  for (const marker of ['runBossBrowserDiscovery', 'scanActions', 'driver.scroll', 'reportDiscovery', 'logDecision']) {
+  for (const marker of ['runBossBrowserDiscovery', 'scanActions', 'driver.scroll', 'reportDiscovery', 'logDecision', 'sendGreeting']) {
     if (!bossBrowserWorker.includes(marker)) throw new Error(`BOSS Browser Provider parity lost marker '${marker}'`);
+  }
+  for (const marker of ['boss_detail_snapshot', 'boss_prepare_chat', 'boss_send_message', 'boss_scan_unread_contacts', 'boss_chat_snapshot', 'boss_prepare_resume', 'boss_confirm_resume']) {
+    if (!bossSemanticDriver.includes(marker)) throw new Error(`BOSS semantic Browser Bridge driver lost marker '${marker}'`);
+  }
+  for (const marker of ['authorizeResumeFollowup', 'sendResumeFollowup', 'latestRole', 'resumeSended', 'explicit-request', 'qualified-followup']) {
+    if (!bossFollowupRuntime.includes(marker)) throw new Error(`BOSS resume-followup parity lost policy marker '${marker}'`);
   }
   for (const marker of ['navigator.clipboard.writeText', 'ApplicantProfileContext', 'ApplicationAnswerSetContext', 'copyVisible']) {
     if (!applicantReference.includes(marker)) throw new Error(`Applicant reference/quick-copy parity lost marker '${marker}'`);
@@ -102,7 +110,7 @@ async function main(): Promise<void> {
     throw new Error('Third-party attribution is incomplete');
   }
 
-  console.log(`legacy copilot parity ok: ${requiredAdapters.size} observed ATS adapters + vendored BOSS automation + direct BOSS Browser Provider + quick-copy reference + shared form/resume/semantic engine`);
+  console.log(`legacy copilot parity ok: ${requiredAdapters.size} observed ATS adapters + BOSS discovery/greet/resume-followup Browser Bridge parity + quick-copy reference + shared form/resume/semantic engine`);
 }
 
 main().catch((error) => {

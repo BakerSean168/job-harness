@@ -12,6 +12,8 @@ const POLL_ALARM = "job-harness-browser-bridge-poll";
 const DRIVER_COMMANDS = Object.freeze([
   "session_acquire", "navigate", "current_url", "title", "body_text", "exists", "text", "value_matches", "fill",
   "select", "set_checked", "click", "wait", "scroll", "scan_controls", "scan_actions", "form_state_hash",
+  "boss_detail_snapshot", "boss_prepare_chat", "boss_send_message", "boss_scan_unread_contacts", "boss_open_contact",
+  "boss_chat_snapshot", "boss_prepare_resume", "boss_confirm_resume",
 ]);
 let loopRunning = false;
 let stopRequested = false;
@@ -172,6 +174,7 @@ async function executeCommand(envelope) {
   if (type === "title") return (await requireTab(tabId)).title || "";
   if (type === "wait") { await sleep(boundedInt(command.payload?.milliseconds, 0, 60000)); return null; }
   if (type === "screenshot") return captureScreenshot(tabId);
+  if (type.startsWith("boss_")) return executeBossDriver(tabId, command);
   return executePageDriver(tabId, command);
 }
 
@@ -217,6 +220,32 @@ function sameReusableTarget(candidateUrl, preferredUrl) {
       && candidate.port === preferred.port
       && candidate.pathname === preferred.pathname;
   } catch { return false; }
+}
+
+async function executeBossDriver(tabId, command) {
+  const response = await deliverBossDriverCommand(tabId, command);
+  return unwrapPageDriverResponse(response);
+}
+
+async function deliverBossDriverCommand(tabId, command) {
+  await ensureBossDriver(tabId);
+  try {
+    return await chrome.tabs.sendMessage(tabId, { type: "JH_BOSS_DRIVER_COMMAND", command });
+  } catch {
+    await ensureBossDriver(tabId);
+    return chrome.tabs.sendMessage(tabId, { type: "JH_BOSS_DRIVER_COMMAND", command });
+  }
+}
+
+async function ensureBossDriver(tabId) {
+  const tab = await requireTab(tabId);
+  const url = String(tab.url || "");
+  let parsed;
+  try { parsed = new URL(url); } catch { throw new Error(`Cannot inject BOSS driver into ${url || "this tab"}`); }
+  if (parsed.protocol !== "https:" || !["www.zhipin.com", "zhipin.com"].includes(parsed.hostname)) {
+    throw new Error(`BOSS driver is restricted to zhipin.com, got ${url}`);
+  }
+  await chrome.scripting.executeScript({ target: { tabId }, files: ["boss-driver.js"] });
 }
 
 async function executePageDriver(tabId, command) {

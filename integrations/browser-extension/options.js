@@ -1,6 +1,6 @@
 const ids = ["bridgeUrl", "agentId", "agentName", "enabled", "resumeUpload", "screenshots"];
 const defaults = { bridgeUrl: "", agentId: "windows-chrome-primary", agentName: "Windows Chrome", agentToken: "", agentTokenExpiresAt: null, enabled: false, resumeUpload: false, screenshots: false };
-const baseDriverCommands = ["session_acquire", "navigate", "current_url", "title", "body_text", "exists", "text", "value_matches", "fill", "select", "set_checked", "click", "wait", "scroll", "scan_controls", "scan_actions", "form_state_hash"];
+const baseDriverCommands = ["session_acquire", "navigate", "current_url", "title", "body_text", "exists", "text", "value_matches", "fill", "select", "set_checked", "click", "wait", "scroll", "scan_controls", "scan_actions", "form_state_hash", "boss_detail_snapshot", "boss_prepare_chat", "boss_send_message", "boss_scan_unread_contacts", "boss_open_contact", "boss_chat_snapshot", "boss_prepare_resume", "boss_confirm_resume"];
 const form = document.getElementById("settings");
 const status = document.getElementById("status");
 void load();

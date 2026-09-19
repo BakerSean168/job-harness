@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/cli.ts",
+    "followup": "tsx src/followup-cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -159,6 +159,39 @@ describe('BOSS browser provider recovery', () => {
     expect(b.state).toEqual({ persisted: 1, retained: 0, released: 1 });
   });
 
+  it('runs recruiter greeting only for a passing scored job when an explicit outreach port is supplied', async () => {
+    const driver = new FakeDriver();
+    const b = backend(driver);
+    const c = bridge();
+    const greetings: any[] = [];
+    const result = await runBossBrowserDiscovery({
+      backend: b.backend,
+      bridge: c.bridge,
+      outreach: {
+        async sendGreeting(input) {
+          greetings.push(input);
+          return { status: 'sent' };
+        },
+      },
+      profileId: 'ai-agent-app',
+      keywords: ['AI Agent'],
+      maxKeywords: 1,
+      maxJobsPerKeyword: 1,
+      maxTotalJobs: 1,
+      threshold: 58,
+      now: () => '2026-09-19T08:00:00.000Z',
+      logger: { log() {}, warn() {}, error() {} },
+    });
+    expect(greetings).toEqual([expect.objectContaining({
+      jobUrl: 'https://www.zhipin.com/job_detail/abc123.html?ka=search_list_jname_1',
+      message: 'hello',
+      score: 88,
+      threshold: 58,
+      resumeIndex: 0,
+    })]);
+    expect(result.jobs[0]).toMatchObject({ greetStatus: 'sent' });
+  });
+
   it('fails closed on login/human-verification states before scoring or reporting', async () => {
     const driver = new FakeDriver();
     driver.loggedOut = true;

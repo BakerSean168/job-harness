@@ -16,15 +16,49 @@ import {
 import { writeCommonRestError, writeInternalRestError, writeRestError } from './http-errors';
 
 const ValidationRunIdSchema = z.string().trim().min(1).max(200);
-const ValidationModeSchema = z.enum(['synthetic-canary', 'site-readonly', 'site-staged-readonly', 'site-resume-sync', 'boss-discovery']);
+const ValidationModeSchema = z.enum(['synthetic-canary', 'site-readonly', 'site-staged-readonly', 'site-resume-sync', 'boss-discovery', 'boss-chat-inspect', 'boss-outreach']);
 const ReadonlySiteFamilySchema = z.enum(['zhilian', 'liepin']);
 type ReadonlySiteFamily = z.infer<typeof ReadonlySiteFamilySchema>;
+const BossOutreachIntentSchema = z.discriminatedUnion('operation', [
+  z.object({
+    operation: z.literal('greet'),
+    jobUrl: z.url(),
+    expectedMessage: z.string().trim().min(1).max(2_000),
+    score: z.number().min(0).max(100),
+    threshold: z.number().min(0).max(100),
+    resumeIndex: z.number().int().min(0).max(20),
+  }).strict(),
+  z.object({
+    operation: z.literal('resume-followup'),
+    jobUrl: z.url(),
+    expectedResumeIndex: z.number().int().min(0).max(20),
+    score: z.number().min(0).max(100),
+    threshold: z.number().min(0).max(100),
+    authorizationReason: z.enum(['explicit-request', 'qualified-followup']),
+  }).strict(),
+]);
+type BossOutreachIntent = z.infer<typeof BossOutreachIntentSchema>;
 const CreateValidationRunInputSchema = z.object({
   agentId: z.string().trim().min(1).max(200),
   targetUrl: z.url(),
   mode: ValidationModeSchema.default('synthetic-canary'),
   ttlMs: z.number().int().min(30_000).max(10 * 60_000).default(3 * 60_000),
-}).strict();
+  bossOutreachIntent: BossOutreachIntentSchema.nullable().optional().default(null),
+}).strict().superRefine((value, ctx) => {
+  if (value.mode === 'boss-outreach' && !value.bossOutreachIntent) {
+    ctx.addIssue({ code: 'custom', path: ['bossOutreachIntent'], message: 'boss-outreach requires a bounded intent' });
+  }
+  if (value.mode !== 'boss-outreach' && value.bossOutreachIntent) {
+    ctx.addIssue({ code: 'custom', path: ['bossOutreachIntent'], message: 'bossOutreachIntent is allowed only for boss-outreach mode' });
+  }
+  const intent = value.bossOutreachIntent;
+  if (intent?.operation === 'greet' && intent.score < intent.threshold) {
+    ctx.addIssue({ code: 'custom', path: ['bossOutreachIntent', 'score'], message: 'BOSS greet requires score >= threshold' });
+  }
+  if (intent?.operation === 'resume-followup' && intent.authorizationReason === 'qualified-followup' && intent.score < intent.threshold) {
+    ctx.addIssue({ code: 'custom', path: ['bossOutreachIntent', 'score'], message: 'qualified BOSS resume follow-up requires score >= threshold' });
+  }
+});
 const InvokeValidationCommandInputSchema = z.object({
   sessionRef: z.string().trim().min(1).max(500).nullable().default(null),
   command: BrowserExtensionDriverCommandSchema,
@@ -75,11 +109,24 @@ const RESUME_SYNC_SITE_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>
 const RESUME_SYNC_FORBIDDEN_CLICK_TEXT = /(?:投简历|立即投递|确认投递|投递简历|立即申请|提交申请|申请职位|提交职位申请|聊一聊|发送)/i;
 const BOSS_DISCOVERY_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
   'session_acquire', 'navigate', 'current_url', 'title', 'body_text', 'exists', 'text',
-  'fill', 'click', 'wait', 'scroll', 'scan_controls', 'scan_actions', 'form_state_hash',
+  'fill', 'click', 'wait', 'scroll', 'scan_controls', 'scan_actions', 'form_state_hash', 'boss_detail_snapshot',
 ]);
 const BOSS_SEARCH_INPUT_SELECTORS = new Set(['.search-form input', 'input[placeholder*="搜索"]', 'input[type="search"]']);
 const BOSS_SEARCH_BUTTON_SELECTORS = new Set(['.search-btn']);
 const BOSS_SCANNED_ACTION_SELECTOR = /^\[data-job-harness-action-id="[A-Za-z0-9._:-]+"\]$/;
+const BOSS_CHAT_INSPECT_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
+  'session_acquire', 'current_url', 'title', 'body_text', 'wait',
+  'boss_scan_unread_contacts', 'boss_open_contact', 'boss_chat_snapshot',
+]);
+const BOSS_OUTREACH_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
+  'session_acquire', 'navigate', 'current_url', 'title', 'body_text', 'wait',
+  'boss_detail_snapshot', 'boss_prepare_chat', 'boss_send_message',
+  'boss_scan_unread_contacts', 'boss_open_contact', 'boss_chat_snapshot',
+  'boss_prepare_resume', 'boss_confirm_resume',
+]);
+const BOSS_OUTREACH_WRITE_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>([
+  'boss_prepare_chat', 'boss_send_message', 'boss_confirm_resume',
+]);
 const WRITE_VALIDATION_COMMANDS = new Set<BrowserExtensionDriverCommand['type']>(['fill', 'select', 'set_checked', 'upload', 'click']);
 
 export interface BrowserExtensionCharacterizationEvidence {
@@ -108,6 +155,7 @@ export interface BrowserExtensionValidationRun {
   readonly commandCount: number;
   readonly writeCount: number;
   readonly characterization: BrowserExtensionCharacterizationEvidence | null;
+  readonly outreachOperation: BossOutreachIntent['operation'] | null;
 }
 
 export type SiteResumePreparationState = 'attachment_upload_ready' | 'profile_onboarding_required' | 'education_onboarding_required' | 'unknown';
@@ -131,6 +179,11 @@ interface MutableValidationRun {
   commandCount: number;
   writeCount: number;
   characterization: BrowserExtensionCharacterizationEvidence | null;
+  bossOutreachIntent: BossOutreachIntent | null;
+  bossChatPrepared: boolean;
+  bossMessageSent: boolean;
+  bossResumePrepared: boolean;
+  bossResumeConfirmed: boolean;
 }
 
 export class BrowserExtensionValidationRegistry {
@@ -169,6 +222,10 @@ export class BrowserExtensionValidationRegistry {
     if (input.mode === 'boss-discovery' && !versionAtLeast(agent.version, '0.2.2')) {
       throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `BOSS discovery requires Browser Bridge >= 0.2.2; agent '${input.agentId}' reports '${agent.version}'`, 409);
     }
+    if ((input.mode === 'boss-chat-inspect' || input.mode === 'boss-outreach') && !versionAtLeast(agent.version, '0.2.3')) {
+      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `BOSS chat/outreach requires Browser Bridge >= 0.2.3; agent '${input.agentId}' reports '${agent.version}'`, 409);
+    }
+    if (input.mode === 'boss-outreach') this.validateBossOutreachIntentTarget(target, input.bossOutreachIntent!);
     const createdAt = this.now().toISOString();
     const run: MutableValidationRun = {
       id: randomUUID(),
@@ -181,6 +238,11 @@ export class BrowserExtensionValidationRegistry {
       commandCount: 0,
       writeCount: 0,
       characterization: null,
+      bossOutreachIntent: input.bossOutreachIntent ?? null,
+      bossChatPrepared: false,
+      bossMessageSent: false,
+      bossResumePrepared: false,
+      bossResumeConfirmed: false,
     };
     this.runs.set(run.id, run);
     return freezeRun(run);
@@ -207,9 +269,13 @@ export class BrowserExtensionValidationRegistry {
       ? RESUME_SYNC_SITE_COMMANDS
       : run.mode === 'boss-discovery'
         ? BOSS_DISCOVERY_COMMANDS
-        : run.mode === 'site-readonly' || run.mode === 'site-staged-readonly'
-          ? READONLY_SITE_COMMANDS
-          : SAFE_VALIDATION_COMMANDS;
+        : run.mode === 'boss-chat-inspect'
+          ? BOSS_CHAT_INSPECT_COMMANDS
+          : run.mode === 'boss-outreach'
+            ? BOSS_OUTREACH_COMMANDS
+            : run.mode === 'site-readonly' || run.mode === 'site-staged-readonly'
+            ? READONLY_SITE_COMMANDS
+            : SAFE_VALIDATION_COMMANDS;
     if (!allowedCommands.has(input.command.type)) {
       throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', `Browser validation mode '${run.mode}' does not allow '${input.command.type}'`, 403);
     }
@@ -223,6 +289,7 @@ export class BrowserExtensionValidationRegistry {
       }
     }
     if (run.mode === 'boss-discovery') this.authorizeBossDiscoveryCommand(run, input.command);
+    if (run.mode === 'boss-outreach') this.authorizeBossOutreachCommand(run, input.command);
     if (run.mode === 'site-resume-sync' && input.command.type === 'click') {
       const expected = input.command.payload.expectedText?.trim() ?? '';
       const scannedFieldSelector = /^\[data-job-harness-(?:field-id|radio-group)=\"[A-Za-z0-9._:-]+\"\]$/.test(input.command.payload.selector);
@@ -236,9 +303,19 @@ export class BrowserExtensionValidationRegistry {
       const preferred = input.command.payload.preferredUrl;
       const sync = run.mode === 'site-resume-sync';
       const bossDiscovery = run.mode === 'boss-discovery';
+      const bossChatInspect = run.mode === 'boss-chat-inspect';
+      const bossOutreach = run.mode === 'boss-outreach';
       if (bossDiscovery) {
         if (!preferred || this.validateTarget(preferred, run.mode) !== run.targetUrl || input.command.payload.requireLiveSession !== false) {
           throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'BOSS discovery must acquire the frozen BOSS search page in the user-owned Chrome profile', 409);
+        }
+      } else if (bossChatInspect) {
+        if (!preferred || this.validateTarget(preferred, run.mode) !== run.targetUrl || input.command.payload.requireLiveSession !== false) {
+          throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'BOSS chat inspection must acquire the frozen Geek chat surface in the user-owned Chrome profile', 409);
+        }
+      } else if (bossOutreach) {
+        if (!preferred || this.validateTarget(preferred, run.mode) !== run.targetUrl || input.command.payload.requireLiveSession !== false) {
+          throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'BOSS outreach must acquire its frozen BOSS job/chat target in the user-owned Chrome profile', 409);
         }
       } else if (sync) {
         const reuse = input.command.payload.reuseLiveSession;
@@ -254,7 +331,7 @@ export class BrowserExtensionValidationRegistry {
         throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'Browser validation session must acquire the frozen canary URL', 409);
       }
       const staged = run.mode === 'site-staged-readonly';
-      if (!sync && !staged && !bossDiscovery && input.command.payload.reuseLiveSession) {
+      if (!sync && !staged && !bossDiscovery && !bossChatInspect && !bossOutreach && input.command.payload.reuseLiveSession) {
         throw new BrowserExtensionBridgeError('VALIDATION_REUSE_DENIED', 'This browser validation mode must create an isolated Chrome tab', 403);
       }
       if (staged && (!input.command.payload.reuseLiveSession || input.command.payload.requireLiveSession !== true)) {
@@ -269,9 +346,17 @@ export class BrowserExtensionValidationRegistry {
       const result = requireRecord(output.result, 'session_acquire');
       const sessionRef = requireString(result.sessionRef, 'sessionRef');
       const currentUrl = requireString(result.currentUrl, 'currentUrl');
-      const acquiredTargetOk = bossDiscovery ? isBossDiscoveryCurrentUrl(currentUrl) : sync ? this.sameSite(currentUrl, run.targetUrl) : this.sameTarget(currentUrl, run.targetUrl, run.mode);
+      const acquiredTargetOk = bossDiscovery
+        ? isBossDiscoveryCurrentUrl(currentUrl)
+        : bossChatInspect
+          ? isBossChatInspectCurrentUrl(currentUrl)
+          : bossOutreach
+            ? isBossOutreachCurrentUrl(currentUrl, run.bossOutreachIntent!, run.targetUrl)
+            : sync
+            ? this.sameSite(currentUrl, run.targetUrl)
+            : this.sameTarget(currentUrl, run.targetUrl, run.mode);
       if (!acquiredTargetOk) {
-        throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', staged ? 'Staged characterization requires an already-open tab on this exact job. Open the target job, manually enter its resume-selection/final-confirmation layer, and retry.' : sync ? 'Site Resume Sync must acquire an active tab on the configured recruiting site' : bossDiscovery ? 'BOSS discovery did not acquire a safe BOSS search/login tab' : 'Browser validation Chrome tab opened an unexpected job URL', 409);
+        throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', staged ? 'Staged characterization requires an already-open tab on this exact job. Open the target job, manually enter its resume-selection/final-confirmation layer, and retry.' : sync ? 'Site Resume Sync must acquire an active tab on the configured recruiting site' : bossDiscovery ? 'BOSS discovery did not acquire a safe BOSS search/login tab' : bossChatInspect ? 'BOSS chat inspection did not acquire a safe chat/login surface' : bossOutreach ? 'BOSS outreach did not acquire its allowlisted job/chat/login surface' : 'Browser validation Chrome tab opened an unexpected job URL', 409);
       }
       run.sessionRef = sessionRef;
       run.commandCount += 1;
@@ -294,11 +379,15 @@ export class BrowserExtensionValidationRegistry {
     const currentUrl = requireString(current.result, 'current_url');
     const targetStillSafe = run.mode === 'boss-discovery'
       ? isBossDiscoveryCurrentUrl(currentUrl)
-      : run.mode === 'site-resume-sync'
-        ? this.sameSite(currentUrl, run.targetUrl)
-        : this.sameTarget(currentUrl, run.targetUrl, run.mode);
+      : run.mode === 'boss-chat-inspect'
+        ? isBossChatInspectCurrentUrl(currentUrl)
+        : run.mode === 'boss-outreach'
+        ? isBossOutreachCurrentUrl(currentUrl, run.bossOutreachIntent!, run.targetUrl)
+        : run.mode === 'site-resume-sync'
+          ? this.sameSite(currentUrl, run.targetUrl)
+          : this.sameTarget(currentUrl, run.targetUrl, run.mode);
     if (!targetStillSafe) {
-      throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DRIFT', run.mode === 'site-resume-sync' ? 'Site Resume Sync tab left the configured recruiting site' : run.mode === 'boss-discovery' ? 'BOSS discovery tab left the allowlisted BOSS search/detail/login surface' : 'Browser validation tab navigated away from the frozen canary URL', 409);
+      throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DRIFT', run.mode === 'site-resume-sync' ? 'Site Resume Sync tab left the configured recruiting site' : run.mode === 'boss-discovery' ? 'BOSS discovery tab left the allowlisted BOSS search/detail/login surface' : run.mode === 'boss-chat-inspect' ? 'BOSS chat inspection tab left the allowlisted chat/login surface' : run.mode === 'boss-outreach' ? 'BOSS outreach tab left the allowlisted job/chat/login surface' : 'Browser validation tab navigated away from the frozen canary URL', 409);
     }
     if (run.mode === 'boss-discovery' && (input.command.type === 'fill' || input.command.type === 'click') && !isBossSearchTarget(new URL(currentUrl))) {
       throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', `BOSS discovery '${input.command.type}' is allowed only on the BOSS search page`, 403);
@@ -311,7 +400,13 @@ export class BrowserExtensionValidationRegistry {
       timeoutMs: input.timeoutMs,
     }));
     run.commandCount += 1;
-    if (WRITE_VALIDATION_COMMANDS.has(input.command.type)) run.writeCount += 1;
+    if (WRITE_VALIDATION_COMMANDS.has(input.command.type) || BOSS_OUTREACH_WRITE_COMMANDS.has(input.command.type)) run.writeCount += 1;
+    if (run.mode === 'boss-outreach') {
+      if (input.command.type === 'boss_prepare_chat') run.bossChatPrepared = true;
+      if (input.command.type === 'boss_send_message') run.bossMessageSent = true;
+      if (input.command.type === 'boss_prepare_resume') run.bossResumePrepared = true;
+      if (input.command.type === 'boss_confirm_resume') run.bossResumeConfirmed = true;
+    }
     return { run: freezeRun(run), commandId: output.commandId, result: output.result };
   }
 
@@ -591,6 +686,18 @@ export class BrowserExtensionValidationRegistry {
       url.hash = '';
       return url.toString();
     }
+    if (mode === 'boss-chat-inspect') {
+      if (!isBossChatUrl(url.toString())) throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'BOSS chat inspection target must be the HTTPS Geek chat page', 403);
+      url.search = '';
+      url.hash = '';
+      return url.toString();
+    }
+    if (mode === 'boss-outreach') {
+      if (!isBossOutreachTarget(url)) throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'BOSS outreach target must be an HTTPS BOSS job-detail or Geek chat page', 403);
+      if (/^\/job_detail\//i.test(url.pathname)) url.search = '';
+      url.hash = '';
+      return url.toString();
+    }
     if (mode === 'site-resume-sync') {
       if (url.protocol !== 'https:' || url.username || url.password) throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'Site Resume Sync requires an HTTPS recruiting-site URL without credentials', 403);
       const host = url.hostname.toLowerCase();
@@ -640,6 +747,72 @@ export class BrowserExtensionValidationRegistry {
   private sameTarget(left: string, right: string, mode: z.infer<typeof ValidationModeSchema>): boolean {
     try { return this.validateTarget(left, mode) === this.validateTarget(right, mode); }
     catch { return false; }
+  }
+
+  private validateBossOutreachIntentTarget(target: string, intent: BossOutreachIntent): void {
+    const url = new URL(target);
+    if (intent.operation === 'greet') {
+      const expected = canonicalBossDetailUrl(intent.jobUrl);
+      const actual = canonicalBossDetailUrl(target);
+      if (!expected || !actual || expected !== actual) {
+        throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'BOSS greet intent must bind to the exact authorized job-detail URL', 409);
+      }
+      return;
+    }
+    if (!/^\/web\/geek\/chat(?:\/|$)/i.test(url.pathname) || !canonicalBossDetailUrl(intent.jobUrl)) {
+      throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'BOSS resume follow-up must bind one canonical BOSS job to the Geek chat surface', 409);
+    }
+  }
+
+  private authorizeBossOutreachCommand(run: MutableValidationRun, command: BrowserExtensionDriverCommand): void {
+    if (run.mode !== 'boss-outreach' || !run.bossOutreachIntent) return;
+    const intent = run.bossOutreachIntent;
+    if (command.type === 'navigate') {
+      if (intent.operation !== 'greet' || !run.bossChatPrepared || !isBossChatUrl(command.payload.url)) {
+        throw new BrowserExtensionBridgeError('VALIDATION_TARGET_DENIED', 'BOSS outreach navigation is allowed only from an authorized greet into Geek chat', 403);
+      }
+      return;
+    }
+    if (intent.operation === 'greet') {
+      if (['boss_scan_unread_contacts', 'boss_open_contact', 'boss_prepare_resume', 'boss_confirm_resume'].includes(command.type)) {
+        throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', `BOSS greet intent cannot execute '${command.type}'`, 403);
+      }
+      if (command.type === 'boss_prepare_chat' && run.bossChatPrepared) {
+        throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', 'BOSS greet chat preparation is exactly-once', 409);
+      }
+      if (command.type === 'boss_send_message') {
+        if (!run.bossChatPrepared || run.bossMessageSent) {
+          throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', 'BOSS greeting send requires one prepared, unsent chat', 409);
+        }
+        if (command.payload.message !== intent.expectedMessage) {
+          throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', 'BOSS greeting text differs from the server-authorized Job Harness greeting', 403);
+        }
+      }
+      return;
+    }
+
+    if (['boss_detail_snapshot', 'boss_prepare_chat', 'boss_send_message'].includes(command.type)) {
+      throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', `BOSS resume-followup intent cannot execute '${command.type}'`, 403);
+    }
+    if (command.type === 'boss_prepare_resume') {
+      if (run.bossResumePrepared) {
+        throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', 'BOSS resume chooser preparation is exactly-once', 409);
+      }
+      if (canonicalBossDetailUrl(command.payload.expectedJobUrl) !== canonicalBossDetailUrl(intent.jobUrl)) {
+        throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', 'BOSS resume preparation job differs from the policy-authorized conversation job', 403);
+      }
+    }
+    if (command.type === 'boss_confirm_resume') {
+      if (!run.bossResumePrepared || run.bossResumeConfirmed) {
+        throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', 'BOSS resume send requires one prepared, unconfirmed chooser', 409);
+      }
+      if (command.payload.resumeIndex !== intent.expectedResumeIndex) {
+        throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', 'BOSS resume index differs from the server-authorized Resume Profile mapping', 403);
+      }
+      if (canonicalBossDetailUrl(command.payload.expectedJobUrl) !== canonicalBossDetailUrl(intent.jobUrl)) {
+        throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', 'BOSS resume confirmation job differs from the policy-authorized conversation job', 403);
+      }
+    }
   }
 
   private authorizeBossDiscoveryCommand(run: MutableValidationRun, command: BrowserExtensionDriverCommand): void {
@@ -738,7 +911,19 @@ function sendValidationError(res: Response, error: unknown): void {
   writeInternalRestError(res);
 }
 function freezeRun(run: MutableValidationRun): BrowserExtensionValidationRun {
-  return { ...run };
+  return {
+    id: run.id,
+    agentId: run.agentId,
+    targetUrl: run.targetUrl,
+    mode: run.mode,
+    createdAt: run.createdAt,
+    expiresAt: run.expiresAt,
+    sessionRef: run.sessionRef,
+    commandCount: run.commandCount,
+    writeCount: run.writeCount,
+    characterization: run.characterization,
+    outreachOperation: run.bossOutreachIntent?.operation ?? null,
+  };
 }
 function parseRawControls(raw: unknown): RawControl[] { return z.array(RawControlSchema).parse(raw); }
 function parseRawActions(raw: unknown): RawAction[] { return z.array(RawActionSchema).parse(raw); }
@@ -823,6 +1008,72 @@ function isBossDiscoveryCurrentUrl(raw: string): boolean {
       || /^\/web\/passport(?:\/|$)/i.test(url.pathname)
       || /^\/web\/user(?:\/|$)/i.test(url.pathname)
       || url.pathname === '/';
+  } catch {
+    return false;
+  }
+}
+
+function isBossChatInspectCurrentUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase();
+    if (url.protocol !== 'https:' || url.username || url.password || (host !== 'zhipin.com' && host !== 'www.zhipin.com')) return false;
+    return /^\/web\/geek\/chat(?:\/|$)/i.test(url.pathname)
+      || /^\/web\/passport(?:\/|$)/i.test(url.pathname)
+      || /^\/web\/user(?:\/|$)/i.test(url.pathname)
+      || url.pathname === '/';
+  } catch {
+    return false;
+  }
+}
+
+function isBossOutreachTarget(url: URL): boolean {
+  const host = url.hostname.toLowerCase();
+  if (url.protocol !== 'https:' || url.username || url.password || (host !== 'zhipin.com' && host !== 'www.zhipin.com')) return false;
+  return /^\/job_detail\/[A-Za-z0-9._%-]+\.html$/i.test(url.pathname)
+    || /^\/web\/geek\/chat(?:\/|$)/i.test(url.pathname);
+}
+
+function canonicalBossDetailUrl(raw: string): string | null {
+  try {
+    const url = new URL(raw);
+    if (!isBossOutreachTarget(url) || !/^\/job_detail\//i.test(url.pathname)) return null;
+    url.protocol = 'https:';
+    url.hostname = 'www.zhipin.com';
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function isBossChatUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase();
+    return url.protocol === 'https:'
+      && !url.username
+      && !url.password
+      && (host === 'zhipin.com' || host === 'www.zhipin.com')
+      && /^\/web\/geek\/chat(?:\/|$)/i.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function isBossOutreachCurrentUrl(raw: string, intent: BossOutreachIntent, targetUrl: string): boolean {
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase();
+    if (url.protocol !== 'https:' || url.username || url.password || (host !== 'zhipin.com' && host !== 'www.zhipin.com')) return false;
+    if (/^\/web\/passport(?:\/|$)/i.test(url.pathname) || /^\/web\/user(?:\/|$)/i.test(url.pathname) || url.pathname === '/') return true;
+    if (intent.operation === 'greet') {
+      const currentJob = canonicalBossDetailUrl(raw);
+      const targetJob = canonicalBossDetailUrl(targetUrl);
+      return Boolean(currentJob && targetJob && currentJob === targetJob) || isBossChatUrl(raw);
+    }
+    return isBossChatUrl(raw);
   } catch {
     return false;
   }

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 type BackgroundHarness = {
   executePageDriver(tabId: number, command: unknown): Promise<unknown>;
+  executeBossDriver(tabId: number, command: unknown): Promise<unknown>;
   executeEnvelope(config: Record<string, unknown>, envelope: Record<string, unknown>): Promise<void>;
   acquireSession(payload: Record<string, unknown>): Promise<unknown>;
   register(config: Record<string, unknown>): Promise<void>;
@@ -13,11 +14,13 @@ async function loadBackground(
   sendMessage: (...args: unknown[]) => Promise<unknown>,
   fetchImpl: typeof globalThis.fetch = async () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
   queryTabs: (query: Record<string, unknown>) => Promise<Array<{ id?: number; url?: string; status?: string }>> = async () => [],
+  getTab: (tabId: number) => Promise<{ id?: number; url?: string; status?: string }> = async () => ({ id: 7, url: 'https://example.test/apply', status: 'complete' }),
 ) {
   const source = await readFile(new URL('../../../integrations/browser-extension/background.js', import.meta.url), 'utf8');
   let sendCount = 0;
   let injectionCount = 0;
   let createCount = 0;
+  const injectedFiles: string[][] = [];
   const storageWrites: Array<Record<string, unknown>> = [];
   const noopListener = { addListener: () => undefined };
   const chrome = {
@@ -33,7 +36,7 @@ async function loadBackground(
       local: { get: async (defaults: unknown) => defaults, set: async (value: Record<string, unknown>) => { storageWrites.push(value); } },
     },
     tabs: {
-      get: async () => ({ id: 7, url: 'https://example.test/apply', status: 'complete' }),
+      get: async (tabId: number) => getTab(tabId),
       sendMessage: async (...args: unknown[]) => { sendCount += 1; return sendMessage(...args); },
       query: async (query: Record<string, unknown>) => queryTabs(query),
       update: async () => ({}),
@@ -41,7 +44,7 @@ async function loadBackground(
       onUpdated: { addListener: () => undefined, removeListener: () => undefined },
       captureVisibleTab: async () => 'data:image/png;base64,',
     },
-    scripting: { executeScript: async () => { injectionCount += 1; } },
+    scripting: { executeScript: async (details: { files?: string[] }) => { injectionCount += 1; injectedFiles.push(details.files ?? []); } },
   };
   const context = vm.createContext({
     chrome,
@@ -62,7 +65,7 @@ async function loadBackground(
   }) as vm.Context & BackgroundHarness;
   vm.runInContext(source, context, { filename: 'background.js' });
   await Promise.resolve();
-  return { context, counts: () => ({ sendCount, injectionCount, createCount, storageWrites }) };
+  return { context, counts: () => ({ sendCount, injectionCount, createCount, storageWrites, injectedFiles }) };
 }
 
 describe('MV3 browser command delivery boundary', () => {
@@ -70,6 +73,29 @@ describe('MV3 browser command delivery boundary', () => {
     const { context, counts } = await loadBackground(async () => ({ __jobHarnessDriverError: 'write failed after acceptance' }));
     await expect(context.executePageDriver(7, { type: 'fill', payload: { selector: '#name', value: 'A' } })).rejects.toThrow(/write failed after acceptance/);
     expect(counts()).toMatchObject({ sendCount: 1, injectionCount: 1 });
+  });
+
+  it('routes BOSS semantic commands only through the dedicated zhipin.com driver', async () => {
+    const { context, counts } = await loadBackground(
+      async () => ({ title: '前端开发工程师', canGreet: true }),
+      undefined,
+      undefined,
+      async () => ({ id: 7, url: 'https://www.zhipin.com/job_detail/abc.html', status: 'complete' }),
+    );
+    await expect(context.executeBossDriver(7, { type: 'boss_detail_snapshot', payload: {} }))
+      .resolves.toEqual({ title: '前端开发工程师', canGreet: true });
+    expect(counts()).toMatchObject({ sendCount: 1, injectionCount: 1 });
+    expect(counts().injectedFiles).toEqual([['boss-driver.js']]);
+
+    const other = await loadBackground(
+      async () => null,
+      undefined,
+      undefined,
+      async () => ({ id: 7, url: 'https://example.test/apply', status: 'complete' }),
+    );
+    await expect(other.context.executeBossDriver(7, { type: 'boss_detail_snapshot', payload: {} }))
+      .rejects.toThrow(/restricted to zhipin\.com/);
+    expect(other.counts().sendCount).toBe(0);
   });
 
   it('retries delivery once when sendMessage itself cannot reach the replaced content-script world', async () => {

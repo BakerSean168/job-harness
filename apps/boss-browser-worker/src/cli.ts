@@ -1,13 +1,20 @@
 import { LocalCdpBrowserBackend, SteelBrowserBackend, type BrowserBackendPort } from '@job-harness/apply-browser';
 import { BossExtensionValidationBackend } from './extension-backend';
-import { runBossBrowserDiscovery, type BossBrowserBridgePort, type BossBrowserScoreDecision } from './runtime';
+import { BossOutreachExtensionClient } from './outreach-extension';
+import { createBossBridgeClient } from './bridge-client';
+import { runBossBrowserDiscovery } from './runtime';
 
 const config = readConfig(process.env);
 const backend = createBackend(config);
-const bridge = createBridge(config.bridgeUrl);
+const bridge = createBossBridgeClient(config.bridgeUrl);
+if (config.greetEnabled && config.provider !== 'extension') throw new Error('BOSS automatic greeting requires the Browser Bridge extension provider');
+const outreach = config.greetEnabled
+  ? new BossOutreachExtensionClient({ apiUrl: config.jobHarnessApiUrl, authToken: config.jobHarnessAuthToken, agentId: config.browserExtensionAgentId })
+  : null;
 const result = await runBossBrowserDiscovery({
   backend,
   bridge,
+  outreach,
   profileId: config.profileId,
   keywords: config.keywords,
   maxKeywords: config.maxKeywords,
@@ -47,42 +54,6 @@ function createBackend(config: ReturnType<typeof readConfig>): BrowserBackendPor
   });
 }
 
-function createBridge(baseUrl: string): BossBrowserBridgePort {
-  const base = baseUrl.replace(/\/+$/, '');
-  async function json(path: string, init: RequestInit = {}): Promise<any> {
-    const response = await fetch(base + path, {
-      ...init,
-      headers: {
-        accept: 'application/json',
-        ...(init.body !== undefined ? { 'content-type': 'application/json' } : {}),
-        ...(init.headers ?? {}),
-      },
-      signal: AbortSignal.timeout(30_000),
-    });
-    const text = await response.text();
-    if (!response.ok) throw new Error('BOSS bridge ' + path + ' failed with HTTP ' + response.status + ': ' + text.replace(/\s+/g, ' ').slice(0, 300));
-    return text ? JSON.parse(text) : null;
-  }
-  return {
-    async listKeywords(profileId) {
-      const body = await json('/p/' + encodeURIComponent(profileId) + '/tags');
-      return Array.isArray(body?.tags) ? body.tags.map(String).filter(Boolean) : [];
-    },
-    async score(profileId, legacyJobText) {
-      return await json('/p/' + encodeURIComponent(profileId) + '/get-job-score', {
-        method: 'POST',
-        body: JSON.stringify({ job: legacyJobText }),
-      }) as BossBrowserScoreDecision;
-    },
-    async reportDiscovery(input) {
-      await json('/api/discovery/report', { method: 'POST', body: JSON.stringify(input) });
-    },
-    async logDecision(profileId, input) {
-      await json('/p/' + encodeURIComponent(profileId) + '/log-action', { method: 'POST', body: JSON.stringify(input) });
-    },
-  };
-}
-
 function readConfig(env: NodeJS.ProcessEnv) {
   const provider = (env.JOB_HARNESS_BOSS_BROWSER_PROVIDER?.trim() || 'extension') as 'steel' | 'local-cdp' | 'extension';
   if (!['steel', 'local-cdp', 'extension'].includes(provider)) throw new Error("JOB_HARNESS_BOSS_BROWSER_PROVIDER must be 'steel', 'local-cdp', or 'extension'");
@@ -98,6 +69,7 @@ function readConfig(env: NodeJS.ProcessEnv) {
     maxJobsPerKeyword: integer(env.JOB_HARNESS_BOSS_BROWSER_MAX_JOBS_PER_KEYWORD, 20, 1, 100, 'JOB_HARNESS_BOSS_BROWSER_MAX_JOBS_PER_KEYWORD'),
     maxTotalJobs: integer(env.JOB_HARNESS_BOSS_BROWSER_MAX_TOTAL_JOBS, 80, 1, 250, 'JOB_HARNESS_BOSS_BROWSER_MAX_TOTAL_JOBS'),
     threshold: integer(env.JOB_HARNESS_BOSS_BROWSER_THRESHOLD, 58, 0, 100, 'JOB_HARNESS_BOSS_BROWSER_THRESHOLD'),
+    greetEnabled: bool(env.JOB_HARNESS_BOSS_GREET_ENABLED, false),
     waitLogin: bool(env.JOB_HARNESS_BOSS_BROWSER_WAIT_LOGIN, false),
     loginTimeoutMs: integer(env.JOB_HARNESS_BOSS_BROWSER_LOGIN_TIMEOUT_MS, 600_000, 1_000, 7_200_000, 'JOB_HARNESS_BOSS_BROWSER_LOGIN_TIMEOUT_MS'),
     steelBaseUrl: httpUrl(env.JOB_HARNESS_STEEL_BASE_URL?.trim() || 'http://127.0.0.1:3000', 'JOB_HARNESS_STEEL_BASE_URL'),
