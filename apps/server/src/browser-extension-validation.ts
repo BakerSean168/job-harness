@@ -222,8 +222,14 @@ export class BrowserExtensionValidationRegistry {
       const preferred = input.command.payload.preferredUrl;
       const sync = run.mode === 'site-resume-sync';
       if (sync) {
-        if (!preferred || this.validateTarget(preferred, run.mode) !== run.targetUrl || input.command.payload.reuseLiveSession !== true || input.command.payload.requireLiveSession !== false) {
-          throw new BrowserExtensionBridgeError('VALIDATION_LIVE_SESSION_REQUIRED', 'Site Resume Sync must reuse an existing tab on the configured recruiting site without navigating it', 403);
+        const reuse = input.command.payload.reuseLiveSession;
+        const openExactResumePage = reuse === false && isSafeResumeManagementTarget(run.targetUrl);
+        if (!preferred || this.validateTarget(preferred, run.mode) !== run.targetUrl || input.command.payload.requireLiveSession !== false || (reuse !== true && !openExactResumePage)) {
+          throw new BrowserExtensionBridgeError(
+            'VALIDATION_LIVE_SESSION_REQUIRED',
+            'Site Resume Sync must reuse an existing recruiting-site tab or open one allowlisted resume-management page without navigating an unrelated page',
+            403,
+          );
         }
       } else if (!preferred || this.validateTarget(preferred, run.mode) !== run.targetUrl) {
         throw new BrowserExtensionBridgeError('VALIDATION_TARGET_MISMATCH', 'Browser validation session must acquire the frozen canary URL', 409);
@@ -286,7 +292,12 @@ export class BrowserExtensionValidationRegistry {
     const run = this.requireRun(id);
     if (run.mode !== 'site-resume-sync') throw new BrowserExtensionBridgeError('VALIDATION_MODE_REQUIRED', 'Resume preparation requires a site-resume-sync run', 409);
     if (!run.sessionRef) {
-      await this.invoke(id, { sessionRef: null, command: { type: 'session_acquire', payload: { preferredUrl: run.targetUrl, reuseLiveSession: true, requireLiveSession: false } }, timeoutMs: 30_000 });
+      try {
+        await this.invoke(id, { sessionRef: null, command: { type: 'session_acquire', payload: { preferredUrl: run.targetUrl, reuseLiveSession: true, requireLiveSession: false } }, timeoutMs: 30_000 });
+      } catch (error) {
+        if (!(error instanceof BrowserExtensionBridgeError) || error.code !== 'VALIDATION_TARGET_MISMATCH' || !isSafeResumeManagementTarget(run.targetUrl)) throw error;
+        await this.invoke(id, { sessionRef: null, command: { type: 'session_acquire', payload: { preferredUrl: run.targetUrl, reuseLiveSession: false, requireLiveSession: false } }, timeoutMs: 30_000 });
+      }
     }
     const sessionRef = run.sessionRef!;
     const capture = async () => {
@@ -698,6 +709,18 @@ function uniqueActionByText(actions: readonly RawAction[], text: string): RawAct
   const matches = actions.filter((action) => !action.disabled && !action.ariaDisabled && action.text.replace(/\s+/g, ' ').trim() === expected);
   return matches.length === 1 ? matches[0]! : null;
 }
+function isSafeResumeManagementTarget(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase();
+    if (url.protocol !== 'https:' || url.username || url.password) return false;
+    if (host === 'c.liepin.com') return /^\/resume\/(?:create|edit)$/i.test(url.pathname);
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function isLiepinProfileOnboarding(currentUrl: string, bodyText: string): boolean {
   try {
     const url = new URL(currentUrl);

@@ -153,6 +153,38 @@ describe('browser-extension validation scope', () => {
     bridge.close();
   });
 
+  it('allows opening only an allowlisted Liepin resume-management page when no reusable recruiting-site tab exists', async () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge);
+    const registry = new BrowserExtensionValidationRegistry(bridge, {
+      allowedOrigin: 'https://job-harness.test:20900', readonlySiteFamilies: ['liepin'],
+    });
+
+    const resumeRun = registry.create({
+      agentId:'windows-chrome-primary', targetUrl:'https://c.liepin.com/resume/create', mode:'site-resume-sync',
+    });
+    const openPromise = registry.invoke(resumeRun.id, {
+      sessionRef:null,
+      command:{ type:'session_acquire', payload:{ preferredUrl:resumeRun.targetUrl, reuseLiveSession:false, requireLiveSession:false } },
+      timeoutMs:5_000,
+    });
+    const command = await answerOne(bridge, { sessionRef:'chrome-tab:new-resume', currentUrl:'https://c.liepin.com/resume/create' });
+    expect(command.command).toMatchObject({
+      type:'session_acquire', payload:{ preferredUrl:'https://c.liepin.com/resume/create', reuseLiveSession:false, requireLiveSession:false },
+    });
+    await expect(openPromise).resolves.toMatchObject({ run:{ sessionRef:'chrome-tab:new-resume' } });
+
+    const jobRun = registry.create({
+      agentId:'windows-chrome-primary', targetUrl:'https://www.liepin.com/job/1985379181.shtml', mode:'site-resume-sync',
+    });
+    await expect(registry.invoke(jobRun.id, {
+      sessionRef:null,
+      command:{ type:'session_acquire', payload:{ preferredUrl:jobRun.targetUrl, reuseLiveSession:false, requireLiveSession:false } },
+      timeoutMs:5_000,
+    })).rejects.toMatchObject({ code:'VALIDATION_LIVE_SESSION_REQUIRED' });
+    bridge.close();
+  });
+
   it('syncs an integrity-checked PDF into the active same-site resume input while denying application clicks', async () => {
     const bridge = new BrowserExtensionBridge();
     register(bridge);
@@ -347,13 +379,19 @@ describe('browser-extension validation scope', () => {
       { actionRef:'[data-job-harness-action-id="jha-non-unified"]', tag:'other', text:'非统招', href:null, type:null, role:null, disabled:false, ariaDisabled:false },
     ];
     const writes: any[] = [];
+    const acquisitions: any[] = [];
     let settled = false;
     void pending.finally(() => { settled = true; });
     for (let i=0;i<120 && !settled;i++) {
       const command = await bridge.poll('windows-chrome-primary', 1_000);
       if (!command) continue;
       let result: unknown = null;
-      if (command.command.type === 'session_acquire') result = { sessionRef:'chrome-tab:education', currentUrl:pageUrl };
+      if (command.command.type === 'session_acquire') {
+        acquisitions.push(command.command);
+        result = acquisitions.length === 1
+          ? { sessionRef:'chrome-tab:unrelated', currentUrl:'https://chatgpt.com/' }
+          : { sessionRef:'chrome-tab:education', currentUrl:pageUrl };
+      }
       else if (command.command.type === 'current_url') result = pageUrl;
       else if (command.command.type === 'title') result = '完善教育经历 - 猎聘';
       else if (command.command.type === 'body_text') result = '你就读的学校 填写教育经历，让简历更加完整 学校名称 统招 非统招 学历 本科 专业 就读时间 — 在校经历 下一步';
@@ -391,6 +429,10 @@ describe('browser-extension validation scope', () => {
       expect.objectContaining({ type:'fill', payload:expect.objectContaining({ value:'2026-06', blur:true }) }),
       expect.objectContaining({ type:'click', payload:expect.objectContaining({ expectedText:'统招' }) }),
     ]));
+    expect(acquisitions).toEqual([
+      expect.objectContaining({ type:'session_acquire', payload:expect.objectContaining({ reuseLiveSession:true, requireLiveSession:false }) }),
+      expect.objectContaining({ type:'session_acquire', payload:expect.objectContaining({ reuseLiveSession:false, requireLiveSession:false }) }),
+    ]);
     expect(JSON.stringify(writes)).not.toContain('下一步');
     bridge.close();
   });
