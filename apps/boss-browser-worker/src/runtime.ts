@@ -119,7 +119,7 @@ export async function runBossBrowserDiscovery(options: BossBrowserRunOptions): P
       }
     }
     if (!readiness.ready) {
-      await session.persist().catch(() => undefined);
+      await retainHumanGateSession(session);
       return emptyReadinessResult(session, sessionId, keywords, readiness.reason);
     }
 
@@ -130,7 +130,7 @@ export async function runBossBrowserDiscovery(options: BossBrowserRunOptions): P
       await driver.wait(650);
       const searchReady = await waitForBossSearchReady(driver, 10_000);
       if (!searchReady.ready) {
-        await session.persist().catch(() => undefined);
+        await retainHumanGateSession(session);
         return emptyReadinessResult(session, sessionId, keywords, searchReady.reason);
       }
       const inputSelector = searchReady.inputSelector;
@@ -340,6 +340,15 @@ function canonicalBossJobUrl(value: string): string | null {
 
 function legacyJobText(title: string, salary: string | null, description: string): string {
   return ['# 职位名称', title, '# 薪资范围', salary ?? '', '# 职位描述', description].join('\n');
+}
+
+async function retainHumanGateSession(session: BrowserSessionPort): Promise<void> {
+  const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+  try {
+    await session.retainForHuman({ expiresAt });
+  } catch {
+    await session.persist().catch(() => undefined);
+  }
 }
 
 function emptyReadinessResult(

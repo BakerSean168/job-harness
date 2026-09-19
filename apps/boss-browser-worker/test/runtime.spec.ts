@@ -65,15 +65,21 @@ class FakeDriver implements BrowserDriverPort {
 }
 
 function backend(driver: FakeDriver) {
-  const state = { persisted: 0, released: 0 };
+  const state = { persisted: 0, retained: 0, released: 0 };
+  let retained = false;
   const session: BrowserSessionPort = {
     backendId: 'fake',
     sessionId: 'fake-session',
     humanControlUrl: 'https://viewer.example/ui',
     driver: () => driver,
     async persist() { state.persisted += 1; },
-    async retainForHuman() { throw new Error('unused'); },
-    async release() { state.released += 1; },
+    async retainForHuman(request) {
+      state.persisted += 1;
+      state.retained += 1;
+      retained = true;
+      return { backendId: 'fake', sessionRef: 'fake-session', humanControlUrl: 'https://viewer.example/ui', retainedAt: '2026-09-19T08:00:00.000Z', expiresAt: request.expiresAt };
+    },
+    async release() { if (!retained) state.released += 1; },
   };
   const value: BrowserBackendPort = {
     id: 'fake',
@@ -148,7 +154,7 @@ describe('BOSS browser provider recovery', () => {
       screeningPassed: true,
       resumeIndex: 0,
     });
-    expect(b.state).toEqual({ persisted: 1, released: 1 });
+    expect(b.state).toEqual({ persisted: 1, retained: 0, released: 1 });
   });
 
   it('fails closed on login/human-verification states before scoring or reporting', async () => {
@@ -171,7 +177,7 @@ describe('BOSS browser provider recovery', () => {
     expect(c.reports).toEqual([]);
     expect(c.logs).toEqual([]);
     expect(driver.clicks).toEqual([]);
-    expect(b.state).toEqual({ persisted: 1, released: 1 });
+    expect(b.state).toEqual({ persisted: 1, retained: 1, released: 0 });
   });
 
   it('canonicalizes only BOSS job_detail URLs and removes tracking noise', () => {
