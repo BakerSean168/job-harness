@@ -105,7 +105,14 @@ describe('MV3 page driver contract', () => {
             option.textContent = '四川农业大学';
             option.style.cssText = 'display:block;width:180px;height:30px;cursor:pointer';
             popup.appendChild(option);
-            const year = document.createElement('span');
+            const duplicated = document.createElement('div');
+            duplicated.style.cssText = 'display:block;width:180px;height:30px;cursor:pointer';
+            const duplicatedChild = document.createElement('span');
+            duplicatedChild.textContent = '物联网工程';
+            duplicatedChild.style.cssText = 'display:block;width:180px;height:30px;cursor:pointer';
+            duplicated.appendChild(duplicatedChild);
+            popup.appendChild(duplicated);
+            const year = document.createElement('em');
             year.textContent = '2026年';
             year.style.cssText = 'display:block;width:80px;height:30px';
             popup.appendChild(year);
@@ -126,6 +133,7 @@ describe('MV3 page driver contract', () => {
       const actions = await command(page, 'scan_actions') as Array<Record<string, unknown>>;
       expect(actions).toEqual(expect.arrayContaining([expect.objectContaining({ text: '四川农业大学' })]));
       expect(actions).toEqual(expect.arrayContaining([expect.objectContaining({ text: '2026年' })]));
+      expect(actions.filter((action) => action.text === '物联网工程')).toHaveLength(1);
     });
   });
 

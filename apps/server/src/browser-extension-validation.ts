@@ -155,8 +155,8 @@ export class BrowserExtensionValidationRegistry {
     if (input.mode === 'site-staged-readonly' && !versionAtLeast(agent.version, '0.1.6')) {
       throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Staged characterization requires Browser Bridge >= 0.1.6; agent '${input.agentId}' reports '${agent.version}'`, 409);
     }
-    if (input.mode === 'site-resume-sync' && !versionAtLeast(agent.version, '0.1.8')) {
-      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Site Resume Sync requires Browser Bridge >= 0.1.8; agent '${input.agentId}' reports '${agent.version}'`, 409);
+    if (input.mode === 'site-resume-sync' && !versionAtLeast(agent.version, '0.1.9')) {
+      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `Site Resume Sync requires Browser Bridge >= 0.1.9; agent '${input.agentId}' reports '${agent.version}'`, 409);
     }
     const createdAt = this.now().toISOString();
     const run: MutableValidationRun = {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BrowserExtensionBridge } from '../src/browser-extension-bridge';
 import { BrowserExtensionValidationRegistry } from '../src/browser-extension-validation';
 
-function register(bridge: BrowserExtensionBridge, version = '0.1.8') {
+function register(bridge: BrowserExtensionBridge, version = '0.1.9') {
   bridge.register({
     agentId: 'windows-chrome-primary',
     name: 'Windows Chrome',
@@ -108,15 +108,15 @@ describe('browser-extension validation scope', () => {
     bridge.close();
   });
 
-  it('rejects site-resume sync from a pre-0.1.8 Browser Bridge before any command is queued', () => {
+  it('rejects site-resume sync from a pre-0.1.9 Browser Bridge before any command is queued', () => {
     const bridge = new BrowserExtensionBridge();
-    register(bridge, '0.1.7');
+    register(bridge, '0.1.8');
     const registry = new BrowserExtensionValidationRegistry(bridge, {
       allowedOrigin: 'https://job-harness.test:20900', readonlySiteFamilies: ['zhilian', 'liepin'],
     });
     expect(() => registry.create({
       agentId: 'windows-chrome-primary', targetUrl: 'https://c.liepin.com/resume/create', mode: 'site-resume-sync',
-    })).toThrow(/Browser Bridge >= 0.1.8/);
+    })).toThrow(/Browser Bridge >= 0.1.9/);
     expect(bridge.status('windows-chrome-primary')?.queuedCommands).toBe(0);
     bridge.close();
   });

@@ -125,16 +125,29 @@
       if (!(element instanceof HTMLElement) || !visible(element)) return false;
       const text = compact(element.innerText || element.getAttribute("aria-label") || element.getAttribute("title") || "", 500);
       if (!text || text.length > 120) return false;
-      const childRepeatsText = [...element.children].some((child) =>
+      const style = window.getComputedStyle(element);
+      return style.cursor === "pointer";
+    });
+    const dateChoices = [...document.querySelectorAll('*')].filter((element) => {
+      if (!(element instanceof HTMLElement) || !visible(element)) return false;
+      const text = compact(element.innerText || element.getAttribute("aria-label") || element.getAttribute("title") || "", 500);
+      if (!/^\d{4}年$/.test(text) && !/^(?:[1-9]|1[0-2])月$/.test(text)) return false;
+      return ![...element.children].some((child) =>
         child instanceof HTMLElement && visible(child) && compact(child.innerText || child.textContent || "", 500) === text
       );
-      if (childRepeatsText) return false;
-      const style = window.getComputedStyle(element);
-      const dateChoice = /^\d{4}年$/.test(text) || /^(?:[1-9]|1[0-2])月$/.test(text);
-      return style.cursor === "pointer" || dateChoice;
     });
-    const elements = [...new Set([...standard, ...inferred, ...choiceLike])]
-      .filter((element) => element instanceof HTMLElement && visible(element))
+    const candidates = [...new Set([...standard, ...inferred, ...choiceLike, ...dateChoices])]
+      .filter((element) => element instanceof HTMLElement && visible(element));
+    const elements = candidates
+      .filter((element) => {
+        const text = compact(element.innerText || element.getAttribute("aria-label") || element.getAttribute("title") || "", 500);
+        if (!text) return true;
+        return !candidates.some((other) =>
+          other !== element &&
+          element.contains(other) &&
+          compact(other.innerText || other.getAttribute("aria-label") || other.getAttribute("title") || "", 500) === text
+        );
+      })
       .slice(0, 500);
     const allocate = createStableRefAllocator(elements, "data-job-harness-action-id", "jha");
     return elements.map((element) => {
