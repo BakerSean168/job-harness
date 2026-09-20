@@ -30,7 +30,7 @@ async function main(): Promise<void> {
     readFile(resolve(root, 'integrations/recruitment-browser/windows/install-recruitment-browser.ps1'), 'utf8'),
   ]);
 
-  for (const marker of ['JobHarness\\RecruitmentBrowser', "$currentRoot = Join-Path $runtimeRoot 'current'", '--user-data-dir=', '--load-extension=', '--remote-debugging-port=', 'Get-DedicatedBrowserProcesses', 'Get-FileHash', 'bundleVersion']) {
+  for (const marker of ['JobHarness\\RecruitmentBrowser', "$currentRoot = Join-Path $runtimeRoot 'current'", '--user-data-dir=', '--load-extension=', '--remote-debugging-port=', 'Get-DedicatedBrowserProcesses', 'Get-FileHash', 'bundleVersion', 'Ensure-SupervisorCurrent', 'Get-RecruitmentSiteHealth', 'login_required', 'challenge']) {
     if (!supervisor.includes(marker)) throw new Error(`Recruitment Browser supervisor lost invariant '${marker}'`);
   }
   for (const forbidden of ['JOB_HARNESS_AUTH_TOKEN', 'JOB_HARNESS_EXECUTOR_AUTH_TOKEN', 'ssh ', 'sqlite3 ', 'server root']) {

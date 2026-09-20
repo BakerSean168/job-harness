@@ -119,6 +119,53 @@ function Get-FileSha256([string]$Path) {
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
 }
 
+function Ensure-SupervisorCurrent($Manifest) {
+  if (-not $PSCommandPath -or -not $Manifest.supervisor -or -not $Manifest.supervisor.sha256) { return }
+  $actual = Get-FileSha256 $PSCommandPath
+  $expected = ([string]$Manifest.supervisor.sha256).ToLowerInvariant()
+  if ($actual -eq $expected) { return }
+
+  $bootstrap = Join-Path $root 'Bootstrap\start-recruitment-browser.ps1'
+  if (-not (Test-Path $bootstrap)) {
+    Write-Warning "A newer Recruitment Browser Supervisor is available, but the bootstrap launcher is not installed."
+    return
+  }
+
+  $arguments = @(
+    '-NoProfile',
+    '-ExecutionPolicy', 'Bypass',
+    '-File', ('"' + $bootstrap + '"'),
+    '-RuntimeBaseUrl', ('"' + $RuntimeBaseUrl + '"')
+  )
+  if ($Once) { $arguments += '-Once' }
+  if ($NoLaunch) { $arguments += '-NoLaunch' }
+  Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments | Out-Null
+  Write-SupervisorState @{ supervisorStatus = 'updating'; availableSupervisorSha256 = $expected }
+  exit 0
+}
+
+function Get-RecruitmentSiteHealth {
+  $result = @{ boss = @{ state = 'unknown'; url = $null; title = $null } }
+  try {
+    $targets = @(Invoke-RestMethod -Uri "http://127.0.0.1:$RemoteDebuggingPort/json" -Method Get -TimeoutSec 4)
+    $boss = $targets | Where-Object { $_.type -eq 'page' -and ([string]$_.url) -match 'zhipin\.com' } | Select-Object -First 1
+    if (-not $boss) { return $result }
+    $url = [string]$boss.url
+    $title = [string]$boss.title
+    $state = if ($url -match '/web/user|/user/' -or $title -match '注册登录|登录') {
+      'login_required'
+    } elseif ($url -match 'verify|captcha|challenge|security' -or $title -match '安全验证|验证') {
+      'challenge'
+    } else {
+      'ready'
+    }
+    $result['boss'] = @{ state = $state; url = $url; title = $title }
+    return $result
+  } catch {
+    return $result
+  }
+}
+
 function Download-VerifiedFile([string]$BaseUrl, [object]$File, [string]$DestinationRoot) {
   $destination = Join-Path $DestinationRoot ($File.installPath -replace '/', '\')
   $parent = Split-Path -Parent $destination
@@ -151,6 +198,7 @@ function Sync-RuntimeBundle {
   if ([int]$manifest.schemaVersion -ne 1 -or -not $manifest.bundleVersion) {
     throw 'Runtime channel returned an unsupported manifest.'
   }
+  Ensure-SupervisorCurrent $manifest
 
   $version = [string]$manifest.bundleVersion
   $bundle = Join-Path $bundleRoot $version
@@ -245,7 +293,8 @@ function Run-SupervisorIteration {
     if (-not $NoLaunch -and (Get-DedicatedBrowserProcesses).Count -eq 0) {
       throw 'Dedicated browser did not remain running after launch.'
     }
-    Write-SupervisorState @{ supervisorStatus = 'healthy'; lastError = $null }
+    if (-not $NoLaunch) { Start-Sleep -Milliseconds 600 }
+    Write-SupervisorState @{ supervisorStatus = 'healthy'; siteHealth = (Get-RecruitmentSiteHealth); lastError = $null }
   } catch {
     Write-SupervisorState @{ supervisorStatus = 'error'; lastError = $_.Exception.Message }
     throw
