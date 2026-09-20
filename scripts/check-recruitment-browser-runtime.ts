@@ -29,7 +29,7 @@ async function main(): Promise<void> {
   const getJobs = external[0]!;
   if (getJobs.mode !== 'collect-only' || getJobs.sites.join(',') !== 'zhilian,liepin,job51') throw new Error('get_jobs external Runtime must remain collection-only for the three approved sites');
   if (!/^[0-9a-f]{64}$/.test(getJobs.version)) throw new Error('get_jobs external Runtime version must be content-addressed');
-  if (getJobs.overlays.length !== 5) throw new Error('get_jobs external Runtime overlay set changed unexpectedly');
+  if (getJobs.overlays.length !== 6) throw new Error('get_jobs external Runtime overlay set changed unexpectedly');
   for (const file of [getJobs.bootstrap, getJobs.manager, ...getJobs.overlays]) {
     if (!/^[0-9a-f]{64}$/.test(file.sha256) || file.bytes <= 0) throw new Error(`Invalid external Runtime file metadata for ${file.id}`);
   }

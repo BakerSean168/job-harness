@@ -105,6 +105,7 @@ const GET_JOBS_OVERLAYS: readonly RuntimeFileDefinition[] = [
   'main.py.patch',
   'schemas.py.patch',
   'zhilian_bot.py.patch',
+  'zhilian_locators.py.patch',
   'liepin_bot.py.patch',
   'job51_bot.py.patch',
 ].map((name) => ({
