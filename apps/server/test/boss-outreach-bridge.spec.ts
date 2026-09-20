@@ -56,6 +56,31 @@ describe('Job Harness BOSS outreach bridge', () => {
     expect(decision.signals).toContain('Agent Harness');
   });
 
+  it('falls back to a truthful local greeting when ChatGPT does not resolve in time', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
+    const logPath = join(dir, 'events.jsonl');
+    const server = createBossOutreachBridge({ client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0, greetingWaitMs: 1_000, campaignId: 'campaign-1' });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('missing server address');
+      const base = `http://127.0.0.1:${address.port}`;
+      const response = await fetch(`${base}/p/ai-agent-app/get-job-score`, { method: 'POST', body: JSON.stringify(payload), headers: { 'content-type': 'application/json' } });
+      expect(response.status).toBe(200);
+      const decision = await response.json() as { introduce: string; greetingRequestId?: string };
+      expect(decision.greetingRequestId).toBeTruthy();
+      expect(decision.introduce).toContain('测试大学物联网工程26届本科');
+      expect(decision.introduce).toContain('Agent Harness');
+      expect(decision.introduce).toContain('Agent开发工程师');
+      const rows = (await readFile(logPath, 'utf8')).trim().split(/\n/).map((line) => JSON.parse(line));
+      expect(rows.some((row) => row.action === 'greeting_assist_timeout_fallback' && row.greetingRequestId === decision.greetingRequestId)).toBe(true);
+      const pending = await fetch(`${base}/api/greetings/pending`);
+      expect(await pending.json()).toMatchObject({ total: 0, items: [] });
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
   it('blocks explicit 3+ year requirements for an early-career campaign before creating a greeting request', async () => {
     dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
     const logPath = join(dir, 'events.jsonl');
@@ -187,7 +212,7 @@ async function x(){
       if (!address || typeof address === 'string') throw new Error('missing server address');
       const base = `http://127.0.0.1:${address.port}`;
       const health = await fetch(`${base}/api/health`);
-      expect(await health.json()).toMatchObject({ ok: true, service: 'job-harness-boss-outreach-bridge', mode: 'auto-resume-followup', discovery: false, resumeFollowup: true, greetingMode: 'chatgpt-assisted', greetingWaitMs: 5_000 });
+      expect(await health.json()).toMatchObject({ ok: true, service: 'job-harness-boss-outreach-bridge', mode: 'auto-resume-followup', discovery: false, resumeFollowup: true, greetingMode: 'chatgpt-assisted-with-safe-fallback', greetingWaitMs: 5_000, greetingFallback: 'job-harness-deterministic' });
       const clientConfig = await fetch(`${base}/p/ai-agent-app/client-config`);
       expect(await clientConfig.json()).toMatchObject({
         frontend: { preloadStableRoundsLimit: 8, preloadMaxRounds: 30 },

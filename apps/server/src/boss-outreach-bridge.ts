@@ -195,6 +195,38 @@ function normalizeGreetingMessage(value: unknown): string | null {
   return message;
 }
 
+function graduationLabel(endMonth: string | null | undefined): string | null {
+  const match = /^(\d{4})-\d{2}$/.exec(endMonth ?? '');
+  return match ? `${match[1]!.slice(-2)}届` : null;
+}
+
+function fallbackGreeting(
+  applicant: ApplicantProfileContext['profile'],
+  decision: BossJobDecision,
+  job: ParsedBossJob,
+): string {
+  const education = applicant.education[0];
+  const identity = [education?.school, education?.major, graduationLabel(education?.endMonth), education?.degree]
+    .filter((value): value is string => Boolean(value && value.trim()))
+    .join('');
+  const genericSignal = /^(?:前端开发|全栈开发|后端开发|软件开发|开发工程师|AI Agent|Agent开发|全栈|前端|后端)$/i;
+  const signals = decision.signals
+    .map((value) => value.replace(/\s+/g, ' ').trim())
+    .filter((value) => value && !genericSignal.test(value))
+    .filter((value, index, all) => all.indexOf(value) === index)
+    .slice(0, 3);
+  const role = job.title.replace(/\s+/g, ' ').trim() || decision.profileLabel;
+  const evidence = signals.length >= 2
+    ? `项目和实践中涉及 ${signals.slice(0, 2).join('、')}`
+    : signals.length === 1
+      ? `有 ${signals[0]} 相关项目实践`
+      : `有与${decision.profileLabel}方向相关的项目实践`;
+  const prefix = identity ? `您好，我是${identity}，` : '您好，';
+  const message = `${prefix}${evidence}，看到贵司的${role}岗位后感觉方向比较契合，希望有机会进一步沟通，谢谢。`;
+  return normalizeGreetingMessage(message)
+    ?? '您好，我关注到贵司这个岗位，我的项目经历与岗位方向有一定匹配，希望有机会进一步沟通，谢谢。';
+}
+
 function inferMinimumExperienceYears(text: string): number | null {
   const values: number[] = [];
   const patterns = [
@@ -364,7 +396,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
   const delayJitterMs = Math.max(0, options.delayJitterMs ?? 400);
   const random = options.random ?? Math.random;
   const greetingThreshold = Math.max(0, Math.min(100, options.greetingThreshold ?? 58));
-  const greetingWaitMs = Math.max(5_000, Math.min(9 * 60_000, options.greetingWaitMs ?? 120_000));
+  const greetingWaitMs = Math.max(1_000, Math.min(9 * 60_000, options.greetingWaitMs ?? 15_000));
   const recentDecisions = new Map<string, BossJobDecision>();
   const recentDecisionsByJobId = new Map<string, BossJobDecision>();
   const pendingGreetings = new Map<string, PendingBossGreeting>();
@@ -506,18 +538,24 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
     let resolveWait!: (resolution: BossGreetingResolution | null) => void;
     const wait = new Promise<BossGreetingResolution | null>((resolve) => { resolveWait = resolve; });
     const timer = setTimeout(() => {
-      pendingGreetings.delete(id);
-      resolveWait(null);
-      void appendEvent(options.logPath, {
-        loggedAt: new Date().toISOString(),
-        action: 'greeting_generation_timeout',
-        greetingRequestId: id,
-        requestedProfileId,
-        title: job.title,
-        salary: job.salary,
-        score: decision.score,
-        resumeIndex: decision.resumeIndex,
-      }).catch(() => undefined);
+      void (async () => {
+        pendingGreetings.delete(id);
+        const message = fallbackGreeting(applicant, decision, job);
+        await appendEvent(options.logPath, {
+          loggedAt: new Date().toISOString(),
+          action: 'greeting_assist_timeout_fallback',
+          greetingRequestId: id,
+          requestedProfileId,
+          title: job.title,
+          salary: job.salary,
+          score: decision.score,
+          resumeIndex: decision.resumeIndex,
+          recommendedProfileId: decision.profileId,
+          recommendedProfileLabel: decision.profileLabel,
+          fallbackMessage: message,
+        }).catch(() => undefined);
+        resolveWait({ action: 'send', message, source: 'job-harness-fallback' });
+      })();
     }, greetingWaitMs);
     const pending: PendingBossGreeting = { request, wait, resolve: resolveWait, timer };
     pendingGreetings.set(id, pending);
@@ -551,8 +589,9 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           reporterUrl: `${options.publicBaseUrl.replace(/\/+$/, '')}/boss-discovery-reporter.user.js`,
           resumeFollowup: Boolean(options.resumeFollowupUserscript),
           resumeFollowupUrl: options.resumeFollowupUserscript ? `${options.publicBaseUrl.replace(/\/+$/, '')}/boss-resume-followup.user.js` : null,
-          greetingMode: 'chatgpt-assisted',
+          greetingMode: 'chatgpt-assisted-with-safe-fallback',
           greetingWaitMs,
+          greetingFallback: 'job-harness-deterministic',
           pendingGreetings: pendingGreetings.size,
           profiles: profiles.items.map((p) => ({ id: p.id, name: p.name })),
           applicantProfileVersion: applicant.profile.version,
@@ -747,16 +786,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         if (scored.score >= greetingThreshold) {
           const pending = await createPendingGreeting(requestedProfileId, job, scored, applicant.profile);
           const resolution = await pending.wait;
-          if (!resolution) {
-            return sendJson(res, 409, {
-              error: 'greeting_not_resolved',
-              message: 'ChatGPT did not resolve the BOSS greeting before the compatibility-runtime deadline; no greeting was sent.',
-              greetingRequestId: pending.request.id,
-              score: scored.score,
-              profileId: scored.profileId,
-              resumeIndex: scored.resumeIndex,
-            });
-          }
+          if (!resolution) throw new Error('BOSS greeting resolution unexpectedly missing after fallback');
           if (resolution.action === 'skip') {
             decision = {
               ...scored,
