@@ -1,0 +1,35 @@
+name: Upstream Runtime Watch
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 1 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Verify pinned upstreams
+        run: pnpm upstream:check
+
+      - name: Characterize pinned runtime candidates
+        run: |
+          pnpm upstream:test czc-good-job
+          pnpm upstream:test openjobautofill
+          pnpm upstream:test vvvsrx-get-jobs
+
+      - name: Detect newer upstream revisions
+        run: pnpm upstream:check --strict-updates

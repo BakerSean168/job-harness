@@ -280,7 +280,15 @@ async function commandTest(registry, id) {
 
   for (const command of project.checks ?? []) {
     const parts = command.trim().split(/\s+/);
-    run(parts[0], parts.slice(1), { stdio: 'inherit' });
+    run(parts[0], parts.slice(1), {
+      env: {
+        ...process.env,
+        JOB_HARNESS_UPSTREAM_ID: projectId,
+        JOB_HARNESS_UPSTREAM_CANDIDATE_ROOT: candidateRoot,
+        JOB_HARNESS_UPSTREAM_CANDIDATE_COMMIT: manifest.candidateCommit,
+      },
+      stdio: 'inherit',
+    });
   }
   console.log(`upstream candidate test passed: ${projectId}@${manifest.candidateCommit.slice(0, 12)}`);
 }

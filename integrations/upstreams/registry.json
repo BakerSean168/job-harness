@@ -50,6 +50,32 @@
         "pnpm check:legacy-copilot-parity"
       ],
       "promotion": "manual-derived-sync-then-canary"
+    },
+    "vvvsrx-get-jobs": {
+      "repository": "https://github.com/vvvsrx/get_jobs.git",
+      "defaultBranch": "main",
+      "license": "MIT",
+      "licensePath": "LICENSE",
+      "licenseSha256": "424952e218e7d393620c97d89973d61fdc7dc5e972eca5fb32d547ba4a185caa",
+      "pinnedCommit": "ec3c81c3bf3c09d155cb7f76604e6fca2567612c",
+      "integrationKind": "external-site-runtime-candidate",
+      "productionRole": "candidate-zhilian-liepin-job51-runtime",
+      "sites": ["zhilian", "liepin", "job51"],
+      "trackedPaths": [
+        { "upstreamPath": "pyproject.toml", "upstreamSha256": "34a33a39eb0cde3cdd22fe8956fbccb5459dca753e90ab1c0b513049ce4a8b4d" },
+        { "upstreamPath": "app/routers/jobs.py", "upstreamSha256": "131e42275c530c73d60070b9d8a75881c1192ffb480839ba3e6269c797a99da0" },
+        { "upstreamPath": "app/worker/task_state.py", "upstreamSha256": "ef3715de0be8db9f83ff5f195bc7e9b36090f0988fc0fdebbc05789861604704" },
+        { "upstreamPath": "app/worker/zhilian_bot.py", "upstreamSha256": "412b8e7e1ad08eda2339c179521a8ecc2c0a9867a7fe90de68c334e649bd3da7" },
+        { "upstreamPath": "app/worker/zhilian_locators.py", "upstreamSha256": "339fb6572f997965270cda78c01a65f8f1e969a7fab5e4485d901668d46dc245" },
+        { "upstreamPath": "app/worker/liepin_bot.py", "upstreamSha256": "48a9b2d415288f41c23028c6fb30789332d78785333c8ea88c72731159d4c09f" },
+        { "upstreamPath": "app/worker/liepin_locators.py", "upstreamSha256": "a9a7f813f383e9c8b265d950880182efc39f932f279a72b055911743347cf087" },
+        { "upstreamPath": "app/worker/job51_bot.py", "upstreamSha256": "03694131366cbffa3914607dc7fe336604110ca131e0c825eb954e1cdd5f870e" },
+        { "upstreamPath": "app/worker/job51_locators.py", "upstreamSha256": "19ba41cb2c3caff52e4d4576f96f4bb19c132c10ffb36da843db0e7ce22a095f" }
+      ],
+      "checks": [
+        "node scripts/check-get-jobs-upstream-candidate.mjs"
+      ],
+      "promotion": "external-runtime-wrapper-then-site-canary"
     }
   }
 }

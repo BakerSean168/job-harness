@@ -38,6 +38,7 @@ Current pinned upstreams:
 | --- | --- | --- | --- | --- |
 | czc-good-job | `e07bf4cb663d9531864ca22eb6195b77e064c3b5` | MIT | BOSS mature site runtime | direct runtime + overlay |
 | OpenJobAutofill | `005eda98841b3671ead615ebfde5922f0dfd7c36` | MIT | generic form compatibility upstream | derived form engine |
+| vvvsrx/get_jobs | `ec3c81c3bf3c09d155cb7f76604e6fca2567612c` | MIT | Zhilian / Liepin / 51job external Site Runtime candidate | external runtime candidate |
 
 The registry verifies upstream source hashes independently from local derived/fork hashes. This distinction matters: the retired Job Application Copilot working tree contains later local changes on top of the OpenJobAutofill Git commit, so its frozen `src/content.js` is not byte-identical to pristine upstream.
 
@@ -244,7 +245,26 @@ This policy should be passed into future Site Runtime tasks at **business-action
 7. Upstream sync creates a candidate under `.tmp/upstreams`; it never mutates the production runtime automatically.
 8. Promotion requires characterization and a bounded real-browser canary.
 
-## 10. Upstream commands
+## 10. Multi-platform external Runtime candidate
+
+A current MIT-licensed multi-platform candidate is now pinned as `vvvsrx-get-jobs`. It contains separate Camoufox/Playwright workers and locator modules for 智联招聘、猎聘 and 51job, together with explicit start/stop/status/login-status API boundaries and cooperative cancellation. Its upstream code also contains platform stop conditions such as login loss, visit verification and daily delivery limits.
+
+This candidate is intentionally **not** copied into Job Harness domain packages and is not production-enabled yet. The intended integration is a separate external Site Runtime wrapper so upstream browser behavior can continue to move with the upstream repository while Job Harness retains Campaign/Resume/Job/Application ownership. BOSS remains on the already-proven `czc-good-job` path rather than switching browser engines merely because this candidate also contains BOSS code.
+
+Promotion sequence:
+
+```text
+upstream pin + characterization
+  -> external wrapper contract
+  -> discovery-only/paused canary per site
+  -> Job Harness evidence mapping
+  -> bounded fill/apply canary
+  -> production promotion
+```
+
+The characterization gate currently verifies the upstream API lifecycle, cooperative stop state, Camoufox/Playwright dependency, site-specific workers/locators and platform stop-limit signals before a candidate can be considered for wrapper work.
+
+## 11. Upstream commands
 
 ```bash
 pnpm upstream:check
@@ -255,6 +275,10 @@ pnpm upstream:test czc-good-job
 pnpm upstream:diff openjobautofill
 pnpm upstream:sync openjobautofill
 pnpm upstream:test openjobautofill
+
+pnpm upstream:diff vvvsrx-get-jobs
+pnpm upstream:sync vvvsrx-get-jobs
+pnpm upstream:test vvvsrx-get-jobs
 ```
 
 Semantics:
@@ -264,8 +288,10 @@ Semantics:
 - `sync`: materialize a non-production candidate under `.tmp/upstreams`;
 - `test`: run the candidate/build characterization gates plus current integration regression checks.
 
-## 11. Next migration boundary
+## 12. Next migration boundary
 
-RBR-002 should now build the Browser Supervisor and versioned Runtime Channel without changing BOSS/ATS business behavior.
+RBR-002 is now implemented: the versioned Runtime Channel and self-updating Windows Supervisor own dedicated-browser startup, extension bundle promotion, runtime versioning and crash recovery without changing Job Harness domain ownership.
 
-RBR-003 should then wrap the current BOSS compatibility implementation behind a coarse Site Runtime contract. Only after that contract has live parity should BOSS-specific duplicate Browser Bridge logic be considered for deletion.
+RBR-003 is now implemented and production-deployed for BOSS: `boss-czc-good-job` exposes coarse Runtime descriptor/control/events while keeping the upstream-derived browser state machine intact. Campaign outreach policy, task TTL and per-run external-effect budget are enforced server-side.
+
+The next boundary is the external multi-platform wrapper for `vvvsrx-get-jobs`. Start with one non-BOSS site at a time—prefer 智联 or猎聘—mapping only lifecycle/health/observed-job evidence first. Do not enable its final delivery action until Job Harness can freeze the intended Resume/site binding and reconcile success evidence without trusting the upstream ledger as canonical truth.
