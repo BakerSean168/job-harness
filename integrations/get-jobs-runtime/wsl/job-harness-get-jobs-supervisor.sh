@@ -117,11 +117,12 @@ sync_source() {
   done < <(overlay_rows)
 
   grep -q 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY' "$stage/app/main.py"
+  grep -q '_login_tasks: dict\[str, asyncio.Task\]' "$stage/app/routers/jobs.py"
   grep -q 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY' "$stage/app/worker/zhilian_bot.py"
   grep -q 'div.job-card' "$stage/app/worker/zhilian_locators.py"
   grep -q 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY' "$stage/app/worker/liepin_bot.py"
   grep -q 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY' "$stage/app/worker/job51_bot.py"
-  python3 -m py_compile "$stage/app/main.py" "$stage/app/schemas.py" "$stage/app/worker/zhilian_bot.py" "$stage/app/worker/zhilian_locators.py" "$stage/app/worker/liepin_bot.py" "$stage/app/worker/job51_bot.py"
+  python3 -m py_compile "$stage/app/main.py" "$stage/app/routers/jobs.py" "$stage/app/schemas.py" "$stage/app/worker/zhilian_bot.py" "$stage/app/worker/zhilian_locators.py" "$stage/app/worker/liepin_bot.py" "$stage/app/worker/job51_bot.py"
 
   printf '%s\n' "$commit" > "$stage/.job-harness-ready"
   mv "$stage" "$target"

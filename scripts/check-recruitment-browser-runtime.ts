@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   for (const marker of ['vvvsrx-get-jobs', 'manager_sha', 'sha256sum', '/files/', 'externalRuntimes']) {
     if (!getJobsBootstrap.includes(marker)) throw new Error(`get_jobs WSL bootstrap lost invariant '${marker}'`);
   }
-  for (const marker of ['vvvsrx-get-jobs', 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY=1', '/api/job-harness-runtime', 'apply --check', 'sha256sum', 'py_compile', '127.0.0.1']) {
+  for (const marker of ['vvvsrx-get-jobs', 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY=1', '/api/job-harness-runtime', 'apply --check', 'sha256sum', '_login_tasks', 'py_compile', '127.0.0.1']) {
     if (!getJobsManager.includes(marker)) throw new Error(`get_jobs WSL supervisor lost invariant '${marker}'`);
   }
   for (const forbidden of ['JOB_HARNESS_AUTH_TOKEN', 'JOB_HARNESS_EXECUTOR_AUTH_TOKEN', 'server root']) {
