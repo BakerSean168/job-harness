@@ -9,6 +9,7 @@ export interface BossFollowupRunOptions {
   readonly threshold?: number;
   readonly maxContacts?: number;
   readonly sendEnabled?: boolean;
+  readonly includeReadChats?: boolean;
   readonly logger?: Pick<Console, 'log' | 'warn' | 'error'>;
 }
 
@@ -34,7 +35,8 @@ export async function runBossResumeFollowup(options: BossFollowupRunOptions): Pr
   const threshold = integer(options.threshold ?? 58, 0, 100, 'threshold');
   const maxContacts = integer(options.maxContacts ?? 30, 1, 100, 'maxContacts');
   const sendEnabled = options.sendEnabled === true;
-  const conversations = await options.outreach.inspectUnreadChats(maxContacts);
+  const includeReadChats = options.includeReadChats === true;
+  const conversations = await options.outreach.inspectUnreadChats(maxContacts, includeReadChats);
   const items: BossFollowupRunResult['items'][number][] = [];
   let policyAuthorized = 0;
   let resumesSent = 0;

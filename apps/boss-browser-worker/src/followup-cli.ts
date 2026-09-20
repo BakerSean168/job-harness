@@ -21,6 +21,7 @@ const result = await runBossResumeFollowup({
   threshold: config.threshold,
   maxContacts: config.maxContacts,
   sendEnabled: config.sendEnabled,
+  includeReadChats: config.includeReadChats,
 });
 console.log(JSON.stringify({ status: 'completed', ...result }, null, 2));
 
@@ -28,6 +29,7 @@ function readConfig(env: NodeJS.ProcessEnv) {
   return {
     enabled: bool(env.JOB_HARNESS_BOSS_RESUME_FOLLOWUP_ENABLED, false),
     sendEnabled: bool(env.JOB_HARNESS_BOSS_RESUME_SEND_ENABLED, false),
+    includeReadChats: bool(env.JOB_HARNESS_BOSS_FOLLOWUP_INCLUDE_READ, false),
     bridgeUrl: httpUrl(env.JOB_HARNESS_BOSS_BRIDGE_URL?.trim() || 'http://127.0.0.1:18788', 'JOB_HARNESS_BOSS_BRIDGE_URL'),
     apiUrl: httpUrl(env.JOB_HARNESS_API_URL?.trim() || 'http://127.0.0.1:20901', 'JOB_HARNESS_API_URL'),
     authToken: env.JOB_HARNESS_AUTH_TOKEN?.trim() || '',

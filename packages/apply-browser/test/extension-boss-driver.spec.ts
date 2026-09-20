@@ -69,7 +69,13 @@ describe('MV3 BOSS semantic driver', () => {
     await withBossPage('/web/geek/chat', html, async (page) => {
       const contacts = await bossCommand(page, 'boss_scan_unread_contacts', { limit: 10 }) as Array<Record<string, unknown>>;
       expect(contacts).toHaveLength(1);
-      expect(contacts[0]).toMatchObject({ recruiter: '李女士', company: '四化信息科技' });
+      expect(contacts[0]).toMatchObject({ recruiter: '李女士', company: '四化信息科技', unread: true });
+      const recentContacts = await bossCommand(page, 'boss_scan_unread_contacts', { limit: 10, includeRead: true }) as Array<Record<string, unknown>>;
+      expect(recentContacts).toHaveLength(2);
+      expect(recentContacts).toEqual(expect.arrayContaining([
+        expect.objectContaining({ recruiter: '李女士', unread: true }),
+        expect.objectContaining({ recruiter: '王先生', unread: false }),
+      ]));
       const snapshot = await bossCommand(page, 'boss_open_contact', { contactRef: contacts[0]!.contactRef }) as Record<string, unknown>;
       expect(snapshot).toMatchObject({ latestRole: 'user', needResume: 1, resumeSended: false, jobUrl: 'https://www.zhipin.com/job_detail/abc.html' });
       const message = '我是四川农业大学的应届生，看到这个岗位比较匹配，希望进一步沟通。';

@@ -136,13 +136,13 @@ export class BossOutreachExtensionClient {
     return { status: 'send_unverified', chatUrl, observedMessage: observed, reason: 'BOSS did not expose the exact sent greeting after the click' };
   }
 
-  async inspectUnreadChats(limit = 30): Promise<readonly BossInspectedConversation[]> {
+  async inspectUnreadChats(limit = 30, includeRead = false): Promise<readonly BossInspectedConversation[]> {
     const target = 'https://www.zhipin.com/web/geek/chat';
     const run = await this.createRun(target, 'boss-chat-inspect', null);
     const sessionRef = await this.acquire(run, target, true);
     const raw = await this.invoke(run.id, sessionRef, {
       type: 'boss_scan_unread_contacts',
-      payload: { limit: Math.max(1, Math.min(100, Math.trunc(limit))) },
+      payload: { limit: Math.max(1, Math.min(100, Math.trunc(limit))), includeRead },
     });
     if (!Array.isArray(raw)) throw new Error('boss_scan_unread_contacts returned non-array');
     const contacts = raw.map(parseUnreadContact);

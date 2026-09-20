@@ -44,8 +44,9 @@ describe('BossOutreachExtensionClient', () => {
       .toEqual([expect.objectContaining({ body: expect.objectContaining({ command: { type: 'boss_send_message', payload: { message: '精确招呼文本' } } }) })]);
   });
 
-  it('inspects unread contacts in a read-only chat scope before any follow-up authority exists', async () => {
+  it('inspects unread contacts by default and can explicitly include read contacts for backfill', async () => {
     const createBodies: any[] = [];
+    const commandBodies: any[] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       const body = init?.body ? JSON.parse(String(init.body)) : null;
       if (String(url).endsWith('/validation-runs')) {
@@ -53,6 +54,7 @@ describe('BossOutreachExtensionClient', () => {
         return json({ id: 'run-inspect', targetUrl: body.targetUrl, sessionRef: null }, 201);
       }
       const type = body?.command?.type;
+      if (body?.command) commandBodies.push(body.command);
       if (type === 'session_acquire') return invoke({ sessionRef: 'chrome-tab:chat', currentUrl: 'https://www.zhipin.com/web/geek/chat' });
       if (type === 'boss_scan_unread_contacts') return invoke([{ contactRef: '[data-job-harness-boss-contact-id="jhc-0"]', recruiter: '李女士', company: '四化信息科技', preview: '发份简历' }]);
       if (type === 'boss_open_contact') return invoke({
@@ -71,11 +73,21 @@ describe('BossOutreachExtensionClient', () => {
       throw new Error('Unexpected ' + type);
     }));
 
-    const result = await clientFixture().inspectUnreadChats(10);
+    const client = clientFixture();
+    const result = await client.inspectUnreadChats(10);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ contact: { recruiter: '李女士' }, snapshot: { latestRole: 'user', needResume: 1 } });
-    expect(createBodies).toEqual([expect.objectContaining({ mode: 'boss-chat-inspect' })]);
-    expect(createBodies[0]).not.toHaveProperty('bossOutreachIntent');
+    expect(commandBodies.find((command) => command.type === 'boss_scan_unread_contacts')).toMatchObject({ payload: { limit: 10, includeRead: false } });
+
+    commandBodies.length = 0;
+    const backfill = await client.inspectUnreadChats(10, true);
+    expect(backfill).toHaveLength(1);
+    expect(commandBodies.find((command) => command.type === 'boss_scan_unread_contacts')).toMatchObject({ payload: { limit: 10, includeRead: true } });
+    expect(createBodies).toEqual([
+      expect.objectContaining({ mode: 'boss-chat-inspect' }),
+      expect.objectContaining({ mode: 'boss-chat-inspect' }),
+    ]);
+    expect(createBodies.every((body) => !('bossOutreachIntent' in body))).toBe(true);
   });
 
   it('binds a resume follow-up to the exact conversation job and Resume Profile index', async () => {

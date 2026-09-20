@@ -21,7 +21,7 @@
       case 'boss_detail_snapshot': return detailSnapshot();
       case 'boss_prepare_chat': return prepareChat();
       case 'boss_send_message': return sendMessage(String(payload.message || ''));
-      case 'boss_scan_unread_contacts': return scanUnreadContacts(Number(payload.limit || 30));
+      case 'boss_scan_unread_contacts': return scanUnreadContacts(Number(payload.limit || 30), payload.includeRead === true);
       case 'boss_open_contact': return openContact(String(payload.contactRef || ''));
       case 'boss_chat_snapshot': return chatSnapshot();
       case 'boss_prepare_resume': return prepareResume(String(payload.expectedJobUrl || ''));
@@ -165,14 +165,15 @@
     return `[${CONTACT_ATTR}="${CSS.escape(id)}"]`;
   }
 
-  function scanUnreadContacts(limit = 30) {
+  function scanUnreadContacts(limit = 30, includeRead = false) {
     requirePath(/^\/web\/geek\/chat(?:\/|$)/i, 'BOSS chat');
     const used = new Set();
     const items = [...document.querySelectorAll('.user-list-content li')].filter((item) => item instanceof HTMLElement && visible(item));
     const result = [];
     for (let index = 0; index < items.length && result.length < Math.max(1, Math.min(100, limit)); index += 1) {
       const item = items[index];
-      if (!item.querySelector('.notice-badge')) continue;
+      const unread = Boolean(item.querySelector('.notice-badge'));
+      if (!includeRead && !unread) continue;
       const nameElement = item.querySelector('.name-text');
       const recruiter = compact(nameElement?.innerText || nameElement?.textContent || '', 200);
       const company = compact(nameElement?.nextElementSibling?.innerText || nameElement?.nextElementSibling?.textContent || '', 300);
@@ -181,6 +182,7 @@
         recruiter: recruiter || null,
         company: company || null,
         preview: compact(item.innerText || item.textContent || '', 1000),
+        unread,
       });
     }
     return result;
@@ -190,7 +192,7 @@
     requirePath(/^\/web\/geek\/chat(?:\/|$)/i, 'BOSS chat');
     if (!/^\[data-job-harness-boss-contact-id="[A-Za-z0-9._:-]+"\]$/.test(contactRefValue)) throw new Error('Invalid BOSS contact ref');
     const item = document.querySelector(contactRefValue);
-    if (!(item instanceof HTMLElement) || !visible(item)) throw new Error('BOSS unread contact is no longer available');
+    if (!(item instanceof HTMLElement) || !visible(item)) throw new Error('BOSS contact is no longer available');
     const clickable = item.querySelector('.name-text') instanceof HTMLElement ? item.querySelector('.name-text') : item;
     clickable.click();
     await sleep(650);
