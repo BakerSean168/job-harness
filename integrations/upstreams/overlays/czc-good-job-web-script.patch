@@ -140,7 +140,24 @@
                      method: method,
                      url: OPTIONS.serverHost + path,
                      headers: {
-@@ -471,13 +500,32 @@
+@@ -466,18 +495,49 @@
+         }
+ 
+         /**
++         * 获取 Job Harness 粗粒度 Site Runtime 控制状态。
++         * 站点内部仍由成熟 Copilot 状态机执行，不把 DOM click/fill 暴露给控制面。
++         */
++        getRuntimeControl() {
++            const params = new URLSearchParams({
++                pageUrl: String(location.href || '').slice(0, 2000),
++                pageTitle: String(document.title || '').slice(0, 500),
++            });
++            return new Promise((resolve, reject) => this.__http(`/runtime-control?${params.toString()}`).then(resolve).catch(reject));
++        }
++
++        /**
+          * 获取职位匹配度
+          * @param {string} title 职位标题
           * @param {string} salary 薪资范围
           * @param {string} detail 职位描述
           */
@@ -175,15 +192,39 @@
          /**
           * 回复消息
           * @param {string} msgs 消息记录
-@@ -698,6 +746,7 @@
+@@ -641,6 +701,18 @@
+         remove() {
+             this.ctn.remove();
+         }
++
++        isPaused() {
++            return this.__pause;
++        }
++
++        start() {
++            if (this.__pause) this.runBtn.click();
++        }
++
++        pause() {
++            if (!this.__pause) this.runBtn.click();
++        }
+     }
+ 
+     // boss 直聘
+@@ -698,7 +770,12 @@
              let roundQueuedCount = 0;
              let currentKeyword = '';
              let currentTagIdx = -1;
 +            const screeningSessionId = `boss-screen-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
              const processedJobHrefs = new Set();
++            let activeRuntimeTaskId = null;
++            let runtimePolicy = null;
++            let configuredGreetingThreshold = OPTIONS.thread;
++            let lastRuntimeControlKey = '';
  
              // 日志启动暂停事件
-@@ -749,6 +798,12 @@
+             const logger = new Logger(() => {
+@@ -749,6 +826,12 @@
                  try {
                      const input = await tools.endlessFind(SELECTORS.ZHIPIN.SEARCH.SEARCHINPUT);
                      const btn = await tools.endlessFind(SELECTORS.ZHIPIN.SEARCH.SEARCHBTN);
@@ -196,7 +237,42 @@
                      tools.inputText(input, kw);
                      btn.click();
                  } catch (e) {
-@@ -910,6 +965,9 @@
+@@ -886,12 +969,33 @@
+ 
+             const logAction = async (payload) => {
+                 try {
+-                    await api.logAction(payload);
++                    await api.logAction(activeRuntimeTaskId ? { ...payload, runtimeTaskId: activeRuntimeTaskId } : payload);
+                 } catch (e) {
+                     console.log('logAction failed', e);
+                 }
+             };
+ 
++            const applyRuntimeControl = async () => {
++                const control = await api.getRuntimeControl().catch(() => null);
++                if (!control || !control.taskId) return;
++                activeRuntimeTaskId = control.taskId;
++                runtimePolicy = control.policy || null;
++                OPTIONS.thread = runtimePolicy && runtimePolicy.greeting === false ? 101 : configuredGreetingThreshold;
++                const key = `${control.taskId}:${control.desiredState}`;
++                if (key === lastRuntimeControlKey) return;
++                lastRuntimeControlKey = key;
++                if (control.desiredState === 'running') {
++                    await logAction({ action: 'runtime_task_started', scene: 'search', reason: 'job-harness-control' });
++                    logger.start();
++                } else {
++                    logger.pause();
++                    await logAction({ action: 'runtime_task_paused', scene: 'search', reason: 'job-harness-control' });
++                }
++            };
++            const runtimeControlTimer = setInterval(() => void applyRuntimeControl(), 2000);
++            window.addEventListener('beforeunload', () => clearInterval(runtimeControlTimer), { once: true });
++            void applyRuntimeControl();
++
+             // 获取职位信息
+             const getJobInfo = async (href) => {
+                 // 打开窗口
+@@ -910,6 +1014,9 @@
  
              // 添加到聊天列表
              const addToChatList = async (url) => {
@@ -206,7 +282,7 @@
                  return new Promise((resolve, reject) => {
                      fetch(url)
                          .then(async resp => {
-@@ -942,6 +1000,8 @@
+@@ -942,6 +1049,8 @@
                              {
                                  introduce: pendingGreetDecision?.introduce || this.introduce,
                                  resumeIndex: pendingGreetDecision?.resumeIndex ?? OPTIONS.resumeIndex,
@@ -215,7 +291,7 @@
                              },
                              data.requestId,
                              data.responseType
-@@ -958,6 +1018,8 @@
+@@ -958,6 +1067,8 @@
                              action: 'greet_sent',
                              scene: 'search',
                              title: finalTitle,
@@ -224,7 +300,7 @@
                              resumeIndex: finalDecision?.resumeIndex ?? OPTIONS.resumeIndex,
                          });
                      }
-@@ -968,6 +1030,8 @@
+@@ -968,6 +1079,8 @@
                              action: 'greet_failed',
                              scene: 'search',
                              title: finalTitle,
@@ -233,7 +309,7 @@
                              resumeIndex: finalDecision?.resumeIndex ?? OPTIONS.resumeIndex,
                          });
                      }
-@@ -1006,6 +1070,11 @@
+@@ -1006,6 +1119,11 @@
  
              // 循环
              const loop = async () => {
@@ -245,7 +321,7 @@
                  try {
                      // 如果暂停，则跳过
                      if (this.pause) {
-@@ -1034,12 +1103,22 @@
+@@ -1034,12 +1152,22 @@
                      const jobInfo = await getJobInfo(href);
                      if (jobInfo.skip) {
                          logger.add(`职位跳过: ${jobInfo.skipReason}`);
@@ -269,7 +345,7 @@
                              reason: jobInfo.skipReason,
                          });
                          return loop();
-@@ -1048,26 +1127,54 @@
+@@ -1048,26 +1176,54 @@
                      // 如果聊过，下一个
                      if (jobInfo.talked) {
                          logger.add(`职位 [${jobInfo.title}] 已经聊过，下一个`);
@@ -325,7 +401,7 @@
                      // 如果分数达到阈值，打个招呼
                      if (decision.score >= OPTIONS.thread) {
                          logger.add(`正在给职位 [${jobInfo.title}] 发送打招呼消息`);
-@@ -1075,6 +1182,8 @@
+@@ -1075,6 +1231,8 @@
                              action: 'greet_queued',
                              scene: 'search',
                              title: jobInfo.title,
@@ -334,7 +410,7 @@
                              salary: jobInfo.salary,
                              resumeIndex: decision.resumeIndex,
                              score: decision.score,
-@@ -1085,6 +1194,8 @@
+@@ -1085,6 +1243,8 @@
                                  action: 'chat_open_requested',
                                  scene: 'search',
                                  title: jobInfo.title,
@@ -343,7 +419,7 @@
                                  chatUrl: jobInfo.chatUrl,
                                  resumeIndex: decision.resumeIndex,
                              });
-@@ -1095,6 +1206,8 @@
+@@ -1095,6 +1255,8 @@
                                  action: 'greet_queue_failed',
                                  scene: 'search',
                                  title: jobInfo.title,
@@ -352,7 +428,7 @@
                                  resumeIndex: decision.resumeIndex,
                                  addUrl: jobInfo.addUrl,
                                  chatUrl: jobInfo.chatUrl,
-@@ -1166,6 +1279,11 @@
+@@ -1166,6 +1328,11 @@
              };
  
              const startRound = async () => {
@@ -364,7 +440,7 @@
                  resetRoundState();
                  currentRound += 1;
                  const keyword = pickNextKeyword();
-@@ -1195,6 +1313,12 @@
+@@ -1195,6 +1362,14 @@
                  });
                  if (clientConfig && clientConfig.frontend) {
                      Object.assign(OPTIONS, clientConfig.frontend);
@@ -374,10 +450,12 @@
 +                        OPTIONS.preloadMaxRounds = Math.min(Number(OPTIONS.preloadMaxRounds || JAC_SCREENING_PRELOAD_MAX_ROUNDS), JAC_SCREENING_PRELOAD_MAX_ROUNDS);
 +                        OPTIONS.preloadStableRoundsLimit = Math.min(Number(OPTIONS.preloadStableRoundsLimit || JAC_SCREENING_PRELOAD_STABLE_ROUNDS), JAC_SCREENING_PRELOAD_STABLE_ROUNDS);
 +                    }
++                    configuredGreetingThreshold = OPTIONS.thread;
++                    if (runtimePolicy && runtimePolicy.greeting === false) OPTIONS.thread = 101;
                      logger.add('获取前端配置成功');
                  }
                  if (clientConfig && Array.isArray(clientConfig.tags) && clientConfig.tags.length) {
-@@ -1243,6 +1367,12 @@
+@@ -1243,6 +1418,12 @@
                  const title = nameBox.querySelector(SELECTORS.ZHIPIN.DETAIL.JOBNAME).innerText;
                  const salary = nameBox.querySelector(SELECTORS.ZHIPIN.DETAIL.SALARY).innerText;
                  const detail = document.querySelector(SELECTORS.ZHIPIN.DETAIL.DETAIL).innerText;
@@ -390,7 +468,7 @@
                  const actionText = chatBtn ? chatBtn.innerText.trim() : '';
                  const chatUrl = chatBtn && chatBtn.getAttribute(SELECTORS.ZHIPIN.DETAIL.CHATURL);
                  const addUrl = chatBtn && chatBtn.dataset.url;
-@@ -1264,6 +1394,9 @@
+@@ -1264,6 +1445,9 @@
                      title,
                      salary,
                      detail,
@@ -400,7 +478,7 @@
                      actionText,
                      chatUrl,
                      addUrl,
-@@ -1310,6 +1443,18 @@
+@@ -1310,6 +1494,18 @@
  
          // 聊天页
          async __chat() {
@@ -419,7 +497,7 @@
              // 注册广播
              const startBroadcast = (target = this.targets.chat) => {
                  this.__broadcast(target);
-@@ -1359,6 +1504,8 @@
+@@ -1359,6 +1555,8 @@
                      await logAction({
                          action: 'greet_message_sent',
                          scene: 'chat_greet',
@@ -428,7 +506,7 @@
                          resumeIndex: greetDecision.resumeIndex ?? OPTIONS.resumeIndex,
                      });
                      this.broadcast.send(this.targets.search, this.bcTypes.SAY_HI, { success: true }).then(() => {
-@@ -1473,6 +1620,9 @@
+@@ -1473,6 +1671,9 @@
  
              // 发送简历
              const sendResume = async (resumeIndex = OPTIONS.resumeIndex) => {
@@ -438,7 +516,7 @@
                  const sendBtn = await tools.endlessFind(SELECTORS.ZHIPIN.CHAT.RESUMESEND);
                  sendBtn.click();
  
-@@ -1527,15 +1677,6 @@
+@@ -1527,15 +1728,6 @@
  
              // 聊天
              const chat = async () => {
@@ -454,7 +532,7 @@
                  // 开始广播
                  startBroadcast(this.targets.chat);
                  // 获取默认自我介绍（兜底）
-@@ -1599,12 +1740,21 @@
+@@ -1599,12 +1791,21 @@
                                  const jobInfo = await this.broadcast.receive(this.targets.detail, this.bcTypes.GET_JOB_INFO);
                                  // 获取职位匹配度
                                  status(`开始计算职位 [${jobInfo.title}] 的匹配度`);
@@ -477,7 +555,7 @@
                                      salary: jobInfo.salary,
                                      score: decision.score,
                                      resumeIndex: decision.resumeIndex,
-@@ -1618,6 +1768,8 @@
+@@ -1618,6 +1819,8 @@
                                              action: 'chat_greet_sent',
                                              scene: 'chat',
                                              title: jobInfo.title,
@@ -486,7 +564,7 @@
                                              resumeIndex: decision.resumeIndex,
                                          });
                                          status(`打招呼成功`);
-@@ -1639,9 +1791,11 @@
+@@ -1639,9 +1842,11 @@
                                          action: 'chat_rejected_below_threshold',
                                          scene: 'chat',
                                          title: jobInfo.title,
@@ -500,7 +578,7 @@
                                      });
                                      await sendMsg('不好意思，不太合适哈，祝早日找到合适的人选。')
                                      continue;
-@@ -1655,13 +1809,34 @@
+@@ -1655,13 +1860,34 @@
                                  chatInfo.jobEl.click();
                                  status(`正在获取职位详情（用于确定简历）`);
                                  const jobInfo = await this.broadcast.receive(this.targets.detail, this.bcTypes.GET_JOB_INFO);
@@ -536,12 +614,31 @@
                                      salary: jobInfo.salary,
                                      requestedResumeIndex: decision.resumeIndex,
                                      selectedResumeIndex: resumeResult?.selectedResumeIndex ?? decision.resumeIndex,
-@@ -1704,7 +1879,7 @@
+@@ -1704,7 +1930,26 @@
                  if (isGreet) {
                      sayHi();
                  }
 -                else if (isChat) {
 +                else if (isChat && !JAC_HARD_ONLY_GREET) {
++                    const runtimeControl = await api.getRuntimeControl().catch(() => null);
++                    const inboxBlockReason = runtimeControl && runtimeControl.taskId
++                        ? runtimeControl.desiredState !== 'running'
++                            ? 'runtime-task-paused'
++                            : runtimeControl.policy && runtimeControl.policy.recruiterInbox === false
++                                ? 'runtime-recruiter-inbox-disabled'
++                                : null
++                        : null;
++                    if (runtimeControl && runtimeControl.taskId && inboxBlockReason) {
++                        await logAction({
++                            action: 'runtime_inbox_scan_skipped',
++                            scene: 'chat',
++                            runtimeTaskId: runtimeControl.taskId,
++                            reason: inboxBlockReason,
++                        });
++                        await this.broadcast.send(this.targets.search, this.bcTypes.RUN, true);
++                        this.broadcast.destroy();
++                        return;
++                    }
                      // 日志
                      logger = new Logger();
                      logger.runBtn.remove();

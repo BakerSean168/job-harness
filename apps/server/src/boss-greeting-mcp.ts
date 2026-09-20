@@ -4,9 +4,22 @@ import {
   BossGreetingsPendingToolInputSchema,
   BossGreetingsPendingToolOutputSchema,
   BossGreetingRequestSchema,
+  BossRuntimeStatusToolInputSchema,
+  BossRuntimeStatusToolOutputSchema,
+  BossRuntimeStartToolInputSchema,
+  BossRuntimeStartToolOutputSchema,
+  BossRuntimePauseToolInputSchema,
+  BossRuntimePauseToolOutputSchema,
   type BossGreetingMcpPort,
+  type BossRuntimeMcpPort,
 } from '@job-harness/mcp';
 import { z } from 'zod';
+import {
+  RecruitmentRuntimeControlSnapshotSchema,
+  RecruitmentRuntimeDescriptorSchema,
+  RecruitmentRuntimeEventSchema,
+  RecruitmentRuntimeHealthSchema,
+} from '@job-harness/recruitment-runtime-contracts';
 
 const BridgePendingResponseSchema = z.object({
   ok: z.literal(true),
@@ -20,10 +33,18 @@ const BridgeResolveResponseSchema = z.object({
   id: z.string().uuid(),
   action: z.enum(['send', 'skip']),
   source: z.string().trim().min(1).max(80),
+  reason: z.string().trim().min(1).max(240).nullable().optional(),
+}).strict();
+
+const BridgeRuntimeEventsResponseSchema = z.object({
+  runtimeId: z.string().trim().min(1).max(120),
+  total: z.number().int().nonnegative(),
+  items: z.array(RecruitmentRuntimeEventSchema),
 }).strict();
 
 export interface BossGreetingMcpBridgeOptions {
   readonly baseUrl: string;
+  readonly controlToken?: string | null;
   readonly fetch?: typeof globalThis.fetch;
   readonly requestTimeoutMs?: number;
 }
@@ -35,12 +56,13 @@ function normalizeInternalBaseUrl(value: string): string {
   return url.toString().replace(/\/+$/, '');
 }
 
-export function createBossGreetingMcpBridge(options: BossGreetingMcpBridgeOptions): BossGreetingMcpPort {
+export function createBossGreetingMcpBridge(options: BossGreetingMcpBridgeOptions): BossGreetingMcpPort & BossRuntimeMcpPort {
   const baseUrl = normalizeInternalBaseUrl(options.baseUrl);
   const fetchImpl = options.fetch ?? globalThis.fetch;
+  const controlToken = options.controlToken?.trim() || null;
   const requestTimeoutMs = Math.max(1_000, Math.min(30_000, options.requestTimeoutMs ?? 5_000));
 
-  const request = async (path: string, init?: RequestInit): Promise<unknown> => {
+  const request = async (path: string, init?: RequestInit, privileged = false): Promise<unknown> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
     timer.unref?.();
@@ -50,6 +72,7 @@ export function createBossGreetingMcpBridge(options: BossGreetingMcpBridgeOption
         headers: {
           accept: 'application/json',
           ...(init?.body ? { 'content-type': 'application/json' } : {}),
+          ...(privileged && controlToken ? { authorization: `Bearer ${controlToken}` } : {}),
           ...init?.headers,
         },
         signal: controller.signal,
@@ -86,7 +109,38 @@ export function createBossGreetingMcpBridge(options: BossGreetingMcpBridgeOption
         `/api/greetings/${encodeURIComponent(parsed.id)}/resolve`,
         { method: 'POST', body: JSON.stringify(body) },
       ));
-      return BossGreetingResolveToolOutputSchema.parse({ ...response, source: 'chatgpt-web-mcp' });
+      return BossGreetingResolveToolOutputSchema.parse({
+        ...response,
+        source: response.source === 'job-harness-policy' ? 'job-harness-policy' : 'chatgpt-web-mcp',
+      });
+    },
+    async status(input) {
+      const parsed = BossRuntimeStatusToolInputSchema.parse(input);
+      const [descriptor, health, control, events] = await Promise.all([
+        request('/api/runtime/descriptor').then((value) => RecruitmentRuntimeDescriptorSchema.parse(value)),
+        request('/api/runtime/health').then((value) => RecruitmentRuntimeHealthSchema.parse(value)),
+        request('/api/runtime/control').then((value) => RecruitmentRuntimeControlSnapshotSchema.parse(value)),
+        request(`/api/runtime/events?limit=${parsed.eventsLimit}`).then((value) => BridgeRuntimeEventsResponseSchema.parse(value)),
+      ]);
+      return BossRuntimeStatusToolOutputSchema.parse({ descriptor, health, control, events: events.items });
+    },
+    async start(input) {
+      if (!controlToken) throw new Error('BOSS Site Runtime control token is not configured');
+      const parsed = BossRuntimeStartToolInputSchema.parse(input);
+      const response = await request('/api/runtime/tasks/start', {
+        method: 'POST',
+        body: JSON.stringify(parsed),
+      }, true);
+      return BossRuntimeStartToolOutputSchema.parse(response);
+    },
+    async pause(input) {
+      if (!controlToken) throw new Error('BOSS Site Runtime control token is not configured');
+      const parsed = BossRuntimePauseToolInputSchema.parse(input);
+      const response = await request(`/api/runtime/tasks/${encodeURIComponent(parsed.taskId)}/pause`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: parsed.reason }),
+      }, true);
+      return BossRuntimePauseToolOutputSchema.parse(response);
     },
   };
 }

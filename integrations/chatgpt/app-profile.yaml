@@ -13,6 +13,7 @@ security:
   external_side_effect_tools:
     - career_email_application_authorize_send
     - boss_greeting_resolve
+    - boss_runtime_start
   downstream_auth: bearer
   credentials_in_repository: false
 workflow:
@@ -39,6 +40,10 @@ tool_groups:
     - career_email_application_prepare
   email_delivery:
     - career_email_application_authorize_send
+  boss_runtime:
+    - boss_runtime_status
+    - boss_runtime_start
+    - boss_runtime_pause
   boss_outreach:
     - boss_greetings_pending
     - boss_greeting_resolve

@@ -78,6 +78,12 @@ import {
   ResumeSectionSchema,
   ResumeWorkSelectionSchema,
 } from '@job-harness/resume-contracts';
+import {
+  RecruitmentRuntimeControlSnapshotSchema,
+  RecruitmentRuntimeDescriptorSchema,
+  RecruitmentRuntimeEventSchema,
+  RecruitmentRuntimeHealthSchema,
+} from '@job-harness/recruitment-runtime-contracts';
 
 export interface CareerMcpToolContract {
   readonly name: string;
@@ -155,8 +161,29 @@ export const BossGreetingResolveToolOutputSchema = z.object({
   ok: z.literal(true),
   id: z.string().uuid(),
   action: z.enum(['send', 'skip']),
-  source: z.literal('chatgpt-web-mcp'),
+  source: z.enum(['chatgpt-web-mcp', 'job-harness-policy']),
+  reason: z.string().trim().min(1).max(240).nullable().optional(),
 }).strict();
+
+export const BossRuntimeStatusToolInputSchema = z.object({
+  eventsLimit: z.number().int().min(1).max(100).default(20),
+}).strict();
+export const BossRuntimeStatusToolOutputSchema = z.object({
+  descriptor: RecruitmentRuntimeDescriptorSchema,
+  health: RecruitmentRuntimeHealthSchema,
+  control: RecruitmentRuntimeControlSnapshotSchema,
+  events: z.array(RecruitmentRuntimeEventSchema),
+}).strict();
+export const BossRuntimeStartToolInputSchema = z.object({
+  mode: z.enum(['automatic', 'manual']).default('automatic'),
+  idempotencyKey: z.string().trim().min(1).max(300),
+}).strict();
+export const BossRuntimeStartToolOutputSchema = RecruitmentRuntimeControlSnapshotSchema;
+export const BossRuntimePauseToolInputSchema = z.object({
+  taskId: z.string().trim().min(1).max(200),
+  reason: z.string().trim().min(3).max(500).default('operator-pause'),
+}).strict();
+export const BossRuntimePauseToolOutputSchema = RecruitmentRuntimeControlSnapshotSchema;
 
 export const CAREER_MCP_TOOLS = [
   tool({ name: 'career_context_get', description: 'Read the compact job-search context an AI should load before discovery or application work.', mutability: 'read', externalSideEffect: false, inputSchema: CareerContextInputSchema, outputSchema: CareerContextOutputSchema }),
@@ -196,6 +223,12 @@ export const JOB_RESUME_MCP_TOOLS = [
 export const BOSS_GREETING_MCP_TOOLS = [
   tool({ name: 'boss_greetings_pending', description: 'Read BOSS greeting requests currently waiting for ChatGPT to inspect the JD and true Resume context. This tool sends nothing.', mutability: 'read', externalSideEffect: false, inputSchema: BossGreetingsPendingToolInputSchema, outputSchema: BossGreetingsPendingToolOutputSchema }),
   tool({ name: 'boss_greeting_resolve', idempotent: false, description: 'Resolve one waiting BOSS greeting request. action=send releases the already-waiting Compatibility Runtime to send exactly the supplied greeting externally; action=skip releases it without sending.', mutability: 'state-write', externalSideEffect: true, inputSchema: BossGreetingResolveToolInputSchema, outputSchema: BossGreetingResolveToolOutputSchema }),
+] as const satisfies readonly CareerMcpToolContract[];
+
+export const BOSS_RUNTIME_MCP_TOOLS = [
+  tool({ name: 'boss_runtime_status', description: 'Read the coarse-grained BOSS Site Runtime descriptor, browser/runtime health, active control task and recent normalized Runtime events. This performs no browser action.', mutability: 'read', externalSideEffect: false, inputSchema: BossRuntimeStatusToolInputSchema, outputSchema: BossRuntimeStatusToolOutputSchema }),
+  tool({ name: 'boss_runtime_start', idempotent: true, description: 'Start or reuse one coarse BOSS Site Runtime campaign task. The bridge derives greeting/inbox/resume-followup permissions and the external-effect budget from the active Campaign; automatic mode additionally requires Campaign autoStartEnabled. This can cause recruiter-facing effects.', mutability: 'state-write', externalSideEffect: true, inputSchema: BossRuntimeStartToolInputSchema, outputSchema: BossRuntimeStartToolOutputSchema }),
+  tool({ name: 'boss_runtime_pause', idempotent: true, description: 'Pause the active coarse BOSS Site Runtime task. This stops future Runtime work but does not undo completed external effects.', mutability: 'state-write', externalSideEffect: false, inputSchema: BossRuntimePauseToolInputSchema, outputSchema: BossRuntimePauseToolOutputSchema }),
 ] as const satisfies readonly CareerMcpToolContract[];
 
 export const EMAIL_APPLICATION_MCP_TOOLS = [
@@ -250,5 +283,5 @@ export const RESUME_MCP_TOOLS = [
   tool({ name: 'resume_revision_artifact_materialize', description: 'Materialize an immutable HTML/PDF/JSON Artifact for a published Resume Revision.', mutability: 'state-write', externalSideEffect: false, inputSchema: MaterializeResumeArtifactInputSchema, outputSchema: MaterializeResumeArtifactOutputSchema }),
 ] as const satisfies readonly CareerMcpToolContract[];
 
-export const JOB_HARNESS_MCP_TOOLS = [...CAREER_MCP_TOOLS, ...RESUME_MCP_TOOLS, ...JOB_RESUME_MCP_TOOLS, ...EMAIL_APPLICATION_MCP_TOOLS, ...BOSS_GREETING_MCP_TOOLS] as const;
+export const JOB_HARNESS_MCP_TOOLS = [...CAREER_MCP_TOOLS, ...RESUME_MCP_TOOLS, ...JOB_RESUME_MCP_TOOLS, ...EMAIL_APPLICATION_MCP_TOOLS, ...BOSS_GREETING_MCP_TOOLS, ...BOSS_RUNTIME_MCP_TOOLS] as const;
 export const JOB_HARNESS_MCP_TOOL_BY_NAME = new Map(JOB_HARNESS_MCP_TOOLS.map((entry) => [entry.name, entry]));

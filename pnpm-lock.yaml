@@ -157,6 +157,9 @@ importers:
       '@job-harness/persistence-sqlite':
         specifier: workspace:*
         version: link:../../packages/persistence-sqlite
+      '@job-harness/recruitment-runtime-contracts':
+        specifier: workspace:*
+        version: link:../../packages/recruitment-runtime-contracts
       '@job-harness/resume-application':
         specifier: workspace:*
         version: link:../../packages/resume-application
@@ -374,6 +377,9 @@ importers:
       '@job-harness/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@job-harness/recruitment-runtime-contracts':
+        specifier: workspace:*
+        version: link:../recruitment-runtime-contracts
       '@job-harness/resume-application':
         specifier: workspace:*
         version: link:../resume-application
@@ -413,6 +419,12 @@ importers:
       '@job-harness/resume-contracts':
         specifier: workspace:*
         version: link:../resume-contracts
+
+  packages/recruitment-runtime-contracts:
+    dependencies:
+      zod:
+        specifier: ^4.1.8
+        version: 4.6.5
 
   packages/resume-application:
     dependencies:

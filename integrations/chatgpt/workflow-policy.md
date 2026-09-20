@@ -12,7 +12,7 @@ This is the normative orchestration policy for a ChatGPT/custom-MCP client. It i
 6. Never repeat a recruiting-site side effect merely because the subsequent Job Harness call failed. Recover from the durable intent first.
 7. `needs_manual_review` means “unknown/needs verification”, not success and not failure.
 8. Keep discovery and storage incremental. Upsert candidates in bounded batches instead of retaining an entire search session only in conversation state.
-9. Only two MCP tools may deliberately cross a bounded external-effect boundary: `boss_greeting_resolve(action=send)` releases one already-waiting BOSS greeting, and `career_email_application_authorize_send` authorizes one exact immutable email draft for the independent delivery worker. Neither is permission to submit an ATS application or perform arbitrary browser actions.
+9. Only three MCP tools may deliberately cross a bounded external-effect boundary: `boss_runtime_start` starts/reuses one Campaign-policy-bounded coarse BOSS Site Runtime task, `boss_greeting_resolve(action=send)` releases one already-waiting BOSS greeting, and `career_email_application_authorize_send` authorizes one exact immutable email draft for the independent delivery worker. None is permission to submit an ATS application or perform arbitrary browser actions.
 
 ## Campaign automation modules
 
@@ -21,6 +21,15 @@ Every automated discovery/application run must load the Campaign and obey `campa
 ```text
 collection.enabled
   -> discover + dedupe + persist Job/Listing/Observation
+
+outreach.enabled
+  -> allows the coarse recruiting-platform Site Runtime
+outreach.autoStartEnabled
+  -> allows `boss_runtime_start(mode=automatic)`; false does not block an explicit/manual operator start
+outreach.greetingEnabled / recruiterInboxEnabled / resumeFollowupEnabled
+  -> become immutable policy on the active Runtime task
+outreach.maxExternalEffectsPerRun
+  -> bounds recruiter-facing effects performed under that Runtime task
 
 officialSite.prepareEnabled
   -> choose configured Resume or deterministic recommendation
@@ -43,7 +52,7 @@ email.sendEnabled
   -> independent Email Delivery Worker performs the provider send when configured/running
 ```
 
-Safe defaults are collection=true, official prepare=true, official safe fill=true, official final submit=false, email draft=true, email send=false. A preferred Resume Profile ID pins the selected Resume for that channel; null means use deterministic recommendation. Never turn on a later module implicitly because an earlier module is enabled.
+Safe defaults are collection=true, outreach enabled=true, outreach auto-start=false, greeting/inbox/explicit resume-followup=true with a bounded per-run external-effect budget, official prepare=true, official safe fill=true, official final submit=false, email draft=true, email send=false. A preferred Resume Profile ID pins the selected Resume for that channel; null means use deterministic recommendation. Never turn on a later module implicitly because an earlier module is enabled.
 
 ## Discovery workflow
 
@@ -81,9 +90,32 @@ Rules:
 - A published Revision is immutable evidence. Never rewrite it to represent a later submission.
 - When preparing an application, bind the exact Revision/Artifact whenever available.
 
+## BOSS Site Runtime workflow
+
+BOSS browser automation is a coarse upstream-backed Site Runtime, not a sequence of MCP/Bridge DOM commands. Read its state first:
+
+```text
+boss_runtime_status
+  -> inspect browser/runtime health, active task and recent normalized events
+  -> if an active task is already running, reuse it
+  -> otherwise boss_runtime_start(mode=automatic|manual, stable idempotencyKey)
+  -> runtime executes the mature upstream-derived search/detail/chat/resume state machine
+  -> boss_runtime_status exposes normalized task/events
+  -> boss_runtime_pause(taskId, reason) when the bounded run should stop
+```
+
+Rules:
+
+- `boss_runtime_status` and `boss_runtime_pause` do not create recruiter-facing effects.
+- `boss_runtime_start` is a bounded external-side-effect tool because a running Site Runtime may perform Campaign-authorized recruiter-facing work. It does not grant arbitrary browser control, ATS submit authority, or permission beyond the Campaign snapshot.
+- `mode=automatic` is rejected unless `campaign.automation.outreach.autoStartEnabled=true`. Use `mode=manual` only when the user explicitly asked to start/continue BOSS outreach in the current interaction.
+- The bridge derives greeting/inbox/resume-followup permissions and the external-effect budget from the active Campaign; callers do not supply or widen these permissions.
+- The dedicated browser may have broad DOM/tab/upload capabilities internally, but Job Harness controls it at business-task granularity.
+- Stop/pause on login/challenge/human-required state; do not attempt to bypass platform verification.
+
 ## BOSS greeting workflow
 
-When the user has explicitly asked Job Harness to continue BOSS outreach and the Compatibility Runtime is already running:
+When a BOSS Site Runtime task is running and a greeting request is waiting:
 
 ```text
 boss_greetings_pending(limit <= 10)

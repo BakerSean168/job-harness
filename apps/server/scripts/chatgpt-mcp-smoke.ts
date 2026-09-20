@@ -15,6 +15,9 @@ async function main(): Promise<void> {
     'career_submission_intents_reconcile_pending',
     'boss_greetings_pending',
     'boss_greeting_resolve',
+    'boss_runtime_status',
+    'boss_runtime_start',
+    'boss_runtime_pause',
   ];
 
   const client = new Client({ name: 'job-harness-chatgpt-smoke', version: '1.0.0' });
@@ -33,12 +36,14 @@ async function main(): Promise<void> {
     const intents = await client.callTool({ name: 'career_submission_intents_list', arguments: { limit: 10, offset: 0 } });
     const resumes = await client.callTool({ name: 'resume_profiles_list', arguments: {} });
     const bossGreetings = await client.callTool({ name: 'boss_greetings_pending', arguments: { limit: 1 } });
-    if (pipeline.isError || intents.isError || resumes.isError || bossGreetings.isError) throw new Error('One or more read-only smoke calls returned an MCP tool error');
+    const bossRuntime = await client.callTool({ name: 'boss_runtime_status', arguments: { eventsLimit: 3 } });
+    if (pipeline.isError || intents.isError || resumes.isError || bossGreetings.isError || bossRuntime.isError) throw new Error('One or more read-only smoke calls returned an MCP tool error');
 
     const pipelineData = pipeline.structuredContent as Record<string, unknown> | undefined;
     const intentData = intents.structuredContent as { total?: unknown } | undefined;
     const resumeData = resumes.structuredContent as { total?: unknown } | undefined;
     const bossGreetingData = bossGreetings.structuredContent as { total?: unknown; mode?: unknown } | undefined;
+    const bossRuntimeData = bossRuntime.structuredContent as { descriptor?: { runtimeId?: unknown }; control?: { desiredState?: unknown; task?: unknown } } | undefined;
     console.log(JSON.stringify({
       endpoint: new URL(url).origin,
       toolCount: names.length,
@@ -49,6 +54,9 @@ async function main(): Promise<void> {
       resumeProfiles: resumeData?.total ?? null,
       pendingBossGreetings: bossGreetingData?.total ?? null,
       bossGreetingMode: bossGreetingData?.mode ?? null,
+      bossRuntimeId: bossRuntimeData?.descriptor?.runtimeId ?? null,
+      bossRuntimeState: bossRuntimeData?.control?.desiredState ?? null,
+      bossRuntimeTaskActive: Boolean(bossRuntimeData?.control?.task),
     }, null, 2));
   } finally {
     await client.close().catch(() => undefined);

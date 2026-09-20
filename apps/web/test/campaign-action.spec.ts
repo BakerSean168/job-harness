@@ -36,6 +36,11 @@ function campaignForm(status = 'active') {
   form.append('sources', 'official');
   form.append('sources', 'boss');
   form.set('automationCollectionEnabled', 'on');
+  form.set('automationOutreachEnabled', 'on');
+  form.set('automationOutreachGreetingEnabled', 'on');
+  form.set('automationOutreachRecruiterInboxEnabled', 'on');
+  form.set('automationOutreachResumeFollowupEnabled', 'on');
+  form.set('automationOutreachMaxExternalEffectsPerRun', '20');
   form.set('automationOfficialPrepareEnabled', 'on');
   form.set('automationOfficialFillEnabled', 'on');
   form.set('automationEmailDraftEnabled', 'on');
@@ -59,6 +64,7 @@ describe('Web campaign Server Action', () => {
       name: 'AI Agent Search', status: 'active', targetRoles: ['AI Agent Engineer', 'AI Fullstack Engineer'], cities: ['Hangzhou', 'Shenzhen'], graduationYears: [2026], sources: ['official', 'boss'],
       automation: {
         collection: { enabled: true },
+        outreach: { enabled: true, autoStartEnabled: false, greetingEnabled: true, recruiterInboxEnabled: true, resumeFollowupEnabled: true, maxExternalEffectsPerRun: 20 },
         officialSite: { prepareEnabled: true, fillEnabled: true, submitEnabled: false, preferredResumeProfileId: null },
         email: { draftEnabled: true, sendEnabled: false, preferredResumeProfileId: null },
       },

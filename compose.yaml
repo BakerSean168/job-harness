@@ -96,6 +96,7 @@ services:
       JOB_HARNESS_BOSS_CAMPAIGN_ID: ${JOB_HARNESS_BOSS_CAMPAIGN_ID:-2026-grad-agent-fullstack-frontend}
       JOB_HARNESS_BOSS_DISCOVERY_IDLE_MS: ${JOB_HARNESS_BOSS_DISCOVERY_IDLE_MS:-600000}
       JOB_HARNESS_BOSS_DISCOVERY_STATE_LOG: /data/boss-discovery-sessions.jsonl
+      JOB_HARNESS_BOSS_RUNTIME_STATE: /data/boss-runtime-control.json
       JOB_HARNESS_BOSS_LEGACY_USERSCRIPT_SOURCE: /app/integrations/boss/legacy-copilot.user.js
     volumes:
       - type: bind

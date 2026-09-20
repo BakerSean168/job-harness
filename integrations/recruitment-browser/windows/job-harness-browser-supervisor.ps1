@@ -147,9 +147,14 @@ function Ensure-SupervisorCurrent($Manifest) {
 function Get-RecruitmentSiteHealth {
   $result = @{ boss = @{ state = 'unknown'; url = $null; title = $null } }
   try {
-    $targets = @(Invoke-RestMethod -Uri "http://127.0.0.1:$RemoteDebuggingPort/json" -Method Get -TimeoutSec 4)
-    $bossMatches = @($targets | Where-Object { $_.type -eq 'page' -and ([string]$_.url) -match 'zhipin\.com' })
-    $boss = if ($bossMatches.Count -gt 0) { $bossMatches[0] } else { $null }
+    $targets = Invoke-RestMethod -Uri "http://127.0.0.1:$RemoteDebuggingPort/json" -Method Get -TimeoutSec 4
+    $boss = $null
+    foreach ($target in $targets) {
+      if ($target.type -eq 'page' -and ([string]$target.url) -match 'zhipin\.com') {
+        $boss = $target
+        break
+      }
+    }
     if (-not $boss) { return $result }
     $url = [string]$boss.url
     $title = [string]$boss.title

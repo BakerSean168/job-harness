@@ -27,7 +27,8 @@
     "@job-harness/apply-runtime": "workspace:*",
     "@job-harness/applicant-contracts": "workspace:*",
     "@job-harness/applicant-application": "workspace:*",
-    "@job-harness/client": "workspace:*"
+    "@job-harness/client": "workspace:*",
+    "@job-harness/recruitment-runtime-contracts": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.20.5",

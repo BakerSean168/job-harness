@@ -16,13 +16,13 @@ The dedicated browser is isolated from the user's normal browser profile and exp
 
 ## Start on Windows
 
-Run:
+The production path is now the self-updating Recruitment Browser Supervisor under `integrations/recruitment-browser/windows`. It distributes the complete BOSS extension bundle, reuses the existing BOSS profile during migration, and starts/restarts the dedicated browser without a manual extension reload. The older launcher remains a bootstrap/recovery fallback:
 
 ```powershell
 .\windows\start-boss-copilot.ps1
 ```
 
-The launcher prefers Edge, falls back to Chrome, stores the persistent profile at:
+The fallback launcher prefers Edge, falls back to Chrome, stores the persistent profile at:
 
 ```text
 %LOCALAPPDATA%\JobHarness\BossCopilot\Profile
@@ -30,16 +30,25 @@ The launcher prefers Edge, falls back to Chrome, stores the persistent profile a
 
 and loads the unpacked extension from `extension/`. Before launch it refreshes only the generated `boss-copilot.js` runtime from the Tailnet bridge and validates expected markers before atomically replacing the local copy; if the bridge is temporarily unavailable it keeps the last known-good local runtime. Pass `-SkipRuntimeSync` to suppress that refresh. Manifest/background/shim changes still require updating the extension bundle itself.
 
-The page overlay starts paused. Clicking **开始** enables the proven Copilot loop. The Job Harness bridge supplies current target roles, scores every job across active Resume Profiles, returns the selected BOSS resume index and policy-gates resume follow-up. Every inspected BOSS detail is normalized into the canonical Job/Listing ledger; `greet_sent`, recruiter reply, resume send, and previously-contacted evidence are recorded as durable `JobOutreachEvent` rows rather than being misrepresented as formal Application submissions.
+The page overlay still starts paused when no Job Harness Site Runtime task exists, so the fallback remains usable manually. Under the production Supervisor, the userscript polls coarse `runtime-control` state: a running task starts the existing Copilot loop, a paused task pauses it, and no per-click DOM commands are introduced. The Job Harness bridge supplies current target roles, scores every job across active Resume Profiles, returns the selected BOSS resume index and policy-gates greeting/inbox/resume follow-up plus the per-run external-effect budget. Every inspected BOSS detail is normalized into the canonical Job/Listing ledger; `greet_sent`, recruiter reply, resume send, and previously-contacted evidence are recorded as durable `JobOutreachEvent` rows rather than being misrepresented as formal Application submissions.
 
 First-contact copy is **not** a fixed server-side template. For jobs that pass the outreach threshold, the bridge creates a short-lived `chatgpt-assisted` greeting request containing the current JD plus a privacy-reduced view of the selected Resume Profile. The score request waits for ChatGPT to resolve that request. If no generated greeting arrives before the deadline, the bridge fails closed and the compatibility runtime moves on without contacting the recruiter. This keeps wording generation in the ChatGPT control plane while the mature Copilot remains only the browser executor.
 
-Control endpoints used by the ChatGPT/operator loop:
+Control endpoints used by the ChatGPT/operator loop are split into coarse Runtime control and greeting resolution:
 
 ```text
+GET  /api/runtime/descriptor
+GET  /api/runtime/health
+GET  /api/runtime/control
+GET  /api/runtime/events
+POST /api/runtime/tasks/start
+POST /api/runtime/tasks/:taskId/pause
+
 GET  /api/greetings/pending
 POST /api/greetings/:requestId/resolve
 ```
+
+Start/pause is business-task control. The browser still executes the mature upstream-derived search/detail/chat/resume state machine locally. Runtime start derives permissions from Campaign `automation.outreach`; callers cannot widen them in the request.
 
 The resolver supports two outcomes. Use `{ "action": "send", "message": "...", "source": "chatgpt-web" }` (or omit `action` for backward compatibility) to return a single 12-320 character greeting. Use `{ "action": "skip", "reason": "...", "source": "chatgpt-web" }` when the JD has a core requirement that the real Resume evidence does not support; the bridge then returns a below-threshold compatibility decision so the legacy runtime moves on without contacting the recruiter. `JOB_HARNESS_BOSS_GREETING_WAIT_MS` controls the bounded wait and `JOB_HARNESS_BOSS_GREETING_THRESHOLD` defaults to `58`. Early-career campaigns also fail closed on explicit 3+ year minimum-experience requirements before a greeting request is created.
 

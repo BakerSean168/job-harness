@@ -15,8 +15,11 @@ import type {
   UpsertJobsBatchOutput,
 } from '@job-harness/contracts';
 import type { ListResumeProfilesOutput, ResumeProfileContext } from '@job-harness/resume-contracts';
+import { RecruitmentRuntimeHealthSchema } from '@job-harness/recruitment-runtime-contracts';
 import { BossDiscoveryReportSchema, parseBossDiscoveryDecision, renderBossDiscoveryReporter, type BossDiscoveryCoordinator } from './boss-discovery';
 import { BossResumeFollowupRequestSchema, decideBossResumeFollowup } from './boss-resume-followup';
+import { BOSS_COMPAT_RUNTIME_DESCRIPTOR, countBossRuntimeExternalEffects, projectBossRuntimeEvents } from './boss-site-runtime';
+import { BossRuntimeControlStore } from './boss-runtime-control';
 
 export interface BossOutreachBridgeClient {
   readonly applicant: { getProfile(): Promise<ApplicantProfileContext> };
@@ -48,6 +51,8 @@ export interface BossOutreachBridgeOptions {
   readonly greetingWaitMs?: number;
   readonly greetingThreshold?: number;
   readonly campaignId?: string | null;
+  readonly runtimeControl?: BossRuntimeControlStore | null;
+  readonly controlToken?: string | null;
 }
 
 export interface ParsedBossJob {
@@ -312,7 +317,7 @@ async function readJsonBody(req: IncomingMessage, limit = 128 * 1024): Promise<u
 function safeActionPayload(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { value: String(value ?? '').slice(0, 2000) };
   const source = value as Record<string, unknown>;
-  const allow = ['action','scene','screeningSessionId','jobUrl','jobId','listingId','title','company','city','salary','score','threshold','screeningPassed','resumeIndex','requestedResumeIndex','selectedResumeIndex','sendMode','reason','intent','resumeBindingSource','profileId','message','chatUrl','addUrl'];
+  const allow = ['action','scene','runtimeTaskId','screeningSessionId','jobUrl','jobId','listingId','title','company','city','salary','score','threshold','screeningPassed','resumeIndex','requestedResumeIndex','selectedResumeIndex','sendMode','reason','intent','resumeBindingSource','profileId','message','chatUrl','addUrl'];
   const result: Record<string, unknown> = {};
   for (const key of allow) {
     const item = source[key];
@@ -395,11 +400,73 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
   const recentDecisions = new Map<string, BossJobDecision>();
   const recentDecisionsByJobId = new Map<string, BossJobDecision>();
   const pendingGreetings = new Map<string, PendingBossGreeting>();
-  let campaignPromise: Promise<JobSearchCampaign | null> | null = null;
+  const runtimeControl = options.runtimeControl ?? new BossRuntimeControlStore();
+  const controlToken = options.controlToken?.trim() || null;
+  let lastRuntimePollAt: string | null = null;
+  let lastRuntimePageUrl: string | null = null;
+  let lastRuntimePageTitle: string | null = null;
+  const isRuntimeControlAuthorized = (req: IncomingMessage): boolean => {
+    if (!controlToken) return false;
+    const authorization = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
+    return authorization === `Bearer ${controlToken}`;
+  };
   const getCampaign = (): Promise<JobSearchCampaign | null> => {
     if (!options.campaignId || !options.client.campaigns) return Promise.resolve(null);
-    campaignPromise ??= options.client.campaigns.get(options.campaignId).catch(() => null);
-    return campaignPromise;
+    return options.client.campaigns.get(options.campaignId).catch(() => null);
+  };
+  const getRuntimeExecutionState = async () => {
+    const snapshot = runtimeControl.current();
+    if (!snapshot.task) return null;
+    const rows = await readEvents(options.logPath);
+    const usedExternalEffects = countBossRuntimeExternalEffects(rows, snapshot.task.id);
+    return {
+      task: snapshot.task,
+      desiredState: snapshot.desiredState,
+      usedExternalEffects,
+      remainingExternalEffects: Math.max(0, snapshot.task.policy.maxExternalEffects - usedExternalEffects),
+    };
+  };
+
+  const runtimeExternalEffectBlockReason = (
+    state: Awaited<ReturnType<typeof getRuntimeExecutionState>>,
+    capability: 'greeting' | 'resumeFollowup',
+  ): string | null => {
+    if (!state) return null;
+    if (state.desiredState !== 'running') return 'runtime-task-paused';
+    if (!state.task.policy[capability]) return capability === 'greeting' ? 'runtime-greeting-disabled' : 'runtime-resume-followup-disabled';
+    if (state.remainingExternalEffects <= 0) return 'runtime-external-effect-budget-exhausted';
+    return null;
+  };
+
+  const getRuntimeHealth = () => {
+    const snapshot = runtimeControl.current();
+    const checkedAt = new Date().toISOString();
+    const lastPollMs = lastRuntimePollAt ? Date.parse(lastRuntimePollAt) : Number.NaN;
+    const browserConnected = Number.isFinite(lastPollMs) && Date.now() - lastPollMs <= 10_000;
+    const pageSignal = `${lastRuntimePageUrl ?? ''} ${lastRuntimePageTitle ?? ''}`.toLowerCase();
+    const challenge = /captcha|challenge|security|safe-check|安全验证|人机验证|验证码/.test(pageSignal);
+    const loginRequired = /\/login|\/user\/|登录|注册登录/.test(pageSignal);
+    const state = !browserConnected
+      ? 'offline'
+      : challenge
+        ? 'challenge'
+        : loginRequired
+          ? 'login-required'
+          : snapshot.task && snapshot.desiredState === 'paused'
+            ? 'paused'
+            : 'ready';
+    return RecruitmentRuntimeHealthSchema.parse({
+      runtimeId: BOSS_COMPAT_RUNTIME_DESCRIPTOR.runtimeId,
+      site: 'boss',
+      state,
+      browserConnected,
+      activeTaskId: snapshot.task?.id ?? null,
+      lastEventAt: lastRuntimePollAt,
+      detail: browserConnected
+        ? `${lastRuntimePageUrl ?? 'unknown-page'}${lastRuntimePageTitle ? ` | ${lastRuntimePageTitle}` : ''}`.slice(0, 1000)
+        : 'runtime-control-poll-stale-or-missing',
+      checkedAt,
+    });
   };
 
   const persistBossJob = async (job: ParsedBossJob, decision: BossJobDecision): Promise<{ jobId: string; listingId: string | null } | null> => {
@@ -544,10 +611,29 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
     const timer = setTimeout(() => {
       void (async () => {
         pendingGreetings.delete(id);
+        const runtimeState = await getRuntimeExecutionState();
+        const policyReason = runtimeExternalEffectBlockReason(runtimeState, 'greeting');
+        if (runtimeState && policyReason) {
+          await appendEvent(options.logPath, {
+            loggedAt: new Date().toISOString(),
+            action: 'greeting_assist_timeout_policy_skip',
+            runtimeTaskId: runtimeState.task.id,
+            greetingRequestId: id,
+            requestedProfileId,
+            title: job.title,
+            salary: job.salary,
+            score: decision.score,
+            resumeIndex: decision.resumeIndex,
+            reason: policyReason,
+          }).catch(() => undefined);
+          resolveWait({ action: 'skip', reason: policyReason, source: 'job-harness-policy' });
+          return;
+        }
         const message = fallbackGreeting(applicant, decision, job);
         await appendEvent(options.logPath, {
           loggedAt: new Date().toISOString(),
           action: 'greeting_assist_timeout_fallback',
+          runtimeTaskId: runtimeState?.task.id ?? null,
           greetingRequestId: id,
           requestedProfileId,
           title: job.title,
@@ -566,6 +652,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
     await appendEvent(options.logPath, {
       loggedAt: createdAt.toISOString(),
       action: 'greeting_requested',
+      runtimeTaskId: runtimeControl.current().task?.id ?? null,
       greetingRequestId: id,
       requestedProfileId,
       title: job.title,
@@ -616,6 +703,84 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
       if (req.method === 'GET' && url.pathname === '/api/screening-summary') {
         return sendJson(res, 200, screeningSummary(await readEvents(options.logPath)));
       }
+      if (req.method === 'GET' && url.pathname === '/api/runtime/descriptor') {
+        return sendJson(res, 200, BOSS_COMPAT_RUNTIME_DESCRIPTOR);
+      }
+      if (req.method === 'GET' && url.pathname === '/api/runtime/control') {
+        return sendJson(res, 200, runtimeControl.current());
+      }
+      if (req.method === 'GET' && url.pathname === '/api/runtime/health') {
+        return sendJson(res, 200, getRuntimeHealth());
+      }
+      if (req.method === 'GET' && url.pathname === '/api/runtime/events') {
+        const limitRaw = Number(url.searchParams.get('limit') ?? '100');
+        const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(500, Math.trunc(limitRaw))) : 100;
+        const after = url.searchParams.get('after');
+        const events = projectBossRuntimeEvents(await readEvents(options.logPath), { after, limit });
+        return sendJson(res, 200, { runtimeId: BOSS_COMPAT_RUNTIME_DESCRIPTOR.runtimeId, total: events.length, items: events });
+      }
+      if (req.method === 'POST' && url.pathname === '/api/runtime/tasks/start') {
+        if (!isRuntimeControlAuthorized(req)) return sendJson(res, 401, { error: 'runtime_control_unauthorized' });
+        const campaign = await getCampaign();
+        if (!campaign || campaign.status !== 'active') return sendJson(res, 409, { error: 'runtime_campaign_unavailable' });
+        const outreach = campaign.automation.outreach;
+        if (!campaign.automation.collection.enabled) return sendJson(res, 409, { error: 'runtime_collection_disabled' });
+        if (!outreach.enabled) return sendJson(res, 409, { error: 'runtime_outreach_disabled' });
+        const body = await readJsonBody(req);
+        const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+        const mode = record.mode === 'manual' ? 'manual' : 'automatic';
+        if (mode === 'automatic' && !outreach.autoStartEnabled) return sendJson(res, 409, { error: 'runtime_auto_start_disabled' });
+        const idempotencyKey = typeof record.idempotencyKey === 'string' ? record.idempotencyKey.trim().slice(0, 300) : '';
+        if (!idempotencyKey) return sendJson(res, 400, { error: 'runtime_idempotency_key_required' });
+        const now = new Date().toISOString();
+        const snapshot = await runtimeControl.start({
+          runtimeId: BOSS_COMPAT_RUNTIME_DESCRIPTOR.runtimeId,
+          site: 'boss',
+          kind: 'campaign-discovery',
+          campaignId: campaign.id,
+          jobId: null,
+          listingId: null,
+          resumeProfileId: null,
+          resumeArtifactId: null,
+          targetUrl: 'https://www.zhipin.com/web/geek/job',
+          policy: {
+            collect: campaign.automation.collection.enabled,
+            greeting: outreach.greetingEnabled,
+            recruiterInbox: outreach.recruiterInboxEnabled,
+            resumeFollowup: outreach.resumeFollowupEnabled,
+            formFill: false,
+            resumeUpload: false,
+            finalSubmit: false,
+            maxExternalEffects: outreach.maxExternalEffectsPerRun,
+          },
+          createdAt: now,
+          expiresAt: null,
+          idempotencyKey,
+        });
+        await appendEvent(options.logPath, {
+          loggedAt: now,
+          action: 'runtime_task_accepted',
+          runtimeTaskId: snapshot.task?.id ?? null,
+          campaignId: campaign.id,
+          mode,
+          maxExternalEffects: snapshot.task?.policy.maxExternalEffects ?? 0,
+        });
+        return sendJson(res, 200, snapshot);
+      }
+      const runtimePauseMatch = /^\/api\/runtime\/tasks\/([A-Za-z0-9._:-]+)\/pause$/.exec(url.pathname);
+      if (req.method === 'POST' && runtimePauseMatch) {
+        if (!isRuntimeControlAuthorized(req)) return sendJson(res, 401, { error: 'runtime_control_unauthorized' });
+        const body = await readJsonBody(req);
+        const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+        const reason = typeof record.reason === 'string' ? record.reason.trim().slice(0, 500) : 'operator-pause';
+        try {
+          const snapshot = await runtimeControl.pause(runtimePauseMatch[1]!, reason);
+          await appendEvent(options.logPath, { loggedAt: new Date().toISOString(), action: 'runtime_task_pause_requested', runtimeTaskId: runtimePauseMatch[1], reason });
+          return sendJson(res, 200, snapshot);
+        } catch (error) {
+          return sendJson(res, 404, { error: 'runtime_task_not_active', message: error instanceof Error ? error.message : String(error) });
+        }
+      }
       if (req.method === 'GET' && url.pathname === '/api/greetings/pending') {
         const items = [...pendingGreetings.values()]
           .map((item) => item.request)
@@ -634,6 +799,30 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         const requestedAction = body && typeof body === 'object' && !Array.isArray(body) && (body as { action?: unknown }).action === 'skip'
           ? 'skip'
           : 'send';
+        if (requestedAction === 'send') {
+          const runtimeState = await getRuntimeExecutionState();
+          const policyReason = runtimeExternalEffectBlockReason(runtimeState, 'greeting');
+          if (runtimeState && policyReason) {
+            const resolution: BossGreetingResolution = { action: 'skip', reason: policyReason, source: 'job-harness-policy' };
+            clearTimeout(pending.timer);
+            pendingGreetings.delete(id);
+            await appendEvent(options.logPath, {
+              loggedAt: new Date().toISOString(),
+              action: 'greeting_skipped',
+              runtimeTaskId: runtimeState.task.id,
+              greetingRequestId: id,
+              requestedProfileId: pending.request.requestedProfileId,
+              title: pending.request.job.title,
+              salary: pending.request.job.salary,
+              score: pending.request.match.score,
+              resumeIndex: pending.request.match.resumeIndex,
+              source: resolution.source,
+              reason: policyReason,
+            });
+            pending.resolve(resolution);
+            return sendJson(res, 200, { ok: true, id, action: 'skip', source: resolution.source, reason: policyReason });
+          }
+        }
         let resolution: BossGreetingResolution;
         if (requestedAction === 'skip') {
           const reasonRaw = body && typeof body === 'object' && !Array.isArray(body) ? (body as { reason?: unknown }).reason : null;
@@ -652,6 +841,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         await appendEvent(options.logPath, {
           loggedAt: new Date().toISOString(),
           action: resolution.action === 'send' ? 'greeting_resolved' : 'greeting_skipped',
+          runtimeTaskId: runtimeControl.current().task?.id ?? null,
           greetingRequestId: id,
           requestedProfileId: pending.request.requestedProfileId,
           title: pending.request.job.title,
@@ -665,13 +855,29 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         return sendJson(res, 200, { ok: true, id, action: resolution.action, source });
       }
 
-      const match = /^\/p\/([A-Za-z0-9._-]+)\/(client-config|tags|get-introduce|observe-job|get-job-score|get-followup-context|log-action|reply|is-need-resume|is-need-works)$/.exec(url.pathname);
+      const match = /^\/p\/([A-Za-z0-9._-]+)\/(client-config|runtime-control|tags|get-introduce|observe-job|get-job-score|get-followup-context|log-action|reply|is-need-resume|is-need-works)$/.exec(url.pathname);
       if (!match) return sendJson(res, 404, { error: 'not_found' });
       const requestedProfileId = match[1]!;
       const action = match[2]!;
       const [profiles, applicant] = await Promise.all([options.client.resume.listProfiles(), options.client.applicant.getProfile()]);
       const requested = profiles.items.find((profile) => profile.id === requestedProfileId) ?? profiles.items[0] ?? null;
       if (!requested) return sendJson(res, 503, { error: 'no_resume_profiles' });
+
+      if (req.method === 'GET' && action === 'runtime-control') {
+        lastRuntimePollAt = new Date().toISOString();
+        const pageUrl = url.searchParams.get('pageUrl');
+        const pageTitle = url.searchParams.get('pageTitle');
+        lastRuntimePageUrl = pageUrl ? pageUrl.slice(0, 2000) : lastRuntimePageUrl;
+        lastRuntimePageTitle = pageTitle ? pageTitle.slice(0, 500) : lastRuntimePageTitle;
+        const snapshot = runtimeControl.current();
+        return sendJson(res, 200, {
+          runtimeId: BOSS_COMPAT_RUNTIME_DESCRIPTOR.runtimeId,
+          taskId: snapshot.task?.id ?? null,
+          desiredState: snapshot.task ? snapshot.desiredState : 'paused',
+          updatedAt: snapshot.updatedAt,
+          policy: snapshot.task?.policy ?? null,
+        });
+      }
 
       if (req.method === 'GET' && action === 'client-config') {
         return sendJson(res, 200, {
@@ -835,6 +1041,31 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           return sendJson(res, 200, decision);
         }
 
+        const runtimeState = await getRuntimeExecutionState();
+        const policyReason = runtimeExternalEffectBlockReason(runtimeState, 'greeting');
+        if (runtimeState && policyReason) {
+          const decision: BossJobDecision = {
+            ...scored,
+            score: Math.min(scored.score, Math.max(0, greetingThreshold - 1)),
+            decision: 'low-match',
+            policyBlocked: true,
+            policyReason,
+          };
+          rememberDecision(job, decision);
+          await appendEvent(options.logPath, {
+            loggedAt: new Date().toISOString(),
+            action: 'runtime_policy_blocked',
+            runtimeTaskId: runtimeState.task.id,
+            title: job.title,
+            jobId: decision.jobId ?? null,
+            listingId: decision.listingId ?? null,
+            reason: policyReason,
+            usedExternalEffects: runtimeState.usedExternalEffects,
+            maxExternalEffects: runtimeState.task.policy.maxExternalEffects,
+          });
+          return sendJson(res, 200, decision);
+        }
+
         let decision = scored;
         if (scored.score >= greetingThreshold) {
           const pending = await createPendingGreeting(requestedProfileId, job, scored, applicant.profile);
@@ -847,7 +1078,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
               decision: 'low-match',
               greetingRequestId: pending.request.id,
               policyBlocked: true,
-              policyReason: `chatgpt-skip:${resolution.reason}`,
+              policyReason: `${resolution.source === 'job-harness-policy' ? 'runtime-skip' : 'chatgpt-skip'}:${resolution.reason}`,
             };
           } else {
             decision = { ...scored, introduce: resolution.message, greetingRequestId: pending.request.id };
@@ -859,6 +1090,8 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
 
       if (req.method === 'POST' && action === 'log-action') {
         const body = safeActionPayload(await readJsonBody(req));
+        const activeRuntime = runtimeControl.current();
+        if (!body.runtimeTaskId && activeRuntime.task && activeRuntime.desiredState === 'running') body.runtimeTaskId = activeRuntime.task.id;
         const title = typeof body.title === 'string' ? body.title : '';
         const bodyJobId = typeof body.jobId === 'string' ? body.jobId : '';
         const decision = (bodyJobId ? recentDecisionsByJobId.get(bodyJobId) : null) ?? (title ? recentDecisions.get(title) : null) ?? null;
@@ -891,6 +1124,24 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
 
       if (req.method === 'POST' && action === 'is-need-resume') {
         const input = BossResumeFollowupRequestSchema.parse(await readJsonBody(req));
+        const runtimeState = await getRuntimeExecutionState();
+        const reason = runtimeExternalEffectBlockReason(runtimeState, 'resumeFollowup');
+        if (runtimeState && reason) {
+          await appendEvent(options.logPath, {
+            loggedAt: new Date().toISOString(),
+            action: 'resume_followup_denied',
+            runtimeTaskId: runtimeState.task.id,
+            requestedProfileId,
+            title: input.title,
+            company: input.company ?? null,
+            salary: input.salary ?? null,
+            score: input.score,
+            resumeIndex: input.resumeIndex,
+            reason,
+            intent: 'none',
+          });
+          return sendJson(res, 200, { need: false, intent: 'none', reason });
+        }
         const decision = decideBossResumeFollowup(input, 58);
         await appendEvent(options.logPath, {
           loggedAt: new Date().toISOString(),

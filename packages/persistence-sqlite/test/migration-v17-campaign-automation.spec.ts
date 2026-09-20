@@ -24,6 +24,7 @@ describe('SQLite v17 Campaign automation policy', () => {
       expect(row.automation_json).toBe('{}');
       expect(CampaignAutomationPolicySchema.parse(JSON.parse(row.automation_json))).toEqual({
         collection: { enabled: true },
+        outreach: { enabled: true, autoStartEnabled: false, greetingEnabled: true, recruiterInboxEnabled: true, resumeFollowupEnabled: true, maxExternalEffectsPerRun: 20 },
         officialSite: { prepareEnabled: true, fillEnabled: true, submitEnabled: false, preferredResumeProfileId: null },
         email: { draftEnabled: true, sendEnabled: false, preferredResumeProfileId: null },
       });

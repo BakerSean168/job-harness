@@ -497,6 +497,18 @@
         }
 
         /**
+         * 获取 Job Harness 粗粒度 Site Runtime 控制状态。
+         * 站点内部仍由成熟 Copilot 状态机执行，不把 DOM click/fill 暴露给控制面。
+         */
+        getRuntimeControl() {
+            const params = new URLSearchParams({
+                pageUrl: String(location.href || '').slice(0, 2000),
+                pageTitle: String(document.title || '').slice(0, 500),
+            });
+            return new Promise((resolve, reject) => this.__http(`/runtime-control?${params.toString()}`).then(resolve).catch(reject));
+        }
+
+        /**
          * 获取职位匹配度
          * @param {string} title 职位标题
          * @param {string} salary 薪资范围
@@ -691,6 +703,18 @@
         remove() {
             this.ctn.remove();
         }
+
+        isPaused() {
+            return this.__pause;
+        }
+
+        start() {
+            if (this.__pause) this.runBtn.click();
+        }
+
+        pause() {
+            if (!this.__pause) this.runBtn.click();
+        }
     }
 
     // boss 直聘
@@ -750,6 +774,10 @@
             let currentTagIdx = -1;
             const screeningSessionId = `boss-screen-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
             const processedJobHrefs = new Set();
+            let activeRuntimeTaskId = null;
+            let runtimePolicy = null;
+            let configuredGreetingThreshold = OPTIONS.thread;
+            let lastRuntimeControlKey = '';
 
             // 日志启动暂停事件
             const logger = new Logger(() => {
@@ -943,11 +971,32 @@
 
             const logAction = async (payload) => {
                 try {
-                    await api.logAction(payload);
+                    await api.logAction(activeRuntimeTaskId ? { ...payload, runtimeTaskId: activeRuntimeTaskId } : payload);
                 } catch (e) {
                     console.log('logAction failed', e);
                 }
             };
+
+            const applyRuntimeControl = async () => {
+                const control = await api.getRuntimeControl().catch(() => null);
+                if (!control || !control.taskId) return;
+                activeRuntimeTaskId = control.taskId;
+                runtimePolicy = control.policy || null;
+                OPTIONS.thread = runtimePolicy && runtimePolicy.greeting === false ? 101 : configuredGreetingThreshold;
+                const key = `${control.taskId}:${control.desiredState}`;
+                if (key === lastRuntimeControlKey) return;
+                lastRuntimeControlKey = key;
+                if (control.desiredState === 'running') {
+                    await logAction({ action: 'runtime_task_started', scene: 'search', reason: 'job-harness-control' });
+                    logger.start();
+                } else {
+                    logger.pause();
+                    await logAction({ action: 'runtime_task_paused', scene: 'search', reason: 'job-harness-control' });
+                }
+            };
+            const runtimeControlTimer = setInterval(() => void applyRuntimeControl(), 2000);
+            window.addEventListener('beforeunload', () => clearInterval(runtimeControlTimer), { once: true });
+            void applyRuntimeControl();
 
             // 获取职位信息
             const getJobInfo = async (href) => {
@@ -1321,6 +1370,8 @@
                         OPTIONS.preloadMaxRounds = Math.min(Number(OPTIONS.preloadMaxRounds || JAC_SCREENING_PRELOAD_MAX_ROUNDS), JAC_SCREENING_PRELOAD_MAX_ROUNDS);
                         OPTIONS.preloadStableRoundsLimit = Math.min(Number(OPTIONS.preloadStableRoundsLimit || JAC_SCREENING_PRELOAD_STABLE_ROUNDS), JAC_SCREENING_PRELOAD_STABLE_ROUNDS);
                     }
+                    configuredGreetingThreshold = OPTIONS.thread;
+                    if (runtimePolicy && runtimePolicy.greeting === false) OPTIONS.thread = 101;
                     logger.add('获取前端配置成功');
                 }
                 if (clientConfig && Array.isArray(clientConfig.tags) && clientConfig.tags.length) {
@@ -1904,6 +1955,25 @@
                     sayHi();
                 }
                 else if (isChat && !JAC_HARD_ONLY_GREET) {
+                    const runtimeControl = await api.getRuntimeControl().catch(() => null);
+                    const inboxBlockReason = runtimeControl && runtimeControl.taskId
+                        ? runtimeControl.desiredState !== 'running'
+                            ? 'runtime-task-paused'
+                            : runtimeControl.policy && runtimeControl.policy.recruiterInbox === false
+                                ? 'runtime-recruiter-inbox-disabled'
+                                : null
+                        : null;
+                    if (runtimeControl && runtimeControl.taskId && inboxBlockReason) {
+                        await logAction({
+                            action: 'runtime_inbox_scan_skipped',
+                            scene: 'chat',
+                            runtimeTaskId: runtimeControl.taskId,
+                            reason: inboxBlockReason,
+                        });
+                        await this.broadcast.send(this.targets.search, this.bcTypes.RUN, true);
+                        this.broadcast.destroy();
+                        return;
+                    }
                     // 日志
                     logger = new Logger();
                     logger.runBtn.remove();

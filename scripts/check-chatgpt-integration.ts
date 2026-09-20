@@ -26,6 +26,9 @@ async function main(): Promise<void> {
     'career_submission_intents_reconcile_pending',
     'boss_greetings_pending',
     'boss_greeting_resolve',
+    'boss_runtime_status',
+    'boss_runtime_start',
+    'boss_runtime_pause',
   ] as const;
 
   const names = new Set(JOB_HARNESS_MCP_TOOLS.map((tool) => tool.name));
@@ -33,7 +36,7 @@ async function main(): Promise<void> {
   if (missing.length) throw new Error(`ChatGPT integration is missing required MCP tools: ${missing.join(', ')}`);
 
   const externalTools = JOB_HARNESS_MCP_TOOLS.filter((tool) => tool.externalSideEffect).map((tool) => tool.name);
-  const expectedExternalTools = ['career_email_application_authorize_send', 'boss_greeting_resolve'];
+  const expectedExternalTools = ['career_email_application_authorize_send', 'boss_greeting_resolve', 'boss_runtime_start'];
   if (JSON.stringify(externalTools) !== JSON.stringify(expectedExternalTools)) {
     throw new Error(`Unexpected MCP external-side-effect surface: ${externalTools.join(', ') || '(none)'}`);
   }
@@ -49,7 +52,7 @@ async function main(): Promise<void> {
   }
 
   const workflowText = await readFile(new URL('../integrations/chatgpt/workflow-policy.md', import.meta.url), 'utf8');
-  for (const invariant of ['career_submission_intent_prepare', 'career_submission_intent_prepare_recommended', 'career_email_application_prepare', 'career_email_application_authorize_send', 'career_submission_intent_begin', 'career_submission_intent_confirm', 'needs_manual_review', 'boss_greetings_pending', 'boss_greeting_resolve']) {
+  for (const invariant of ['career_submission_intent_prepare', 'career_submission_intent_prepare_recommended', 'career_email_application_prepare', 'career_email_application_authorize_send', 'career_submission_intent_begin', 'career_submission_intent_confirm', 'needs_manual_review', 'boss_greetings_pending', 'boss_greeting_resolve', 'boss_runtime_status', 'boss_runtime_start', 'boss_runtime_pause']) {
     if (!workflowText.includes(invariant)) throw new Error(`ChatGPT workflow policy is missing recovery invariant '${invariant}'`);
   }
 

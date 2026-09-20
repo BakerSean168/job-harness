@@ -5,6 +5,7 @@ import { createJobHarnessRestClient } from '@job-harness/client';
 import { createBossOutreachBridge } from './boss-outreach-bridge';
 import { BossDiscoveryCoordinator } from './boss-discovery';
 import { patchBossResumeFollowupUserscript } from './boss-resume-followup';
+import { BossRuntimeControlStore } from './boss-runtime-control';
 
 const host = process.env.JOB_HARNESS_BOSS_BRIDGE_HOST?.trim() || '127.0.0.1';
 const port = Number(process.env.JOB_HARNESS_BOSS_BRIDGE_PORT || 18788);
@@ -33,6 +34,10 @@ try {
 } catch (error) {
   console.warn(`BOSS resume follow-up userscript is unavailable: ${error instanceof Error ? error.message : String(error)}`);
 }
+const runtimeControl = new BossRuntimeControlStore(
+  process.env.JOB_HARNESS_BOSS_RUNTIME_STATE?.trim() || join(homedir(), '.local', 'share', 'job-harness', 'data', 'boss-runtime-control.json'),
+);
+await runtimeControl.recover();
 const server = createBossOutreachBridge({
   client,
   publicBaseUrl: baseUrl,
@@ -44,6 +49,8 @@ const server = createBossOutreachBridge({
   campaignId,
   discovery,
   resumeFollowupUserscript,
+  runtimeControl,
+  controlToken: token,
 });
 
 server.listen(port, host, () => {

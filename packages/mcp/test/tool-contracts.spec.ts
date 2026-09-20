@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOSS_GREETING_MCP_TOOLS, CAREER_MCP_TOOLS, EMAIL_APPLICATION_MCP_TOOLS, JOB_HARNESS_MCP_TOOLS, RESUME_MCP_TOOLS } from '../src';
+import { BOSS_GREETING_MCP_TOOLS, BOSS_RUNTIME_MCP_TOOLS, CAREER_MCP_TOOLS, EMAIL_APPLICATION_MCP_TOOLS, JOB_HARNESS_MCP_TOOLS, RESUME_MCP_TOOLS } from '../src';
 
 const expectedNames = [
   'career_context_get',
@@ -30,6 +30,7 @@ const expectedNames = [
 ];
 
 const expectedBossGreetingNames = ['boss_greetings_pending', 'boss_greeting_resolve'];
+const expectedBossRuntimeNames = ['boss_runtime_status', 'boss_runtime_start', 'boss_runtime_pause'];
 const expectedEmailApplicationNames = [
   'career_email_application_prepare',
   'career_email_application_get',
@@ -65,16 +66,19 @@ describe('MCP contract surface', () => {
   });
 
 
-  it('exposes narrow Resume/Email/BOSS surfaces with only two bounded external-effect tools', () => {
+  it('exposes narrow Resume/Email/BOSS surfaces with only explicit bounded external-effect tools', () => {
     expect(RESUME_MCP_TOOLS.map((tool) => tool.name)).toEqual(expectedResumeNames);
     expect(EMAIL_APPLICATION_MCP_TOOLS.map((tool) => tool.name)).toEqual(expectedEmailApplicationNames);
     expect(BOSS_GREETING_MCP_TOOLS.map((tool) => tool.name)).toEqual(expectedBossGreetingNames);
+    expect(BOSS_RUNTIME_MCP_TOOLS.map((tool) => tool.name)).toEqual(expectedBossRuntimeNames);
     const names = JOB_HARNESS_MCP_TOOLS.map((tool) => tool.name);
     expect(new Set(names).size).toBe(names.length);
-    expect(JOB_HARNESS_MCP_TOOLS.filter((tool) => tool.externalSideEffect).map((tool) => tool.name)).toEqual(['career_email_application_authorize_send', 'boss_greeting_resolve']);
+    expect(JOB_HARNESS_MCP_TOOLS.filter((tool) => tool.externalSideEffect).map((tool) => tool.name)).toEqual(['career_email_application_authorize_send', 'boss_greeting_resolve', 'boss_runtime_start']);
     expect(BOSS_GREETING_MCP_TOOLS.find((tool) => tool.name === 'boss_greetings_pending')?.mutability).toBe('read');
     expect(EMAIL_APPLICATION_MCP_TOOLS.find((tool) => tool.name === 'career_email_application_authorize_send')?.idempotent).toBe(false);
     expect(BOSS_GREETING_MCP_TOOLS.find((tool) => tool.name === 'boss_greeting_resolve')?.idempotent).toBe(false);
+    expect(BOSS_RUNTIME_MCP_TOOLS.find((tool) => tool.name === 'boss_runtime_start')?.idempotent).toBe(true);
+    expect(BOSS_RUNTIME_MCP_TOOLS.find((tool) => tool.name === 'boss_runtime_pause')?.externalSideEffect).toBe(false);
     expect(names.some((name) => name.includes('database') || name.includes('raw_sql') || name.includes('submit_application'))).toBe(false);
   });
 

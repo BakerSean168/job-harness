@@ -194,12 +194,13 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   });
   const jobResume = createJobResumePreparationService(application, resume, resumeArtifacts);
   const emailApplication = createEmailApplicationService(application, resume, applicant, jobResume, emailApplicationStore);
-  const bossGreeting = createBossGreetingMcpBridge({
-    baseUrl: options.bossGreetingBridgeUrl ?? 'http://127.0.0.1:18788',
-  });
-  const runtime = createJobHarnessMcpRuntime(application, resume, resumeArtifacts, jobResume, emailApplication, bossGreeting);
-  const host = options.host ?? '127.0.0.1';
   const authToken = options.authToken?.trim() || null;
+  const bossBridge = createBossGreetingMcpBridge({
+    baseUrl: options.bossGreetingBridgeUrl ?? 'http://127.0.0.1:18788',
+    controlToken: authToken,
+  });
+  const runtime = createJobHarnessMcpRuntime(application, resume, resumeArtifacts, jobResume, emailApplication, bossBridge, authToken ? bossBridge : undefined);
+  const host = options.host ?? '127.0.0.1';
   const executorAuthToken = options.executorAuthToken?.trim() || null;
   const app = express();
   if (['127.0.0.1', 'localhost', '::1'].includes(host)) app.use(localhostHostValidation());

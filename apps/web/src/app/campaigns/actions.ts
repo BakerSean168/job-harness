@@ -45,6 +45,14 @@ export async function saveCampaignAction(
     resumeProfileIds: formData.getAll('resumeProfileIds').filter((value): value is string => typeof value === 'string'),
     automation: {
       collection: { enabled: formData.get('automationCollectionEnabled') === 'on' },
+      outreach: {
+        enabled: formData.get('automationOutreachEnabled') === 'on',
+        autoStartEnabled: formData.get('automationOutreachAutoStartEnabled') === 'on',
+        greetingEnabled: formData.get('automationOutreachGreetingEnabled') === 'on',
+        recruiterInboxEnabled: formData.get('automationOutreachRecruiterInboxEnabled') === 'on',
+        resumeFollowupEnabled: formData.get('automationOutreachResumeFollowupEnabled') === 'on',
+        maxExternalEffectsPerRun: Math.max(0, Math.min(500, Number.parseInt(text(formData, 'automationOutreachMaxExternalEffectsPerRun') || '20', 10) || 0)),
+      },
       officialSite: {
         prepareEnabled: formData.get('automationOfficialPrepareEnabled') === 'on',
         fillEnabled: formData.get('automationOfficialFillEnabled') === 'on',

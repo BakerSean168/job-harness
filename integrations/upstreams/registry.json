@@ -16,7 +16,7 @@
           "upstreamPath": "web_script.js",
           "upstreamSha256": "fd00792dfe5603e68dcfb0e195fd626e13133c62ed259f3562655669c1412071",
           "localPath": "integrations/boss/legacy-copilot.user.js",
-          "localSha256": "6591d33b41eaec8b4312effa805f0fbd1ab0f8bb5a2204e84bc45c206ea324e3",
+          "localSha256": "230c02423c8891258079f9a21cf26051dbb864cf1d7ed40ab295d4f1e65368ec",
           "overlayPath": "integrations/upstreams/overlays/czc-good-job-web-script.patch"
         }
       ],

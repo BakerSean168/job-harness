@@ -46939,6 +46939,14 @@
                               "collection": {
                                 "enabled": true
                               },
+                              "outreach": {
+                                "enabled": true,
+                                "autoStartEnabled": false,
+                                "greetingEnabled": true,
+                                "recruiterInboxEnabled": true,
+                                "resumeFollowupEnabled": true,
+                                "maxExternalEffectsPerRun": 20
+                              },
                               "officialSite": {
                                 "prepareEnabled": true,
                                 "fillEnabled": true,
@@ -46966,6 +46974,54 @@
                                 },
                                 "required": [
                                   "enabled"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "outreach": {
+                                "default": {
+                                  "enabled": true,
+                                  "autoStartEnabled": false,
+                                  "greetingEnabled": true,
+                                  "recruiterInboxEnabled": true,
+                                  "resumeFollowupEnabled": true,
+                                  "maxExternalEffectsPerRun": 20
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "enabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "autoStartEnabled": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  },
+                                  "greetingEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "recruiterInboxEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "resumeFollowupEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "maxExternalEffectsPerRun": {
+                                    "default": 20,
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 500
+                                  }
+                                },
+                                "required": [
+                                  "enabled",
+                                  "autoStartEnabled",
+                                  "greetingEnabled",
+                                  "recruiterInboxEnabled",
+                                  "resumeFollowupEnabled",
+                                  "maxExternalEffectsPerRun"
                                 ],
                                 "additionalProperties": false
                               },
@@ -47052,6 +47108,7 @@
                             },
                             "required": [
                               "collection",
+                              "outreach",
                               "officialSite",
                               "email"
                             ],
@@ -47452,6 +47509,14 @@
                         "collection": {
                           "enabled": true
                         },
+                        "outreach": {
+                          "enabled": true,
+                          "autoStartEnabled": false,
+                          "greetingEnabled": true,
+                          "recruiterInboxEnabled": true,
+                          "resumeFollowupEnabled": true,
+                          "maxExternalEffectsPerRun": 20
+                        },
                         "officialSite": {
                           "prepareEnabled": true,
                           "fillEnabled": true,
@@ -47479,6 +47544,54 @@
                           },
                           "required": [
                             "enabled"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "outreach": {
+                          "default": {
+                            "enabled": true,
+                            "autoStartEnabled": false,
+                            "greetingEnabled": true,
+                            "recruiterInboxEnabled": true,
+                            "resumeFollowupEnabled": true,
+                            "maxExternalEffectsPerRun": 20
+                          },
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "autoStartEnabled": {
+                              "default": false,
+                              "type": "boolean"
+                            },
+                            "greetingEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "recruiterInboxEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "resumeFollowupEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "maxExternalEffectsPerRun": {
+                              "default": 20,
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 500
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "autoStartEnabled",
+                            "greetingEnabled",
+                            "recruiterInboxEnabled",
+                            "resumeFollowupEnabled",
+                            "maxExternalEffectsPerRun"
                           ],
                           "additionalProperties": false
                         },
@@ -47565,6 +47678,7 @@
                       },
                       "required": [
                         "collection",
+                        "outreach",
                         "officialSite",
                         "email"
                       ],
@@ -47950,6 +48064,14 @@
                         "collection": {
                           "enabled": true
                         },
+                        "outreach": {
+                          "enabled": true,
+                          "autoStartEnabled": false,
+                          "greetingEnabled": true,
+                          "recruiterInboxEnabled": true,
+                          "resumeFollowupEnabled": true,
+                          "maxExternalEffectsPerRun": 20
+                        },
                         "officialSite": {
                           "prepareEnabled": true,
                           "fillEnabled": true,
@@ -47977,6 +48099,54 @@
                           },
                           "required": [
                             "enabled"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "outreach": {
+                          "default": {
+                            "enabled": true,
+                            "autoStartEnabled": false,
+                            "greetingEnabled": true,
+                            "recruiterInboxEnabled": true,
+                            "resumeFollowupEnabled": true,
+                            "maxExternalEffectsPerRun": 20
+                          },
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "autoStartEnabled": {
+                              "default": false,
+                              "type": "boolean"
+                            },
+                            "greetingEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "recruiterInboxEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "resumeFollowupEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "maxExternalEffectsPerRun": {
+                              "default": 20,
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 500
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "autoStartEnabled",
+                            "greetingEnabled",
+                            "recruiterInboxEnabled",
+                            "resumeFollowupEnabled",
+                            "maxExternalEffectsPerRun"
                           ],
                           "additionalProperties": false
                         },
@@ -48063,6 +48233,7 @@
                       },
                       "required": [
                         "collection",
+                        "outreach",
                         "officialSite",
                         "email"
                       ],
@@ -48418,6 +48589,14 @@
                       "collection": {
                         "enabled": true
                       },
+                      "outreach": {
+                        "enabled": true,
+                        "autoStartEnabled": false,
+                        "greetingEnabled": true,
+                        "recruiterInboxEnabled": true,
+                        "resumeFollowupEnabled": true,
+                        "maxExternalEffectsPerRun": 20
+                      },
                       "officialSite": {
                         "prepareEnabled": true,
                         "fillEnabled": true,
@@ -48445,6 +48624,54 @@
                         },
                         "required": [
                           "enabled"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "outreach": {
+                        "default": {
+                          "enabled": true,
+                          "autoStartEnabled": false,
+                          "greetingEnabled": true,
+                          "recruiterInboxEnabled": true,
+                          "resumeFollowupEnabled": true,
+                          "maxExternalEffectsPerRun": 20
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "autoStartEnabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "greetingEnabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "recruiterInboxEnabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "resumeFollowupEnabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "maxExternalEffectsPerRun": {
+                            "default": 20,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 500
+                          }
+                        },
+                        "required": [
+                          "enabled",
+                          "autoStartEnabled",
+                          "greetingEnabled",
+                          "recruiterInboxEnabled",
+                          "resumeFollowupEnabled",
+                          "maxExternalEffectsPerRun"
                         ],
                         "additionalProperties": false
                       },
@@ -48531,6 +48758,7 @@
                     },
                     "required": [
                       "collection",
+                      "outreach",
                       "officialSite",
                       "email"
                     ],
@@ -70860,6 +71088,14 @@
                               "collection": {
                                 "enabled": true
                               },
+                              "outreach": {
+                                "enabled": true,
+                                "autoStartEnabled": false,
+                                "greetingEnabled": true,
+                                "recruiterInboxEnabled": true,
+                                "resumeFollowupEnabled": true,
+                                "maxExternalEffectsPerRun": 20
+                              },
                               "officialSite": {
                                 "prepareEnabled": true,
                                 "fillEnabled": true,
@@ -70887,6 +71123,54 @@
                                 },
                                 "required": [
                                   "enabled"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "outreach": {
+                                "default": {
+                                  "enabled": true,
+                                  "autoStartEnabled": false,
+                                  "greetingEnabled": true,
+                                  "recruiterInboxEnabled": true,
+                                  "resumeFollowupEnabled": true,
+                                  "maxExternalEffectsPerRun": 20
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "enabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "autoStartEnabled": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  },
+                                  "greetingEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "recruiterInboxEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "resumeFollowupEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "maxExternalEffectsPerRun": {
+                                    "default": 20,
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 500
+                                  }
+                                },
+                                "required": [
+                                  "enabled",
+                                  "autoStartEnabled",
+                                  "greetingEnabled",
+                                  "recruiterInboxEnabled",
+                                  "resumeFollowupEnabled",
+                                  "maxExternalEffectsPerRun"
                                 ],
                                 "additionalProperties": false
                               },
@@ -70973,6 +71257,7 @@
                             },
                             "required": [
                               "collection",
+                              "outreach",
                               "officialSite",
                               "email"
                             ],

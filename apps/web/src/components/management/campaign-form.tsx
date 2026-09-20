@@ -93,6 +93,16 @@ export function CampaignForm({
           </div>
           <div className="management-field-grid">
             <div className="management-field">
+              <strong>{copy.form.outreach}</strong>
+              <label><input type="checkbox" name="automationOutreachEnabled" defaultChecked={campaign?.automation.outreach.enabled ?? true} /> <span>{copy.form.outreachEnabled}</span></label>
+              <label><input type="checkbox" name="automationOutreachAutoStartEnabled" defaultChecked={campaign?.automation.outreach.autoStartEnabled ?? false} /> <span>{copy.form.outreachAutoStartEnabled}</span></label>
+              <label><input type="checkbox" name="automationOutreachGreetingEnabled" defaultChecked={campaign?.automation.outreach.greetingEnabled ?? true} /> <span>{copy.form.outreachGreetingEnabled}</span></label>
+              <label><input type="checkbox" name="automationOutreachRecruiterInboxEnabled" defaultChecked={campaign?.automation.outreach.recruiterInboxEnabled ?? true} /> <span>{copy.form.outreachRecruiterInboxEnabled}</span></label>
+              <label><input type="checkbox" name="automationOutreachResumeFollowupEnabled" defaultChecked={campaign?.automation.outreach.resumeFollowupEnabled ?? true} /> <span>{copy.form.outreachResumeFollowupEnabled}</span></label>
+              <span>{copy.form.outreachMaxExternalEffectsPerRun}</span>
+              <input type="number" name="automationOutreachMaxExternalEffectsPerRun" min="0" max="500" defaultValue={campaign?.automation.outreach.maxExternalEffectsPerRun ?? 20} />
+            </div>
+            <div className="management-field">
               <strong>{copy.form.officialSite}</strong>
               <label><input type="checkbox" name="automationOfficialPrepareEnabled" defaultChecked={campaign?.automation.officialSite.prepareEnabled ?? true} /> <span>{copy.form.officialPrepareEnabled}</span></label>
               <label><input type="checkbox" name="automationOfficialFillEnabled" defaultChecked={campaign?.automation.officialSite.fillEnabled ?? true} /> <span>{copy.form.officialFillEnabled}</span></label>

@@ -270,7 +270,7 @@ async function x(){
                                     await sendMsg('不好意思，不太合适哈，祝早日找到合适的人选。')
 }`;
     const resumeFollowupUserscript = patchBossResumeFollowupUserscript(followupSource, { publicUrl: 'https://boss-bridge.example.test/boss-resume-followup.user.js' });
-    const server = createBossOutreachBridge({ client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0, greetingWaitMs: 5_000, campaignId: 'campaign-1', resumeFollowupUserscript });
+    const server = createBossOutreachBridge({ client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0, greetingWaitMs: 5_000, campaignId: 'campaign-1', resumeFollowupUserscript, controlToken: 'runtime-control-secret' });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     try {
       const address = server.address();
@@ -282,6 +282,33 @@ async function x(){
       expect(await clientConfig.json()).toMatchObject({
         frontend: { preloadStableRoundsLimit: 8, preloadMaxRounds: 30 },
       });
+
+      const unauthorizedStart = await fetch(`${base}/api/runtime/tasks/start`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'manual', idempotencyKey: 'runtime-run-1' }),
+      });
+      expect(unauthorizedStart.status).toBe(401);
+      const automaticStart = await fetch(`${base}/api/runtime/tasks/start`, {
+        method: 'POST', headers: { authorization: 'Bearer runtime-control-secret', 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'automatic', idempotencyKey: 'runtime-run-1' }),
+      });
+      expect(automaticStart.status).toBe(409);
+      expect(await automaticStart.json()).toMatchObject({ error: 'runtime_auto_start_disabled' });
+      const manualStart = await fetch(`${base}/api/runtime/tasks/start`, {
+        method: 'POST', headers: { authorization: 'Bearer runtime-control-secret', 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'manual', idempotencyKey: 'runtime-run-1' }),
+      });
+      expect(manualStart.status).toBe(200);
+      const startedRuntime = await manualStart.json() as any;
+      expect(startedRuntime).toMatchObject({
+        desiredState: 'running',
+        task: { runtimeId: 'boss-czc-good-job', site: 'boss', kind: 'campaign-discovery', campaignId: 'campaign-1', policy: { greeting: true, recruiterInbox: true, resumeFollowup: true, finalSubmit: false, maxExternalEffects: 20 } },
+      });
+      const browserControl = await fetch(`${base}/p/ai-agent-app/runtime-control`);
+      expect(await browserControl.json()).toMatchObject({ taskId: startedRuntime.task.id, desiredState: 'running', policy: { greeting: true, maxExternalEffects: 20 } });
+      const runtimeStartedLog = await fetch(`${base}/p/ai-agent-app/log-action`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'runtime_task_started', scene: 'search', runtimeTaskId: startedRuntime.task.id, reason: 'job-harness-control' }),
+      });
+      expect(runtimeStartedLog.status).toBe(200);
+      const runtimeHealth = await fetch(`${base}/api/runtime/health`);
+      expect(await runtimeHealth.json()).toMatchObject({ runtimeId: 'boss-czc-good-job', state: 'ready', browserConnected: true, activeTaskId: startedRuntime.task.id });
 
       const reporter = await fetch(`${base}/boss-discovery-reporter.user.js`);
       expect(reporter.status).toBe(200);
@@ -320,6 +347,19 @@ async function x(){
       expect(rows.at(-1)).toMatchObject({ action: 'greet_sent', recommendedProfileId: 'ai-agent-forgeflow' });
       expect(rows.at(-1)).not.toHaveProperty('unexpectedSecret');
 
+      const runtimeDescriptor = await fetch(`${base}/api/runtime/descriptor`);
+      expect(await runtimeDescriptor.json()).toMatchObject({
+        runtimeId: 'boss-czc-good-job',
+        site: 'boss',
+        implementation: 'upstream-direct',
+        controlGranularity: 'business-task',
+        upstream: { project: 'czc-good-job', commit: 'e07bf4cb663d9531864ca22eb6195b77e064c3b5', license: 'MIT' },
+      });
+      const runtimeEvents = await fetch(`${base}/api/runtime/events?limit=20`);
+      const runtimeEventBody = await runtimeEvents.json() as { items: Array<Record<string, unknown>> };
+      expect(runtimeEventBody.items.some((event) => event.type === 'greeting-requested' && event.externalEffect === false)).toBe(true);
+      expect(runtimeEventBody.items.some((event) => event.type === 'greeting-sent' && event.externalEffect === true)).toBe(true);
+
       const resumeNeed = await fetch(`${base}/p/ai-agent-app/is-need-resume`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
         msgs: [{ role: 'assistant', content: '您好' }, { role: 'user', content: '方便聊一下吗' }],
         needResume: 0, resumeSended: false, title: 'Agent开发工程师', company: '示例科技', salary: '15-25K', score: 90, resumeIndex: 0,
@@ -328,6 +368,38 @@ async function x(){
       const reply = await fetch(`${base}/p/ai-agent-app/reply`, { method: 'POST', body: JSON.stringify('hello') });
       expect(reply.status).toBe(409);
       expect(await reply.json()).toMatchObject({ error: 'resume_followup_mode' });
+
+      const pausedScorePromise = fetch(`${base}/p/ai-agent-app/get-job-score`, { method: 'POST', body: JSON.stringify(payload), headers: { 'content-type': 'application/json' } });
+      let pausedGreetingRequestId = '';
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        const response = await fetch(`${base}/api/greetings/pending`);
+        const body = await response.json() as { items?: Array<{ id?: string }> };
+        pausedGreetingRequestId = body.items?.[0]?.id ?? '';
+        if (pausedGreetingRequestId) break;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(pausedGreetingRequestId).not.toBe('');
+      const pauseRuntime = await fetch(`${base}/api/runtime/tasks/${startedRuntime.task.id}/pause`, {
+        method: 'POST', headers: { authorization: 'Bearer runtime-control-secret', 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'test-pause' }),
+      });
+      expect(await pauseRuntime.json()).toMatchObject({ desiredState: 'paused', reason: 'test-pause', task: { id: startedRuntime.task.id } });
+      const pausedControl = await fetch(`${base}/p/ai-agent-app/runtime-control`);
+      expect(await pausedControl.json()).toMatchObject({ taskId: startedRuntime.task.id, desiredState: 'paused' });
+      const pausedHealth = await fetch(`${base}/api/runtime/health`);
+      expect(await pausedHealth.json()).toMatchObject({ state: 'paused', browserConnected: true, activeTaskId: startedRuntime.task.id });
+      const blockedResolve = await fetch(`${base}/api/greetings/${pausedGreetingRequestId}/resolve`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'send', message: greeting, source: 'chatgpt-web-test' }),
+        headers: { 'content-type': 'application/json' },
+      });
+      expect(await blockedResolve.json()).toMatchObject({ ok: true, id: pausedGreetingRequestId, action: 'skip', source: 'job-harness-policy', reason: 'runtime-task-paused' });
+      const pausedScore = await pausedScorePromise;
+      expect(await pausedScore.json()).toMatchObject({ policyBlocked: true, policyReason: 'runtime-skip:runtime-task-paused' });
+      const pausedResumeNeed = await fetch(`${base}/p/ai-agent-app/is-need-resume`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        msgs: [{ role: 'assistant', content: '您好' }, { role: 'user', content: '发一份简历看看' }],
+        needResume: 0, resumeSended: false, title: 'Agent开发工程师', company: '示例科技', salary: '15-25K', score: 90, resumeIndex: 0,
+      }) });
+      expect(await pausedResumeNeed.json()).toEqual({ need: false, intent: 'none', reason: 'runtime-task-paused' });
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }

@@ -26,6 +26,9 @@
       "path": "../../packages/importers"
     },
     {
+      "path": "../../packages/recruitment-runtime-contracts"
+    },
+    {
       "path": "../../packages/apply-contracts"
     },
     {

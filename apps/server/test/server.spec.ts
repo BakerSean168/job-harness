@@ -24,10 +24,11 @@ describe('standalone Streamable HTTP MCP server', () => {
       databasePath: join(dir, 'career.db'),
       host: '127.0.0.1',
       port: 0,
+      authToken: 'test-secret',
     });
 
     const client = new Client({ name: 'job-harness-test', version: '1.0.0' });
-    const transport = new StreamableHTTPClientTransport(new URL(running.mcpUrl));
+    const transport = new StreamableHTTPClientTransport(new URL(running.mcpUrl), { requestInit: { headers: { authorization: 'Bearer test-secret' } } });
     await client.connect(transport);
     const tools = await client.listTools();
     expect(tools.tools.map((tool) => tool.name)).toContain('career_jobs_search');
@@ -38,9 +39,15 @@ describe('standalone Streamable HTTP MCP server', () => {
     expect(tools.tools.map((tool) => tool.name)).toContain('career_submission_intents_reconcile_pending');
     expect(tools.tools.map((tool) => tool.name)).toContain('boss_greetings_pending');
     expect(tools.tools.map((tool) => tool.name)).toContain('boss_greeting_resolve');
+    expect(tools.tools.map((tool) => tool.name)).toContain('boss_runtime_status');
+    expect(tools.tools.map((tool) => tool.name)).toContain('boss_runtime_start');
+    expect(tools.tools.map((tool) => tool.name)).toContain('boss_runtime_pause');
     expect(tools.tools.map((tool) => tool.name)).toContain('career_email_application_authorize_send');
     expect(tools.tools.find((tool) => tool.name === 'boss_greetings_pending')?.annotations?.readOnlyHint).toBe(true);
     expect(tools.tools.find((tool) => tool.name === 'boss_greeting_resolve')?.annotations?.openWorldHint).toBe(true);
+    expect(tools.tools.find((tool) => tool.name === 'boss_runtime_status')?.annotations?.readOnlyHint).toBe(true);
+    expect(tools.tools.find((tool) => tool.name === 'boss_runtime_start')?.annotations?.openWorldHint).toBe(true);
+    expect(tools.tools.find((tool) => tool.name === 'boss_runtime_pause')?.annotations?.openWorldHint).toBe(false);
     expect(tools.tools.find((tool) => tool.name === 'career_email_application_authorize_send')?.annotations?.openWorldHint).toBe(true);
 
     const result = await client.callTool({ name: 'career_pipeline_stats', arguments: {} });

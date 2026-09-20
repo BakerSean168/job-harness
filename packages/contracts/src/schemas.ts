@@ -193,6 +193,14 @@ export const CampaignAutomationPolicySchema = z.object({
   collection: z.object({
     enabled: z.boolean().default(true),
   }).strict().default({ enabled: true }),
+  outreach: z.object({
+    enabled: z.boolean().default(true),
+    autoStartEnabled: z.boolean().default(false),
+    greetingEnabled: z.boolean().default(true),
+    recruiterInboxEnabled: z.boolean().default(true),
+    resumeFollowupEnabled: z.boolean().default(true),
+    maxExternalEffectsPerRun: z.number().int().min(0).max(500).default(20),
+  }).strict().default({ enabled: true, autoStartEnabled: false, greetingEnabled: true, recruiterInboxEnabled: true, resumeFollowupEnabled: true, maxExternalEffectsPerRun: 20 }),
   officialSite: z.object({
     prepareEnabled: z.boolean().default(true),
     fillEnabled: z.boolean().default(true),
@@ -236,6 +244,7 @@ export const JobSearchCampaignSchema = z
     resumeProfileIds: z.array(EntityIdSchema).default([]),
     automation: CampaignAutomationPolicySchema.default({
       collection: { enabled: true },
+      outreach: { enabled: true, autoStartEnabled: false, greetingEnabled: true, recruiterInboxEnabled: true, resumeFollowupEnabled: true, maxExternalEffectsPerRun: 20 },
       officialSite: { prepareEnabled: true, fillEnabled: true, submitEnabled: false, preferredResumeProfileId: null },
       email: { draftEnabled: true, sendEnabled: false, preferredResumeProfileId: null },
     }),
