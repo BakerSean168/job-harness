@@ -29,7 +29,7 @@ async function main(): Promise<void> {
   const getJobs = external[0]!;
   if (getJobs.mode !== 'collect-only' || getJobs.sites.join(',') !== 'zhilian,liepin,job51') throw new Error('get_jobs external Runtime must remain collection-only for the three approved sites');
   if (!/^[0-9a-f]{64}$/.test(getJobs.version)) throw new Error('get_jobs external Runtime version must be content-addressed');
-  if (getJobs.overlays.length !== 6) throw new Error('get_jobs external Runtime overlay set changed unexpectedly');
+  if (getJobs.overlays.length !== 7) throw new Error('get_jobs external Runtime overlay set changed unexpectedly');
   for (const file of [getJobs.bootstrap, getJobs.manager, ...getJobs.overlays]) {
     if (!/^[0-9a-f]{64}$/.test(file.sha256) || file.bytes <= 0) throw new Error(`Invalid external Runtime file metadata for ${file.id}`);
   }
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
     readFile(resolve(root, 'integrations/get-jobs-runtime/wsl/job-harness-get-jobs-supervisor.sh'), 'utf8'),
   ]);
 
-  for (const marker of ['JobHarness\\RecruitmentBrowser', "$currentRoot = Join-Path $runtimeRoot 'current'", '--user-data-dir=', '--load-extension=', '--remote-debugging-port=', 'Get-DedicatedBrowserProcesses', 'Get-FileHash', 'bundleVersion', 'Ensure-SupervisorCurrent', 'Get-RecruitmentSiteHealth', 'Get-BossRuntimeServerHealth', 'bossRuntimeOfflineStreak', 'lastSelfHealAction', 'lastSelfHealAt', 'login_required', 'challenge']) {
+  for (const marker of ['JobHarness\\RecruitmentBrowser', "$currentRoot = Join-Path $runtimeRoot 'current'", '--user-data-dir=', '--load-extension=', '--remote-debugging-port=', 'Get-DedicatedBrowserProcesses', 'Get-FileHash', 'bundleVersion', 'Ensure-SupervisorCurrent', 'Get-RecruitmentSiteHealth', 'Get-BossRuntimeServerHealth', 'Get-BossRuntimeServerControl', 'bossTaskRunning', 'bossRuntimeOfflineStreak', 'lastSelfHealAction', 'lastSelfHealAt', 'login_required', 'challenge']) {
     if (!supervisor.includes(marker)) throw new Error(`Recruitment Browser supervisor lost invariant '${marker}'`);
   }
   for (const forbidden of ['JOB_HARNESS_AUTH_TOKEN', 'JOB_HARNESS_EXECUTOR_AUTH_TOKEN', 'ssh ', 'sqlite3 ', 'server root']) {

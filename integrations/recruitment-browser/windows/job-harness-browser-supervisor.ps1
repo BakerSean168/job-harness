@@ -155,6 +155,16 @@ function Get-BossRuntimeServerHealth {
   }
 }
 
+function Get-BossRuntimeServerControl {
+  if (-not $BossRuntimeHealthUrl) { return $null }
+  $controlUrl = $BossRuntimeHealthUrl -replace '/health$', '/control'
+  try {
+    return Invoke-RestMethod -Uri $controlUrl -Method Get -TimeoutSec 8
+  } catch {
+    return $null
+  }
+}
+
 function Get-RecruitmentSiteHealth {
   $result = @{ boss = @{ state = 'unknown'; url = $null; title = $null } }
   try {
@@ -314,8 +324,10 @@ function Run-SupervisorIteration {
 
     $siteHealth = Get-RecruitmentSiteHealth
     $bossRuntimeHealth = Get-BossRuntimeServerHealth
+    $bossRuntimeControl = Get-BossRuntimeServerControl
     $selfHealAction = $null
-    if ($bossRuntimeHealth -and [string]$bossRuntimeHealth.state -eq 'offline' -and $siteHealth.boss.state -eq 'ready') {
+    $bossTaskRunning = $bossRuntimeControl -and $bossRuntimeControl.task -and [string]$bossRuntimeControl.desiredState -eq 'running'
+    if ($bossTaskRunning -and $bossRuntimeHealth -and [string]$bossRuntimeHealth.state -eq 'offline' -and $siteHealth.boss.state -eq 'ready') {
       $script:bossRuntimeOfflineStreak += 1
     } else {
       $script:bossRuntimeOfflineStreak = 0
@@ -331,12 +343,14 @@ function Run-SupervisorIteration {
       Start-Sleep -Seconds 3
       $siteHealth = Get-RecruitmentSiteHealth
       $bossRuntimeHealth = Get-BossRuntimeServerHealth
+      $bossRuntimeControl = Get-BossRuntimeServerControl
     }
 
     $statePatch = @{
       supervisorStatus = 'healthy'
       siteHealth = $siteHealth
       bossRuntimeHealth = $bossRuntimeHealth
+      bossRuntimeControl = $bossRuntimeControl
       bossRuntimeOfflineStreak = $script:bossRuntimeOfflineStreak
       lastError = $null
     }

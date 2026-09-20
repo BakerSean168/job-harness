@@ -109,7 +109,7 @@ JOB_HARNESS_GET_JOBS_RUNTIME_URL=http://127.0.0.1:18851 \
   pnpm --filter @job-harness/server get-jobs:runtime stop zhilian
 ```
 
-`login` and `start` both refuse to call their upstream endpoint unless the runtime marker confirms `collectOnly=true`. `login` only opens the upstream browser login flow; it does not begin collection or delivery.
+`login` and `start` both refuse to call their upstream endpoint unless the runtime marker confirms `collectOnly=true`. `login` only opens the upstream browser login flow; it does not begin collection or delivery. The Job Harness overlay also makes interactive login singleton-per-platform: repeated `/login` requests while a Camoufox login window is already active reuse that in-flight login instead of spawning more browser windows. A completed login or collection run still closes its Camoufox process by design; the next bounded run starts a fresh Camoufox context and restores the saved cookies.
 
 ## Job Harness MCP control surface
 

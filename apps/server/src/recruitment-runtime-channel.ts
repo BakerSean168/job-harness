@@ -103,6 +103,7 @@ const GET_JOBS_MANAGER: RuntimeFileDefinition = {
 
 const GET_JOBS_OVERLAYS: readonly RuntimeFileDefinition[] = [
   'main.py.patch',
+  'jobs.py.patch',
   'schemas.py.patch',
   'zhilian_bot.py.patch',
   'zhilian_locators.py.patch',

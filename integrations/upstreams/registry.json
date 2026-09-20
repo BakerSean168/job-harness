@@ -65,7 +65,7 @@
       "trackedPaths": [
         { "upstreamPath": "pyproject.toml", "upstreamSha256": "34a33a39eb0cde3cdd22fe8956fbccb5459dca753e90ab1c0b513049ce4a8b4d" },
         { "upstreamPath": "app/main.py", "upstreamSha256": "32d4181df9128356367886f86422e351257bb45d89d1103379967f015790c20e", "overlayPath": "integrations/upstreams/overlays/get-jobs/main.py.patch" },
-        { "upstreamPath": "app/routers/jobs.py", "upstreamSha256": "131e42275c530c73d60070b9d8a75881c1192ffb480839ba3e6269c797a99da0" },
+        { "upstreamPath": "app/routers/jobs.py", "upstreamSha256": "131e42275c530c73d60070b9d8a75881c1192ffb480839ba3e6269c797a99da0", "overlayPath": "integrations/upstreams/overlays/get-jobs/jobs.py.patch" },
         { "upstreamPath": "app/schemas.py", "upstreamSha256": "699e2f076f3f3d3bb7106b6c277c7c5f55bf39f2321b8e68db7318a35a80089f", "overlayPath": "integrations/upstreams/overlays/get-jobs/schemas.py.patch" },
         { "upstreamPath": "app/worker/task_state.py", "upstreamSha256": "ef3715de0be8db9f83ff5f195bc7e9b36090f0988fc0fdebbc05789861604704" },
         { "upstreamPath": "app/worker/zhilian_bot.py", "upstreamSha256": "412b8e7e1ad08eda2339c179521a8ecc2c0a9867a7fe90de68c334e649bd3da7", "overlayPath": "integrations/upstreams/overlays/get-jobs/zhilian_bot.py.patch" },

@@ -68,6 +68,11 @@ for (const platform of ['zhilian', 'liepin', 'job51']) {
     `@router.get("/${platform}/login-status"`,
   ]);
 }
+requireMarkers('jobs router login singleton', jobsRouter, [
+  '_login_tasks: dict[str, asyncio.Task]',
+  'def _start_platform_login(platform: str) -> bool:',
+  'status="already_running"',
+]);
 
 requireMarkers('task state', taskState, [
   'class DeliveryState',
@@ -134,6 +139,7 @@ for (const marker of ['job_link: Optional[str]', 'location: Optional[str]', 'job
 
 execFileSync('python3', ['-m', 'py_compile',
   resolve(candidate, 'app/main.py'),
+  resolve(candidate, 'app/routers/jobs.py'),
   resolve(candidate, 'app/schemas.py'),
   resolve(candidate, 'app/worker/zhilian_bot.py'),
   resolve(candidate, 'app/worker/liepin_bot.py'),
