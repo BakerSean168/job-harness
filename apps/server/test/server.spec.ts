@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -71,5 +72,28 @@ describe('standalone Streamable HTTP MCP server', () => {
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
     });
     expect(response.status).toBe(401);
+
+    const runtimeResponse = await fetch(`${running.url}/runtime/recruitment-browser/v1/manifest.json`);
+    expect(runtimeResponse.status).toBe(200);
+    const manifest = await runtimeResponse.json() as {
+      schemaVersion: number;
+      bundleVersion: string;
+      supervisorVersion: string;
+      extensions: Array<{ id: string; files: Array<{ id: string; sha256: string }> }>;
+    };
+    expect(manifest.schemaVersion).toBe(1);
+    expect(manifest.bundleVersion).toMatch(/^[0-9a-f]{64}$/);
+    expect(manifest.supervisorVersion).toMatch(/^[0-9a-f]{64}$/);
+    expect(manifest.extensions.map((extension) => extension.id)).toEqual(['boss-copilot', 'browser-bridge']);
+    const runtimeFile = manifest.extensions[0]?.files[0];
+    expect(runtimeFile).toBeTruthy();
+    const fileResponse = await fetch(`${running.url}/runtime/recruitment-browser/v1/files/${runtimeFile!.id}`);
+    expect(fileResponse.status).toBe(200);
+    const bytes = Buffer.from(await fileResponse.arrayBuffer());
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(runtimeFile!.sha256);
+    expect(fileResponse.headers.get('x-content-sha256')).toBe(runtimeFile!.sha256);
+
+    const missingRuntimeFile = await fetch(`${running.url}/runtime/recruitment-browser/v1/files/not/allowed.js`);
+    expect(missingRuntimeFile.status).toBe(404);
   });
 });

@@ -31,6 +31,7 @@ import { BrowserExtensionValidationRegistry, registerBrowserExtensionValidationA
 import { browserExtensionClickAuthority } from './browser-extension-click-policy';
 import { createSiteResumeBindingService, registerSiteResumeBindingApi } from './site-resume-binding';
 import { createBossGreetingMcpBridge } from './boss-greeting-mcp';
+import { registerRecruitmentRuntimeChannel } from './recruitment-runtime-channel';
 
 export interface JobHarnessServerOptions {
   readonly databasePath: string;
@@ -232,6 +233,13 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     res.setHeader('cache-control', 'no-store');
     res.json(generateJobHarnessOpenApiDocument());
   });
+
+  // The Recruitment Browser runtime channel contains only public executable
+  // assets and hashes. It intentionally sits outside the bearer boundary so a
+  // dedicated user-owned browser can update before it has any Job Harness
+  // business capability. The downloaded extensions still need their normal
+  // scoped bridge/pairing credentials before they can execute Job Harness work.
+  registerRecruitmentRuntimeChannel(app);
 
   const browserExtensionSigningKey = options.browserExtensionSigningKey?.trim() || null;
   const browserExtensionAuth = browserExtensionSigningKey ? new BrowserExtensionAuth({ signingKey: browserExtensionSigningKey }) : null;
