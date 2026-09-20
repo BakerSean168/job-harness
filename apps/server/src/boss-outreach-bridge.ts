@@ -52,6 +52,7 @@ export interface BossOutreachBridgeOptions {
   readonly greetingThreshold?: number;
   readonly campaignId?: string | null;
   readonly runtimeControl?: BossRuntimeControlStore | null;
+  readonly runtimeTaskTtlMs?: number;
   readonly controlToken?: string | null;
 }
 
@@ -401,6 +402,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
   const recentDecisionsByJobId = new Map<string, BossJobDecision>();
   const pendingGreetings = new Map<string, PendingBossGreeting>();
   const runtimeControl = options.runtimeControl ?? new BossRuntimeControlStore();
+  const runtimeTaskTtlMs = Math.max(5 * 60_000, Math.min(4 * 60 * 60_000, options.runtimeTaskTtlMs ?? 60 * 60_000));
   const controlToken = options.controlToken?.trim() || null;
   let lastRuntimePollAt: string | null = null;
   let lastRuntimePageUrl: string | null = null;
@@ -414,8 +416,16 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
     if (!options.campaignId || !options.client.campaigns) return Promise.resolve(null);
     return options.client.campaigns.get(options.campaignId).catch(() => null);
   };
-  const getRuntimeExecutionState = async () => {
+  const ensureRuntimeTaskNotExpired = async () => {
     const snapshot = runtimeControl.current();
+    const expiresAt = snapshot.task?.expiresAt ? Date.parse(snapshot.task.expiresAt) : Number.NaN;
+    if (snapshot.task && snapshot.desiredState === 'running' && Number.isFinite(expiresAt) && Date.now() >= expiresAt) {
+      return runtimeControl.pause(snapshot.task.id, 'runtime-task-expired');
+    }
+    return snapshot;
+  };
+  const getRuntimeExecutionState = async () => {
+    const snapshot = await ensureRuntimeTaskNotExpired();
     if (!snapshot.task) return null;
     const rows = await readEvents(options.logPath);
     const usedExternalEffects = countBossRuntimeExternalEffects(rows, snapshot.task.id);
@@ -438,23 +448,26 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
     return null;
   };
 
-  const getRuntimeHealth = () => {
-    const snapshot = runtimeControl.current();
+  const runtimePageState = (): 'ready' | 'login-required' | 'challenge' => {
+    const pageSignal = `${lastRuntimePageUrl ?? ''} ${lastRuntimePageTitle ?? ''}`.toLowerCase();
+    if (/captcha|challenge|security|safe-check|安全验证|人机验证|验证码/.test(pageSignal)) return 'challenge';
+    if (/\/login|\/user\/|登录|注册登录/.test(pageSignal)) return 'login-required';
+    return 'ready';
+  };
+
+  const getRuntimeHealth = async () => {
+    const snapshot = await ensureRuntimeTaskNotExpired();
     const checkedAt = new Date().toISOString();
     const lastPollMs = lastRuntimePollAt ? Date.parse(lastRuntimePollAt) : Number.NaN;
     const browserConnected = Number.isFinite(lastPollMs) && Date.now() - lastPollMs <= 10_000;
-    const pageSignal = `${lastRuntimePageUrl ?? ''} ${lastRuntimePageTitle ?? ''}`.toLowerCase();
-    const challenge = /captcha|challenge|security|safe-check|安全验证|人机验证|验证码/.test(pageSignal);
-    const loginRequired = /\/login|\/user\/|登录|注册登录/.test(pageSignal);
+    const pageState = runtimePageState();
     const state = !browserConnected
       ? 'offline'
-      : challenge
-        ? 'challenge'
-        : loginRequired
-          ? 'login-required'
-          : snapshot.task && snapshot.desiredState === 'paused'
-            ? 'paused'
-            : 'ready';
+      : pageState !== 'ready'
+        ? pageState
+        : snapshot.task && snapshot.desiredState === 'paused'
+          ? 'paused'
+          : 'ready';
     return RecruitmentRuntimeHealthSchema.parse({
       runtimeId: BOSS_COMPAT_RUNTIME_DESCRIPTOR.runtimeId,
       site: 'boss',
@@ -707,10 +720,10 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         return sendJson(res, 200, BOSS_COMPAT_RUNTIME_DESCRIPTOR);
       }
       if (req.method === 'GET' && url.pathname === '/api/runtime/control') {
-        return sendJson(res, 200, runtimeControl.current());
+        return sendJson(res, 200, await ensureRuntimeTaskNotExpired());
       }
       if (req.method === 'GET' && url.pathname === '/api/runtime/health') {
-        return sendJson(res, 200, getRuntimeHealth());
+        return sendJson(res, 200, await getRuntimeHealth());
       }
       if (req.method === 'GET' && url.pathname === '/api/runtime/events') {
         const limitRaw = Number(url.searchParams.get('limit') ?? '100');
@@ -732,7 +745,8 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         if (mode === 'automatic' && !outreach.autoStartEnabled) return sendJson(res, 409, { error: 'runtime_auto_start_disabled' });
         const idempotencyKey = typeof record.idempotencyKey === 'string' ? record.idempotencyKey.trim().slice(0, 300) : '';
         if (!idempotencyKey) return sendJson(res, 400, { error: 'runtime_idempotency_key_required' });
-        const now = new Date().toISOString();
+        const nowDate = new Date();
+        const now = nowDate.toISOString();
         const snapshot = await runtimeControl.start({
           runtimeId: BOSS_COMPAT_RUNTIME_DESCRIPTOR.runtimeId,
           site: 'boss',
@@ -754,7 +768,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
             maxExternalEffects: outreach.maxExternalEffectsPerRun,
           },
           createdAt: now,
-          expiresAt: null,
+          expiresAt: new Date(nowDate.getTime() + runtimeTaskTtlMs).toISOString(),
           idempotencyKey,
         });
         await appendEvent(options.logPath, {
@@ -764,6 +778,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           campaignId: campaign.id,
           mode,
           maxExternalEffects: snapshot.task?.policy.maxExternalEffects ?? 0,
+          expiresAt: snapshot.task?.expiresAt ?? null,
         });
         return sendJson(res, 200, snapshot);
       }
@@ -869,7 +884,18 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         const pageTitle = url.searchParams.get('pageTitle');
         lastRuntimePageUrl = pageUrl ? pageUrl.slice(0, 2000) : lastRuntimePageUrl;
         lastRuntimePageTitle = pageTitle ? pageTitle.slice(0, 500) : lastRuntimePageTitle;
-        const snapshot = runtimeControl.current();
+        let snapshot = await ensureRuntimeTaskNotExpired();
+        const pageState = runtimePageState();
+        if (snapshot.task && snapshot.desiredState === 'running' && pageState !== 'ready') {
+          const runtimeTaskId = snapshot.task.id;
+          snapshot = await runtimeControl.pause(runtimeTaskId, `runtime-${pageState}`);
+          await appendEvent(options.logPath, {
+            loggedAt: new Date().toISOString(),
+            action: 'runtime_task_pause_requested',
+            runtimeTaskId,
+            reason: `runtime-${pageState}`,
+          });
+        }
         return sendJson(res, 200, {
           runtimeId: BOSS_COMPAT_RUNTIME_DESCRIPTOR.runtimeId,
           taskId: snapshot.task?.id ?? null,

@@ -47,6 +47,7 @@ invariant(String(bossPort.host_ip) === '127.0.0.1', 'BOSS bridge must bind to lo
 invariant(String(bossPort.published) === '3188' && Number(bossPort.target) === 18788, 'BOSS bridge port mapping must honor deployment env');
 invariant(bossBridge.environment?.JOB_HARNESS_BOSS_BRIDGE_PUBLIC_URL === 'https://boss.example.test', 'BOSS browser URL must be separately configurable from the private MCP hop');
 invariant(bossBridge.environment?.JOB_HARNESS_BOSS_RUNTIME_STATE === '/data/boss-runtime-control.json', 'BOSS coarse Runtime control state must use the durable data mount');
+invariant(String(bossBridge.environment?.JOB_HARNESS_BOSS_RUNTIME_TASK_TTL_MS ?? '').length > 0, 'BOSS coarse Runtime tasks must have a bounded TTL');
 invariant(server.environment?.JOB_HARNESS_AUTH_TOKEN === 'deployment-check-token', 'server bearer must be injected');
 invariant(web.environment?.JOB_HARNESS_AUTH_TOKEN === 'deployment-check-token', 'web must receive the bearer only in server-side runtime');
 invariant(server.depends_on?.renderer?.condition === 'service_healthy', 'server must wait for renderer health');

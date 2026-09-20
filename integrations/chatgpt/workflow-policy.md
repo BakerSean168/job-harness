@@ -111,7 +111,7 @@ Rules:
 - `mode=automatic` is rejected unless `campaign.automation.outreach.autoStartEnabled=true`. Use `mode=manual` only when the user explicitly asked to start/continue BOSS outreach in the current interaction.
 - The bridge derives greeting/inbox/resume-followup permissions and the external-effect budget from the active Campaign; callers do not supply or widen these permissions.
 - The dedicated browser may have broad DOM/tab/upload capabilities internally, but Job Harness controls it at business-task granularity.
-- Stop/pause on login/challenge/human-required state; do not attempt to bypass platform verification.
+- Runtime tasks are time-bounded (one hour by default) in addition to the Campaign external-effect budget. The bridge automatically pauses an active task when the actual BOSS page reports login/security challenge state or when the task expires; do not attempt to bypass platform verification.
 
 ## BOSS greeting workflow
 

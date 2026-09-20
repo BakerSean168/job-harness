@@ -50,6 +50,7 @@ const server = createBossOutreachBridge({
   discovery,
   resumeFollowupUserscript,
   runtimeControl,
+  runtimeTaskTtlMs: Number(process.env.JOB_HARNESS_BOSS_RUNTIME_TASK_TTL_MS ?? 3_600_000),
   controlToken: token,
 });
 

@@ -301,6 +301,7 @@ async function x(){
         desiredState: 'running',
         task: { runtimeId: 'boss-czc-good-job', site: 'boss', kind: 'campaign-discovery', campaignId: 'campaign-1', policy: { greeting: true, recruiterInbox: true, resumeFollowup: true, finalSubmit: false, maxExternalEffects: 20 } },
       });
+      expect(Date.parse(startedRuntime.task.expiresAt)).toBeGreaterThan(Date.parse(startedRuntime.task.createdAt));
       const browserControl = await fetch(`${base}/p/ai-agent-app/runtime-control`);
       expect(await browserControl.json()).toMatchObject({ taskId: startedRuntime.task.id, desiredState: 'running', policy: { greeting: true, maxExternalEffects: 20 } });
       const runtimeStartedLog = await fetch(`${base}/p/ai-agent-app/log-action`, {
@@ -400,6 +401,18 @@ async function x(){
         needResume: 0, resumeSended: false, title: 'Agent开发工程师', company: '示例科技', salary: '15-25K', score: 90, resumeIndex: 0,
       }) });
       expect(await pausedResumeNeed.json()).toEqual({ need: false, intent: 'none', reason: 'runtime-task-paused' });
+
+      const secondStart = await fetch(`${base}/api/runtime/tasks/start`, {
+        method: 'POST', headers: { authorization: 'Bearer runtime-control-secret', 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'manual', idempotencyKey: 'runtime-run-2' }),
+      });
+      const secondRuntime = await secondStart.json() as any;
+      expect(secondRuntime).toMatchObject({ desiredState: 'running', task: { idempotencyKey: 'runtime-run-2' } });
+      const challengeControl = await fetch(`${base}/p/ai-agent-app/runtime-control?pageUrl=${encodeURIComponent('https://www.zhipin.com/web/common/security-check.html')}&pageTitle=${encodeURIComponent('安全验证')}`);
+      expect(await challengeControl.json()).toMatchObject({ taskId: secondRuntime.task.id, desiredState: 'paused' });
+      const challengeHealth = await fetch(`${base}/api/runtime/health`);
+      expect(await challengeHealth.json()).toMatchObject({ state: 'challenge', browserConnected: true, activeTaskId: secondRuntime.task.id });
+      const challengeControlState = await fetch(`${base}/api/runtime/control`);
+      expect(await challengeControlState.json()).toMatchObject({ desiredState: 'paused', reason: 'runtime-challenge', task: { id: secondRuntime.task.id } });
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
