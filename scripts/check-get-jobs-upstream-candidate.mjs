@@ -73,6 +73,11 @@ requireMarkers('jobs router login singleton', jobsRouter, [
   'def _start_platform_login(platform: str) -> bool:',
   'status="already_running"',
 ]);
+for (const platform of ['boss', 'liepin', 'zhilian', 'job51']) {
+  if (jobsRouter.includes(`asyncio.create_task(_run_platform_login("${platform}"))`)) {
+    throw new Error(`jobs router bypasses the singleton login gate for ${platform}`);
+  }
+}
 
 requireMarkers('task state', taskState, [
   'class DeliveryState',
