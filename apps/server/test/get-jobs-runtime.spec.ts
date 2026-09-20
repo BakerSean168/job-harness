@@ -59,6 +59,25 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
     });
     expect(zhilian?.listings[0]?.url).toBe('https://www.zhaopin.com/jobdetail/Z-100.htm');
 
+    const sameZhilianJobFromAnotherSearch = getJobsRuntimeRowToCandidate('zhilian', {
+      id: 8,
+      job_id: 'legacy-md5-that-must-not-own-identity',
+      job_title: '前端开发工程师',
+      job_link: 'https://www.zhaopin.com/jobdetail/Z-100.htm?srccode=401901&data_identity=another-search-session',
+      salary: '15-25K',
+      location: '杭州',
+      experience: '经验不限',
+      degree: '本科',
+      company_name: '测试科技',
+      company_tag: '互联网',
+      delivered: 0,
+      created_at: '2026-09-20T09:05:00',
+    });
+    expect(sameZhilianJobFromAnotherSearch?.listings[0]).toMatchObject({
+      externalId: 'Z-100',
+      url: 'https://www.zhaopin.com/jobdetail/Z-100.htm',
+    });
+
     const job51 = getJobsRuntimeRowToCandidate('job51', {
       id: 9,
       job_id: 'J-9',

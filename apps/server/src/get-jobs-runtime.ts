@@ -148,7 +148,24 @@ function normalizeListingUrl(site: GetJobsRuntimeSite, value: unknown): string |
     const url = new URL(raw, SITE_BASE_URLS[site]);
     if (!['http:', 'https:'].includes(url.protocol)) return null;
     url.hash = '';
+    if (site === 'zhilian' && /(^|\.)zhaopin\.com$/i.test(url.hostname) && /\/jobdetail\/[^/]+\.htm$/i.test(url.pathname)) {
+      // 智联 appends per-search/session parameters such as data_identity/srccode.
+      // They are not part of the job identity and would otherwise create a new
+      // JobListing every time the same public job is observed in another search.
+      url.search = '';
+    }
     return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function stableZhilianExternalId(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    const match = parsed.pathname.match(/\/jobdetail\/([^/?#]+?)\.htm$/i);
+    return match?.[1] ? decodeURIComponent(match[1]) : null;
   } catch {
     return null;
   }
@@ -194,8 +211,10 @@ export function getJobsRuntimeRowToCandidate(
   const companyName = text(site === 'zhilian' ? row.company_name : row.comp_name, 300);
   if (!title || !companyName) return null;
 
-  const externalId = text(row.job_id, 300);
   const url = normalizeListingUrl(site, row.job_link);
+  const externalId = site === 'zhilian'
+    ? stableZhilianExternalId(url) ?? text(row.job_id, 300)
+    : text(row.job_id, 300);
   if (!externalId && !url) return null;
 
   const city = text(site === 'zhilian' ? row.location : row.job_area, 200);
