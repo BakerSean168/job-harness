@@ -1,12 +1,89 @@
 --- a/app/worker/zhilian_bot.py
 +++ b/app/worker/zhilian_bot.py
-@@ -335,6 +335,10 @@
+@@ -171,18 +171,20 @@
+         city_code = db_config.city_code or self.config.get("city_code", "")
+         salary = db_config.salary or self.config.get("salary", "")
+ 
+-        total_posted = 0
++        collect_only = os.getenv("JOB_HARNESS_GET_JOBS_COLLECT_ONLY", "0") == "1"
++        action_label = "采集" if collect_only else "投递"
++        total_processed = 0
+ 
+         for keyword in keyword_list:
+             if task_state.should_stop() or self.is_limit:
+                 self._info("收到停止信号，终止投递")
+                 return
+ 
+-            self._info(f"开始投递关键词：{keyword}")
+-            posted = await self._submit_keyword(keyword, city_code, salary, task_state)
+-            total_posted += posted
++            self._info(f"开始{action_label}关键词：{keyword}")
++            processed = await self._submit_keyword(keyword, city_code, salary, task_state)
++            total_processed += processed
+ 
+-        self._info(f"投递完成，共投递 {total_posted} 个职位")
++        self._info(f"{action_label}完成，共{action_label} {total_processed} 个职位")
+ 
+     async def _submit_keyword(self, keyword, city_code, salary, task_state):
+         from app.worker.zhilian_locators import (
+@@ -228,6 +230,8 @@
+             logger.warning("等待职位列表超时")
+             return 0
+ 
++        collect_only = os.getenv("JOB_HARNESS_GET_JOBS_COLLECT_ONLY", "0") == "1"
++        action_label = "采集" if collect_only else "投递"
+         posted = 0
+         page_num = 1
+ 
+@@ -236,7 +240,7 @@
+                 self._info("收到停止指令，结束分页循环")
+                 return posted
+ 
+-            self._info(f"正在投递【{keyword}】第【{page_num}】页...")
++            self._info(f"正在{action_label}【{keyword}】第【{page_num}】页...")
+ 
+             # 等待职位列表
+             try:
+@@ -270,7 +274,7 @@
+             else:
+                 break
+ 
+-        self._info(f"【{keyword}】关键词投递完成！")
++        self._info(f"【{keyword}】关键词{action_label}完成！")
+         return posted
+ 
+     async def _deliver_current_page(self) -> int:
+@@ -283,6 +287,7 @@
+         job_cards = self.page.locator(JOB_CARDS)
+         count = await job_cards.count()
+         posted = 0
++        collect_only = os.getenv("JOB_HARNESS_GET_JOBS_COLLECT_ONLY", "0") == "1"
+ 
+         # 先采集所有职位信息
+         jobs_data = []
+@@ -295,6 +300,15 @@
+                     job_link = await card.locator(JOB_TITLE).get_attribute("href")
+                 except Exception:
+                     pass
++                if collect_only and not job_link:
++                    try:
++                        await card.click(force=True, timeout=2000)
++                        await asyncio.sleep(0.15)
++                        detail_link = self.page.locator("a.job-company-info__view-all[href*='jobdetail']").first
++                        if await detail_link.count() > 0:
++                            job_link = await detail_link.get_attribute("href")
++                    except Exception as e:
++                        logger.debug("读取智联职位详情链接失败：%s", e)
+                 salary = await self._safe_get_text(card, JOB_SALARY)
+                 location = await self._safe_get_text(card, JOB_LOCATION)
+                 experience = await self._safe_get_text(card, JOB_EXPERIENCE)
+@@ -335,6 +349,10 @@
              except Exception as e:
                  logger.warning("保存岗位数据失败 %s: %s", job_id, e)
  
-+        if os.getenv("JOB_HARNESS_GET_JOBS_COLLECT_ONLY", "0") == "1":
++        if collect_only:
 +            self._info(f"仅采集模式：当前页已采集 {len(valid_jobs)} 个智联岗位，不执行投递")
-+            return 0
++            return len(valid_jobs)
 +
          # 投递
          for job in jobs_data:

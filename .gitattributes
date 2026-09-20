@@ -1,1 +1,2 @@
 integrations/upstreams/overlays/*.patch -whitespace
+integrations/upstreams/overlays/**/*.patch -whitespace
