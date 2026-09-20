@@ -148,7 +148,8 @@ function Get-RecruitmentSiteHealth {
   $result = @{ boss = @{ state = 'unknown'; url = $null; title = $null } }
   try {
     $targets = @(Invoke-RestMethod -Uri "http://127.0.0.1:$RemoteDebuggingPort/json" -Method Get -TimeoutSec 4)
-    $boss = $targets | Where-Object { $_.type -eq 'page' -and ([string]$_.url) -match 'zhipin\.com' } | Select-Object -First 1
+    $bossMatches = @($targets | Where-Object { $_.type -eq 'page' -and ([string]$_.url) -match 'zhipin\.com' })
+    $boss = if ($bossMatches.Count -gt 0) { $bossMatches[0] } else { $null }
     if (-not $boss) { return $result }
     $url = [string]$boss.url
     $title = [string]$boss.title
