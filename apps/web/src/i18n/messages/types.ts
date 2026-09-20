@@ -133,7 +133,7 @@ export interface MessageCatalog {
       optionalNote: string; notePlaceholder: string; transition: string; reject: string; withdraw: string; closePanel: string; openFullPage: string; openJob: string;
       submissionHistory: string; submittedAt: string; channel: string; listing: string; profile: string; revision: string; artifact: string; unknown: string;
     };
-    submissionChannels: Record<'official' | 'boss' | 'zhilian' | 'liepin' | 'moka' | 'greenhouse' | 'lever' | 'ashby' | 'email' | 'referral' | 'manual' | 'other', string>;
+    submissionChannels: Record<'official' | 'boss' | 'zhilian' | 'liepin' | 'job51' | 'moka' | 'greenhouse' | 'lever' | 'ashby' | 'email' | 'referral' | 'manual' | 'other', string>;
   };
   jobsWorkspace: {
     add: { trigger: string; title: string; description: string; company: string; role: string; city: string; source: string; url: string; externalId: string; jd: string; save: string; saving: string; saved: string; failed: string; };
@@ -207,6 +207,6 @@ export interface MessageCatalog {
     listingStatuses: Record<'active' | 'closed' | 'unknown', string>;
     eventTypes: Record<'application_recorded' | 'submission_recorded' | 'stage_changed' | 'interview_scheduled' | 'note_added', string>;
     outreachTypes: Record<'greeting_sent' | 'recruiter_replied' | 'resume_sent' | 'already_contacted', string>;
-    sourceKinds: Record<'official' | 'boss' | 'zhilian' | 'liepin' | 'moka' | 'greenhouse' | 'lever' | 'ashby' | 'email' | 'manual' | 'other', string>;
+    sourceKinds: Record<'official' | 'boss' | 'zhilian' | 'liepin' | 'job51' | 'moka' | 'greenhouse' | 'lever' | 'ashby' | 'email' | 'manual' | 'other', string>;
   };
 }

@@ -4,6 +4,7 @@ export const RecruitmentSiteSchema = z.enum([
   'boss',
   'zhilian',
   'liepin',
+  'job51',
   'nowcoder',
   'moka',
   'beisen',

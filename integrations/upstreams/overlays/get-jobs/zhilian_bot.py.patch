@@ -1,0 +1,13 @@
+--- a/app/worker/zhilian_bot.py
++++ b/app/worker/zhilian_bot.py
+@@ -335,6 +335,10 @@
+             except Exception as e:
+                 logger.warning("保存岗位数据失败 %s: %s", job_id, e)
+ 
++        if os.getenv("JOB_HARNESS_GET_JOBS_COLLECT_ONLY", "0") == "1":
++            self._info(f"仅采集模式：当前页已采集 {len(valid_jobs)} 个智联岗位，不执行投递")
++            return 0
++
+         # 投递
+         for job in jobs_data:
+             from app.worker.task_state import task_state

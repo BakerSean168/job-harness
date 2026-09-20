@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
@@ -5,9 +6,14 @@ const candidateRoot = process.env.JOB_HARNESS_UPSTREAM_CANDIDATE_ROOT?.trim();
 if (!candidateRoot) throw new Error('JOB_HARNESS_UPSTREAM_CANDIDATE_ROOT is required');
 
 const upstream = resolve(candidateRoot, 'upstream');
+const candidate = resolve(candidateRoot, 'candidate');
 
 async function text(path) {
-  return readFile(resolve(upstream, path), 'utf8');
+  try {
+    return await readFile(resolve(candidate, path), 'utf8');
+  } catch {
+    return readFile(resolve(upstream, path), 'utf8');
+  }
 }
 
 function requireMarkers(label, source, markers) {
@@ -20,6 +26,7 @@ function requireMarkers(label, source, markers) {
 
 const [
   pyproject,
+  main,
   jobsRouter,
   taskState,
   zhilian,
@@ -30,6 +37,7 @@ const [
   job51Locators,
 ] = await Promise.all([
   text('pyproject.toml'),
+  text('app/main.py'),
   text('app/routers/jobs.py'),
   text('app/worker/task_state.py'),
   text('app/worker/zhilian_bot.py'),
@@ -44,6 +52,12 @@ requireMarkers('pyproject', pyproject, [
   'playwright>=',
   'camoufox>=',
   'fastapi>=',
+]);
+requireMarkers('Job Harness runtime marker', main, [
+  '/api/job-harness-runtime',
+  'JOB_HARNESS_GET_JOBS_COLLECT_ONLY',
+  'collectOnly',
+  'collect-only',
 ]);
 
 for (const platform of ['zhilian', 'liepin', 'job51']) {
@@ -69,6 +83,8 @@ requireMarkers('Zhilian worker', zhilian, [
   'run_delivery',
   'task_state.should_stop()',
   'is_logged_in',
+  'JOB_HARNESS_GET_JOBS_COLLECT_ONLY',
+  '仅采集模式',
   '已投递',
   '今日投递已达上限',
 ]);
@@ -84,6 +100,8 @@ requireMarkers('Liepin worker', liepin, [
   'run_delivery',
   'task_state.should_stop()',
   'is_logged_in',
+  'JOB_HARNESS_GET_JOBS_COLLECT_ONLY',
+  '仅采集模式',
 ]);
 requireMarkers('Liepin locators', liepinLocators, [
   'liepin.com',
@@ -98,6 +116,8 @@ requireMarkers('51job worker', job51, [
   'run_delivery',
   'task_state.should_stop()',
   'is_logged_in',
+  'JOB_HARNESS_GET_JOBS_COLLECT_ONLY',
+  '仅采集模式',
   '出现访问验证，停止投递',
   '检测到今日投递已达上限',
 ]);
@@ -106,6 +126,19 @@ requireMarkers('51job locators', job51Locators, [
   '投递成功',
   '投递上限',
 ]);
+
+const schemas = await text('app/schemas.py');
+for (const marker of ['job_link: Optional[str]', 'location: Optional[str]', 'job_area: Optional[str]', 'job_exp_req: Optional[str]']) {
+  if (!schemas.includes(marker)) throw new Error(`Upstream candidate list API lost rich discovery field: ${marker}`);
+}
+
+execFileSync('python3', ['-m', 'py_compile',
+  resolve(candidate, 'app/main.py'),
+  resolve(candidate, 'app/schemas.py'),
+  resolve(candidate, 'app/worker/zhilian_bot.py'),
+  resolve(candidate, 'app/worker/liepin_bot.py'),
+  resolve(candidate, 'app/worker/job51_bot.py'),
+], { stdio: 'inherit' });
 
 for (const forbidden of [
   'JOB_HARNESS_AUTH_TOKEN',

@@ -135,7 +135,7 @@ export const zhCN: MessageCatalog = {
       summary: '投递概览', timeline: '时间线', appliedAt: '首次投递', stageEntered: '进入当前阶段', resume: '使用简历', submissions: '提交次数', source: '主要来源', campaigns: '求职目标', latestEvent: '最近事件',
       optionalNote: '备注（可选）', notePlaceholder: '例如：HR 邮件确认、主动撤回原因…', transition: '更新阶段', reject: '标记拒绝', withdraw: '标记撤回', closePanel: '关闭详情', openFullPage: '打开完整详情', openJob: '查看岗位', submissionHistory: '提交记录', submittedAt: '提交时间', channel: '渠道', listing: '岗位来源', profile: 'Resume Profile', revision: 'Revision', artifact: 'Artifact', unknown: '历史未知',
     },
-    submissionChannels: { official: '官网', boss: 'BOSS', zhilian: '智联', liepin: '猎聘', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: '邮件', referral: '内推', manual: '手动', other: '其他' },
+    submissionChannels: { official: '官网', boss: 'BOSS', zhilian: '智联', liepin: '猎聘', job51: '51job', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: '邮件', referral: '内推', manual: '手动', other: '其他' },
   },
   jobsWorkspace: {
     add: { trigger: '+ 添加岗位', title: '添加岗位', description: '通过 Job Harness 的统一岗位写入口保存信息；系统会按 Listing 身份规则去重，不会直接写数据库。', company: '公司', role: '岗位名称', city: '城市', source: '来源', url: '岗位链接', externalId: '来源岗位 ID（可选）', jd: '岗位描述 / JD', save: '保存岗位', saving: '保存中…', saved: '已保存岗位', failed: '保存岗位失败' },
@@ -163,7 +163,7 @@ export const zhCN: MessageCatalog = {
     listingStatuses: { active: '可用', closed: '已关闭', unknown: '未知' },
     eventTypes: { application_recorded: '首次投递', submission_recorded: '再次提交', stage_changed: '阶段变化', interview_scheduled: '安排面试', note_added: '添加备注' },
     outreachTypes: { greeting_sent: '已打招呼', recruiter_replied: '招聘方已回复', resume_sent: '已发送简历', already_contacted: '此前已联系' },
-    sourceKinds: { official: '官网', boss: 'BOSS', zhilian: '智联', liepin: '猎聘', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: '邮件', manual: '手动', other: '其他' },
+    sourceKinds: { official: '官网', boss: 'BOSS', zhilian: '智联', liepin: '猎聘', job51: '51job', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: '邮件', manual: '手动', other: '其他' },
   },
   pages: {
     overview: { title: '概览', description: '查看当前求职目标、漏斗状态和最近变化。' },

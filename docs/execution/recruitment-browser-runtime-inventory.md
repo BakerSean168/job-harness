@@ -249,7 +249,7 @@ This policy should be passed into future Site Runtime tasks at **business-action
 
 A current MIT-licensed multi-platform candidate is now pinned as `vvvsrx-get-jobs`. It contains separate Camoufox/Playwright workers and locator modules for 智联招聘、猎聘 and 51job, together with explicit start/stop/status/login-status API boundaries and cooperative cancellation. Its upstream code also contains platform stop conditions such as login loss, visit verification and daily delivery limits.
 
-This candidate is intentionally **not** copied into Job Harness domain packages and is not production-enabled yet. The intended integration is a separate external Site Runtime wrapper so upstream browser behavior can continue to move with the upstream repository while Job Harness retains Campaign/Resume/Job/Application ownership. BOSS remains on the already-proven `czc-good-job` path rather than switching browser engines merely because this candidate also contains BOSS code.
+This candidate is intentionally **not** copied into Job Harness domain packages and is not production-enabled yet. `pnpm upstream:sync vvvsrx-get-jobs` now materializes the complete pinned upstream tree into `.tmp/upstreams/.../candidate` and applies only a thin Job Harness integration overlay. The overlay does not replace platform selectors/state machines: it adds a verifiable `collect-only` runtime marker, suppresses recruiter-facing delivery clicks when `JOB_HARNESS_GET_JOBS_COLLECT_ONLY=1`, and exposes the already-persisted rich job fields through the upstream list API. The intended integration is a separate external Site Runtime wrapper so upstream browser behavior can continue to move with the upstream repository while Job Harness retains Campaign/Resume/Job/Application ownership. BOSS remains on the already-proven `czc-good-job` path rather than switching browser engines merely because this candidate also contains BOSS code.
 
 Promotion sequence:
 
@@ -262,7 +262,7 @@ upstream pin + characterization
   -> production promotion
 ```
 
-The characterization gate currently verifies the upstream API lifecycle, cooperative stop state, Camoufox/Playwright dependency, site-specific workers/locators and platform stop-limit signals before a candidate can be considered for wrapper work.
+The characterization gate currently verifies the upstream API lifecycle, cooperative stop state, Camoufox/Playwright dependency, site-specific workers/locators, platform stop-limit signals, the collect-only guards, rich list fields and Python syntax before a candidate can be considered for wrapper work. Job Harness also has a read-only adapter in `apps/server/src/get-jobs-runtime.ts`: it normalizes Runtime health, validates the collect-only marker before allowing a collection start, maps upstream cached rows into canonical Job/Listing candidates, and deliberately treats upstream `delivered` only as metadata rather than Application truth.
 
 ## 11. Upstream commands
 

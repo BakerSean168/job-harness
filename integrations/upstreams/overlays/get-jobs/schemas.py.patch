@@ -1,0 +1,59 @@
+--- a/app/schemas.py
++++ b/app/schemas.py
+@@ -134,8 +134,19 @@
+     id: int
+     job_id: Optional[str] = None
+     job_title: Optional[str] = None
+-    comp_name: Optional[str] = None
++    job_link: Optional[str] = None
+     job_salary_text: Optional[str] = None
++    job_area: Optional[str] = None
++    job_edu_req: Optional[str] = None
++    job_exp_req: Optional[str] = None
++    job_publish_time: Optional[str] = None
++    comp_id: Optional[str] = None
++    comp_name: Optional[str] = None
++    comp_industry: Optional[str] = None
++    comp_scale: Optional[str] = None
++    hr_id: Optional[str] = None
++    hr_name: Optional[str] = None
++    hr_title: Optional[str] = None
+     delivered: Optional[int] = None
+     created_at: Optional[datetime] = None
+ 
+@@ -167,8 +178,13 @@
+     id: int
+     job_id: Optional[str] = None
+     job_title: Optional[str] = None
+-    company_name: Optional[str] = None
++    job_link: Optional[str] = None
+     salary: Optional[str] = None
++    location: Optional[str] = None
++    experience: Optional[str] = None
++    degree: Optional[str] = None
++    company_name: Optional[str] = None
++    company_tag: Optional[str] = None
+     delivered: Optional[int] = None
+     created_at: Optional[datetime] = None
+ 
+@@ -209,8 +225,19 @@
+     id: int
+     job_id: Optional[str] = None
+     job_title: Optional[str] = None
+-    comp_name: Optional[str] = None
++    job_link: Optional[str] = None
+     job_salary_text: Optional[str] = None
++    job_area: Optional[str] = None
++    job_edu_req: Optional[str] = None
++    job_exp_req: Optional[str] = None
++    job_publish_time: Optional[str] = None
++    comp_id: Optional[str] = None
++    comp_name: Optional[str] = None
++    comp_industry: Optional[str] = None
++    comp_scale: Optional[str] = None
++    hr_id: Optional[str] = None
++    hr_name: Optional[str] = None
++    hr_title: Optional[str] = None
+     delivered: Optional[int] = None
+     created_at: Optional[datetime] = None
+ 

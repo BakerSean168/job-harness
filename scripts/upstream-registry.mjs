@@ -181,19 +181,30 @@ async function materializeCandidate(projectId, project) {
   const { head, dir } = await inspectCandidate(projectId, project);
   const candidateRoot = resolve(root, '.tmp', 'upstreams', projectId, head.commit);
   await rm(candidateRoot, { recursive: true, force: true });
-  await mkdir(resolve(candidateRoot, 'upstream'), { recursive: true });
-  await mkdir(resolve(candidateRoot, 'candidate'), { recursive: true });
+  const upstreamRoot = resolve(candidateRoot, 'upstream');
+  const candidateTreeRoot = resolve(candidateRoot, 'candidate');
+  await mkdir(upstreamRoot, { recursive: true });
+  await mkdir(candidateTreeRoot, { recursive: true });
 
   const files = [];
   try {
+    if (project.materialization === 'full-tree') {
+      const archivePath = resolve(candidateRoot, '.upstream.tar');
+      run('git', ['archive', '--format=tar', head.commit, '-o', archivePath], { cwd: dir });
+      run('tar', ['-xf', archivePath, '-C', upstreamRoot]);
+      run('cp', ['-a', `${upstreamRoot}/.`, candidateTreeRoot]);
+      await rm(archivePath, { force: true });
+    }
+
     const license = run('git', ['show', `${head.commit}:${project.licensePath}`], { cwd: dir });
     const licenseHash = sha256(Buffer.from(license));
-    await writeFile(resolve(candidateRoot, 'upstream', project.licensePath), license, 'utf8');
+    await mkdir(dirname(resolve(upstreamRoot, project.licensePath)), { recursive: true });
+    await writeFile(resolve(upstreamRoot, project.licensePath), license, 'utf8');
 
     for (const tracked of project.trackedPaths ?? []) {
       if (!tracked.upstreamPath) continue;
       const upstreamText = run('git', ['show', `${head.commit}:${tracked.upstreamPath}`], { cwd: dir });
-      const upstreamPath = resolve(candidateRoot, 'upstream', tracked.upstreamPath);
+      const upstreamPath = resolve(upstreamRoot, tracked.upstreamPath);
       await mkdir(dirname(upstreamPath), { recursive: true });
       await writeFile(upstreamPath, upstreamText, 'utf8');
       const upstreamHash = sha256(Buffer.from(upstreamText));
@@ -202,11 +213,11 @@ async function materializeCandidate(projectId, project) {
       let candidateHash = null;
       let overlayApplied = null;
       if (tracked.overlayPath) {
-        candidatePath = resolve(candidateRoot, 'candidate', tracked.upstreamPath);
+        candidatePath = resolve(candidateTreeRoot, tracked.upstreamPath);
         await mkdir(dirname(candidatePath), { recursive: true });
         await copyFile(upstreamPath, candidatePath);
         const result = spawnSync('git', ['apply', resolve(root, tracked.overlayPath)], {
-          cwd: resolve(candidateRoot, 'candidate'),
+          cwd: candidateTreeRoot,
           encoding: 'utf8',
         });
         overlayApplied = result.status === 0;
@@ -236,6 +247,7 @@ async function materializeCandidate(projectId, project) {
       license: project.license,
       licenseSha256: licenseHash,
       integrationKind: project.integrationKind,
+      materialization: project.materialization ?? 'tracked-files',
       files,
     };
     await writeFile(resolve(candidateRoot, 'candidate.json'), JSON.stringify(manifest, null, 2) + '\n', 'utf8');

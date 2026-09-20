@@ -1,0 +1,19 @@
+--- a/app/main.py
++++ b/app/main.py
+@@ -52,6 +52,16 @@
+     return {"status": "ok"}
+ 
+ 
++@app.get("/api/job-harness-runtime")
++async def job_harness_runtime():
++    collect_only = os.getenv("JOB_HARNESS_GET_JOBS_COLLECT_ONLY", "0") == "1"
++    return {
++        "integration": "job-harness",
++        "collectOnly": collect_only,
++        "mode": "collect-only" if collect_only else "upstream-default",
++    }
++
++
+ # SPA fallback: Next.js static export writes pages as {route}.html.
+ # We need to map /boss -> boss.html, /51job -> 51job.html, etc.
+ # StaticFiles(html=True) only handles / -> index.html, so we use a

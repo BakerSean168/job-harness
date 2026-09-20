@@ -135,7 +135,7 @@ export const en: MessageCatalog = {
       summary: 'Application summary', timeline: 'Timeline', appliedAt: 'First applied', stageEntered: 'Entered current stage', resume: 'Resume used', submissions: 'Submissions', source: 'Primary source', campaigns: 'Campaigns', latestEvent: 'Latest event',
       optionalNote: 'Note (optional)', notePlaceholder: 'Example: recruiter email confirmation, reason for withdrawal…', transition: 'Update stage', reject: 'Mark rejected', withdraw: 'Mark withdrawn', closePanel: 'Close detail', openFullPage: 'Open full detail', openJob: 'View job', submissionHistory: 'Submission history', submittedAt: 'Submitted at', channel: 'Channel', listing: 'Listing', profile: 'Resume Profile', revision: 'Revision', artifact: 'Artifact', unknown: 'Historically unknown',
     },
-    submissionChannels: { official: 'Official', boss: 'BOSS', zhilian: 'Zhilian', liepin: 'Liepin', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: 'Email', referral: 'Referral', manual: 'Manual', other: 'Other' },
+    submissionChannels: { official: 'Official', boss: 'BOSS', zhilian: 'Zhilian', liepin: 'Liepin', job51: '51job', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: 'Email', referral: 'Referral', manual: 'Manual', other: 'Other' },
   },
   jobsWorkspace: {
     add: { trigger: '+ Add job', title: 'Add job', description: 'Store the opportunity through the canonical Job Harness write path. Listing identity rules handle deduplication; the UI never writes the database directly.', company: 'Company', role: 'Role', city: 'City', source: 'Source', url: 'Listing URL', externalId: 'Source job ID (optional)', jd: 'Job description / JD', save: 'Save job', saving: 'Saving…', saved: 'Job saved', failed: 'Could not save job' },
@@ -163,7 +163,7 @@ export const en: MessageCatalog = {
     listingStatuses: { active: 'Active', closed: 'Closed', unknown: 'Unknown' },
     eventTypes: { application_recorded: 'Application recorded', submission_recorded: 'Additional submission', stage_changed: 'Stage changed', interview_scheduled: 'Interview scheduled', note_added: 'Note added' },
     outreachTypes: { greeting_sent: 'Greeting sent', recruiter_replied: 'Recruiter replied', resume_sent: 'Resume sent', already_contacted: 'Previously contacted' },
-    sourceKinds: { official: 'Official', boss: 'BOSS', zhilian: 'Zhilian', liepin: 'Liepin', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: 'Email', manual: 'Manual', other: 'Other' },
+    sourceKinds: { official: 'Official', boss: 'BOSS', zhilian: 'Zhilian', liepin: 'Liepin', job51: '51job', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: 'Email', manual: 'Manual', other: 'Other' },
   },
   pages: {
     overview: { title: 'Overview', description: 'See active search targets, funnel state, and recent changes.' },
