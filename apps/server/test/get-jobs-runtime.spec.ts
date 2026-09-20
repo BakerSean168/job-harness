@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GET_JOBS_RUNTIME_DESCRIPTORS,
   createGetJobsRuntimeClient,
+  createGetJobsCollectionRuntimeMcpPort,
   getJobsRuntimeRowToCandidate,
   syncGetJobsRuntimeCache,
 } from '../src/get-jobs-runtime';
@@ -190,6 +191,96 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
       }) as typeof globalThis.fetch,
     });
     await expect(unsafe.startCollection('liepin')).rejects.toThrow(/collect-only mode/);
+  });
+
+  it('derives collect-only start configuration from Campaign policy and imports via the canonical Job sink', async () => {
+    const calls: Array<{ path: string; method: string; body: unknown }> = [];
+    const fetch = async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url);
+      const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
+      calls.push({ path: `${url.pathname}${url.search}`, method: init?.method ?? 'GET', body });
+      if (url.pathname === '/api/job-harness-runtime') return new Response(JSON.stringify({ integration: 'job-harness', collectOnly: true, mode: 'collect-only' }), { status: 200 });
+      if (url.pathname === '/api/zhilian/status') return new Response(JSON.stringify({ running: false, current: null, total: null, platform: null, delivered_count: 0, filtered_count: 0 }), { status: 200 });
+      if (url.pathname === '/api/zhilian/login-status') return new Response(JSON.stringify({ success: true, isLoggedIn: true, message: '已登录' }), { status: 200 });
+      if (url.pathname === '/api/zhilian/config' && (init?.method ?? 'GET') === 'GET') {
+        return new Response(JSON.stringify({ success: true, config: {}, options: { city: [{ type: 'city', name: '杭州', code: '653' }] } }), { status: 200 });
+      }
+      if (url.pathname === '/api/zhilian/config' && init?.method === 'PUT') return new Response(JSON.stringify({ success: true, message: 'saved', status: null }), { status: 200 });
+      if (url.pathname === '/api/zhilian/start') return new Response(JSON.stringify({ success: true, message: 'started', status: 'started' }), { status: 200 });
+      if (url.pathname === '/api/zhilian/list') return new Response(JSON.stringify({ success: true, total: 0, data: [] }), { status: 200 });
+      return new Response('{}', { status: 404 });
+    };
+    const runtime = createGetJobsRuntimeClient({ baseUrl: 'http://get-jobs-runtime:8000', fetch: fetch as typeof globalThis.fetch });
+    const writes: unknown[] = [];
+    const port = createGetJobsCollectionRuntimeMcpPort(runtime, {
+      campaigns: {
+        async getCampaign(id: string) {
+          return id === 'campaign-1' ? {
+            id,
+            name: '2026届',
+            targetRoles: ['AI Agent / Agent 应用开发', '全栈开发', '前端开发'],
+            cities: ['杭州', '深圳'],
+            graduationYears: [2026],
+            experience: ['应届生'],
+            education: ['本科'],
+            keywords: ['React', 'TypeScript'],
+            exclusions: [],
+            sources: ['zhilian'],
+            resumeProfileIds: [],
+            automation: {
+              collection: { enabled: true },
+              outreach: { enabled: true, autoStartEnabled: false, greetingEnabled: true, recruiterInboxEnabled: true, resumeFollowupEnabled: true, maxExternalEffectsPerRun: 20 },
+              officialSite: { prepareEnabled: true, fillEnabled: true, submitEnabled: false, preferredResumeProfileId: null },
+              email: { draftEnabled: true, sendEnabled: false, preferredResumeProfileId: null },
+            },
+            status: 'active' as const,
+            createdAt: '2026-09-20T00:00:00.000Z',
+            updatedAt: '2026-09-20T00:00:00.000Z',
+          } : null;
+        },
+      } as any,
+      jobs: {
+        async upsertJobsBatch(input: unknown) { writes.push(input); return { items: [] }; },
+      } as any,
+    });
+
+    await expect(port.start({ site: 'zhilian', campaignId: 'campaign-1' })).resolves.toMatchObject({
+      site: 'zhilian', success: true, city: '杭州', keywords: ['Agent', '全栈开发', '前端开发'], reused: false,
+    });
+    const configWrite = calls.find((call) => call.path === '/api/zhilian/config' && call.method === 'PUT');
+    expect(configWrite?.body).toEqual({ keywords: 'Agent,全栈开发,前端开发', cityCode: '653' });
+    await expect(port.sync({ site: 'zhilian', pageSize: 100, maxPages: 1 })).resolves.toMatchObject({ site: 'zhilian', scanned: 0, inserted: 0 });
+    expect(writes).toHaveLength(0);
+  });
+
+  it('rejects collection start when Campaign collection is disabled before touching upstream start', async () => {
+    const calls: string[] = [];
+    const runtime = createGetJobsRuntimeClient({
+      baseUrl: 'http://get-jobs-runtime:8000',
+      fetch: (async (input: string | URL | Request) => {
+        calls.push(new URL(typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url).pathname);
+        throw new Error('upstream must not be touched');
+      }) as typeof globalThis.fetch,
+    });
+    const port = createGetJobsCollectionRuntimeMcpPort(runtime, {
+      campaigns: {
+        async getCampaign() {
+          return {
+            id: 'campaign-off', name: 'off', targetRoles: ['前端开发'], cities: ['杭州'], graduationYears: [2026], experience: [], education: [], keywords: [], exclusions: [], sources: ['zhilian'], resumeProfileIds: [],
+            automation: {
+              collection: { enabled: false },
+              outreach: { enabled: false, autoStartEnabled: false, greetingEnabled: false, recruiterInboxEnabled: false, resumeFollowupEnabled: false, maxExternalEffectsPerRun: 0 },
+              officialSite: { prepareEnabled: false, fillEnabled: false, submitEnabled: false, preferredResumeProfileId: null },
+              email: { draftEnabled: false, sendEnabled: false, preferredResumeProfileId: null },
+            },
+            status: 'active' as const, createdAt: '2026-09-20T00:00:00.000Z', updatedAt: '2026-09-20T00:00:00.000Z',
+          };
+        },
+      } as any,
+      jobs: {} as any,
+    });
+    await expect(port.start({ site: 'zhilian', campaignId: 'campaign-off' })).rejects.toThrow(/collection disabled/);
+    expect(calls).toEqual([]);
   });
 
   it('reports an unreachable upstream as offline instead of inventing browser readiness', async () => {

@@ -32,6 +32,7 @@ import { browserExtensionClickAuthority } from './browser-extension-click-policy
 import { createSiteResumeBindingService, registerSiteResumeBindingApi } from './site-resume-binding';
 import { createBossGreetingMcpBridge } from './boss-greeting-mcp';
 import { registerRecruitmentRuntimeChannel } from './recruitment-runtime-channel';
+import { createGetJobsCollectionRuntimeMcpPort, createGetJobsRuntimeClient } from './get-jobs-runtime';
 
 export interface JobHarnessServerOptions {
   readonly databasePath: string;
@@ -49,6 +50,7 @@ export interface JobHarnessServerOptions {
   readonly submissionMaxAutomaticRetries?: number;
   readonly submissionReconcileBatchSize?: number;
   readonly bossGreetingBridgeUrl?: string;
+  readonly getJobsRuntimeUrl?: string | null;
 }
 
 export interface RunningJobHarnessServer {
@@ -199,7 +201,22 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     baseUrl: options.bossGreetingBridgeUrl ?? 'http://127.0.0.1:18788',
     controlToken: authToken,
   });
-  const runtime = createJobHarnessMcpRuntime(application, resume, resumeArtifacts, jobResume, emailApplication, bossBridge, authToken ? bossBridge : undefined);
+  const getJobsRuntime = options.getJobsRuntimeUrl
+    ? createGetJobsRuntimeClient({ baseUrl: options.getJobsRuntimeUrl, requestTimeoutMs: 20_000 })
+    : null;
+  const recruitmentCollectionRuntime = getJobsRuntime
+    ? createGetJobsCollectionRuntimeMcpPort(getJobsRuntime, application)
+    : undefined;
+  const runtime = createJobHarnessMcpRuntime(
+    application,
+    resume,
+    resumeArtifacts,
+    jobResume,
+    emailApplication,
+    bossBridge,
+    authToken ? bossBridge : undefined,
+    recruitmentCollectionRuntime,
+  );
   const host = options.host ?? '127.0.0.1';
   const executorAuthToken = options.executorAuthToken?.trim() || null;
   const app = express();

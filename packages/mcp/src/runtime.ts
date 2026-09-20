@@ -99,6 +99,13 @@ import {
   BossRuntimeStartToolOutputSchema,
   BossRuntimePauseToolInputSchema,
   BossRuntimePauseToolOutputSchema,
+  RecruitmentCollectionRuntimeStatusToolInputSchema,
+  RecruitmentCollectionRuntimeStatusToolOutputSchema,
+  RecruitmentCollectionRuntimeStartToolInputSchema,
+  RecruitmentCollectionRuntimeActionToolOutputSchema,
+  RecruitmentCollectionRuntimeStopToolInputSchema,
+  RecruitmentCollectionRuntimeSyncToolInputSchema,
+  RecruitmentCollectionRuntimeSyncToolOutputSchema,
 } from './tool-contracts';
 import {
   ListResumeProfilesInputSchema,
@@ -135,6 +142,13 @@ export interface BossRuntimeMcpPort {
   pause(input: z.input<typeof BossRuntimePauseToolInputSchema>): Promise<z.output<typeof BossRuntimePauseToolOutputSchema>>;
 }
 
+export interface RecruitmentCollectionRuntimeMcpPort {
+  status(input: z.input<typeof RecruitmentCollectionRuntimeStatusToolInputSchema>): Promise<z.output<typeof RecruitmentCollectionRuntimeStatusToolOutputSchema>>;
+  start(input: z.input<typeof RecruitmentCollectionRuntimeStartToolInputSchema>): Promise<z.output<typeof RecruitmentCollectionRuntimeActionToolOutputSchema>>;
+  stop(input: z.input<typeof RecruitmentCollectionRuntimeStopToolInputSchema>): Promise<z.output<typeof RecruitmentCollectionRuntimeActionToolOutputSchema>>;
+  sync(input: z.input<typeof RecruitmentCollectionRuntimeSyncToolInputSchema>): Promise<z.output<typeof RecruitmentCollectionRuntimeSyncToolOutputSchema>>;
+}
+
 export class UnknownCareerMcpToolError extends Error {
   constructor(readonly toolName: string) {
     super(`Unknown Job Harness MCP tool: ${toolName}`);
@@ -158,6 +172,7 @@ export class CareerMcpRuntime {
     private readonly emailApplication?: EmailApplicationMcpPort,
     private readonly bossGreeting?: BossGreetingMcpPort,
     private readonly bossRuntime?: BossRuntimeMcpPort,
+    private readonly recruitmentCollectionRuntime?: RecruitmentCollectionRuntimeMcpPort,
   ) {}
 
   listTools() {
@@ -167,6 +182,7 @@ export class CareerMcpRuntime {
       if (!this.emailApplication && tool.name.startsWith('career_email_application_')) return false;
       if (!this.bossGreeting && tool.name.startsWith('boss_greeting')) return false;
       if (!this.bossRuntime && tool.name.startsWith('boss_runtime_')) return false;
+      if (!this.recruitmentCollectionRuntime && tool.name.startsWith('recruitment_collection_runtime_')) return false;
       return true;
     });
   }
@@ -361,6 +377,26 @@ export class CareerMcpRuntime {
         const input = BossRuntimePauseToolInputSchema.parse(rawInput);
         return BossRuntimePauseToolOutputSchema.parse(await this.bossRuntime.pause(input));
       }
+      case 'recruitment_collection_runtime_status': {
+        if (!this.recruitmentCollectionRuntime) throw new Error('Recruitment Collection Runtime capability is not configured');
+        const input = RecruitmentCollectionRuntimeStatusToolInputSchema.parse(rawInput);
+        return RecruitmentCollectionRuntimeStatusToolOutputSchema.parse(await this.recruitmentCollectionRuntime.status(input));
+      }
+      case 'recruitment_collection_runtime_start': {
+        if (!this.recruitmentCollectionRuntime) throw new Error('Recruitment Collection Runtime capability is not configured');
+        const input = RecruitmentCollectionRuntimeStartToolInputSchema.parse(rawInput);
+        return RecruitmentCollectionRuntimeActionToolOutputSchema.parse(await this.recruitmentCollectionRuntime.start(input));
+      }
+      case 'recruitment_collection_runtime_stop': {
+        if (!this.recruitmentCollectionRuntime) throw new Error('Recruitment Collection Runtime capability is not configured');
+        const input = RecruitmentCollectionRuntimeStopToolInputSchema.parse(rawInput);
+        return RecruitmentCollectionRuntimeActionToolOutputSchema.parse(await this.recruitmentCollectionRuntime.stop(input));
+      }
+      case 'recruitment_collection_runtime_sync': {
+        if (!this.recruitmentCollectionRuntime) throw new Error('Recruitment Collection Runtime capability is not configured');
+        const input = RecruitmentCollectionRuntimeSyncToolInputSchema.parse(rawInput);
+        return RecruitmentCollectionRuntimeSyncToolOutputSchema.parse(await this.recruitmentCollectionRuntime.sync(input));
+      }
       case 'resume_profiles_list':
         return ListResumeProfilesOutputSchema.parse(
           await this.requireResume().listProfiles(ListResumeProfilesInputSchema.parse(rawInput)),
@@ -432,6 +468,6 @@ export function createCareerMcpRuntime(ports: CareerApplicationPorts): CareerMcp
   return new CareerMcpRuntime(ports);
 }
 
-export function createJobHarnessMcpRuntime(ports: CareerApplicationPorts, resume: ResumeRuntimePorts, resumeArtifacts: ResumeArtifactRuntimePorts, jobResume?: JobResumeMcpPort, emailApplication?: EmailApplicationMcpPort, bossGreeting?: BossGreetingMcpPort, bossRuntime?: BossRuntimeMcpPort): CareerMcpRuntime {
-  return new CareerMcpRuntime(ports, resume, resumeArtifacts, jobResume, emailApplication, bossGreeting, bossRuntime);
+export function createJobHarnessMcpRuntime(ports: CareerApplicationPorts, resume: ResumeRuntimePorts, resumeArtifacts: ResumeArtifactRuntimePorts, jobResume?: JobResumeMcpPort, emailApplication?: EmailApplicationMcpPort, bossGreeting?: BossGreetingMcpPort, bossRuntime?: BossRuntimeMcpPort, recruitmentCollectionRuntime?: RecruitmentCollectionRuntimeMcpPort): CareerMcpRuntime {
+  return new CareerMcpRuntime(ports, resume, resumeArtifacts, jobResume, emailApplication, bossGreeting, bossRuntime, recruitmentCollectionRuntime);
 }

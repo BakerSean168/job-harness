@@ -28,6 +28,11 @@ tool_groups:
     - career_discovery_begin
     - career_jobs_upsert_batch
     - career_discovery_complete
+  recruitment_collection_runtime:
+    - recruitment_collection_runtime_status
+    - recruitment_collection_runtime_start
+    - recruitment_collection_runtime_stop
+    - recruitment_collection_runtime_sync
   resume_authoring:
     - resume_profiles_list
     - resume_authoring_context_get

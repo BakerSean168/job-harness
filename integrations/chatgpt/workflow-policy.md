@@ -72,6 +72,32 @@ Rules:
 - Store source URL/external identity when available so Job/Listing dedupe stays deterministic.
 - A DiscoveryRun should be completed with truthful candidate/inserted/duplicate/rejected counts even when the conversation later changes topic.
 
+## Upstream collect-only Site Runtime workflow
+
+For 智联、猎聘 and 51job, use the `vvvsrx/get_jobs` upstream-derived Runtime as a coarse collect-only Site Runtime instead of rebuilding selectors in Job Harness:
+
+```text
+recruitment_collection_runtime_status(site)
+  -> if login-required: stop and request human login
+  -> recruitment_collection_runtime_start(site, campaignId, optional city)
+       Job Harness validates campaign.automation.collection.enabled
+       Job Harness derives search keywords and validates the city
+       Runtime must prove collectOnly=true
+  -> upstream worker collects/persists observed job rows without delivery clicks
+  -> recruitment_collection_runtime_stop(site) after the bounded run
+  -> recruitment_collection_runtime_sync(site, discoveryRunId)
+       canonical Job Harness Job/Listing upsert
+```
+
+Rules:
+
+- `recruitment_collection_runtime_start` is not recruiter-facing authority. The server refuses upstream-default mode and the deployed overlay suppresses delivery clicks.
+- Never use a generic browser driver to duplicate a mature upstream collector while this Runtime is healthy.
+- The upstream runtime cache is not a business source of truth. Sync into Job Harness and use canonical dedupe there.
+- An upstream `delivered` flag is imported as metadata only and never establishes an Application or ApplicationSubmission.
+- Only cities declared by the active Campaign may be selected. Search keywords are server-derived from Campaign target roles rather than supplied freely by the ChatGPT caller.
+- `login-required` is a human gate. Do not automate around QR login, CAPTCHA, visit verification, or account-security challenges.
+
 ## Resume authoring workflow
 
 ```text

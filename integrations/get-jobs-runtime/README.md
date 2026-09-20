@@ -52,7 +52,7 @@ The overlay does not replace the upstream locators or page state machines.
 
 The runtime is intended to run inside the user's WSL/WSLg environment so the upstream Camoufox windows are isolated from the normal Windows browser while still being visible for login when needed. The Job Harness Runtime Channel publishes both a tiny stable bootstrap and a content-addressed manager script plus the exact integration overlays.
 
-The bootstrap can be installed once anywhere convenient, for example under `~/.local/share/job-harness/get-jobs-runtime/start.sh`. Each invocation fetches the current Runtime Channel manifest, verifies the manager SHA-256, and hands control to the current manager. The manager then:
+The bootstrap can be installed once anywhere convenient, for example under `~/.local/share/job-harness/get-jobs-runtime/start.sh`. Each invocation fetches the current Runtime Channel manifest, verifies the manager SHA-256, and hands control to the current manager. On Windows + WSL, `integrations/get-jobs-runtime/windows/install-get-jobs-runtime-startup.ps1` can add a user Startup launcher so the self-updating WSL Runtime is restored automatically after sign-in. The manager then:
 
 - clones the exact pinned upstream commit rather than relying on the stale local Job Harness checkout;
 - downloads and hash-verifies only the Job Harness integration overlays;
@@ -110,6 +110,19 @@ JOB_HARNESS_GET_JOBS_RUNTIME_URL=http://127.0.0.1:18851 \
 ```
 
 `login` and `start` both refuse to call their upstream endpoint unless the runtime marker confirms `collectOnly=true`. `login` only opens the upstream browser login flow; it does not begin collection or delivery.
+
+## Job Harness MCP control surface
+
+When the long-running Job Harness server is configured with `JOB_HARNESS_GET_JOBS_RUNTIME_URL`, it exposes four coarse tools instead of raw upstream endpoints:
+
+```text
+recruitment_collection_runtime_status
+recruitment_collection_runtime_start
+recruitment_collection_runtime_stop
+recruitment_collection_runtime_sync
+```
+
+`start` requires an active Campaign with `automation.collection.enabled=true`; the caller chooses only a site and optionally one Campaign-approved city. Job Harness derives the concise search keywords from Campaign target roles, resolves the upstream city code, verifies the Runtime's `collectOnly=true` marker, and refuses a login-required Runtime. `sync` imports upstream cached rows through canonical Job Harness upsert/dedupe; upstream `delivered` remains metadata and never creates Application truth. The login endpoint is intentionally not exposed as an autonomous MCP tool because QR/CAPTCHA/account verification remains a human gate.
 
 ## Promotion gate
 

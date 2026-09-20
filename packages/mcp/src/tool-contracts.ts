@@ -185,6 +185,53 @@ export const BossRuntimePauseToolInputSchema = z.object({
 }).strict();
 export const BossRuntimePauseToolOutputSchema = RecruitmentRuntimeControlSnapshotSchema;
 
+export const RecruitmentCollectionRuntimeSiteSchema = z.enum(['zhilian', 'liepin', 'job51']);
+export const RecruitmentCollectionRuntimeStatusToolInputSchema = z.object({
+  site: RecruitmentCollectionRuntimeSiteSchema,
+}).strict();
+export const RecruitmentCollectionRuntimeStatusToolOutputSchema = z.object({
+  descriptor: RecruitmentRuntimeDescriptorSchema,
+  health: RecruitmentRuntimeHealthSchema,
+  integration: z.literal('job-harness'),
+  collectOnly: z.literal(true),
+  mode: z.literal('collect-only'),
+}).strict();
+export const RecruitmentCollectionRuntimeStartToolInputSchema = z.object({
+  site: RecruitmentCollectionRuntimeSiteSchema,
+  campaignId: z.string().trim().min(1).max(200),
+  city: z.string().trim().min(1).max(200).optional(),
+}).strict();
+export const RecruitmentCollectionRuntimeActionToolOutputSchema = z.object({
+  site: RecruitmentCollectionRuntimeSiteSchema,
+  success: z.boolean(),
+  message: z.string().trim().min(1).max(1000),
+  status: z.string().trim().max(200).nullable(),
+  reused: z.boolean().default(false),
+  campaignId: z.string().trim().min(1).max(200).nullable().default(null),
+  city: z.string().trim().min(1).max(200).nullable().default(null),
+  keywords: z.array(z.string().trim().min(1).max(200)).default([]),
+}).strict();
+export const RecruitmentCollectionRuntimeStopToolInputSchema = z.object({
+  site: RecruitmentCollectionRuntimeSiteSchema,
+}).strict();
+export const RecruitmentCollectionRuntimeSyncToolInputSchema = z.object({
+  site: RecruitmentCollectionRuntimeSiteSchema,
+  discoveryRunId: z.string().trim().min(1).max(200).optional(),
+  pageSize: z.number().int().min(1).max(1000).default(100),
+  maxPages: z.number().int().min(1).max(100).default(20),
+}).strict();
+export const RecruitmentCollectionRuntimeSyncToolOutputSchema = z.object({
+  site: RecruitmentCollectionRuntimeSiteSchema,
+  upstreamTotal: z.number().int().nonnegative(),
+  scanned: z.number().int().nonnegative(),
+  normalized: z.number().int().nonnegative(),
+  normalizationRejected: z.number().int().nonnegative(),
+  inserted: z.number().int().nonnegative(),
+  updated: z.number().int().nonnegative(),
+  duplicate: z.number().int().nonnegative(),
+  persistenceRejected: z.number().int().nonnegative(),
+}).strict();
+
 export const CAREER_MCP_TOOLS = [
   tool({ name: 'career_context_get', description: 'Read the compact job-search context an AI should load before discovery or application work.', mutability: 'read', externalSideEffect: false, inputSchema: CareerContextInputSchema, outputSchema: CareerContextOutputSchema }),
   tool({ name: 'career_jobs_search', description: 'Search durable known jobs with filters; this does not search the public web.', mutability: 'read', externalSideEffect: false, inputSchema: SearchJobsInputSchema, outputSchema: SearchJobsOutputSchema }),
@@ -229,6 +276,13 @@ export const BOSS_RUNTIME_MCP_TOOLS = [
   tool({ name: 'boss_runtime_status', description: 'Read the coarse-grained BOSS Site Runtime descriptor, browser/runtime health, active control task and recent normalized Runtime events. This performs no browser action.', mutability: 'read', externalSideEffect: false, inputSchema: BossRuntimeStatusToolInputSchema, outputSchema: BossRuntimeStatusToolOutputSchema }),
   tool({ name: 'boss_runtime_start', idempotent: true, description: 'Start or reuse one coarse BOSS Site Runtime campaign task. The bridge derives greeting/inbox/resume-followup permissions and the external-effect budget from the active Campaign; automatic mode additionally requires Campaign autoStartEnabled. This can cause recruiter-facing effects.', mutability: 'state-write', externalSideEffect: true, inputSchema: BossRuntimeStartToolInputSchema, outputSchema: BossRuntimeStartToolOutputSchema }),
   tool({ name: 'boss_runtime_pause', idempotent: true, description: 'Pause the active coarse BOSS Site Runtime task. This stops future Runtime work but does not undo completed external effects.', mutability: 'state-write', externalSideEffect: false, inputSchema: BossRuntimePauseToolInputSchema, outputSchema: BossRuntimePauseToolOutputSchema }),
+] as const satisfies readonly CareerMcpToolContract[];
+
+export const RECRUITMENT_COLLECTION_RUNTIME_MCP_TOOLS = [
+  tool({ name: 'recruitment_collection_runtime_status', description: 'Read one upstream-derived collect-only recruitment Site Runtime health/identity. This sends nothing and does not start browser work.', mutability: 'read', externalSideEffect: false, inputSchema: RecruitmentCollectionRuntimeStatusToolInputSchema, outputSchema: RecruitmentCollectionRuntimeStatusToolOutputSchema }),
+  tool({ name: 'recruitment_collection_runtime_start', idempotent: true, description: 'Start or reuse collect-only discovery on 智联/猎聘/51job. Job Harness derives search keywords from the active Campaign, validates the requested city against that Campaign, and refuses any runtime not marked collect-only. This never authorizes recruiter-facing delivery.', mutability: 'state-write', externalSideEffect: false, inputSchema: RecruitmentCollectionRuntimeStartToolInputSchema, outputSchema: RecruitmentCollectionRuntimeActionToolOutputSchema }),
+  tool({ name: 'recruitment_collection_runtime_stop', idempotent: true, description: 'Stop one collect-only recruitment Site Runtime task. This does not undo already observed jobs and performs no recruiter-facing action.', mutability: 'state-write', externalSideEffect: false, inputSchema: RecruitmentCollectionRuntimeStopToolInputSchema, outputSchema: RecruitmentCollectionRuntimeActionToolOutputSchema }),
+  tool({ name: 'recruitment_collection_runtime_sync', idempotent: true, description: 'Import cached jobs observed by one collect-only upstream Site Runtime into canonical Job Harness Jobs/Listings, optionally associating them with an existing DiscoveryRun. Upstream delivered flags are metadata only and never create Application truth.', mutability: 'state-write', externalSideEffect: false, inputSchema: RecruitmentCollectionRuntimeSyncToolInputSchema, outputSchema: RecruitmentCollectionRuntimeSyncToolOutputSchema }),
 ] as const satisfies readonly CareerMcpToolContract[];
 
 export const EMAIL_APPLICATION_MCP_TOOLS = [
@@ -283,5 +337,5 @@ export const RESUME_MCP_TOOLS = [
   tool({ name: 'resume_revision_artifact_materialize', description: 'Materialize an immutable HTML/PDF/JSON Artifact for a published Resume Revision.', mutability: 'state-write', externalSideEffect: false, inputSchema: MaterializeResumeArtifactInputSchema, outputSchema: MaterializeResumeArtifactOutputSchema }),
 ] as const satisfies readonly CareerMcpToolContract[];
 
-export const JOB_HARNESS_MCP_TOOLS = [...CAREER_MCP_TOOLS, ...RESUME_MCP_TOOLS, ...JOB_RESUME_MCP_TOOLS, ...EMAIL_APPLICATION_MCP_TOOLS, ...BOSS_GREETING_MCP_TOOLS, ...BOSS_RUNTIME_MCP_TOOLS] as const;
+export const JOB_HARNESS_MCP_TOOLS = [...CAREER_MCP_TOOLS, ...RESUME_MCP_TOOLS, ...JOB_RESUME_MCP_TOOLS, ...EMAIL_APPLICATION_MCP_TOOLS, ...BOSS_GREETING_MCP_TOOLS, ...BOSS_RUNTIME_MCP_TOOLS, ...RECRUITMENT_COLLECTION_RUNTIME_MCP_TOOLS] as const;
 export const JOB_HARNESS_MCP_TOOL_BY_NAME = new Map(JOB_HARNESS_MCP_TOOLS.map((entry) => [entry.name, entry]));

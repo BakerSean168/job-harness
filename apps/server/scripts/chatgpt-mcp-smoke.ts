@@ -18,6 +18,10 @@ async function main(): Promise<void> {
     'boss_runtime_status',
     'boss_runtime_start',
     'boss_runtime_pause',
+    'recruitment_collection_runtime_status',
+    'recruitment_collection_runtime_start',
+    'recruitment_collection_runtime_stop',
+    'recruitment_collection_runtime_sync',
   ];
 
   const client = new Client({ name: 'job-harness-chatgpt-smoke', version: '1.0.0' });
@@ -37,13 +41,15 @@ async function main(): Promise<void> {
     const resumes = await client.callTool({ name: 'resume_profiles_list', arguments: {} });
     const bossGreetings = await client.callTool({ name: 'boss_greetings_pending', arguments: { limit: 1 } });
     const bossRuntime = await client.callTool({ name: 'boss_runtime_status', arguments: { eventsLimit: 3 } });
-    if (pipeline.isError || intents.isError || resumes.isError || bossGreetings.isError || bossRuntime.isError) throw new Error('One or more read-only smoke calls returned an MCP tool error');
+    const zhilianRuntime = await client.callTool({ name: 'recruitment_collection_runtime_status', arguments: { site: 'zhilian' } });
+    if (pipeline.isError || intents.isError || resumes.isError || bossGreetings.isError || bossRuntime.isError || zhilianRuntime.isError) throw new Error('One or more read-only smoke calls returned an MCP tool error');
 
     const pipelineData = pipeline.structuredContent as Record<string, unknown> | undefined;
     const intentData = intents.structuredContent as { total?: unknown } | undefined;
     const resumeData = resumes.structuredContent as { total?: unknown } | undefined;
     const bossGreetingData = bossGreetings.structuredContent as { total?: unknown; mode?: unknown } | undefined;
     const bossRuntimeData = bossRuntime.structuredContent as { descriptor?: { runtimeId?: unknown }; control?: { desiredState?: unknown; task?: unknown } } | undefined;
+    const zhilianRuntimeData = zhilianRuntime.structuredContent as { descriptor?: { runtimeId?: unknown }; health?: { state?: unknown }; collectOnly?: unknown } | undefined;
     console.log(JSON.stringify({
       endpoint: new URL(url).origin,
       toolCount: names.length,
@@ -57,6 +63,9 @@ async function main(): Promise<void> {
       bossRuntimeId: bossRuntimeData?.descriptor?.runtimeId ?? null,
       bossRuntimeState: bossRuntimeData?.control?.desiredState ?? null,
       bossRuntimeTaskActive: Boolean(bossRuntimeData?.control?.task),
+      zhilianRuntimeId: zhilianRuntimeData?.descriptor?.runtimeId ?? null,
+      zhilianRuntimeState: zhilianRuntimeData?.health?.state ?? null,
+      zhilianCollectOnly: zhilianRuntimeData?.collectOnly ?? null,
     }, null, 2));
   } finally {
     await client.close().catch(() => undefined);
