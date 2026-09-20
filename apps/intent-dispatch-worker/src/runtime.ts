@@ -84,6 +84,11 @@ export class PlannedIntentDispatcher {
           decisions.push(skip(intent, 'unsupported', 'campaign_official_fill_disabled'));
           continue;
         }
+        if (intent.channel === 'email') {
+          skippedUnsupportedSite += 1;
+          decisions.push(skip(intent, 'unsupported', 'email_intent_owned_by_email_delivery_worker'));
+          continue;
+        }
         const route = routeIntent(intent);
         if (!route) {
           skippedUnsupportedSite += 1;

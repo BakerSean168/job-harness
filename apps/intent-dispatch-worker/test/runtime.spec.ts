@@ -146,6 +146,15 @@ describe('PlannedIntentDispatcher', () => {
     expect(dispatches[0].policySnapshot.siteResumeBindingId).toBeUndefined();
   });
 
+  it('never routes an email draft intent into the ATS/browser dispatcher even when it carries an HTTPS source URL', async () => {
+    const emailIntent = intent({ channel: 'email', externalTargetUrl: 'https://jobs.feishu.cn/acme/position/123' });
+    const { client, dispatches } = fakeClient({ intents: [emailIntent], bindings: [] });
+    const result = await new PlannedIntentDispatcher(client).runOnce();
+    expect(result).toMatchObject({ dispatched: 0, skippedUnsupportedSite: 1, failures: [] });
+    expect(result.decisions[0]).toMatchObject({ outcome: 'skip', reason: 'email_intent_owned_by_email_delivery_worker' });
+    expect(dispatches).toEqual([]);
+  });
+
   it('never redispatches an intent that already has any ExecutionAttempt and never accepts Liepin recruiter /a/ pages', async () => {
     const existing = fakeClient({ bindings: [binding()], attempts: [{ id: 'attempt-existing' }] });
     const existingResult = await new PlannedIntentDispatcher(existing.client).runOnce();
