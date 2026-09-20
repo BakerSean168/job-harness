@@ -333,14 +333,18 @@ function Run-SupervisorIteration {
       $bossRuntimeHealth = Get-BossRuntimeServerHealth
     }
 
-    Write-SupervisorState @{
+    $statePatch = @{
       supervisorStatus = 'healthy'
       siteHealth = $siteHealth
       bossRuntimeHealth = $bossRuntimeHealth
       bossRuntimeOfflineStreak = $script:bossRuntimeOfflineStreak
-      lastSelfHealAction = $selfHealAction
       lastError = $null
     }
+    if ($selfHealAction) {
+      $statePatch['lastSelfHealAction'] = $selfHealAction
+      $statePatch['lastSelfHealAt'] = [DateTime]::UtcNow.ToString('o')
+    }
+    Write-SupervisorState $statePatch
   } catch {
     Write-SupervisorState @{ supervisorStatus = 'error'; lastError = $_.Exception.Message }
     throw
