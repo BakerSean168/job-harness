@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-20",
+  "projects": {
+    "czc-good-job": {
+      "repository": "https://github.com/czc6666/czc-good-job.git",
+      "defaultBranch": "main",
+      "license": "MIT",
+      "licensePath": "LICENSE",
+      "licenseSha256": "b800a52c77c8ac924a16bbd34136fe2877f477efac1eaa1af7af0c36703d8966",
+      "pinnedCommit": "e07bf4cb663d9531864ca22eb6195b77e064c3b5",
+      "integrationKind": "direct-runtime-overlay",
+      "productionRole": "boss-site-runtime",
+      "trackedPaths": [
+        {
+          "upstreamPath": "web_script.js",
+          "upstreamSha256": "fd00792dfe5603e68dcfb0e195fd626e13133c62ed259f3562655669c1412071",
+          "localPath": "integrations/boss/legacy-copilot.user.js",
+          "localSha256": "6591d33b41eaec8b4312effa805f0fbd1ab0f8bb5a2204e84bc45c206ea324e3",
+          "overlayPath": "integrations/upstreams/overlays/czc-good-job-web-script.patch"
+        }
+      ],
+      "checks": [
+        "pnpm check:boss-copilot-compat",
+        "pnpm check:legacy-copilot-parity"
+      ],
+      "promotion": "candidate-canary-promote"
+    },
+    "openjobautofill": {
+      "repository": "https://github.com/Br1an67/OpenJobAutofill.git",
+      "defaultBranch": "main",
+      "license": "MIT",
+      "licensePath": "LICENSE",
+      "licenseSha256": "d939baf1018f96e20ed25a09ac6b3eb3ece9f0ad4997bce342ad4383522617d2",
+      "pinnedCommit": "005eda98841b3671ead615ebfde5922f0dfd7c36",
+      "integrationKind": "derived-form-engine",
+      "productionRole": "generic-form-engine-upstream",
+      "trackedPaths": [
+        {
+          "upstreamPath": "src/content.js",
+          "upstreamSha256": "14a24cb3d22575fb6cf9ee849121fc4d362cb52d75bc2811dc90f97c81b12fd1",
+          "localReferencePath": "integrations/boss-copilot/legacy/source-snapshot/src/content.js",
+          "localReferenceSha256": "4fac52a46c02226a5988955d2c9cf44eda724b9485dfbdf92ff0d6f58dafc3da",
+          "derivedPath": "packages/browser-form-engine/browser/runtime.js",
+          "derivedSha256": "53029328624bc412c7fbf036a7082d2a153c1fad1943c48f3e46053565e7bdc7"
+        }
+      ],
+      "checks": [
+        "pnpm check:browser-extension-bridge",
+        "pnpm check:legacy-copilot-parity"
+      ],
+      "promotion": "manual-derived-sync-then-canary"
+    }
+  }
+}

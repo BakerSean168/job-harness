@@ -34,7 +34,11 @@
     "check:legacy-copilot-parity": "tsx scripts/check-legacy-copilot-parity.ts",
     "build:boss-copilot-compat": "tsx scripts/build-boss-copilot-compat.ts",
     "check:boss-copilot-compat": "pnpm build:boss-copilot-compat && node --check integrations/boss-copilot/extension/boss-copilot.js && node --check integrations/boss-copilot/extension/runtime-marker.js && node --check integrations/boss-copilot/extension/gm-request-shim.js && node --check integrations/boss-copilot/extension/background.js && node -e \"JSON.parse(require('fs').readFileSync('integrations/boss-copilot/extension/manifest.json','utf8'))\"",
-    "sync:browser-form-engine": "node scripts/sync-browser-form-engine.mjs"
+    "sync:browser-form-engine": "node scripts/sync-browser-form-engine.mjs",
+    "upstream:check": "node scripts/upstream-registry.mjs check",
+    "upstream:diff": "node scripts/upstream-registry.mjs diff",
+    "upstream:sync": "node scripts/upstream-registry.mjs sync",
+    "upstream:test": "node scripts/upstream-registry.mjs test"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",
