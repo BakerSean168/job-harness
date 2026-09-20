@@ -302,11 +302,18 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
     expect(calls).toEqual([]);
   });
 
-  it('reports an unreachable upstream as offline instead of inventing browser readiness', async () => {
+  it('reports an unreachable upstream as offline without making the MCP status tool fail', async () => {
     const client = createGetJobsRuntimeClient({
       baseUrl: 'http://get-jobs-runtime:8000',
       fetch: (async () => { throw new Error('connection refused'); }) as typeof globalThis.fetch,
     });
     await expect(client.health('liepin')).resolves.toMatchObject({ site: 'liepin', state: 'offline', browserConnected: false });
+    const port = createGetJobsCollectionRuntimeMcpPort(client, { campaigns: {} as any, jobs: {} as any });
+    await expect(port.status({ site: 'liepin' })).resolves.toMatchObject({
+      descriptor: { runtimeId: 'get-jobs-liepin' },
+      health: { site: 'liepin', state: 'offline', browserConnected: false },
+      collectOnly: true,
+      mode: 'collect-only',
+    });
   });
 });

@@ -460,9 +460,12 @@ export function createGetJobsCollectionRuntimeMcpPort(
   return {
     async status(input) {
       const site = GetJobsRuntimeSiteSchema.parse(input.site);
-      const [info, health] = await Promise.all([runtime.runtimeInfo(), runtime.health(site)]);
-      if (!info.collectOnly || info.mode !== 'collect-only') {
-        throw new Error('get_jobs runtime is not in Job Harness collect-only mode');
+      const health = await runtime.health(site);
+      if (health.state !== 'offline') {
+        const info = await runtime.runtimeInfo();
+        if (!info.collectOnly || info.mode !== 'collect-only') {
+          throw new Error('get_jobs runtime is not in Job Harness collect-only mode');
+        }
       }
       return {
         descriptor: runtime.descriptor(site),
@@ -484,6 +487,17 @@ export function createGetJobsCollectionRuntimeMcpPort(
       const keywords = deriveCampaignCollectionKeywords(campaign);
       if (!keywords.length) throw new Error(`Campaign '${input.campaignId}' has no usable collection keywords`);
 
+      const health = await runtime.health(site);
+      if (health.state === 'offline') {
+        throw new Error(`${site} runtime is offline`);
+      }
+      if (health.state === 'login-required') {
+        throw new Error(`${site} requires human login before collect-only discovery can start`);
+      }
+      if (health.state !== 'ready') {
+        throw new Error(`${site} runtime is not ready: ${health.state}${health.detail ? ` (${health.detail})` : ''}`);
+      }
+
       const info = await runtime.runtimeInfo();
       if (!info.collectOnly || info.mode !== 'collect-only') {
         throw new Error('get_jobs runtime is not in Job Harness collect-only mode; refusing collection start');
@@ -503,14 +517,6 @@ export function createGetJobsCollectionRuntimeMcpPort(
           city,
           keywords,
         };
-      }
-
-      const health = await runtime.health(site);
-      if (health.state === 'login-required') {
-        throw new Error(`${site} requires human login before collect-only discovery can start`);
-      }
-      if (health.state !== 'ready') {
-        throw new Error(`${site} runtime is not ready: ${health.state}${health.detail ? ` (${health.detail})` : ''}`);
       }
 
       await runtime.configureCollection(site, { keywords, city });
