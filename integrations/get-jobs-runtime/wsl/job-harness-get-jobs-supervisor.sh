@@ -176,7 +176,7 @@ start_runtime() {
     export DATABASE_URL="$db_url"
     export APP_HOST=127.0.0.1
     export APP_PORT="$PORT"
-    nohup "$venv/bin/python" run.py >> "$LOG_FILE" 2>&1 &
+    nohup "$venv/bin/python" -m uvicorn app.main:app --host 127.0.0.1 --port "$PORT" >> "$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
   )
 

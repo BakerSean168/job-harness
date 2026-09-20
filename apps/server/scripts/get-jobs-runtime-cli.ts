@@ -17,6 +17,10 @@ async function main(): Promise<void> {
     console.log(JSON.stringify({ descriptor: runtime.descriptor(site), info, health }, null, 2));
     return;
   }
+  if (command === 'login') {
+    console.log(JSON.stringify(await runtime.login(site), null, 2));
+    return;
+  }
   if (command === 'start') {
     console.log(JSON.stringify(await runtime.startCollection(site), null, 2));
     return;
@@ -42,7 +46,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  throw new Error(`Unknown command '${command}'. Expected status|start|stop|sync.`);
+  throw new Error(`Unknown command '${command}'. Expected status|login|start|stop|sync.`);
 }
 
 void main();

@@ -92,21 +92,24 @@ An upstream row with `delivered=1` is imported only as metadata. It does not cre
 Operator CLI:
 
 ```bash
-JOB_HARNESS_GET_JOBS_RUNTIME_URL=http://127.0.0.1:8000 \
+JOB_HARNESS_GET_JOBS_RUNTIME_URL=http://127.0.0.1:18851 \
   pnpm --filter @job-harness/server get-jobs:runtime status zhilian
 
-JOB_HARNESS_GET_JOBS_RUNTIME_URL=http://127.0.0.1:8000 \
+JOB_HARNESS_GET_JOBS_RUNTIME_URL=http://127.0.0.1:18851 \
+  pnpm --filter @job-harness/server get-jobs:runtime login zhilian
+
+JOB_HARNESS_GET_JOBS_RUNTIME_URL=http://127.0.0.1:18851 \
   pnpm --filter @job-harness/server get-jobs:runtime start zhilian
 
-JOB_HARNESS_GET_JOBS_RUNTIME_URL=http://127.0.0.1:8000 \
+JOB_HARNESS_GET_JOBS_RUNTIME_URL=http://127.0.0.1:18851 \
 JOB_HARNESS_AUTH_TOKEN=... \
   pnpm --filter @job-harness/server get-jobs:runtime sync zhilian
 
-JOB_HARNESS_GET_JOBS_RUNTIME_URL=http://127.0.0.1:8000 \
+JOB_HARNESS_GET_JOBS_RUNTIME_URL=http://127.0.0.1:18851 \
   pnpm --filter @job-harness/server get-jobs:runtime stop zhilian
 ```
 
-`start` refuses to call the upstream start endpoint unless the runtime marker confirms `collectOnly=true`.
+`login` and `start` both refuse to call their upstream endpoint unless the runtime marker confirms `collectOnly=true`. `login` only opens the upstream browser login flow; it does not begin collection or delivery.
 
 ## Promotion gate
 
