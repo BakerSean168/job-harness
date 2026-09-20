@@ -5,6 +5,7 @@ param(
   [int]$RemoteDebuggingPort = 9222,
   [int]$PollSeconds = 60,
   [string]$ProfilePath = '',
+  [string]$BossRuntimeHealthUrl = 'https://oracle.taile92a8e.ts.net:10444/api/runtime/health',
   [switch]$Once,
   [switch]$ResetProfile,
   [switch]$NoLaunch
@@ -19,6 +20,7 @@ $legacyProfile = Join-Path $env:LOCALAPPDATA 'JobHarness\BossCopilot\Profile'
 $defaultProfile = Join-Path $root 'Profile'
 $profile = if ($ProfilePath) { $ProfilePath } elseif (Test-Path $legacyProfile) { $legacyProfile } else { $defaultProfile }
 $statePath = Join-Path $root 'supervisor-state.json'
+$bossRuntimeOfflineStreak = 0
 
 function Get-DedicatedBrowserProcesses {
   $escapedProfile = [Regex]::Escape($profile)
@@ -142,6 +144,15 @@ function Ensure-SupervisorCurrent($Manifest) {
   Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments | Out-Null
   Write-SupervisorState @{ supervisorStatus = 'updating'; availableSupervisorSha256 = $expected }
   exit 0
+}
+
+function Get-BossRuntimeServerHealth {
+  if (-not $BossRuntimeHealthUrl) { return $null }
+  try {
+    return Invoke-RestMethod -Uri $BossRuntimeHealthUrl -Method Get -TimeoutSec 8
+  } catch {
+    return $null
+  }
 }
 
 function Get-RecruitmentSiteHealth {
@@ -300,7 +311,36 @@ function Run-SupervisorIteration {
       throw 'Dedicated browser did not remain running after launch.'
     }
     if (-not $NoLaunch) { Start-Sleep -Milliseconds 600 }
-    Write-SupervisorState @{ supervisorStatus = 'healthy'; siteHealth = (Get-RecruitmentSiteHealth); lastError = $null }
+
+    $siteHealth = Get-RecruitmentSiteHealth
+    $bossRuntimeHealth = Get-BossRuntimeServerHealth
+    $selfHealAction = $null
+    if ($bossRuntimeHealth -and [string]$bossRuntimeHealth.state -eq 'offline' -and $siteHealth.boss.state -eq 'ready') {
+      $script:bossRuntimeOfflineStreak += 1
+    } else {
+      $script:bossRuntimeOfflineStreak = 0
+    }
+
+    if (-not $NoLaunch -and $script:bossRuntimeOfflineStreak -ge 3) {
+      Write-Warning 'BOSS page is open but the Site Runtime heartbeat is stale; restarting the dedicated browser to reload the runtime.'
+      Stop-JobHarnessBrowser
+      Start-Sleep -Seconds 2
+      Start-JobHarnessBrowser $manifest
+      $script:bossRuntimeOfflineStreak = 0
+      $selfHealAction = 'restart-dedicated-browser-for-stale-boss-runtime'
+      Start-Sleep -Seconds 3
+      $siteHealth = Get-RecruitmentSiteHealth
+      $bossRuntimeHealth = Get-BossRuntimeServerHealth
+    }
+
+    Write-SupervisorState @{
+      supervisorStatus = 'healthy'
+      siteHealth = $siteHealth
+      bossRuntimeHealth = $bossRuntimeHealth
+      bossRuntimeOfflineStreak = $script:bossRuntimeOfflineStreak
+      lastSelfHealAction = $selfHealAction
+      lastError = $null
+    }
   } catch {
     Write-SupervisorState @{ supervisorStatus = 'error'; lastError = $_.Exception.Message }
     throw

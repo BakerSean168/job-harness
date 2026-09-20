@@ -459,7 +459,10 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
     const snapshot = await ensureRuntimeTaskNotExpired();
     const checkedAt = new Date().toISOString();
     const lastPollMs = lastRuntimePollAt ? Date.parse(lastRuntimePollAt) : Number.NaN;
-    const browserConnected = Number.isFinite(lastPollMs) && Date.now() - lastPollMs <= 10_000;
+    // Chromium may heavily throttle background-tab timers. Treat up to 90s between
+    // content-script control polls as connected, while the Windows Supervisor
+    // independently self-heals genuinely stale runtimes.
+    const browserConnected = Number.isFinite(lastPollMs) && Date.now() - lastPollMs <= 90_000;
     const pageState = runtimePageState();
     const state = !browserConnected
       ? 'offline'

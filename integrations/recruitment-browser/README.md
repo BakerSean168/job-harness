@@ -11,7 +11,8 @@ The Recruitment Browser Supervisor owns only:
 - runtime bundle download/hash verification;
 - browser process lifecycle and crash recovery;
 - localhost CDP exposure for debugging;
-- local runtime/supervisor status.
+- local runtime/supervisor status;
+- bounded self-healing when the BOSS page is alive but the server-side Site Runtime heartbeat stays stale across multiple supervisor polls.
 
 It does **not** own Campaign, Job, Resume, SubmissionIntent, Application or final-submit policy.
 
@@ -79,4 +80,6 @@ For normal long-running operation:
 
 ## Current migration note
 
-Loading the generic Browser Bridge into the dedicated profile does not grant it Career/Resume authority. Its existing scoped pairing/worker protocol remains in force. RBR-003 will move mature site workflows behind coarse Site Runtime tasks; the low-level Browser Bridge remains a generic/fallback driver rather than the primary orchestration surface for proven site runtimes.
+Loading the generic Browser Bridge into the dedicated profile does not grant it Career/Resume authority. Its existing scoped pairing/worker protocol remains in force. BOSS is already exposed as the coarse `boss-czc-good-job` Site Runtime; the low-level Browser Bridge remains a generic/fallback driver rather than the primary orchestration surface for proven site runtimes.
+
+The BOSS content script polls its server-side coarse control state. Background Chromium timers can be throttled, so the bridge tolerates a bounded heartbeat gap. Separately, the Windows Supervisor compares local CDP page health with the server-side BOSS Runtime health. If the page remains healthy while the Site Runtime heartbeat reports `offline` for three consecutive supervisor iterations, only the dedicated Job Harness browser is restarted so the extension/runtime is reloaded without touching the user's normal browser.
