@@ -19,27 +19,43 @@ export type BossResumeFollowupRequest = z.infer<typeof BossResumeFollowupRequest
 
 export interface BossResumeFollowupDecision {
   readonly need: boolean;
-  readonly reason: 'already-sent' | 'latest-not-recruiter' | 'explicit-request' | 'qualified-followup' | 'below-threshold';
+  readonly intent: 'explicit-resume-request' | 'question' | 'interview' | 'rejection' | 'positive' | 'unknown' | 'none';
+  readonly reason: 'already-sent' | 'latest-not-recruiter' | 'explicit-request' | 'recruiter-question' | 'interview-invite' | 'recruiter-rejection' | 'positive-reply-review' | 'unknown-reply-review';
 }
 
-export function decideBossResumeFollowup(raw: unknown, threshold = 58): BossResumeFollowupDecision {
+function recentRecruiterText(input: BossResumeFollowupRequest): string {
+  let text = '';
+  for (let index = input.msgs.length - 1; index >= 0; index -= 1) {
+    const message = input.msgs[index]!;
+    if (message.role !== 'user') break;
+    text = `${message.content}\n${text}`;
+  }
+  return text.trim();
+}
+
+function classifyRecruiterIntent(input: BossResumeFollowupRequest): BossResumeFollowupDecision['intent'] {
+  const recent = recentRecruiterText(input);
+  if (/(?:不合适|不太合适|不匹配|不符合|暂不考虑|暂时不考虑|岗位.{0,6}(?:关闭|暂停|取消)|已经?招到|招满|感谢.{0,8}(?:关注|投递)|很遗憾)/i.test(recent)) return 'rejection';
+  if (input.needResume > 0 || /(?:(?:发|发送|给|提供|投递|上传).{0,10}(?:简历|履历|resume|\bcv\b)|(?:简历|履历|resume|\bcv\b).{0,10}(?:发|发送|给|看看|看下|看一下|提供|投递|上传|方便))/i.test(recent)) return 'explicit-resume-request';
+  if (/(?:面试|笔试|测评|电话面|视频面|现场面|到司|来公司|约.{0,6}(?:时间|面|聊))/i.test(recent)) return 'interview';
+  if (/[?？]|(?:什么时候|是否|能否|可以.{0,8}吗|方便.{0,8}吗|多久|在哪|哪里|薪资|期望|到岗|毕业|实习|技术栈|经验|地点|城市|加班|单休|接受|考虑)/i.test(recent)) return 'question';
+  if (/(?:你好|您好|hi\b|hello\b|可以聊|方便聊|感兴趣|可以沟通|聊一下|聊聊|收到|好的|可以的)/i.test(recent)) return 'positive';
+  return 'unknown';
+}
+
+export function decideBossResumeFollowup(raw: unknown, _threshold = 58): BossResumeFollowupDecision {
   const input = BossResumeFollowupRequestSchema.parse(raw);
-  if (input.resumeSended) return { need: false, reason: 'already-sent' };
   const latest = input.msgs.at(-1) ?? null;
-  if (!latest || latest.role !== 'user') return { need: false, reason: 'latest-not-recruiter' };
-  const recent = (() => {
-    let text = '';
-    for (let index = input.msgs.length - 1; index >= 0; index -= 1) {
-      const message = input.msgs[index]!;
-      if (message.role !== 'user') break;
-      text = `${message.content}\n${text}`;
-    }
-    return text;
-  })();
-  const explicit = input.needResume > 0 || /简历|附件|履历|resume|\bcv\b/i.test(recent);
-  if (explicit) return { need: true, reason: 'explicit-request' };
-  if (input.score >= threshold) return { need: true, reason: 'qualified-followup' };
-  return { need: false, reason: 'below-threshold' };
+  if (!latest || latest.role !== 'user') return { need: false, intent: 'none', reason: 'latest-not-recruiter' };
+
+  const intent = classifyRecruiterIntent(input);
+  if (input.resumeSended) return { need: false, intent, reason: 'already-sent' };
+  if (intent === 'explicit-resume-request') return { need: true, intent, reason: 'explicit-request' };
+  if (intent === 'rejection') return { need: false, intent, reason: 'recruiter-rejection' };
+  if (intent === 'interview') return { need: false, intent, reason: 'interview-invite' };
+  if (intent === 'question') return { need: false, intent, reason: 'recruiter-question' };
+  if (intent === 'positive') return { need: false, intent, reason: 'positive-reply-review' };
+  return { need: false, intent, reason: 'unknown-reply-review' };
 }
 
 export interface PatchBossResumeFollowupOptions {

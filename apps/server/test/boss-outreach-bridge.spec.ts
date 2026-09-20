@@ -69,7 +69,8 @@ describe('Job Harness BOSS outreach bridge', () => {
       expect(response.status).toBe(200);
       const decision = await response.json() as { introduce: string; greetingRequestId?: string };
       expect(decision.greetingRequestId).toBeTruthy();
-      expect(decision.introduce).toContain('测试大学物联网工程26届本科');
+      expect(decision.introduce).not.toContain('物联网工程');
+      expect(decision.introduce).not.toContain('测试大学');
       expect(decision.introduce).toContain('Agent Harness');
       expect(decision.introduce).toContain('Agent开发工程师');
       const rows = (await readFile(logPath, 'utf8')).trim().split(/\n/).map((line) => JSON.parse(line));
@@ -186,6 +187,70 @@ describe('Job Harness BOSS outreach bridge', () => {
     }
   });
 
+  it('reuses the Resume Profile from the durable greeting history for recruiter follow-up and persists replies/sends', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
+    const logPath = join(dir, 'events.jsonl');
+    const persistedOutreach: any[] = [];
+    const h: any = client();
+    h.jobs = {
+      async upsertJobsBatch() { return { items: [{ index: 0, status: 'updated', jobId: 'boss-job-followup', reason: null }] }; },
+    };
+    h.workspace = {
+      async getJobDetail() {
+        return {
+          job: { listings: [{ id: 'boss-listing-followup', sourceKind: 'boss', externalId: 'followup123', url: 'https://www.zhipin.com/job_detail/followup123.html' }] },
+        };
+      },
+    };
+    h.outreach = {
+      async list() {
+        return { total: 1, items: [{
+          id: 'outreach-greeting-1', jobId: 'boss-job-followup', listingId: 'boss-listing-followup', channel: 'boss', type: 'greeting_sent', occurredAt: at,
+          actor: 'system', resumeProfileId: 'ai-fullstack', message: 'hello', externalThreadUrl: null, metadata: { score: 76 }, idempotencyKey: 'greeting-history-1', createdAt: at,
+        }] };
+      },
+      async record(input: any) { persistedOutreach.push(input); return { id: `outreach-${persistedOutreach.length}`, ...input, createdAt: input.occurredAt }; },
+    };
+    const server = createBossOutreachBridge({ client: h, publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0, greetingWaitMs: 1_000, campaignId: 'campaign-1' });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('missing server address');
+      const base = `http://127.0.0.1:${address.port}`;
+      const contextResponse = await fetch(`${base}/p/ai-agent-app/get-followup-context`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+          job: payload, company: '示例科技', city: '深圳', jobUrl: 'https://www.zhipin.com/job_detail/followup123.html',
+        }),
+      });
+      expect(contextResponse.status).toBe(200);
+      const context = await contextResponse.json() as any;
+      expect(context).toMatchObject({ jobId: 'boss-job-followup', listingId: 'boss-listing-followup', profileId: 'ai-fullstack', resumeIndex: 2, score: 76, resumeBindingSource: 'greeting-history' });
+
+      const reply = await fetch(`${base}/p/ai-agent-app/log-action`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+          action: 'recruiter_replied', scene: 'browser-bridge-followup', jobId: context.jobId, listingId: context.listingId,
+          jobUrl: 'https://www.zhipin.com/job_detail/followup123.html', title: 'Agent开发工程师', resumeIndex: context.resumeIndex,
+          message: '可以发份简历看看吗', intent: 'explicit-resume-request', resumeBindingSource: context.resumeBindingSource,
+        }),
+      });
+      expect(reply.status).toBe(200);
+      const sent = await fetch(`${base}/p/ai-agent-app/log-action`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+          action: 'resume_sent', scene: 'browser-bridge-followup', jobId: context.jobId, listingId: context.listingId,
+          jobUrl: 'https://www.zhipin.com/job_detail/followup123.html', title: 'Agent开发工程师', resumeIndex: context.resumeIndex,
+          resumeBindingSource: context.resumeBindingSource,
+        }),
+      });
+      expect(sent.status).toBe(200);
+      expect(persistedOutreach).toHaveLength(2);
+      expect(persistedOutreach[0]).toMatchObject({ type: 'recruiter_replied', jobId: 'boss-job-followup', resumeProfileId: 'ai-fullstack', message: '可以发份简历看看吗' });
+      expect(persistedOutreach[1]).toMatchObject({ type: 'resume_sent', jobId: 'boss-job-followup', resumeProfileId: 'ai-fullstack' });
+      expect(persistedOutreach[0].idempotencyKey).toMatch(/^boss-outreach:boss-job-followup:recruiter_replied:/);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
   it('serves the existing userscript endpoints and keeps resume-send/multiturn paths blocked', async () => {
     dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
     const logPath = join(dir, 'events.jsonl');
@@ -239,7 +304,7 @@ async function x(){
       expect(pending?.items[0]?.candidate).toMatchObject({ displayName: '测试候选人' });
       expect(pending?.items[0]?.guidance.join(' ')).toContain('不使用固定文案模板');
       const greetingRequestId = pending!.items[0]!.id;
-      const greeting = '您好，我是测试大学物联网工程专业的应届生，做过 Agent Harness 与多智能体编排相关项目，和贵司岗位方向比较契合，想进一步了解一下岗位，谢谢。';
+      const greeting = '您好，看到贵司 Agent 开发岗位，我做过 Agent Harness 与多智能体编排相关项目，和岗位方向比较契合，希望有机会进一步沟通，谢谢。';
       const resolved = await fetch(`${base}/api/greetings/${greetingRequestId}/resolve`, {
         method: 'POST',
         body: JSON.stringify({ message: greeting, source: 'chatgpt-web-test' }),
@@ -259,7 +324,7 @@ async function x(){
         msgs: [{ role: 'assistant', content: '您好' }, { role: 'user', content: '方便聊一下吗' }],
         needResume: 0, resumeSended: false, title: 'Agent开发工程师', company: '示例科技', salary: '15-25K', score: 90, resumeIndex: 0,
       }) });
-      expect(await resumeNeed.json()).toEqual({ need: true, reason: 'qualified-followup' });
+      expect(await resumeNeed.json()).toEqual({ need: false, intent: 'question', reason: 'recruiter-question' });
       const reply = await fetch(`${base}/p/ai-agent-app/reply`, { method: 'POST', body: JSON.stringify('hello') });
       expect(reply.status).toBe(409);
       expect(await reply.json()).toMatchObject({ error: 'resume_followup_mode' });

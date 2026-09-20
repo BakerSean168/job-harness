@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, appendFile, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
@@ -8,6 +8,8 @@ import type {
   JobDetail,
   JobOutreachEvent,
   JobSearchCampaign,
+  ListJobOutreachEventsInput,
+  ListJobOutreachEventsOutput,
   RecordJobOutreachEventInput,
   UpsertJobsBatchInput,
   UpsertJobsBatchOutput,
@@ -28,7 +30,10 @@ export interface BossOutreachBridgeClient {
     checkDuplicate?(input: { companyName: string; title: string; city?: string | null; listings: UpsertJobsBatchInput['jobs'][number]['listings'] }): Promise<{ duplicate: boolean; job: JobDetail['job'] | null }>;
   };
   readonly workspace?: { getJobDetail(jobId: string): Promise<JobDetail | null> };
-  readonly outreach?: { record(input: RecordJobOutreachEventInput): Promise<JobOutreachEvent> };
+  readonly outreach?: {
+    record(input: RecordJobOutreachEventInput): Promise<JobOutreachEvent>;
+    list?(input: ListJobOutreachEventsInput): Promise<ListJobOutreachEventsOutput>;
+  };
 }
 
 export interface BossOutreachBridgeOptions {
@@ -195,20 +200,11 @@ function normalizeGreetingMessage(value: unknown): string | null {
   return message;
 }
 
-function graduationLabel(endMonth: string | null | undefined): string | null {
-  const match = /^(\d{4})-\d{2}$/.exec(endMonth ?? '');
-  return match ? `${match[1]!.slice(-2)}届` : null;
-}
-
 function fallbackGreeting(
-  applicant: ApplicantProfileContext['profile'],
+  _applicant: ApplicantProfileContext['profile'],
   decision: BossJobDecision,
   job: ParsedBossJob,
 ): string {
-  const education = applicant.education[0];
-  const identity = [education?.school, education?.major, graduationLabel(education?.endMonth), education?.degree]
-    .filter((value): value is string => Boolean(value && value.trim()))
-    .join('');
   const genericSignal = /^(?:前端开发|全栈开发|后端开发|软件开发|开发工程师|AI Agent|Agent开发|全栈|前端|后端)$/i;
   const signals = decision.signals
     .map((value) => value.replace(/\s+/g, ' ').trim())
@@ -221,8 +217,7 @@ function fallbackGreeting(
     : signals.length === 1
       ? `有 ${signals[0]} 相关项目实践`
       : `有与${decision.profileLabel}方向相关的项目实践`;
-  const prefix = identity ? `您好，我是${identity}，` : '您好，';
-  const message = `${prefix}${evidence}，看到贵司的${role}岗位后感觉方向比较契合，希望有机会进一步沟通，谢谢。`;
+  const message = `您好，看到贵司的${role}岗位，${evidence}，和岗位方向比较契合，希望有机会进一步沟通，谢谢。`;
   return normalizeGreetingMessage(message)
     ?? '您好，我关注到贵司这个岗位，我的项目经历与岗位方向有一定匹配，希望有机会进一步沟通，谢谢。';
 }
@@ -317,11 +312,11 @@ async function readJsonBody(req: IncomingMessage, limit = 128 * 1024): Promise<u
 function safeActionPayload(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { value: String(value ?? '').slice(0, 2000) };
   const source = value as Record<string, unknown>;
-  const allow = ['action','scene','screeningSessionId','jobUrl','jobId','listingId','title','company','city','salary','score','threshold','screeningPassed','resumeIndex','requestedResumeIndex','selectedResumeIndex','sendMode','reason','chatUrl','addUrl'];
+  const allow = ['action','scene','screeningSessionId','jobUrl','jobId','listingId','title','company','city','salary','score','threshold','screeningPassed','resumeIndex','requestedResumeIndex','selectedResumeIndex','sendMode','reason','intent','resumeBindingSource','profileId','message','chatUrl','addUrl'];
   const result: Record<string, unknown> = {};
   for (const key of allow) {
     const item = source[key];
-    if (typeof item === 'string') result[key] = item.slice(0, key === 'jobUrl' || key === 'chatUrl' || key === 'addUrl' ? 2000 : 1000);
+    if (typeof item === 'string') result[key] = item.slice(0, key === 'message' ? 4000 : key === 'jobUrl' || key === 'chatUrl' || key === 'addUrl' ? 2000 : 1000);
     else if (typeof item === 'number' && Number.isFinite(item)) result[key] = item;
     else if (typeof item === 'boolean') result[key] = item;
   }
@@ -493,15 +488,24 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
       occurredAt: new Date().toISOString(),
       actor: 'system',
       resumeProfileId: decision?.profileId ?? null,
-      message: type === 'greeting_sent' ? decision?.introduce ?? null : null,
+      message: type === 'greeting_sent'
+        ? decision?.introduce ?? null
+        : type === 'recruiter_replied' && typeof body.message === 'string'
+          ? body.message
+          : null,
       externalThreadUrl: thread,
       metadata: {
         source: 'boss-copilot-compat',
         scene: typeof body.scene === 'string' ? body.scene : null,
         resumeIndex,
         score: decision?.score ?? null,
+        intent: typeof body.intent === 'string' ? body.intent : null,
+        reason: typeof body.reason === 'string' ? body.reason : null,
+        resumeBindingSource: typeof body.resumeBindingSource === 'string' ? body.resumeBindingSource : null,
       },
-      idempotencyKey: `boss-outreach:${jobId}:${type}`,
+      idempotencyKey: type === 'recruiter_replied'
+        ? `boss-outreach:${jobId}:${type}:${createHash('sha256').update(String(body.message ?? '')).digest('hex').slice(0, 20)}`
+        : `boss-outreach:${jobId}:${type}`,
     });
   };
 
@@ -661,7 +665,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         return sendJson(res, 200, { ok: true, id, action: resolution.action, source });
       }
 
-      const match = /^\/p\/([A-Za-z0-9._-]+)\/(client-config|tags|get-introduce|observe-job|get-job-score|log-action|reply|is-need-resume|is-need-works)$/.exec(url.pathname);
+      const match = /^\/p\/([A-Za-z0-9._-]+)\/(client-config|tags|get-introduce|observe-job|get-job-score|get-followup-context|log-action|reply|is-need-resume|is-need-works)$/.exec(url.pathname);
       if (!match) return sendJson(res, 404, { error: 'not_found' });
       const requestedProfileId = match[1]!;
       const action = match[2]!;
@@ -725,6 +729,55 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           profileId: scored.profileId,
           resumeIndex: scored.resumeIndex,
         });
+      }
+
+      if (req.method === 'POST' && action === 'get-followup-context') {
+        const raw = await readJsonBody(req);
+        const job = parseLegacyBossJobPayload(raw);
+        const scoredBase = await decideBossJob(options.client, raw);
+        const persisted = await persistBossJob(job, scoredBase);
+        let decision: BossJobDecision = persisted ? { ...scoredBase, ...persisted } : scoredBase;
+        let resumeBindingSource: 'greeting-history' | 'current-ranking' = 'current-ranking';
+        if (persisted?.jobId && options.client.outreach?.list) {
+          const history = await options.client.outreach.list({
+            jobId: persisted.jobId,
+            channel: 'boss',
+            types: ['greeting_sent'],
+            limit: 20,
+            offset: 0,
+          });
+          const greeting = history.items.find((item) => item.resumeProfileId);
+          if (greeting?.resumeProfileId) {
+            const historicalScore = typeof greeting.metadata.score === 'number' && Number.isFinite(greeting.metadata.score)
+              ? Math.max(0, Math.min(100, greeting.metadata.score))
+              : decision.score;
+            decision = {
+              ...decision,
+              score: historicalScore,
+              profileId: greeting.resumeProfileId,
+              profileLabel: decision.profileId === greeting.resumeProfileId ? decision.profileLabel : greeting.resumeProfileId,
+              resumeIndex: bossResumeIndex(greeting.resumeProfileId),
+            };
+            resumeBindingSource = 'greeting-history';
+          }
+        }
+        rememberDecision(job, decision);
+        await appendEvent(options.logPath, {
+          loggedAt: new Date().toISOString(),
+          action: 'followup_context_resolved',
+          requestedProfileId,
+          title: job.title,
+          company: job.company,
+          city: job.city,
+          jobUrl: job.jobUrl,
+          jobId: decision.jobId ?? null,
+          listingId: decision.listingId ?? null,
+          score: decision.score,
+          profileId: decision.profileId,
+          resumeIndex: decision.resumeIndex,
+          resumeBindingSource,
+        });
+        return sendJson(res, 200, { ...decision, resumeBindingSource });
       }
 
       if (req.method === 'POST' && action === 'get-job-score') {
@@ -849,6 +902,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           score: input.score,
           resumeIndex: input.resumeIndex,
           reason: decision.reason,
+          intent: decision.intent,
         });
         return sendJson(res, 200, decision);
       }
