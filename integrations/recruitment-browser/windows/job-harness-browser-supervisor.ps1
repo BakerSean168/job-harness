@@ -4,6 +4,7 @@ param(
   [string]$Browser = 'auto',
   [int]$RemoteDebuggingPort = 9222,
   [int]$PollSeconds = 60,
+  [string]$ProfilePath = '',
   [switch]$Once,
   [switch]$ResetProfile,
   [switch]$NoLaunch
@@ -14,7 +15,9 @@ $root = Join-Path $env:LOCALAPPDATA 'JobHarness\RecruitmentBrowser'
 $runtimeRoot = Join-Path $root 'Runtime'
 $bundleRoot = Join-Path $runtimeRoot 'bundles'
 $currentRoot = Join-Path $runtimeRoot 'current'
-$profile = Join-Path $root 'Profile'
+$legacyProfile = Join-Path $env:LOCALAPPDATA 'JobHarness\BossCopilot\Profile'
+$defaultProfile = Join-Path $root 'Profile'
+$profile = if ($ProfilePath) { $ProfilePath } elseif (Test-Path $legacyProfile) { $legacyProfile } else { $defaultProfile }
 $statePath = Join-Path $root 'supervisor-state.json'
 
 function Get-DedicatedBrowserProcesses {

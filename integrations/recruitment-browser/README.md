@@ -37,7 +37,7 @@ The runtime channel carries no Job Harness bearer, candidate data, Resume data, 
 
 ## Dedicated browser
 
-The supervisor prefers Edge, falls back to Chrome, and launches only the dedicated profile. Runtime updates stop/restart only browser processes whose command line contains the dedicated profile path; the user's normal browser processes are not targeted.
+The supervisor prefers Edge, falls back to Chrome, and launches only the dedicated profile. During migration it automatically reuses the existing `%LOCALAPPDATA%\JobHarness\BossCopilot\Profile` when that profile exists, preserving the already-proven BOSS login/session; otherwise it creates `%LOCALAPPDATA%\JobHarness\RecruitmentBrowser\Profile`. A custom `-ProfilePath` can override both. Runtime updates stop/restart only browser processes whose command line contains the selected dedicated profile path; the user's normal browser processes are not targeted.
 
 Current default CDP endpoint:
 
