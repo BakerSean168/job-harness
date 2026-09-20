@@ -279,6 +279,16 @@ export class BrowserExtensionValidationRegistry {
     if (!allowedCommands.has(input.command.type)) {
       throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', `Browser validation mode '${run.mode}' does not allow '${input.command.type}'`, 403);
     }
+    if (input.command.type === 'boss_scan_unread_contacts' && input.command.payload.includeRead) {
+      const agent = this.bridge.status(run.agentId);
+      if (!agent || !versionAtLeast(agent.version, '0.2.4')) {
+        throw new BrowserExtensionBridgeError(
+          'VALIDATION_CLIENT_UPGRADE_REQUIRED',
+          `BOSS read-history backfill requires Browser Bridge >= 0.2.4; agent '${run.agentId}' reports '${agent?.version ?? 'unknown'}'`,
+          409,
+        );
+      }
+    }
     if (input.command.type === 'upload') {
       const file = input.command.payload.file;
       if (file.mimeType !== 'application/pdf' || !/\.pdf$/i.test(file.name) || file.bytesBase64.length < 4) {

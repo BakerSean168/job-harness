@@ -147,6 +147,9 @@ describe('browser-extension validation scope', () => {
     await answerOne(bridge, target);
     await answerOne(bridge, [{ contactRef: '[data-job-harness-boss-contact-id="jhc-0"]', recruiter: '李女士' }]);
     await expect(scanPromise).resolves.toMatchObject({ run: { writeCount: 0 } });
+    await expect(registry.invoke(run.id, {
+      sessionRef: 'chrome-tab:inspect', command: { type: 'boss_scan_unread_contacts', payload: { limit: 20, includeRead: true } }, timeoutMs: 5_000,
+    })).rejects.toMatchObject({ code: 'VALIDATION_CLIENT_UPGRADE_REQUIRED' });
 
     await expect(registry.invoke(run.id, {
       sessionRef: 'chrome-tab:inspect', command: { type: 'boss_send_message', payload: { message: 'denied' } }, timeoutMs: 5_000,
@@ -156,6 +159,29 @@ describe('browser-extension validation scope', () => {
       command: { type: 'boss_confirm_resume', payload: { resumeIndex: 1, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc123.html' } },
       timeoutMs: 5_000,
     })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
+    bridge.close();
+  });
+
+  it('allows explicit BOSS read-history backfill only on Browser Bridge 0.2.4+', async () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge, '0.2.4');
+    const registry = new BrowserExtensionValidationRegistry(bridge, { allowedOrigin: 'https://job-harness.test:20900' });
+    const target = 'https://www.zhipin.com/web/geek/chat';
+    const run = registry.create({ agentId: 'windows-chrome-primary', targetUrl: target, mode: 'boss-chat-inspect' });
+    const acquirePromise = registry.invoke(run.id, {
+      sessionRef: null,
+      command: { type: 'session_acquire', payload: { preferredUrl: target, reuseLiveSession: true, requireLiveSession: false } },
+      timeoutMs: 5_000,
+    });
+    await answerOne(bridge, { sessionRef: 'chrome-tab:inspect', currentUrl: target });
+    await acquirePromise;
+
+    const scanPromise = registry.invoke(run.id, {
+      sessionRef: 'chrome-tab:inspect', command: { type: 'boss_scan_unread_contacts', payload: { limit: 20, includeRead: true } }, timeoutMs: 5_000,
+    });
+    await answerOne(bridge, target);
+    await answerOne(bridge, [{ contactRef: '[data-job-harness-boss-contact-id="jhc-0"]', recruiter: '李女士', unread: false }]);
+    await expect(scanPromise).resolves.toMatchObject({ run: { writeCount: 0 } });
     bridge.close();
   });
 
