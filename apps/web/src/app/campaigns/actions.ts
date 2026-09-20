@@ -43,6 +43,20 @@ export async function saveCampaignAction(
     exclusions: list(text(formData, 'exclusions')),
     sources: formData.getAll('sources').filter((value): value is string => typeof value === 'string'),
     resumeProfileIds: formData.getAll('resumeProfileIds').filter((value): value is string => typeof value === 'string'),
+    automation: {
+      collection: { enabled: formData.get('automationCollectionEnabled') === 'on' },
+      officialSite: {
+        prepareEnabled: formData.get('automationOfficialPrepareEnabled') === 'on',
+        fillEnabled: formData.get('automationOfficialFillEnabled') === 'on',
+        submitEnabled: formData.get('automationOfficialSubmitEnabled') === 'on',
+        preferredResumeProfileId: text(formData, 'automationOfficialResumeProfileId') || null,
+      },
+      email: {
+        draftEnabled: formData.get('automationEmailDraftEnabled') === 'on',
+        sendEnabled: formData.get('automationEmailSendEnabled') === 'on',
+        preferredResumeProfileId: text(formData, 'automationEmailResumeProfileId') || null,
+      },
+    },
     status: text(formData, 'status'),
   };
   const parsed = UpsertCampaignInputSchema.safeParse(candidate);

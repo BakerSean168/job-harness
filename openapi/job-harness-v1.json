@@ -12610,6 +12610,30 @@
                       }
                     ]
                   },
+                  "subject": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "body": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "idempotencyKey": {
                     "type": "string",
                     "minLength": 1,
@@ -46910,6 +46934,129 @@
                               "maxLength": 200
                             }
                           },
+                          "automation": {
+                            "default": {
+                              "collection": {
+                                "enabled": true
+                              },
+                              "officialSite": {
+                                "prepareEnabled": true,
+                                "fillEnabled": true,
+                                "submitEnabled": false,
+                                "preferredResumeProfileId": null
+                              },
+                              "email": {
+                                "draftEnabled": true,
+                                "sendEnabled": false,
+                                "preferredResumeProfileId": null
+                              }
+                            },
+                            "type": "object",
+                            "properties": {
+                              "collection": {
+                                "default": {
+                                  "enabled": true
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "enabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "enabled"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "officialSite": {
+                                "default": {
+                                  "prepareEnabled": true,
+                                  "fillEnabled": true,
+                                  "submitEnabled": false,
+                                  "preferredResumeProfileId": null
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "prepareEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "fillEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "submitEnabled": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  },
+                                  "preferredResumeProfileId": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "prepareEnabled",
+                                  "fillEnabled",
+                                  "submitEnabled",
+                                  "preferredResumeProfileId"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "email": {
+                                "default": {
+                                  "draftEnabled": true,
+                                  "sendEnabled": false,
+                                  "preferredResumeProfileId": null
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "draftEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "sendEnabled": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  },
+                                  "preferredResumeProfileId": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "draftEnabled",
+                                  "sendEnabled",
+                                  "preferredResumeProfileId"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "collection",
+                              "officialSite",
+                              "email"
+                            ],
+                            "additionalProperties": false
+                          },
                           "status": {
                             "type": "string",
                             "enum": [
@@ -46942,6 +47089,7 @@
                           "exclusions",
                           "sources",
                           "resumeProfileIds",
+                          "automation",
                           "status",
                           "createdAt",
                           "updatedAt"
@@ -47299,6 +47447,129 @@
                         "maxLength": 200
                       }
                     },
+                    "automation": {
+                      "default": {
+                        "collection": {
+                          "enabled": true
+                        },
+                        "officialSite": {
+                          "prepareEnabled": true,
+                          "fillEnabled": true,
+                          "submitEnabled": false,
+                          "preferredResumeProfileId": null
+                        },
+                        "email": {
+                          "draftEnabled": true,
+                          "sendEnabled": false,
+                          "preferredResumeProfileId": null
+                        }
+                      },
+                      "type": "object",
+                      "properties": {
+                        "collection": {
+                          "default": {
+                            "enabled": true
+                          },
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "default": true,
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "enabled"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "officialSite": {
+                          "default": {
+                            "prepareEnabled": true,
+                            "fillEnabled": true,
+                            "submitEnabled": false,
+                            "preferredResumeProfileId": null
+                          },
+                          "type": "object",
+                          "properties": {
+                            "prepareEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "fillEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "submitEnabled": {
+                              "default": false,
+                              "type": "boolean"
+                            },
+                            "preferredResumeProfileId": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "prepareEnabled",
+                            "fillEnabled",
+                            "submitEnabled",
+                            "preferredResumeProfileId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "email": {
+                          "default": {
+                            "draftEnabled": true,
+                            "sendEnabled": false,
+                            "preferredResumeProfileId": null
+                          },
+                          "type": "object",
+                          "properties": {
+                            "draftEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "sendEnabled": {
+                              "default": false,
+                              "type": "boolean"
+                            },
+                            "preferredResumeProfileId": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "draftEnabled",
+                            "sendEnabled",
+                            "preferredResumeProfileId"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "collection",
+                        "officialSite",
+                        "email"
+                      ],
+                      "additionalProperties": false
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -47331,6 +47602,7 @@
                     "exclusions",
                     "sources",
                     "resumeProfileIds",
+                    "automation",
                     "status",
                     "createdAt",
                     "updatedAt"
@@ -47673,6 +47945,129 @@
                         "maxLength": 200
                       }
                     },
+                    "automation": {
+                      "default": {
+                        "collection": {
+                          "enabled": true
+                        },
+                        "officialSite": {
+                          "prepareEnabled": true,
+                          "fillEnabled": true,
+                          "submitEnabled": false,
+                          "preferredResumeProfileId": null
+                        },
+                        "email": {
+                          "draftEnabled": true,
+                          "sendEnabled": false,
+                          "preferredResumeProfileId": null
+                        }
+                      },
+                      "type": "object",
+                      "properties": {
+                        "collection": {
+                          "default": {
+                            "enabled": true
+                          },
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "default": true,
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "enabled"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "officialSite": {
+                          "default": {
+                            "prepareEnabled": true,
+                            "fillEnabled": true,
+                            "submitEnabled": false,
+                            "preferredResumeProfileId": null
+                          },
+                          "type": "object",
+                          "properties": {
+                            "prepareEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "fillEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "submitEnabled": {
+                              "default": false,
+                              "type": "boolean"
+                            },
+                            "preferredResumeProfileId": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "prepareEnabled",
+                            "fillEnabled",
+                            "submitEnabled",
+                            "preferredResumeProfileId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "email": {
+                          "default": {
+                            "draftEnabled": true,
+                            "sendEnabled": false,
+                            "preferredResumeProfileId": null
+                          },
+                          "type": "object",
+                          "properties": {
+                            "draftEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "sendEnabled": {
+                              "default": false,
+                              "type": "boolean"
+                            },
+                            "preferredResumeProfileId": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "draftEnabled",
+                            "sendEnabled",
+                            "preferredResumeProfileId"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "collection",
+                        "officialSite",
+                        "email"
+                      ],
+                      "additionalProperties": false
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -47705,6 +48100,7 @@
                     "exclusions",
                     "sources",
                     "resumeProfileIds",
+                    "automation",
                     "status",
                     "createdAt",
                     "updatedAt"
@@ -48017,6 +48413,129 @@
                       "maxLength": 200
                     }
                   },
+                  "automation": {
+                    "default": {
+                      "collection": {
+                        "enabled": true
+                      },
+                      "officialSite": {
+                        "prepareEnabled": true,
+                        "fillEnabled": true,
+                        "submitEnabled": false,
+                        "preferredResumeProfileId": null
+                      },
+                      "email": {
+                        "draftEnabled": true,
+                        "sendEnabled": false,
+                        "preferredResumeProfileId": null
+                      }
+                    },
+                    "type": "object",
+                    "properties": {
+                      "collection": {
+                        "default": {
+                          "enabled": true
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": true,
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "enabled"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "officialSite": {
+                        "default": {
+                          "prepareEnabled": true,
+                          "fillEnabled": true,
+                          "submitEnabled": false,
+                          "preferredResumeProfileId": null
+                        },
+                        "type": "object",
+                        "properties": {
+                          "prepareEnabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "fillEnabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "submitEnabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "preferredResumeProfileId": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "prepareEnabled",
+                          "fillEnabled",
+                          "submitEnabled",
+                          "preferredResumeProfileId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "email": {
+                        "default": {
+                          "draftEnabled": true,
+                          "sendEnabled": false,
+                          "preferredResumeProfileId": null
+                        },
+                        "type": "object",
+                        "properties": {
+                          "draftEnabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "sendEnabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "preferredResumeProfileId": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "draftEnabled",
+                          "sendEnabled",
+                          "preferredResumeProfileId"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "collection",
+                      "officialSite",
+                      "email"
+                    ],
+                    "additionalProperties": false
+                  },
                   "status": {
                     "type": "string",
                     "enum": [
@@ -48038,6 +48557,7 @@
                   "exclusions",
                   "sources",
                   "resumeProfileIds",
+                  "automation",
                   "status"
                 ],
                 "additionalProperties": false
@@ -70335,6 +70855,129 @@
                               "maxLength": 200
                             }
                           },
+                          "automation": {
+                            "default": {
+                              "collection": {
+                                "enabled": true
+                              },
+                              "officialSite": {
+                                "prepareEnabled": true,
+                                "fillEnabled": true,
+                                "submitEnabled": false,
+                                "preferredResumeProfileId": null
+                              },
+                              "email": {
+                                "draftEnabled": true,
+                                "sendEnabled": false,
+                                "preferredResumeProfileId": null
+                              }
+                            },
+                            "type": "object",
+                            "properties": {
+                              "collection": {
+                                "default": {
+                                  "enabled": true
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "enabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "enabled"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "officialSite": {
+                                "default": {
+                                  "prepareEnabled": true,
+                                  "fillEnabled": true,
+                                  "submitEnabled": false,
+                                  "preferredResumeProfileId": null
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "prepareEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "fillEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "submitEnabled": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  },
+                                  "preferredResumeProfileId": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "prepareEnabled",
+                                  "fillEnabled",
+                                  "submitEnabled",
+                                  "preferredResumeProfileId"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "email": {
+                                "default": {
+                                  "draftEnabled": true,
+                                  "sendEnabled": false,
+                                  "preferredResumeProfileId": null
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "draftEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "sendEnabled": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  },
+                                  "preferredResumeProfileId": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "draftEnabled",
+                                  "sendEnabled",
+                                  "preferredResumeProfileId"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "collection",
+                              "officialSite",
+                              "email"
+                            ],
+                            "additionalProperties": false
+                          },
                           "status": {
                             "type": "string",
                             "enum": [
@@ -70367,6 +71010,7 @@
                           "exclusions",
                           "sources",
                           "resumeProfileIds",
+                          "automation",
                           "status",
                           "createdAt",
                           "updatedAt"

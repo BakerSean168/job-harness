@@ -37,8 +37,10 @@ describe('standalone Streamable HTTP MCP server', () => {
     expect(tools.tools.map((tool) => tool.name)).toContain('career_submission_intents_reconcile_pending');
     expect(tools.tools.map((tool) => tool.name)).toContain('boss_greetings_pending');
     expect(tools.tools.map((tool) => tool.name)).toContain('boss_greeting_resolve');
+    expect(tools.tools.map((tool) => tool.name)).toContain('career_email_application_authorize_send');
     expect(tools.tools.find((tool) => tool.name === 'boss_greetings_pending')?.annotations?.readOnlyHint).toBe(true);
     expect(tools.tools.find((tool) => tool.name === 'boss_greeting_resolve')?.annotations?.openWorldHint).toBe(true);
+    expect(tools.tools.find((tool) => tool.name === 'career_email_application_authorize_send')?.annotations?.openWorldHint).toBe(true);
 
     const result = await client.callTool({ name: 'career_pipeline_stats', arguments: {} });
     expect(result.isError).not.toBe(true);

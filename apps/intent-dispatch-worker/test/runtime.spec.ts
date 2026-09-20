@@ -33,9 +33,16 @@ function binding(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-function fakeClient(options: { intents?: any[]; executors?: any[]; bindings?: any[]; attempts?: any[] } = {}) {
+function fakeClient(options: { intents?: any[]; executors?: any[]; bindings?: any[]; attempts?: any[]; fillEnabled?: boolean; submitEnabled?: boolean } = {}) {
   const dispatches: any[] = [];
+  const campaign = {
+    id: 'campaign-1', name: 'Campaign', targetRoles: ['前端开发'], cities: ['杭州'], graduationYears: [2026], experience: ['经验不限'], education: ['本科'], keywords: [], exclusions: [], sources: ['zhilian'], resumeProfileIds: ['ai-agent-app'], status: 'active',
+    automation: { collection: { enabled: true }, officialSite: { prepareEnabled: true, fillEnabled: options.fillEnabled ?? true, submitEnabled: options.submitEnabled ?? false, preferredResumeProfileId: null }, email: { draftEnabled: true, sendEnabled: false, preferredResumeProfileId: null } },
+    createdAt: '2026-09-18T00:00:00.000Z', updatedAt: '2026-09-18T00:00:00.000Z',
+  };
   const client: any = {
+    campaigns: { async get() { return campaign; } },
+    workspace: { async getJobDetail(jobId: string) { return { job: { id: jobId }, campaigns: [{ id: campaign.id, name: campaign.name, status: campaign.status }] }; } },
     submissionIntents: { async list() { const items = options.intents ?? [intent()]; return { items, total: items.length }; } },
     siteResumeBindings: { async list() { return { items: options.bindings ?? [] }; } },
     apply: {
@@ -50,6 +57,14 @@ function fakeClient(options: { intents?: any[]; executors?: any[]; bindings?: an
 }
 
 describe('PlannedIntentDispatcher', () => {
+  it('does not auto-fill when the Campaign official-site fill module is disabled', async () => {
+    const { client, dispatches } = fakeClient({ bindings: [binding()], fillEnabled: false });
+    const result = await new PlannedIntentDispatcher(client).runOnce();
+    expect(result).toMatchObject({ scanned: 1, dispatched: 0, skippedPolicyDisabled: 1, failures: [] });
+    expect(result.decisions[0]).toMatchObject({ outcome: 'skip', reason: 'campaign_official_fill_disabled' });
+    expect(dispatches).toEqual([]);
+  });
+
   it('holds Zhilian/Liepin planned intents when no exact site-managed Resume binding exists', async () => {
     const { client, dispatches } = fakeClient();
     const result = await new PlannedIntentDispatcher(client).runOnce();
@@ -71,6 +86,18 @@ describe('PlannedIntentDispatcher', () => {
         initiatedBy: 'intent-dispatch-worker', requiredBrowserAgentId: 'windows-chrome-primary', siteResumeBindingId: 'binding-1',
       },
       idempotencyKey: 'intent-auto-fill:intent-1:v1',
+    });
+  });
+
+  it('enters review_then_submit only when Campaign submit is enabled and the executor advertises that capability', async () => {
+    const reviewExecutor = executor({ executionModes: ['fill_only', 'review_then_submit'] });
+    const { client, dispatches } = fakeClient({ bindings: [binding()], executors: [reviewExecutor], submitEnabled: true });
+    const result = await new PlannedIntentDispatcher(client).runOnce();
+    expect(result).toMatchObject({ dispatched: 1, failures: [] });
+    expect(result.decisions[0]).toMatchObject({ outcome: 'dispatch', reason: 'queued_review_then_submit' });
+    expect(dispatches[0]).toMatchObject({
+      executionMode: 'review_then_submit',
+      policySnapshot: { submitAllowed: true },
     });
   });
 

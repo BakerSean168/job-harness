@@ -66,6 +66,9 @@ import {
   type ConfirmEmailApplicationSendInput,
   type ConfirmEmailApplicationSendOutput,
   type FailEmailApplicationSendInput,
+  type AuthorizeEmailApplicationSendInput,
+  type EmailSendAuthorization,
+  EmailSendAuthorizationSchema,
   type SubmissionIntent,
 } from '@job-harness/contracts';
 import {
@@ -85,6 +88,7 @@ import {
   EmailApplicationBeginToolInputSchema,
   EmailApplicationConfirmToolInputSchema,
   EmailApplicationFailToolInputSchema,
+  EmailApplicationAuthorizeSendToolInputSchema,
   BossGreetingsPendingToolInputSchema,
   BossGreetingsPendingToolOutputSchema,
   BossGreetingResolveToolInputSchema,
@@ -111,6 +115,7 @@ export interface EmailApplicationMcpPort {
   beginSend(packageId: string, input: BeginEmailApplicationSendInput): Promise<SubmissionIntent>;
   confirm(packageId: string, input: ConfirmEmailApplicationSendInput): Promise<ConfirmEmailApplicationSendOutput>;
   fail(packageId: string, input: FailEmailApplicationSendInput): Promise<EmailApplicationPackageDetail>;
+  authorizeSend(packageId: string, input: AuthorizeEmailApplicationSendInput): Promise<EmailSendAuthorization>;
 }
 
 export interface BossGreetingMcpPort {
@@ -292,6 +297,12 @@ export class CareerMcpRuntime {
         if (!this.emailApplication) throw new Error('Email application capability is not configured');
         const input = EmailApplicationGetToolInputSchema.parse(rawInput);
         return EmailApplicationPackageDetailSchema.parse(await this.emailApplication.get(input.packageId));
+      }
+      case 'career_email_application_authorize_send': {
+        if (!this.emailApplication) throw new Error('Email application capability is not configured');
+        const input = EmailApplicationAuthorizeSendToolInputSchema.parse(rawInput);
+        const { packageId, ...authorizationInput } = input;
+        return EmailSendAuthorizationSchema.parse(await this.emailApplication.authorizeSend(packageId, authorizationInput));
       }
       case 'career_email_application_begin_send': {
         if (!this.emailApplication) throw new Error('Email application capability is not configured');

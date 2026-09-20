@@ -16,6 +16,7 @@ export interface IntentDispatchResult {
   readonly scanned: number;
   readonly dispatched: number;
   readonly dryRun: boolean;
+  readonly skippedPolicyDisabled: number;
   readonly skippedExistingAttempt: number;
   readonly skippedIncompleteResume: number;
   readonly skippedUnsupportedSite: number;
@@ -65,6 +66,7 @@ export class PlannedIntentDispatcher {
     const decisions: IntentDispatchDecision[] = [];
     const failures: Array<{ intentId: string; error: string }> = [];
     let dispatched = 0;
+    let skippedPolicyDisabled = 0;
     let skippedExistingAttempt = 0;
     let skippedIncompleteResume = 0;
     let skippedUnsupportedSite = 0;
@@ -76,6 +78,12 @@ export class PlannedIntentDispatcher {
 
     for (const intent of intents.items) {
       try {
+        const automation = await this.officialAutomationForIntent(intent);
+        if (!automation.fillEnabled) {
+          skippedPolicyDisabled += 1;
+          decisions.push(skip(intent, 'unsupported', 'campaign_official_fill_disabled'));
+          continue;
+        }
         const route = routeIntent(intent);
         if (!route) {
           skippedUnsupportedSite += 1;
@@ -94,10 +102,19 @@ export class PlannedIntentDispatcher {
           continue;
         }
 
-        const capableExecutors = readyExtension.filter((executor) => executor.adapterIds.includes(route.adapterId));
-        if (!capableExecutors.length) {
+        const adapterExecutors = readyExtension.filter((executor) => executor.adapterIds.includes(route.adapterId));
+        if (!adapterExecutors.length) {
           skippedNoExecutor += 1;
           decisions.push(skip(intent, route.site, 'no_ready_extension_executor'));
+          continue;
+        }
+        const executionMode = automation.submitEnabled && adapterExecutors.some((executor) => executor.executionModes.includes('review_then_submit'))
+          ? 'review_then_submit'
+          : 'fill_only';
+        const capableExecutors = adapterExecutors.filter((executor) => executor.executionModes.includes(executionMode));
+        if (!capableExecutors.length) {
+          skippedNoExecutor += 1;
+          decisions.push(skip(intent, route.site, `no_ready_${executionMode}_executor`));
           continue;
         }
 
@@ -144,14 +161,14 @@ export class PlannedIntentDispatcher {
         }
         const attempt = await this.client.apply.attempts.dispatch({
           intentId: intent.id,
-          executionMode: 'fill_only',
+          executionMode,
           requiredAdapterId: route.adapterId,
           preferredBrowserBackend: 'extension',
           requiredCapabilities: ['humanControl', 'persistentSession', 'resumeUpload'],
           policySnapshot: {
             allowFormFill: true,
             allowApplicationEntry: true,
-            submitAllowed: false,
+            submitAllowed: executionMode === 'review_then_submit',
             initiatedBy: 'intent-dispatch-worker',
             requiredBrowserAgentId: browserAgentId,
             ...(siteResumeBindingId ? { siteResumeBindingId } : {}),
@@ -159,7 +176,7 @@ export class PlannedIntentDispatcher {
           idempotencyKey: `intent-auto-fill:${intent.id}:v1`,
         });
         dispatched += 1;
-        decisions.push({ intentId: intent.id, jobId: intent.jobId, site: route.site, outcome: 'dispatch', reason: 'queued_fill_only', attemptId: attempt.id, browserAgentId, siteResumeBindingId });
+        decisions.push({ intentId: intent.id, jobId: intent.jobId, site: route.site, outcome: 'dispatch', reason: executionMode === 'review_then_submit' ? 'queued_review_then_submit' : 'queued_fill_only', attemptId: attempt.id, browserAgentId, siteResumeBindingId });
       } catch (error) {
         failures.push({ intentId: intent.id, error: sanitizeError(error) });
       }
@@ -169,6 +186,7 @@ export class PlannedIntentDispatcher {
       scanned: intents.items.length,
       dispatched,
       dryRun: this.dryRun,
+      skippedPolicyDisabled,
       skippedExistingAttempt,
       skippedIncompleteResume,
       skippedUnsupportedSite,
@@ -179,6 +197,17 @@ export class PlannedIntentDispatcher {
       skippedDispatchBudget,
       decisions,
       failures,
+    };
+  }
+
+  private async officialAutomationForIntent(intent: PlannedIntent): Promise<{ fillEnabled: boolean; submitEnabled: boolean }> {
+    const detail = await this.client.workspace.getJobDetail(intent.jobId);
+    if (!detail?.campaigns.length) return { fillEnabled: false, submitEnabled: false };
+    const campaigns = await Promise.all(detail.campaigns.map((campaign) => this.client.campaigns.get(campaign.id)));
+    const active = campaigns.filter((campaign) => campaign?.status === 'active');
+    return {
+      fillEnabled: active.some((campaign) => campaign!.automation?.officialSite?.fillEnabled ?? true),
+      submitEnabled: active.some((campaign) => campaign!.automation?.officialSite?.submitEnabled ?? false),
     };
   }
 

@@ -60,10 +60,10 @@ export JOB_HARNESS_CHATGPT_MCP_TOKEN="$JOB_HARNESS_AUTH_TOKEN"
 pnpm smoke:chatgpt-mcp
 ```
 
-The smoke performs MCP discovery and only safe reads (`career_pipeline_stats`, `career_submission_intents_list`, `resume_profiles_list`). It never invokes `boss_greeting_resolve`, mutates Career state, or calls an external website.
+The smoke performs MCP discovery and only safe reads (`career_pipeline_stats`, `career_submission_intents_list`, `resume_profiles_list`, `boss_greetings_pending`). It never invokes `boss_greeting_resolve` or `career_email_application_authorize_send`, mutates Career state, or crosses an external-effect boundary.
 
 ## Current activation boundary
 
 As of 2026-09-17, the dedicated Job Harness Secure MCP Tunnel is provisioned and its isolated Oracle2 runtime is active. The daemon initializes a real MCP session against `job-harness` v0.2.0, `/readyz` is healthy, and the runtime has completed a successful OpenAI control-plane poll. The existing unrelated Oracle2 tunnel remains active and unchanged.
 
-The ChatGPT custom MCP app uses the dedicated Tunnel. The current repository catalog contains **41 actions**: the existing Career/Resume/Application controls plus `boss_greetings_pending` and the explicitly bounded external-effect tool `boss_greeting_resolve`. The latter can only release an already-waiting BOSS Compatibility Runtime greeting; it is not an application-submit primitive. The real tunnel ID and runtime credentials remain private deployment state and are intentionally not committed here. Any MCP schema change requires refreshing/reviewing the ChatGPT app tool catalog before relying on the new behavior.
+The ChatGPT custom MCP app uses the dedicated Tunnel. The current repository catalog contains **42 actions**. Two actions are explicitly bounded external-effect tools: `boss_greeting_resolve` can only release an already-waiting BOSS Compatibility Runtime greeting, and `career_email_application_authorize_send` can only authorize one exact immutable email draft for the independent Email Delivery Worker. Neither is an ATS final-submit primitive. The real tunnel ID and runtime credentials remain private deployment state and are intentionally not committed here. Any MCP schema change requires refreshing/reviewing the ChatGPT app tool catalog before relying on the new behavior.

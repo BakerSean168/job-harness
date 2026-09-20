@@ -16,6 +16,9 @@ async function main(): Promise<void> {
     'resume_revision_artifact_materialize',
     'career_submission_intents_list',
     'career_submission_intent_prepare',
+    'career_submission_intent_prepare_recommended',
+    'career_email_application_prepare',
+    'career_email_application_authorize_send',
     'career_submission_intent_begin',
     'career_submission_intent_confirm',
     'career_submission_intent_fail',
@@ -30,7 +33,7 @@ async function main(): Promise<void> {
   if (missing.length) throw new Error(`ChatGPT integration is missing required MCP tools: ${missing.join(', ')}`);
 
   const externalTools = JOB_HARNESS_MCP_TOOLS.filter((tool) => tool.externalSideEffect).map((tool) => tool.name);
-  const expectedExternalTools = ['boss_greeting_resolve'];
+  const expectedExternalTools = ['career_email_application_authorize_send', 'boss_greeting_resolve'];
   if (JSON.stringify(externalTools) !== JSON.stringify(expectedExternalTools)) {
     throw new Error(`Unexpected MCP external-side-effect surface: ${externalTools.join(', ') || '(none)'}`);
   }
@@ -46,11 +49,11 @@ async function main(): Promise<void> {
   }
 
   const workflowText = await readFile(new URL('../integrations/chatgpt/workflow-policy.md', import.meta.url), 'utf8');
-  for (const invariant of ['career_submission_intent_prepare', 'career_submission_intent_begin', 'career_submission_intent_confirm', 'needs_manual_review', 'boss_greetings_pending', 'boss_greeting_resolve']) {
+  for (const invariant of ['career_submission_intent_prepare', 'career_submission_intent_prepare_recommended', 'career_email_application_prepare', 'career_email_application_authorize_send', 'career_submission_intent_begin', 'career_submission_intent_confirm', 'needs_manual_review', 'boss_greetings_pending', 'boss_greeting_resolve']) {
     if (!workflowText.includes(invariant)) throw new Error(`ChatGPT workflow policy is missing recovery invariant '${invariant}'`);
   }
 
-  console.log(`chatgpt integration ok: ${JOB_HARNESS_MCP_TOOLS.length} MCP tools, ${requiredTools.length} required workflow tools, 1 bounded external-side-effect tool`);
+  console.log(`chatgpt integration ok: ${JOB_HARNESS_MCP_TOOLS.length} MCP tools, ${requiredTools.length} required workflow tools, ${expectedExternalTools.length} bounded external-side-effect tools`);
 }
 
 void main();

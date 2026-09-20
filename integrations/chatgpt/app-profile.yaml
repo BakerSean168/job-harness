@@ -9,8 +9,9 @@ app:
 security:
   direct_database_access: false
   direct_filesystem_access: false
-  external_recruiting_site_side_effect: bounded-boss-greeting-only
+  external_recruiting_site_side_effect: bounded-only
   external_side_effect_tools:
+    - career_email_application_authorize_send
     - boss_greeting_resolve
   downstream_auth: bearer
   credentials_in_repository: false
@@ -33,6 +34,11 @@ tool_groups:
     - resume_profile_patch_overrides
     - resume_revision_publish
     - resume_revision_artifact_materialize
+  application_preparation:
+    - career_submission_intent_prepare_recommended
+    - career_email_application_prepare
+  email_delivery:
+    - career_email_application_authorize_send
   boss_outreach:
     - boss_greetings_pending
     - boss_greeting_resolve

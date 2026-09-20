@@ -72,24 +72,57 @@ describe('immutable email application package', () => {
       let generatedId = 0;
       const email = createEmailApplicationService(career, resume, applicant, jobResume, emailStore, { now: () => at, idFactory: () => `fixture-${++generatedId}` });
 
+      const campaignBase = {
+        id: 'campaign-email', name: 'Email Campaign', targetRoles: ['AI Agent'], cities: ['杭州'], graduationYears: [2026], experience: ['经验不限'], education: ['本科'], keywords: [], exclusions: [], sources: ['email'] as const, resumeProfileIds: [profile.id], status: 'active' as const,
+      };
+      await career.campaigns.upsertCampaign({
+        ...campaignBase,
+        automation: {
+          collection: { enabled: true },
+          officialSite: { prepareEnabled: true, fillEnabled: true, submitEnabled: false, preferredResumeProfileId: null },
+          email: { draftEnabled: true, sendEnabled: true, preferredResumeProfileId: null },
+        },
+      });
+      const discovery = await career.discovery.beginDiscoveryRun({ campaignId: campaignBase.id, executor: 'manual', contextSnapshot: {}, startedAt: at, idempotencyKey: 'email-discovery-run' });
       const jobs = await career.jobs.upsertJobsBatch({ jobs: [{
-        companyName: 'Email Co', title: 'Agent开发工程师', city: '杭州', description: 'Agent Harness MCP Orchestration Tool Calling', observedAt: at,
+        companyName: 'Email Co', title: 'Agent开发工程师', city: '杭州', description: 'Agent Harness MCP Orchestration Tool Calling', observedAt: at, discoveryRunId: discovery.id,
         listings: [{ sourceKind: 'email', externalNamespace: 'legacy-email', externalId: 'email-role-1', identityKind: 'external-id', status: 'active', metadataSnapshot: { contactEmail: 'jobs@example.test' } }],
       }] });
       const jobId = jobs.items[0]!.jobId!;
 
-      const prepared = await email.prepare(jobId, { idempotencyKey: 'email-package-idempotency-1' });
+      const prepared = await email.prepare(jobId, {
+        subject: '定向应聘 Agent 开发工程师｜测试候选人',
+        body: '您好，看到贵司 Agent 开发岗位，我有 Agent Harness、MCP 与工具调用实践，随信附上对应方向简历，期待进一步沟通。',
+        idempotencyKey: 'email-package-idempotency-1',
+      });
       expect(prepared.package).toMatchObject({
         recipient: 'jobs@example.test', resumeProfileId: profile.id, resumeRevisionId: published.revision.id, resumeArtifactId: artifact.id,
         attachmentFileName: '测试候选人-AI-Agent-ForgeFlow版.pdf',
       });
-      expect(prepared.package.subject).toContain('Agent开发工程师');
-      expect(prepared.package.body).toContain('测试大学');
+      expect(prepared.package.subject).toBe('定向应聘 Agent 开发工程师｜测试候选人');
       expect(prepared.package.body).toContain('Agent Harness');
+      expect(prepared.package.body).toContain('期待进一步沟通');
       expect(prepared.intent).toMatchObject({ status: 'planned', channel: 'email', externalTargetUrl: null, executor: 'chatgpt-web' });
       expect((await email.prepare(jobId, { idempotencyKey: 'email-package-idempotency-1' })).package.id).toBe(prepared.package.id);
 
       await expect(email.authorizeSend(prepared.package.id, { draftHash: '0'.repeat(64), idempotencyKey: 'email-auth-wrong' })).rejects.toBeInstanceOf(CareerConflictError);
+      await career.campaigns.upsertCampaign({
+        ...campaignBase,
+        automation: {
+          collection: { enabled: true },
+          officialSite: { prepareEnabled: true, fillEnabled: true, submitEnabled: false, preferredResumeProfileId: null },
+          email: { draftEnabled: true, sendEnabled: false, preferredResumeProfileId: null },
+        },
+      });
+      await expect(email.authorizeSend(prepared.package.id, { draftHash: prepared.package.draftHash, idempotencyKey: 'email-auth-policy-blocked' })).rejects.toBeInstanceOf(CareerConflictError);
+      await career.campaigns.upsertCampaign({
+        ...campaignBase,
+        automation: {
+          collection: { enabled: true },
+          officialSite: { prepareEnabled: true, fillEnabled: true, submitEnabled: false, preferredResumeProfileId: null },
+          email: { draftEnabled: true, sendEnabled: true, preferredResumeProfileId: null },
+        },
+      });
       const expiring = await email.authorizeSend(prepared.package.id, { draftHash: prepared.package.draftHash, expiresInSeconds: 30, idempotencyKey: 'email-auth-expiring' });
       expect(expiring).toMatchObject({ packageId: prepared.package.id, status: 'active', draftHash: prepared.package.draftHash });
       expect((await email.listSendAuthorizations()).items).toContainEqual(expect.objectContaining({ id: expiring.id, status: 'active' }));

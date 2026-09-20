@@ -189,6 +189,24 @@ export const ApplicationDetailSchema = z
   .object({ application: ApplicationSchema, job: JobSchema, timeline: z.array(ApplicationEventSchema), submissions: z.array(ApplicationSubmissionSchema).default([]) })
   .strict();
 
+export const CampaignAutomationPolicySchema = z.object({
+  collection: z.object({
+    enabled: z.boolean().default(true),
+  }).strict().default({ enabled: true }),
+  officialSite: z.object({
+    prepareEnabled: z.boolean().default(true),
+    fillEnabled: z.boolean().default(true),
+    submitEnabled: z.boolean().default(false),
+    preferredResumeProfileId: EntityIdSchema.nullable().default(null),
+  }).strict().default({ prepareEnabled: true, fillEnabled: true, submitEnabled: false, preferredResumeProfileId: null }),
+  email: z.object({
+    draftEnabled: z.boolean().default(true),
+    sendEnabled: z.boolean().default(false),
+    preferredResumeProfileId: EntityIdSchema.nullable().default(null),
+  }).strict().default({ draftEnabled: true, sendEnabled: false, preferredResumeProfileId: null }),
+}).strict();
+export type CampaignAutomationPolicy = z.infer<typeof CampaignAutomationPolicySchema>;
+
 export const ResumeProfileRefSchema = z
   .object({
     id: EntityIdSchema,
@@ -216,6 +234,11 @@ export const JobSearchCampaignSchema = z
     exclusions: z.array(z.string().trim().min(1).max(200)).default([]),
     sources: z.array(JobSourceKindSchema).default([]),
     resumeProfileIds: z.array(EntityIdSchema).default([]),
+    automation: CampaignAutomationPolicySchema.default({
+      collection: { enabled: true },
+      officialSite: { prepareEnabled: true, fillEnabled: true, submitEnabled: false, preferredResumeProfileId: null },
+      email: { draftEnabled: true, sendEnabled: false, preferredResumeProfileId: null },
+    }),
     status: CampaignStatusSchema,
     createdAt: IsoDateTimeSchema,
     updatedAt: IsoDateTimeSchema,

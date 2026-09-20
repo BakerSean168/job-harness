@@ -67,6 +67,24 @@ describe('DiscoveryQualificationProcessor', () => {
     expect(detailReads).toBe(1);
   });
 
+  it('keeps discovery/shortlisting independent from official-site preparation when Campaign preparation is disabled', async () => {
+    const jobs=[item('no-prepare','AI Agent开发工程师')];
+    const prepares:any[]=[];
+    const client:any={
+      applicant:{async getProfile(){return {profile:{education:[{institutionTag:'（211）'}]}};}},
+      campaigns:{async get(){return {id:'campaign-1',name:'AI jobs',targetRoles:['AI Agent'],cities:['杭州'],graduationYears:[2026],experience:['经验不限'],education:['本科'],keywords:[],exclusions:[],sources:['zhilian'],resumeProfileIds:['ai-agent-app'],automation:{collection:{enabled:true},officialSite:{prepareEnabled:false,fillEnabled:false,submitEnabled:false,preferredResumeProfileId:null},email:{draftEnabled:true,sendEnabled:false,preferredResumeProfileId:null}},status:'active',createdAt:'2026-09-18T00:00:00.000Z',updatedAt:'2026-09-18T00:00:00.000Z'};}},
+      workspace:{
+        async getDiscoveryRunDetail(){return {run:{id:'run-no-prepare',campaignId:'campaign-1'},campaign:{id:'campaign-1',name:'AI jobs'},affectedJobs:jobs,observationCount:1};},
+        async getJobDetail(){const i=jobs[0];return {job:{id:i.jobId,title:i.title,description:'负责 Agent RAG MCP 工具调用',listings:[i.primaryListing]},primaryListing:{...i.primaryListing,metadataSnapshot:{experience:'经验不限',education:'本科'}},application:null,observations:[],campaigns:[]};},
+      },
+      jobs:{async recommendResumes(){return recommendation(82,42);},async setJobState(){return{};},async prepareRecommendedSubmission(id:string,input:any){prepares.push({id,input});return{};}},
+      submissionIntents:{async list(){return {items:[],total:0};}},
+    };
+    const result=await new DiscoveryQualificationProcessor(client,{dryRun:false,autoPrepare:true}).run('run-no-prepare');
+    expect(result).toMatchObject({evaluated:1,qualified:1,stateChanges:1,preparable:0,prepared:0,skippedPreparationDisabled:1});
+    expect(prepares).toEqual([]);
+  });
+
   it('blocks explicit applicant academic hard requirements before resume scoring', async () => {
     const jobs=[item('school-tier','AI Agent开发工程师')];
     let recommendCalls=0;

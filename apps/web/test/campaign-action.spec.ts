@@ -35,6 +35,10 @@ function campaignForm(status = 'active') {
   form.set('exclusions', 'C++ only');
   form.append('sources', 'official');
   form.append('sources', 'boss');
+  form.set('automationCollectionEnabled', 'on');
+  form.set('automationOfficialPrepareEnabled', 'on');
+  form.set('automationOfficialFillEnabled', 'on');
+  form.set('automationEmailDraftEnabled', 'on');
   form.set('status', status);
   return form;
 }
@@ -53,6 +57,11 @@ describe('Web campaign Server Action', () => {
     const first = await client.campaigns.get('campaign-web-test');
     expect(first).toMatchObject({
       name: 'AI Agent Search', status: 'active', targetRoles: ['AI Agent Engineer', 'AI Fullstack Engineer'], cities: ['Hangzhou', 'Shenzhen'], graduationYears: [2026], sources: ['official', 'boss'],
+      automation: {
+        collection: { enabled: true },
+        officialSite: { prepareEnabled: true, fillEnabled: true, submitEnabled: false, preferredResumeProfileId: null },
+        email: { draftEnabled: true, sendEnabled: false, preferredResumeProfileId: null },
+      },
     });
 
     const updated = await saveCampaignAction(created, campaignForm('paused'));

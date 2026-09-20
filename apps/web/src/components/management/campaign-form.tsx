@@ -82,6 +82,40 @@ export function CampaignForm({
           ) : <p className="management-muted">{messages.resumesWorkspace.table.empty}</p>}
         </fieldset>
 
+        <fieldset className="management-choice-group campaign-automation-group">
+          <legend>{copy.form.automation}</legend>
+          <p className="management-muted">{copy.form.automationHint}</p>
+          <div className="management-choice-grid">
+            <label>
+              <input type="checkbox" name="automationCollectionEnabled" defaultChecked={campaign?.automation.collection.enabled ?? true} />
+              <span>{copy.form.collectionEnabled}</span>
+            </label>
+          </div>
+          <div className="management-field-grid">
+            <div className="management-field">
+              <strong>{copy.form.officialSite}</strong>
+              <label><input type="checkbox" name="automationOfficialPrepareEnabled" defaultChecked={campaign?.automation.officialSite.prepareEnabled ?? true} /> <span>{copy.form.officialPrepareEnabled}</span></label>
+              <label><input type="checkbox" name="automationOfficialFillEnabled" defaultChecked={campaign?.automation.officialSite.fillEnabled ?? true} /> <span>{copy.form.officialFillEnabled}</span></label>
+              <label><input type="checkbox" name="automationOfficialSubmitEnabled" defaultChecked={campaign?.automation.officialSite.submitEnabled ?? false} /> <span>{copy.form.officialSubmitEnabled}</span></label>
+              <span>{copy.form.preferredResume}</span>
+              <select name="automationOfficialResumeProfileId" defaultValue={campaign?.automation.officialSite.preferredResumeProfileId ?? ''}>
+                <option value="">{copy.form.recommendedResume}</option>
+                {resumes.map(({ resume }) => <option key={resume.id} value={resume.id}>{resume.name}</option>)}
+              </select>
+            </div>
+            <div className="management-field">
+              <strong>{copy.form.email}</strong>
+              <label><input type="checkbox" name="automationEmailDraftEnabled" defaultChecked={campaign?.automation.email.draftEnabled ?? true} /> <span>{copy.form.emailDraftEnabled}</span></label>
+              <label><input type="checkbox" name="automationEmailSendEnabled" defaultChecked={campaign?.automation.email.sendEnabled ?? false} /> <span>{copy.form.emailSendEnabled}</span></label>
+              <span>{copy.form.preferredResume}</span>
+              <select name="automationEmailResumeProfileId" defaultValue={campaign?.automation.email.preferredResumeProfileId ?? ''}>
+                <option value="">{copy.form.recommendedResume}</option>
+                {resumes.map(({ resume }) => <option key={resume.id} value={resume.id}>{resume.name}</option>)}
+              </select>
+            </div>
+          </div>
+        </fieldset>
+
         <label className="management-field management-field-small">
           <span>{copy.form.status}</span>
           <select name="status" defaultValue={campaign?.status ?? 'active'}>

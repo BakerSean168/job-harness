@@ -77,7 +77,7 @@ Set the interval to `0` to disable the background sweep. A startup sweep runs wh
 
 The Compose stack includes a `boss-bridge` service for the mature BOSS Copilot compatibility runtime. The bridge talks to `server:3000` through the private Compose network, while the Server's ChatGPT MCP adapter reaches pending/resolution endpoints at `http://boss-bridge:18788`. This avoids routing the ChatGPT control loop back out through a public/Tailnet URL.
 
-The bridge host mapping is loopback-only by default. Set `JOB_HARNESS_BOSS_BRIDGE_PUBLIC_URL` to the private HTTPS/Tailnet address used by the dedicated browser profile when applicable. The ChatGPT MCP surface exposes `boss_greetings_pending` as read-only and `boss_greeting_resolve` as the single bounded external-effect tool: resolving `send` releases only an already-waiting greeting, while `skip` releases it without sending. This is separate from job-application submission and does not bypass SubmissionIntent rules.
+The bridge host mapping is loopback-only by default. Set `JOB_HARNESS_BOSS_BRIDGE_PUBLIC_URL` to the private HTTPS/Tailnet address used by the dedicated browser profile when applicable. The ChatGPT MCP surface exposes `boss_greetings_pending` as read-only and `boss_greeting_resolve` as one bounded external-effect tool: resolving `send` releases only an already-waiting greeting, while `skip` releases it without sending. The other bounded MCP effect is `career_email_application_authorize_send`, which authorizes only one exact immutable email package for the separate Email Delivery Worker and is independently gated by Campaign `email.sendEnabled`. Neither path bypasses ATS SubmissionIntent/final-submit controls.
 
 ## Network/security defaults
 

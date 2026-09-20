@@ -12,7 +12,38 @@ This is the normative orchestration policy for a ChatGPT/custom-MCP client. It i
 6. Never repeat a recruiting-site side effect merely because the subsequent Job Harness call failed. Recover from the durable intent first.
 7. `needs_manual_review` means “unknown/needs verification”, not success and not failure.
 8. Keep discovery and storage incremental. Upsert candidates in bounded batches instead of retaining an entire search session only in conversation state.
-9. `boss_greeting_resolve(action=send)` is the only MCP tool allowed to trigger an external recruiting-site effect. It may only release an already-waiting BOSS Compatibility Runtime greeting; it is not permission to submit an application or perform arbitrary browser actions.
+9. Only two MCP tools may deliberately cross a bounded external-effect boundary: `boss_greeting_resolve(action=send)` releases one already-waiting BOSS greeting, and `career_email_application_authorize_send` authorizes one exact immutable email draft for the independent delivery worker. Neither is permission to submit an ATS application or perform arbitrary browser actions.
+
+## Campaign automation modules
+
+Every automated discovery/application run must load the Campaign and obey `campaign.automation` before starting downstream work. The modules are deliberately independent:
+
+```text
+collection.enabled
+  -> discover + dedupe + persist Job/Listing/Observation
+
+officialSite.prepareEnabled
+  -> choose configured Resume or deterministic recommendation
+  -> career_submission_intent_prepare_recommended
+
+officialSite.fillEnabled
+  -> allows the separate planned-intent dispatcher to queue safe fill/upload work
+
+officialSite.submitEnabled
+  -> when a capable executor exists, dispatcher may use review_then_submit with submitAllowed=true
+  -> the existing one-time ReviewSnapshot/submit-authorization boundary is still mandatory before any final click
+
+email.draftEnabled
+  -> choose configured Resume or deterministic recommendation
+  -> generate JD-specific subject/body from true Resume facts
+  -> career_email_application_prepare(subject, body, ...)
+
+email.sendEnabled
+  -> career_email_application_authorize_send(exact draftHash, short TTL)
+  -> independent Email Delivery Worker performs the provider send when configured/running
+```
+
+Safe defaults are collection=true, official prepare=true, official safe fill=true, official final submit=false, email draft=true, email send=false. A preferred Resume Profile ID pins the selected Resume for that channel; null means use deterministic recommendation. Never turn on a later module implicitly because an earlier module is enabled.
 
 ## Discovery workflow
 
@@ -70,9 +101,35 @@ Rules:
 - Do not spin indefinitely. Process a bounded batch during the active ChatGPT run; if there are no pending requests, stop cleanly.
 - A BOSS greeting is recruiter contact, not a completed job application. Durable outreach evidence and Application/Submission state remain separate.
 
+## Recruiting-email workflow
+
+For a discovered Job whose verified public source contains a recruiting mailbox, first persist the Job/Listing normally. If `campaign.automation.email.draftEnabled` is false, stop after collection. If enabled:
+
+```text
+career_job_resume_recommend
+  -> choose campaign.automation.email.preferredResumeProfileId when non-null, otherwise the recommended Profile
+  -> write a truthful JD-specific subject/body
+  -> career_email_application_prepare(jobId, recipient, preferredProfileId, subject, body, idempotencyKey)
+```
+
+`career_email_application_prepare` freezes recipient, generated copy, exact Resume Revision/PDF Artifact and `draftHash`; it does **not** send email. Do not claim an Application exists at this stage.
+
+If `campaign.automation.email.sendEnabled` is false, stop with the durable draft package. If true, and only after re-reading the exact package/draft hash, call:
+
+```text
+career_email_application_authorize_send(
+  packageId,
+  draftHash,
+  expiresInSeconds <= 300,
+  idempotencyKey
+)
+```
+
+This authorization is a bounded external effect because a configured Email Delivery Worker may immediately claim it and send the exact frozen email. The server independently rejects authorization when no active associated Campaign enables email sending. Never authorize a different draft, silently regenerate copy after authorization, or treat an authorization as proof of send. Provider Message-ID + durable confirmation remain the success boundary.
+
 ## External application workflow
 
-Except for the bounded BOSS greeting release above, the MCP app itself **does not click or submit on recruiting sites**. A separate user/browser executor performs application side effects.
+Except for bounded BOSS greeting release and bounded email-send authorization, the MCP app itself **does not click or submit on recruiting sites**. Official-site preparation freezes a SubmissionIntent/Resume; the separate dispatcher/browser executor performs safe fill/upload, and final submit remains behind its own authorization boundary.
 
 Before any external action:
 

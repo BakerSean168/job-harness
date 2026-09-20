@@ -271,8 +271,16 @@ export const PrepareEmailApplicationInputSchema = z.object({
   listingId: EntityIdSchema.nullable().optional(),
   preferredProfileId: EntityIdSchema.nullable().optional(),
   recipient: z.email().nullable().optional(),
+  subject: z.string().trim().min(1).max(500).nullable().optional(),
+  body: z.string().trim().min(1).max(20_000).nullable().optional(),
   idempotencyKey: IdempotencyKeySchema,
-}).strict();
+}).strict().superRefine((value, ctx) => {
+  const hasSubject = Boolean(value.subject?.trim());
+  const hasBody = Boolean(value.body?.trim());
+  if (hasSubject !== hasBody) {
+    ctx.addIssue({ code: 'custom', path: hasSubject ? ['body'] : ['subject'], message: 'subject and body must be supplied together when overriding generated email copy' });
+  }
+});
 
 export const EmailApplicationPackageDetailSchema = z.object({
   package: EmailApplicationPackageSchema,

@@ -177,7 +177,7 @@ export function createEmailApplicationService(
         throw new CareerConflictError('Email application requires the exact frozen PDF Resume Artifact');
       }
       const education = applicantContext.profile.education[0];
-      const copy = buildEmailCopy({
+      const fallbackCopy = buildEmailCopy({
         company: job.job.companyName,
         title: job.job.title,
         displayName: applicantContext.profile.displayName,
@@ -188,6 +188,9 @@ export function createEmailApplicationService(
         email: applicantContext.profile.email,
         phone: applicantContext.profile.phone,
       });
+      const copy = input.subject && input.body
+        ? { subject: input.subject, body: input.body }
+        : fallbackCopy;
       const fileName = attachmentName(localized(profileContext.profile.output.pdfName), applicantContext.profile.displayName, job.job.title);
       const draftHash = sha256({
         recipient: validRecipient.data,
@@ -228,6 +231,13 @@ export function createEmailApplicationService(
       const input = AuthorizeEmailApplicationSendInputSchema.parse(raw);
       const value = await load(packageId);
       requireDraftHash(value, input.draftHash);
+      const job = await career.workspace.getJobDetail(value.jobId);
+      if (!job) throw new CareerNotFoundError('Job', value.jobId);
+      const campaignPolicies = await Promise.all(job.campaigns.map((campaign) => career.campaigns.getCampaign(campaign.id)));
+      const sendEnabled = campaignPolicies.some((campaign) => campaign?.status === 'active' && campaign.automation.email.sendEnabled);
+      if (job.campaigns.length > 0 && !sendEnabled) {
+        throw new CareerConflictError(`Email send is disabled by Campaign automation policy for Job '${value.jobId}'`);
+      }
       const intent = await career.submissionIntents.get(value.intentId);
       if (!intent) throw new CareerNotFoundError('SubmissionIntent', value.intentId);
       if (intent.status !== 'planned') throw new CareerConflictError(`Email SubmissionIntent '${intent.id}' is '${intent.status}', expected 'planned'`);

@@ -60,6 +60,8 @@ import {
   ConfirmEmailApplicationSendInputSchema,
   ConfirmEmailApplicationSendOutputSchema,
   FailEmailApplicationSendInputSchema,
+  AuthorizeEmailApplicationSendInputSchema,
+  EmailSendAuthorizationSchema,
 } from '@job-harness/contracts';
 import {
   ListResumeProfilesInputSchema,
@@ -100,6 +102,7 @@ export const EmailApplicationGetToolInputSchema = z.object({ packageId: z.string
 export const EmailApplicationBeginToolInputSchema = BeginEmailApplicationSendInputSchema.extend({ packageId: z.string().trim().min(1).max(200) });
 export const EmailApplicationConfirmToolInputSchema = ConfirmEmailApplicationSendInputSchema.extend({ packageId: z.string().trim().min(1).max(200) });
 export const EmailApplicationFailToolInputSchema = FailEmailApplicationSendInputSchema.extend({ packageId: z.string().trim().min(1).max(200) });
+export const EmailApplicationAuthorizeSendToolInputSchema = AuthorizeEmailApplicationSendInputSchema.extend({ packageId: z.string().trim().min(1).max(200) });
 
 const BossGreetingJobSchema = z.object({
   title: z.string().trim().min(1).max(240),
@@ -198,6 +201,7 @@ export const BOSS_GREETING_MCP_TOOLS = [
 export const EMAIL_APPLICATION_MCP_TOOLS = [
   tool({ name: 'career_email_application_prepare', description: 'Freeze recipient, email copy, deterministic draft hash, and exact Resume PDF for an email application. Does not send email.', mutability: 'state-write', externalSideEffect: false, inputSchema: EmailApplicationPrepareToolInputSchema, outputSchema: EmailApplicationPackageDetailSchema }),
   tool({ name: 'career_email_application_get', description: 'Read one immutable email application package and its durable SubmissionIntent.', mutability: 'read', externalSideEffect: false, inputSchema: EmailApplicationGetToolInputSchema, outputSchema: EmailApplicationPackageDetailSchema }),
+  tool({ name: 'career_email_application_authorize_send', idempotent: false, description: 'Authorize the independent Email Delivery Worker to send one exact immutable email draft for a short time. If a delivery worker is running, this can cause an external email send.', mutability: 'state-write', externalSideEffect: true, inputSchema: EmailApplicationAuthorizeSendToolInputSchema, outputSchema: EmailSendAuthorizationSchema }),
   tool({ name: 'career_email_application_begin_send', description: 'Verify the immutable email draft hash and mark its SubmissionIntent external_in_progress immediately before a separate email-provider send. This tool itself does not send email.', mutability: 'state-write', externalSideEffect: false, inputSchema: EmailApplicationBeginToolInputSchema, outputSchema: EmailBeginSubmissionIntentOutputSchema }),
   tool({ name: 'career_email_application_confirm', description: 'Persist provider Message-ID/thread evidence after a separate email-provider send and reconcile one ApplicationSubmission. Does not send email.', mutability: 'state-write', externalSideEffect: false, inputSchema: EmailApplicationConfirmToolInputSchema, outputSchema: ConfirmEmailApplicationSendOutputSchema }),
   tool({ name: 'career_email_application_fail', description: 'Record known failure or uncertain/manual-review evidence for an email send attempt. Does not send email.', mutability: 'state-write', externalSideEffect: false, inputSchema: EmailApplicationFailToolInputSchema, outputSchema: EmailApplicationPackageDetailSchema }),
