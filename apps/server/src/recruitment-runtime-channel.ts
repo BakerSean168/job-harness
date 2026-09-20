@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 import type { Express } from 'express';
+import { GET_JOBS_UPSTREAM_COMMIT, GET_JOBS_UPSTREAM_REPOSITORY } from './get-jobs-runtime';
 
 export const RECRUITMENT_RUNTIME_CHANNEL_PREFIX = '/runtime/recruitment-browser/v1';
 
@@ -86,6 +87,33 @@ const INSTALLER: RuntimeFileDefinition = {
   contentType: 'text/plain; charset=utf-8',
 };
 
+const GET_JOBS_BOOTSTRAP: RuntimeFileDefinition = {
+  id: 'external/vvvsrx-get-jobs/start-job-harness-get-jobs.sh',
+  sourcePath: resolve(repositoryRoot, 'integrations/get-jobs-runtime/wsl/start-job-harness-get-jobs.sh'),
+  installPath: 'external/vvvsrx-get-jobs/start-job-harness-get-jobs.sh',
+  contentType: 'text/plain; charset=utf-8',
+};
+
+const GET_JOBS_MANAGER: RuntimeFileDefinition = {
+  id: 'external/vvvsrx-get-jobs/job-harness-get-jobs-supervisor.sh',
+  sourcePath: resolve(repositoryRoot, 'integrations/get-jobs-runtime/wsl/job-harness-get-jobs-supervisor.sh'),
+  installPath: 'external/vvvsrx-get-jobs/job-harness-get-jobs-supervisor.sh',
+  contentType: 'text/plain; charset=utf-8',
+};
+
+const GET_JOBS_OVERLAYS: readonly RuntimeFileDefinition[] = [
+  'main.py.patch',
+  'schemas.py.patch',
+  'zhilian_bot.py.patch',
+  'liepin_bot.py.patch',
+  'job51_bot.py.patch',
+].map((name) => ({
+  id: `external/vvvsrx-get-jobs/overlays/${name}`,
+  sourcePath: resolve(repositoryRoot, 'integrations/upstreams/overlays/get-jobs', name),
+  installPath: `external/vvvsrx-get-jobs/overlays/${name}`,
+  contentType: 'text/plain; charset=utf-8',
+}));
+
 function contentType(file: RuntimeFileDefinition): string {
   if (file.contentType) return file.contentType;
   const extension = extname(file.installPath).toLowerCase();
@@ -140,6 +168,17 @@ export async function getRecruitmentRuntimeManifest() {
   const supervisor = await readDefinition(SUPERVISOR);
   const supervisorVersion = sha256(Buffer.from(`${supervisor.id}:${supervisor.sha256}`));
   const bundleVersion = sha256(Buffer.from(allHashes.sort().join('\n')));
+  const [getJobsBootstrap, getJobsManager, getJobsOverlays] = await Promise.all([
+    readDefinition(GET_JOBS_BOOTSTRAP),
+    readDefinition(GET_JOBS_MANAGER),
+    Promise.all(GET_JOBS_OVERLAYS.map(readDefinition)),
+  ]);
+  const getJobsVersion = sha256(Buffer.from([
+    GET_JOBS_UPSTREAM_COMMIT,
+    `${getJobsBootstrap.id}:${getJobsBootstrap.sha256}`,
+    `${getJobsManager.id}:${getJobsManager.sha256}`,
+    ...getJobsOverlays.map((file) => `${file.id}:${file.sha256}`).sort(),
+  ].join('\n')));
 
   return {
     schemaVersion: 1,
@@ -164,11 +203,41 @@ export async function getRecruitmentRuntimeManifest() {
         contentType: resolved.contentType,
       };
     })),
+    externalRuntimes: [{
+      id: 'vvvsrx-get-jobs',
+      version: getJobsVersion,
+      repository: GET_JOBS_UPSTREAM_REPOSITORY,
+      commit: GET_JOBS_UPSTREAM_COMMIT,
+      license: 'MIT',
+      mode: 'collect-only',
+      sites: ['zhilian', 'liepin', 'job51'],
+      bootstrap: {
+        id: getJobsBootstrap.id,
+        installPath: getJobsBootstrap.installPath,
+        sha256: getJobsBootstrap.sha256,
+        bytes: getJobsBootstrap.bytes,
+        contentType: getJobsBootstrap.contentType,
+      },
+      manager: {
+        id: getJobsManager.id,
+        installPath: getJobsManager.installPath,
+        sha256: getJobsManager.sha256,
+        bytes: getJobsManager.bytes,
+        contentType: getJobsManager.contentType,
+      },
+      overlays: getJobsOverlays.map((file) => ({
+        id: file.id,
+        installPath: file.installPath,
+        sha256: file.sha256,
+        bytes: file.bytes,
+        contentType: file.contentType,
+      })),
+    }],
   };
 }
 
 function allRuntimeFiles(): RuntimeFileDefinition[] {
-  return [...EXTENSIONS.flatMap((extension) => extension.files), SUPERVISOR, BOOTSTRAP, INSTALLER];
+  return [...EXTENSIONS.flatMap((extension) => extension.files), SUPERVISOR, BOOTSTRAP, INSTALLER, GET_JOBS_BOOTSTRAP, GET_JOBS_MANAGER, ...GET_JOBS_OVERLAYS];
 }
 
 export function registerRecruitmentRuntimeChannel(app: Express): void {

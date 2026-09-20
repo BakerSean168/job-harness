@@ -24,10 +24,22 @@ async function main(): Promise<void> {
     if (!file.installPath.startsWith('extensions/')) throw new Error(`Extension asset escaped install root: ${file.installPath}`);
   }
 
-  const [supervisor, bootstrap, installer] = await Promise.all([
+  const external = manifest.externalRuntimes;
+  if (external.length !== 1 || external[0]?.id !== 'vvvsrx-get-jobs') throw new Error('Expected exactly one vvvsrx/get_jobs external Runtime candidate');
+  const getJobs = external[0]!;
+  if (getJobs.mode !== 'collect-only' || getJobs.sites.join(',') !== 'zhilian,liepin,job51') throw new Error('get_jobs external Runtime must remain collection-only for the three approved sites');
+  if (!/^[0-9a-f]{64}$/.test(getJobs.version)) throw new Error('get_jobs external Runtime version must be content-addressed');
+  if (getJobs.overlays.length !== 5) throw new Error('get_jobs external Runtime overlay set changed unexpectedly');
+  for (const file of [getJobs.bootstrap, getJobs.manager, ...getJobs.overlays]) {
+    if (!/^[0-9a-f]{64}$/.test(file.sha256) || file.bytes <= 0) throw new Error(`Invalid external Runtime file metadata for ${file.id}`);
+  }
+
+  const [supervisor, bootstrap, installer, getJobsBootstrap, getJobsManager] = await Promise.all([
     readFile(resolve(root, 'integrations/recruitment-browser/windows/job-harness-browser-supervisor.ps1'), 'utf8'),
     readFile(resolve(root, 'integrations/recruitment-browser/windows/start-recruitment-browser.ps1'), 'utf8'),
     readFile(resolve(root, 'integrations/recruitment-browser/windows/install-recruitment-browser.ps1'), 'utf8'),
+    readFile(resolve(root, 'integrations/get-jobs-runtime/wsl/start-job-harness-get-jobs.sh'), 'utf8'),
+    readFile(resolve(root, 'integrations/get-jobs-runtime/wsl/job-harness-get-jobs-supervisor.sh'), 'utf8'),
   ]);
 
   for (const marker of ['JobHarness\\RecruitmentBrowser', "$currentRoot = Join-Path $runtimeRoot 'current'", '--user-data-dir=', '--load-extension=', '--remote-debugging-port=', 'Get-DedicatedBrowserProcesses', 'Get-FileHash', 'bundleVersion', 'Ensure-SupervisorCurrent', 'Get-RecruitmentSiteHealth', 'login_required', 'challenge']) {
@@ -44,8 +56,17 @@ async function main(): Promise<void> {
   if (!installer.includes("[Environment]::GetFolderPath('Startup')") || !installer.includes('start-recruitment-browser.ps1')) {
     throw new Error('Recruitment Browser installer lost per-user auto-start bootstrap');
   }
+  for (const marker of ['vvvsrx-get-jobs', 'manager_sha', 'sha256sum', '/files/', 'externalRuntimes']) {
+    if (!getJobsBootstrap.includes(marker)) throw new Error(`get_jobs WSL bootstrap lost invariant '${marker}'`);
+  }
+  for (const marker of ['vvvsrx-get-jobs', 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY=1', '/api/job-harness-runtime', 'apply --check', 'sha256sum', 'py_compile', '127.0.0.1']) {
+    if (!getJobsManager.includes(marker)) throw new Error(`get_jobs WSL supervisor lost invariant '${marker}'`);
+  }
+  for (const forbidden of ['JOB_HARNESS_AUTH_TOKEN', 'JOB_HARNESS_EXECUTOR_AUTH_TOKEN', 'server root']) {
+    if (getJobsBootstrap.includes(forbidden) || getJobsManager.includes(forbidden)) throw new Error(`get_jobs WSL runtime bootstrap unexpectedly contains privileged marker '${forbidden}'`);
+  }
 
-  console.log(`recruitment browser runtime ok: bundle ${manifest.bundleVersion.slice(0, 12)}, ${manifest.extensions.length} extensions, ${files.length} extension assets, hash-verified Windows supervisor`);
+  console.log(`recruitment browser runtime ok: bundle ${manifest.bundleVersion.slice(0, 12)}, ${manifest.extensions.length} extensions, ${files.length} extension assets, external ${getJobs.id}@${getJobs.version.slice(0, 12)} collect-only Runtime, hash-verified supervisors`);
 }
 
 main().catch((error) => {

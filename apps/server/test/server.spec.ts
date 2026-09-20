@@ -87,11 +87,15 @@ describe('standalone Streamable HTTP MCP server', () => {
       bundleVersion: string;
       supervisorVersion: string;
       extensions: Array<{ id: string; files: Array<{ id: string; sha256: string }> }>;
+      externalRuntimes: Array<{ id: string; version: string; mode: string; sites: string[]; bootstrap: { id: string; sha256: string }; manager: { id: string; sha256: string }; overlays: Array<{ id: string; sha256: string }> }>;
     };
     expect(manifest.schemaVersion).toBe(1);
     expect(manifest.bundleVersion).toMatch(/^[0-9a-f]{64}$/);
     expect(manifest.supervisorVersion).toMatch(/^[0-9a-f]{64}$/);
     expect(manifest.extensions.map((extension) => extension.id)).toEqual(['boss-copilot', 'browser-bridge']);
+    expect(manifest.externalRuntimes).toHaveLength(1);
+    expect(manifest.externalRuntimes[0]).toMatchObject({ id: 'vvvsrx-get-jobs', mode: 'collect-only', sites: ['zhilian', 'liepin', 'job51'] });
+    expect(manifest.externalRuntimes[0]?.version).toMatch(/^[0-9a-f]{64}$/);
     const runtimeFile = manifest.extensions[0]?.files[0];
     expect(runtimeFile).toBeTruthy();
     const fileResponse = await fetch(`${running.url}/runtime/recruitment-browser/v1/files/${runtimeFile!.id}`);
@@ -99,6 +103,18 @@ describe('standalone Streamable HTTP MCP server', () => {
     const bytes = Buffer.from(await fileResponse.arrayBuffer());
     expect(createHash('sha256').update(bytes).digest('hex')).toBe(runtimeFile!.sha256);
     expect(fileResponse.headers.get('x-content-sha256')).toBe(runtimeFile!.sha256);
+
+    const bootstrapAsset = manifest.externalRuntimes[0]!.bootstrap;
+    const bootstrapResponse = await fetch(`${running.url}/runtime/recruitment-browser/v1/files/${bootstrapAsset.id}`);
+    expect(bootstrapResponse.status).toBe(200);
+    const bootstrapBytes = Buffer.from(await bootstrapResponse.arrayBuffer());
+    expect(createHash('sha256').update(bootstrapBytes).digest('hex')).toBe(bootstrapAsset.sha256);
+
+    const manager = manifest.externalRuntimes[0]!.manager;
+    const managerResponse = await fetch(`${running.url}/runtime/recruitment-browser/v1/files/${manager.id}`);
+    expect(managerResponse.status).toBe(200);
+    const managerBytes = Buffer.from(await managerResponse.arrayBuffer());
+    expect(createHash('sha256').update(managerBytes).digest('hex')).toBe(manager.sha256);
 
     const missingRuntimeFile = await fetch(`${running.url}/runtime/recruitment-browser/v1/files/not/allowed.js`);
     expect(missingRuntimeFile.status).toBe(404);

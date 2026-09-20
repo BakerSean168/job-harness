@@ -48,6 +48,33 @@ The candidate applies only integration-level patches:
 
 The overlay does not replace the upstream locators or page state machines.
 
+## Self-updating WSL runtime
+
+The runtime is intended to run inside the user's WSL/WSLg environment so the upstream Camoufox windows are isolated from the normal Windows browser while still being visible for login when needed. The Job Harness Runtime Channel publishes both a tiny stable bootstrap and a content-addressed manager script plus the exact integration overlays.
+
+The bootstrap can be installed once anywhere convenient, for example under `~/.local/share/job-harness/get-jobs-runtime/start.sh`. Each invocation fetches the current Runtime Channel manifest, verifies the manager SHA-256, and hands control to the current manager. The manager then:
+
+- clones the exact pinned upstream commit rather than relying on the stale local Job Harness checkout;
+- downloads and hash-verifies only the Job Harness integration overlays;
+- runs `git apply --check` before applying them;
+- verifies the collect-only markers and Python syntax;
+- keeps versioned source/venv directories and a persistent runtime DB outside the checkout;
+- uses `uv` when available;
+- exposes the upstream FastAPI service only on `127.0.0.1:18851` by default;
+- starts it with `JOB_HARNESS_GET_JOBS_COLLECT_ONLY=1` and refuses readiness unless `/api/job-harness-runtime` confirms that mode.
+
+Typical bootstrap commands are:
+
+```bash
+./start.sh sync
+./start.sh provision
+./start.sh start
+./start.sh status
+./start.sh stop
+```
+
+`sync` and `provision` do not visit recruiting websites. `start` launches only the local collect-only runtime service; an explicit per-site collection start is still required before the upstream browser begins a search.
+
 ## Read-only Job Harness adapter
 
 `apps/server/src/get-jobs-runtime.ts` provides:
