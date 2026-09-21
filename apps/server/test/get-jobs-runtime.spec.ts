@@ -316,7 +316,7 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
       baseUrl: 'http://get-jobs-runtime:8000',
       fetch: (async () => { throw new Error('connection refused'); }) as typeof globalThis.fetch,
     });
-    await expect(client.health('liepin')).resolves.toMatchObject({ site: 'liepin', state: 'offline', browserConnected: false });
+    await expect(client.health('liepin')).resolves.toMatchObject({ site: 'liepin', state: 'offline', browserConnected: false, detail: 'offline:connection-refused' });
     const port = createGetJobsCollectionRuntimeMcpPort(client, { campaigns: {} as any, jobs: {} as any });
     await expect(port.status({ site: 'liepin' })).resolves.toMatchObject({
       descriptor: { runtimeId: 'get-jobs-liepin' },
@@ -340,7 +340,7 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
       healthTimeoutMs: 100,
     });
     const startedAt = Date.now();
-    await expect(client.health('job51')).resolves.toMatchObject({ site: 'job51', state: 'offline', browserConnected: false });
+    await expect(client.health('job51')).resolves.toMatchObject({ site: 'job51', state: 'offline', browserConnected: false, detail: 'offline:health-timeout' });
     expect(Date.now() - startedAt).toBeLessThan(1_000);
   });
 });

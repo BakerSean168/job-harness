@@ -107,7 +107,7 @@ export interface MessageCatalog {
     attention: {
       title: string; empty: string; since: string;
       severity: Record<'info' | 'warning' | 'critical', string>;
-      kinds: Record<'stale_application' | 'shortlisted_unapplied' | 'closed_listing_active_application' | 'stale_campaign_discovery' | 'missing_resume_artifact' | 'stale_resume_artifact', string>;
+      kinds: Record<'stale_application' | 'shortlisted_unapplied' | 'closed_listing_active_application' | 'failed_discovery_run' | 'stale_campaign_discovery' | 'missing_resume_artifact' | 'stale_resume_artifact', string>;
     };
     weekly: { title: string; jobsObserved: string; opportunitiesInserted: string; shortlisted: string; applicationsRecorded: string; stageChanges: string; interviewsScheduled: string; unavailable: string; utcNote: string; };
     recent: { title: string; empty: string; candidates: string; inserted: string; duplicates: string; rejected: string; started: string; };

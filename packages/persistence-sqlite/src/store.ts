@@ -1218,7 +1218,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       id: `stale_application:${String(row.application_id)}`,
       kind: 'stale_application', severity: 'warning',
       label: `${String(row.company_name)} · ${String(row.job_title)}`,
-      jobId: String(row.job_id), applicationId: String(row.application_id), campaignId: input.campaignId ?? null, resumeProfileId: null,
+      jobId: String(row.job_id), applicationId: String(row.application_id), campaignId: input.campaignId ?? null, discoveryRunId: null, resumeProfileId: null,
       stage: row.current_stage as ApplicationStage, sinceAt: String(row.since_at),
     });
 
@@ -1236,7 +1236,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       id: `shortlisted_unapplied:${String(row.job_id)}`,
       kind: 'shortlisted_unapplied', severity: 'warning',
       label: `${String(row.company_name)} · ${String(row.job_title)}`,
-      jobId: String(row.job_id), applicationId: null, campaignId: input.campaignId ?? null, resumeProfileId: null, stage: null, sinceAt: String(row.since_at),
+      jobId: String(row.job_id), applicationId: null, campaignId: input.campaignId ?? null, discoveryRunId: null, resumeProfileId: null, stage: null, sinceAt: String(row.since_at),
     });
 
     const closedListingRows = this.db.prepare(`
@@ -1255,14 +1255,41 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       id: `closed_listing_active_application:${String(row.application_id)}`,
       kind: 'closed_listing_active_application', severity: 'critical',
       label: `${String(row.company_name)} · ${String(row.job_title)}`,
-      jobId: String(row.job_id), applicationId: String(row.application_id), campaignId: input.campaignId ?? null, resumeProfileId: null,
+      jobId: String(row.job_id), applicationId: String(row.application_id), campaignId: input.campaignId ?? null, discoveryRunId: null, resumeProfileId: null,
       stage: row.current_stage as ApplicationStage, sinceAt: row.since_at == null ? null : String(row.since_at),
+    });
+
+    const failedDiscoveryRows = input.campaignId
+      ? this.db.prepare(`
+          SELECT d.id AS discovery_run_id, d.campaign_id, c.name AS campaign_name, d.failure_code, d.completed_at
+          FROM discovery_runs d LEFT JOIN campaigns c ON c.id = d.campaign_id
+          WHERE d.status = 'failed' AND d.campaign_id = ?
+          ORDER BY d.completed_at DESC, d.started_at DESC, d.id DESC LIMIT ?
+        `).all(input.campaignId, attentionLimit) as Row[]
+      : this.db.prepare(`
+          SELECT d.id AS discovery_run_id, d.campaign_id, c.name AS campaign_name, d.failure_code, d.completed_at
+          FROM discovery_runs d LEFT JOIN campaigns c ON c.id = d.campaign_id
+          WHERE d.status = 'failed'
+          ORDER BY d.completed_at DESC, d.started_at DESC, d.id DESC LIMIT ?
+        `).all(attentionLimit) as Row[];
+    for (const row of failedDiscoveryRows) attention.push({
+      id: `failed_discovery_run:${String(row.discovery_run_id)}`,
+      kind: 'failed_discovery_run',
+      severity: 'warning',
+      label: `${row.campaign_name == null ? 'DiscoveryRun' : String(row.campaign_name)} · ${row.failure_code == null ? 'failed' : String(row.failure_code)}`,
+      jobId: null,
+      applicationId: null,
+      campaignId: row.campaign_id == null ? null : String(row.campaign_id),
+      discoveryRunId: String(row.discovery_run_id),
+      resumeProfileId: null,
+      stage: null,
+      sinceAt: row.completed_at == null ? null : String(row.completed_at),
     });
 
     const campaignWhere = input.campaignId ? "c.status = 'active' AND c.id = ?" : "c.status = 'active'";
     const staleCampaignRows = this.db.prepare(`
       SELECT c.id AS campaign_id, c.name AS campaign_name, c.created_at AS created_at, MAX(d.completed_at) AS last_completed_at
-      FROM campaigns c LEFT JOIN discovery_runs d ON d.campaign_id = c.id AND d.completed_at IS NOT NULL
+      FROM campaigns c LEFT JOIN discovery_runs d ON d.campaign_id = c.id AND d.status = 'succeeded' AND d.completed_at IS NOT NULL
       WHERE ${campaignWhere}
       GROUP BY c.id, c.name, c.created_at
       HAVING last_completed_at IS NULL OR last_completed_at < ?
@@ -1271,7 +1298,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     `).all(...(input.campaignId ? [input.campaignId] : []), daysAgo(3), attentionLimit) as Row[];
     for (const row of staleCampaignRows) attention.push({
       id: `stale_campaign_discovery:${String(row.campaign_id)}`, kind: 'stale_campaign_discovery', severity: 'info',
-      label: String(row.campaign_name), jobId: null, applicationId: null, campaignId: String(row.campaign_id), resumeProfileId: null, stage: null,
+      label: String(row.campaign_name), jobId: null, applicationId: null, campaignId: String(row.campaign_id), discoveryRunId: null, resumeProfileId: null, stage: null,
       sinceAt: String(row.last_completed_at ?? row.created_at),
     });
 
@@ -1283,12 +1310,12 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       if (!resume.artifactUri) {
         attention.push({
           id: `missing_resume_artifact:${resume.id}`, kind: 'missing_resume_artifact', severity: 'warning', label: resume.name,
-          jobId: null, applicationId: null, campaignId: input.campaignId ?? null, resumeProfileId: resume.id, stage: null, sinceAt: resume.updatedAt,
+          jobId: null, applicationId: null, campaignId: input.campaignId ?? null, discoveryRunId: null, resumeProfileId: resume.id, stage: null, sinceAt: resume.updatedAt,
         });
       } else if (resume.updatedAt < daysAgo(30)) {
         attention.push({
           id: `stale_resume_artifact:${resume.id}`, kind: 'stale_resume_artifact', severity: 'info', label: resume.name,
-          jobId: null, applicationId: null, campaignId: input.campaignId ?? null, resumeProfileId: resume.id, stage: null, sinceAt: resume.updatedAt,
+          jobId: null, applicationId: null, campaignId: input.campaignId ?? null, discoveryRunId: null, resumeProfileId: resume.id, stage: null, sinceAt: resume.updatedAt,
         });
       }
     }

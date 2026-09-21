@@ -40,6 +40,19 @@ function normalizeBaseUrl(value: string): string {
   return url.toString().replace(/\/+$/, '');
 }
 
+function runtimeOfflineDetail(error: unknown): string {
+  if (error instanceof Error) {
+    if (error.name === 'TimeoutError' || /timeout|timed out|aborted/i.test(error.message)) return 'offline:health-timeout';
+    const cause = (error as Error & { cause?: unknown }).cause;
+    if (cause && typeof cause === 'object' && 'code' in cause && typeof (cause as { code?: unknown }).code === 'string') {
+      return `offline:${String((cause as { code: string }).code).trim().toLowerCase().slice(0, 80)}`;
+    }
+    const token = error.message.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 120);
+    return token ? `offline:${token}` : 'offline:unknown-error';
+  }
+  return 'offline:unknown-error';
+}
+
 export function createGetJobsRuntimeClient(options: GetJobsRuntimeClientOptions) {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const fetchImpl = options.fetch ?? globalThis.fetch;
@@ -169,7 +182,7 @@ export function createGetJobsRuntimeClient(options: GetJobsRuntimeClientOptions)
           browserConnected: false,
           activeTaskId: null,
           lastEventAt: null,
-          detail: error instanceof Error ? error.message.slice(0, 1000) : String(error).slice(0, 1000),
+          detail: runtimeOfflineDetail(error),
           checkedAt,
         });
       }

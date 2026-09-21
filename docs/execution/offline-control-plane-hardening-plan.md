@@ -1,6 +1,6 @@
 # Offline Control Plane Hardening Plan
 
-Status: **implementation active**
+Status: **implementation active — Phases A-D code-complete; Phase E verification/deployment active**
 
 Date: 2026-09-21
 
@@ -110,7 +110,7 @@ The target is to make identity and sync independently testable pure/control-plan
 
 ## 4. Implementation slices
 
-### Phase A — runtime lifecycle correctness
+### Phase A — runtime lifecycle correctness ✅
 
 1. **BOSS expired-task projection**
    - detect expiry regardless of `desiredState`;
@@ -131,7 +131,7 @@ Acceptance:
 - three sequential site status reads no longer consume ~30 s;
 - BOSS expired paused task is not active.
 
-### Phase B — canonical identity guard
+### Phase B — canonical identity guard ✅
 
 1. Add a canonical compatibility check before a strong listing identity is attached to an existing Job.
 2. Compare normalized company and title evidence conservatively.
@@ -146,7 +146,7 @@ Acceptance:
 Acceptance:
 - a malformed upstream listing cannot cross-bind Job A's strong externalId to Job B.
 
-### Phase C — DiscoveryRun outcome model
+### Phase C — DiscoveryRun outcome model ✅
 
 1. Add `DiscoveryRunStatus` contract.
 2. Add `status`, `failureCode`, `failureReason` to `DiscoveryRun`.
@@ -162,21 +162,20 @@ Acceptance:
 Acceptance:
 - no new failed discovery execution has to masquerade as a successful run with rejected counts.
 
-### Phase D — get_jobs module decomposition
+### Phase D — get_jobs module decomposition ✅
 
-Target layout:
+Implemented layout (transport + health remain cohesive in the runtime client; identity normalization remains cohesive in the mapper):
 
 ```
 apps/server/src/recruitment-runtime/get-jobs/
-  descriptors.ts
-  transport.ts
-  health.ts
-  identity.ts
+  model.ts
+  client.ts
   mapper.ts
   sync.ts
-  campaign-config.ts
   mcp-port.ts
 ```
+
+`apps/server/src/get-jobs-runtime.ts` is now a thin compatibility facade.
 
 Compatibility:
 - `apps/server/src/get-jobs-runtime.ts` may remain as a thin public re-export/facade during migration;
@@ -187,7 +186,7 @@ Acceptance:
 - sync tests can run without HTTP/runtime orchestration;
 - health tests can run without persistence.
 
-### Phase E — observability and stale-run hygiene
+### Phase E — observability and stale-run hygiene ⏳
 
 1. Add structured runtime-offline detail codes where possible.
 2. Add tests ensuring no external-effect counter/Application changes during collect-only sync.

@@ -5478,6 +5478,7 @@
                               "stale_application",
                               "shortlisted_unapplied",
                               "closed_listing_active_application",
+                              "failed_discovery_run",
                               "stale_campaign_discovery",
                               "missing_resume_artifact",
                               "stale_resume_artifact"
@@ -5520,6 +5521,18 @@
                             ]
                           },
                           "campaignId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "discoveryRunId": {
                             "anyOf": [
                               {
                                 "type": "string",
@@ -5583,6 +5596,7 @@
                           "jobId",
                           "applicationId",
                           "campaignId",
+                          "discoveryRunId",
                           "resumeProfileId",
                           "stage",
                           "sinceAt"

@@ -28,6 +28,7 @@ function scopedHref(path: string, campaignId: string | null, params: Record<stri
 function attentionHref(item: DashboardAttentionItem): string | null {
   if (item.applicationId) return `/applications?application=${encodeURIComponent(item.applicationId)}`;
   if (item.jobId) return `/jobs?job=${encodeURIComponent(item.jobId)}`;
+  if (item.discoveryRunId) return `/discovery/${encodeURIComponent(item.discoveryRunId)}`;
   if (item.campaignId) return `/campaigns?campaign=${encodeURIComponent(item.campaignId)}`;
   if (item.resumeProfileId) return `/resumes?resume=${encodeURIComponent(item.resumeProfileId)}`;
   return null;
