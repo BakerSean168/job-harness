@@ -98,6 +98,20 @@ function requestHash(value: unknown): string {
   return createHash('sha256').update(stableJson(value)).digest('hex');
 }
 
+function compactStrongIdentityTitle(value: string): string {
+  return normalizeIdentityText(value).replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+function strongIdentityTitlesCompatible(existingTitle: string, incomingTitle: string): boolean {
+  const existing = compactStrongIdentityTitle(existingTitle);
+  const incoming = compactStrongIdentityTitle(incomingTitle);
+  if (!existing || !incoming) return false;
+  if (existing === incoming) return true;
+  const shorter = existing.length <= incoming.length ? existing : incoming;
+  const longer = existing.length > incoming.length ? existing : incoming;
+  return shorter.length >= 6 && longer.includes(shorter);
+}
+
 async function findCandidateDuplicate(tx: CareerStoreTransactionPort, candidate: UpsertJobCandidate) {
   const result = await tx.findDuplicate({
     companyName: candidate.companyName,
@@ -109,6 +123,15 @@ async function findCandidateDuplicate(tx: CareerStoreTransactionPort, candidate:
     throw new CareerConflictError(
       `Candidate listings resolve to multiple existing Jobs: ${result.potentialMatches.map((job) => job.id).join(', ')}`,
     );
+  }
+  if (result.duplicate && result.job && (result.matchedBy === 'listing-external-id' || result.matchedBy === 'listing-url')) {
+    const companyCompatible = await tx.companyOwnsName(result.job.companyId, candidate.companyName);
+    if (!companyCompatible) {
+      throw new CareerConflictError(`strong-identity-conflict:company:job=${result.job.id}`);
+    }
+    if (!strongIdentityTitlesCompatible(result.job.title, candidate.title)) {
+      throw new CareerConflictError(`strong-identity-conflict:title:job=${result.job.id}`);
+    }
   }
   return result;
 }

@@ -1456,6 +1456,19 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     return this.companyById(id)!;
   }
 
+  async companyOwnsName(companyId: string, name: string): Promise<boolean> {
+    const normalized = normalizeIdentityText(name);
+    if (!normalized) return false;
+    const row = this.db.prepare(`
+      SELECT 1
+      FROM companies c
+      LEFT JOIN company_aliases ca ON ca.company_id = c.id
+      WHERE c.id = ? AND (c.normalized_name = ? OR ca.normalized_alias = ?)
+      LIMIT 1
+    `).get(companyId, normalized, normalized) as Row | undefined;
+    return Boolean(row);
+  }
+
   async addCompanyAlias(companyId: string, alias: string, now: string): Promise<Company> {
     const company = this.companyById(companyId);
     if (!company) throw new Error(`Company '${companyId}' not found`);
