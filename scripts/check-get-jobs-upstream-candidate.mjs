@@ -94,12 +94,18 @@ requireMarkers('Zhilian worker', zhilian, [
   'task_state.should_stop()',
   'is_logged_in',
   'JOB_HARNESS_GET_JOBS_COLLECT_ONLY',
+  'card.locator(JOB_LINK).first',
   '仅采集模式',
   '已投递',
   '今日投递已达上限',
 ]);
+if (zhilian.includes('job-company-info__view-all')) {
+  throw new Error('Zhilian collection must not derive a card identity from the global detail panel');
+}
 requireMarkers('Zhilian locators', zhilianLocators, [
   'zhaopin.com',
+  'JOB_LINK',
+  "a[href*='/jobdetail/']",
   '投递',
   '已投递',
 ]);

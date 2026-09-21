@@ -78,6 +78,15 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
       url: 'https://www.zhaopin.com/jobdetail/Z-100.htm',
     });
 
+    expect(getJobsRuntimeRowToCandidate('zhilian', {
+      id: 10,
+      job_id: 'synthetic-md5-fallback',
+      job_title: '前端开发工程师',
+      job_link: null,
+      company_name: '测试科技',
+      delivered: 0,
+    })).toBeNull();
+
     const job51 = getJobsRuntimeRowToCandidate('job51', {
       id: 9,
       job_id: 'J-9',

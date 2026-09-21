@@ -40,7 +40,8 @@
     "upstream:diff": "node scripts/upstream-registry.mjs diff",
     "upstream:sync": "node scripts/upstream-registry.mjs sync",
     "upstream:test": "node scripts/upstream-registry.mjs test",
-    "repair:get-jobs-namespace": "tsx scripts/repair-get-jobs-runtime-namespace.ts"
+    "repair:get-jobs-namespace": "tsx scripts/repair-get-jobs-runtime-namespace.ts",
+    "rollback:discovery-run": "tsx scripts/rollback-discovery-run-from-backup.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",

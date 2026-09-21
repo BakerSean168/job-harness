@@ -1,6 +1,6 @@
 --- a/app/worker/zhilian_locators.py
 +++ b/app/worker/zhilian_locators.py
-@@ -13,16 +13,16 @@
+@@ -13,16 +13,19 @@
  ]
  
  # 职位卡片
@@ -10,6 +10,9 @@
  # 职位标题
 -JOB_TITLE = "a.jobinfo__name"
 +JOB_TITLE = "span.vue-clamp__text, a.jobinfo__name"
++
++# 职位详情链接（必须限定在当前卡片内，避免读到右侧详情面板的其他职位）
++JOB_LINK = "a[href*='/jobdetail/']"
  
  # 薪资
 -JOB_SALARY = "p.jobinfo__salary"
@@ -21,7 +24,7 @@
  
  # 经验
  JOB_EXPERIENCE = "div.jobinfo__other-info-item:nth-child(2)"
-@@ -31,7 +31,7 @@
+@@ -31,7 +34,7 @@
  JOB_DEGREE = "div.jobinfo__other-info-item:nth-child(3)"
  
  # 公司名

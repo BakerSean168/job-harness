@@ -213,7 +213,7 @@ export function getJobsRuntimeRowToCandidate(
 
   const url = normalizeListingUrl(site, row.job_link);
   const externalId = site === 'zhilian'
-    ? stableZhilianExternalId(url) ?? text(row.job_id, 300)
+    ? stableZhilianExternalId(url)
     : text(row.job_id, 300);
   if (!externalId && !url) return null;
 
