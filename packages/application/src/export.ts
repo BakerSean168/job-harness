@@ -74,7 +74,7 @@ export async function buildCareerExportSnapshot(
 
   return CareerExportSnapshotSchema.parse({
     format: 'job-harness-career-export',
-    schemaVersion: 4,
+    schemaVersion: 5,
     exportedAt,
     companies,
     jobs: jobs.sort(byId),

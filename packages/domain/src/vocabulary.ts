@@ -65,6 +65,9 @@ export const DISCOVERY_EXECUTORS = [
 ] as const;
 export type DiscoveryExecutor = (typeof DISCOVERY_EXECUTORS)[number];
 
+export const DISCOVERY_RUN_STATUSES = ['running', 'succeeded', 'failed', 'aborted'] as const;
+export type DiscoveryRunStatus = (typeof DISCOVERY_RUN_STATUSES)[number];
+
 export const JOB_SOURCE_KINDS = [
   'official',
   'boss',

@@ -815,6 +815,9 @@ export function createCareerApplicationService(
           contextSnapshot: parsed.contextSnapshot,
           startedAt: parsed.startedAt,
           completedAt: null,
+          status: 'running',
+          failureCode: null,
+          failureReason: null,
           candidateCount: 0,
           insertedCount: 0,
           duplicateCount: 0,
@@ -828,11 +831,20 @@ export function createCareerApplicationService(
 
     async completeDiscoveryRun(input) {
       const parsed = CompleteDiscoveryInputSchema.parse(input);
+      if (parsed.status === 'succeeded' && (parsed.failureCode !== null || parsed.failureReason !== null)) {
+        throw new CareerConflictError(`DiscoveryRun '${parsed.runId}' succeeded completion cannot include failure evidence`);
+      }
+      if (parsed.status !== 'succeeded' && (parsed.failureCode === null || parsed.failureReason === null)) {
+        throw new CareerConflictError(`DiscoveryRun '${parsed.runId}' ${parsed.status} completion requires failureCode and failureReason`);
+      }
       return store.transaction(async (tx) => {
         const run = await tx.getDiscoveryRun(parsed.runId);
         if (!run) throw new CareerNotFoundError('DiscoveryRun', parsed.runId);
         if (run.completedAt) {
           const same = run.completedAt === parsed.completedAt &&
+            run.status === parsed.status &&
+            run.failureCode === parsed.failureCode &&
+            run.failureReason === parsed.failureReason &&
             run.candidateCount === parsed.candidateCount &&
             run.insertedCount === parsed.insertedCount &&
             run.duplicateCount === parsed.duplicateCount &&
@@ -843,6 +855,9 @@ export function createCareerApplicationService(
         return CompleteDiscoveryOutputSchema.parse(await tx.updateDiscoveryRun({
           ...run,
           completedAt: parsed.completedAt,
+          status: parsed.status,
+          failureCode: parsed.failureCode,
+          failureReason: parsed.failureReason,
           candidateCount: parsed.candidateCount,
           insertedCount: parsed.insertedCount,
           duplicateCount: parsed.duplicateCount,

@@ -737,7 +737,21 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
   }
 
   private discoveryFromRow(row: Row): DiscoveryRun {
-    return DiscoveryRunSchema.parse({ id: row.id, campaignId: row.campaign_id, executor: row.executor, contextSnapshot: json(row.context_snapshot_json), startedAt: row.started_at, completedAt: row.completed_at, candidateCount: Number(row.candidate_count), insertedCount: Number(row.inserted_count), duplicateCount: Number(row.duplicate_count), rejectedCount: Number(row.rejected_count) });
+    return DiscoveryRunSchema.parse({
+      id: row.id,
+      campaignId: row.campaign_id,
+      executor: row.executor,
+      contextSnapshot: json(row.context_snapshot_json),
+      startedAt: row.started_at,
+      completedAt: row.completed_at,
+      status: row.status ?? (row.completed_at == null ? 'running' : 'succeeded'),
+      failureCode: row.failure_code ?? null,
+      failureReason: row.failure_reason ?? null,
+      candidateCount: Number(row.candidate_count),
+      insertedCount: Number(row.inserted_count),
+      duplicateCount: Number(row.duplicate_count),
+      rejectedCount: Number(row.rejected_count),
+    });
   }
 
   async getDiscoveryRun(runId: string): Promise<DiscoveryRun | null> {
@@ -1757,11 +1771,16 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
   }
 
   async insertDiscoveryRun(run: DiscoveryRun): Promise<void> {
-    this.db.prepare('INSERT INTO discovery_runs(id,campaign_id,executor,context_snapshot_json,started_at,completed_at,candidate_count,inserted_count,duplicate_count,rejected_count) VALUES(?,?,?,?,?,?,?,?,?,?)').run(run.id, run.campaignId, run.executor, JSON.stringify(run.contextSnapshot), run.startedAt, run.completedAt, run.candidateCount, run.insertedCount, run.duplicateCount, run.rejectedCount);
+    this.db.prepare('INSERT INTO discovery_runs(id,campaign_id,executor,context_snapshot_json,started_at,completed_at,status,failure_code,failure_reason,candidate_count,inserted_count,duplicate_count,rejected_count) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').run(
+      run.id, run.campaignId, run.executor, JSON.stringify(run.contextSnapshot), run.startedAt, run.completedAt,
+      run.status, run.failureCode, run.failureReason, run.candidateCount, run.insertedCount, run.duplicateCount, run.rejectedCount,
+    );
   }
 
   async updateDiscoveryRun(run: DiscoveryRun): Promise<DiscoveryRun> {
-    this.db.prepare('UPDATE discovery_runs SET completed_at=?,candidate_count=?,inserted_count=?,duplicate_count=?,rejected_count=? WHERE id=?').run(run.completedAt, run.candidateCount, run.insertedCount, run.duplicateCount, run.rejectedCount, run.id);
+    this.db.prepare('UPDATE discovery_runs SET completed_at=?,status=?,failure_code=?,failure_reason=?,candidate_count=?,inserted_count=?,duplicate_count=?,rejected_count=? WHERE id=?').run(
+      run.completedAt, run.status, run.failureCode, run.failureReason, run.candidateCount, run.insertedCount, run.duplicateCount, run.rejectedCount, run.id,
+    );
     return (await this.getDiscoveryRun(run.id))!;
   }
 

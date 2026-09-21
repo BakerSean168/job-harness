@@ -316,7 +316,7 @@ describe('SQLite standalone vertical slice', () => {
       duplicateCount: 1,
       rejectedCount: 0,
     });
-    expect(completed.completedAt).toBe(t3);
+    expect(completed).toMatchObject({ completedAt: t3, status: 'succeeded', failureCode: null, failureReason: null });
 
     const context = await career.analytics.getCareerContext({ campaignId: campaign.id });
     expect(context.campaign?.id).toBe(campaign.id);

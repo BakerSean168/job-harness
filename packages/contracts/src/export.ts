@@ -22,7 +22,7 @@ export const CareerExportApplicationSchema = z.object({
 
 export const CareerExportSnapshotSchema = z.object({
   format: z.literal('job-harness-career-export'),
-  schemaVersion: z.literal(4),
+  schemaVersion: z.literal(5),
   exportedAt: IsoDateTimeSchema,
   companies: z.array(CompanySchema),
   jobs: z.array(JobSchema),

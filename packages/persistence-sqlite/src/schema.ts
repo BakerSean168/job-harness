@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 17;
+export const SQLITE_SCHEMA_VERSION = 18;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -399,6 +399,7 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
   migrateCampaignEducationV15(db);
   migrateJobOutreachEventsV16(db);
   migrateCampaignAutomationV17(db);
+  migrateDiscoveryRunOutcomeV18(db);
 }
 
 const PERFORMANCE_INDEXES_SCHEMA_V4 = `
@@ -1046,6 +1047,33 @@ function migrateCampaignAutomationV17(db: DatabaseSync): void {
       db.exec("ALTER TABLE campaigns ADD COLUMN automation_json TEXT NOT NULL DEFAULT '{}'");
     }
     db.exec('PRAGMA user_version = 17');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+function migrateDiscoveryRunOutcomeV18(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  const version = Number(row.user_version ?? 0);
+  if (version >= 18) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (hasTable(db, 'discovery_runs')) {
+      if (!hasColumn(db, 'discovery_runs', 'status')) {
+        db.exec("ALTER TABLE discovery_runs ADD COLUMN status TEXT NOT NULL DEFAULT 'running'");
+      }
+      if (!hasColumn(db, 'discovery_runs', 'failure_code')) {
+        db.exec('ALTER TABLE discovery_runs ADD COLUMN failure_code TEXT');
+      }
+      if (!hasColumn(db, 'discovery_runs', 'failure_reason')) {
+        db.exec('ALTER TABLE discovery_runs ADD COLUMN failure_reason TEXT');
+      }
+      db.exec("UPDATE discovery_runs SET status = CASE WHEN completed_at IS NULL THEN 'running' ELSE 'succeeded' END WHERE status IS NULL OR status = 'running'");
+      db.exec('CREATE INDEX IF NOT EXISTS discovery_runs_status_started_idx ON discovery_runs(status, started_at DESC, id)');
+    }
+    db.exec('PRAGMA user_version = 18');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

@@ -6,6 +6,7 @@ import {
   ApplicationSubmissionChannelSchema,
   DiscoveryExecutorSchema,
   DiscoveryRunSchema,
+  DiscoveryRunStatusSchema,
   EntityIdSchema,
   IdempotencyKeySchema,
   IsoDateTimeSchema,
@@ -452,6 +453,9 @@ export const CompleteDiscoveryInputSchema = z
   .object({
     runId: EntityIdSchema,
     completedAt: IsoDateTimeSchema,
+    status: DiscoveryRunStatusSchema.exclude(['running']).default('succeeded'),
+    failureCode: z.string().trim().min(1).max(120).nullable().default(null),
+    failureReason: z.string().trim().min(1).max(1000).nullable().default(null),
     candidateCount: z.number().int().nonnegative(),
     insertedCount: z.number().int().nonnegative(),
     duplicateCount: z.number().int().nonnegative(),

@@ -5103,6 +5103,42 @@
                                   }
                                 ]
                               },
+                              "status": {
+                                "default": "running",
+                                "type": "string",
+                                "enum": [
+                                  "running",
+                                  "succeeded",
+                                  "failed",
+                                  "aborted"
+                                ]
+                              },
+                              "failureCode": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 120
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "failureReason": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 1000
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "candidateCount": {
                                 "default": 0,
                                 "type": "integer",
@@ -5135,6 +5171,9 @@
                               "contextSnapshot",
                               "startedAt",
                               "completedAt",
+                              "status",
+                              "failureCode",
+                              "failureReason",
                               "candidateCount",
                               "insertedCount",
                               "duplicateCount",
@@ -68121,6 +68160,42 @@
                         }
                       ]
                     },
+                    "status": {
+                      "default": "running",
+                      "type": "string",
+                      "enum": [
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "aborted"
+                      ]
+                    },
+                    "failureCode": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "failureReason": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "candidateCount": {
                       "default": 0,
                       "type": "integer",
@@ -68153,6 +68228,9 @@
                     "contextSnapshot",
                     "startedAt",
                     "completedAt",
+                    "status",
+                    "failureCode",
+                    "failureReason",
                     "candidateCount",
                     "insertedCount",
                     "duplicateCount",
@@ -68552,6 +68630,42 @@
                                   }
                                 ]
                               },
+                              "status": {
+                                "default": "running",
+                                "type": "string",
+                                "enum": [
+                                  "running",
+                                  "succeeded",
+                                  "failed",
+                                  "aborted"
+                                ]
+                              },
+                              "failureCode": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 120
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "failureReason": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 1000
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "candidateCount": {
                                 "default": 0,
                                 "type": "integer",
@@ -68584,6 +68698,9 @@
                               "contextSnapshot",
                               "startedAt",
                               "completedAt",
+                              "status",
+                              "failureCode",
+                              "failureReason",
                               "candidateCount",
                               "insertedCount",
                               "duplicateCount",
@@ -68938,6 +69055,42 @@
                         }
                       ]
                     },
+                    "status": {
+                      "default": "running",
+                      "type": "string",
+                      "enum": [
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "aborted"
+                      ]
+                    },
+                    "failureCode": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "failureReason": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "candidateCount": {
                       "default": 0,
                       "type": "integer",
@@ -68970,6 +69123,9 @@
                     "contextSnapshot",
                     "startedAt",
                     "completedAt",
+                    "status",
+                    "failureCode",
+                    "failureReason",
                     "candidateCount",
                     "insertedCount",
                     "duplicateCount",
@@ -69191,6 +69347,41 @@
                     "format": "date-time",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
                   },
+                  "status": {
+                    "default": "succeeded",
+                    "type": "string",
+                    "enum": [
+                      "succeeded",
+                      "failed",
+                      "aborted"
+                    ]
+                  },
+                  "failureCode": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "failureReason": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "candidateCount": {
                     "type": "integer",
                     "minimum": 0,
@@ -69214,6 +69405,9 @@
                 },
                 "required": [
                   "completedAt",
+                  "status",
+                  "failureCode",
+                  "failureReason",
                   "candidateCount",
                   "insertedCount",
                   "duplicateCount",
@@ -69315,6 +69509,42 @@
                             }
                           ]
                         },
+                        "status": {
+                          "default": "running",
+                          "type": "string",
+                          "enum": [
+                            "running",
+                            "succeeded",
+                            "failed",
+                            "aborted"
+                          ]
+                        },
+                        "failureCode": {
+                          "default": null,
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "failureReason": {
+                          "default": null,
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1000
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "candidateCount": {
                           "default": 0,
                           "type": "integer",
@@ -69347,6 +69577,9 @@
                         "contextSnapshot",
                         "startedAt",
                         "completedAt",
+                        "status",
+                        "failureCode",
+                        "failureReason",
                         "candidateCount",
                         "insertedCount",
                         "duplicateCount",
@@ -70213,7 +70446,7 @@
                     },
                     "schemaVersion": {
                       "type": "number",
-                      "const": 4
+                      "const": 5
                     },
                     "exportedAt": {
                       "type": "string",
@@ -71537,6 +71770,42 @@
                               }
                             ]
                           },
+                          "status": {
+                            "default": "running",
+                            "type": "string",
+                            "enum": [
+                              "running",
+                              "succeeded",
+                              "failed",
+                              "aborted"
+                            ]
+                          },
+                          "failureCode": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 120
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "failureReason": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "candidateCount": {
                             "default": 0,
                             "type": "integer",
@@ -71569,6 +71838,9 @@
                           "contextSnapshot",
                           "startedAt",
                           "completedAt",
+                          "status",
+                          "failureCode",
+                          "failureReason",
                           "candidateCount",
                           "insertedCount",
                           "duplicateCount",

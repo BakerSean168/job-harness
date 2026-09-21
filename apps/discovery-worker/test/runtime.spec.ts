@@ -36,7 +36,7 @@ describe('DiscoveryWorker', () => {
     const worker = new DiscoveryWorker({ client, provider, campaignId: campaign.id, idFactory: () => 'nonce-1', now: () => `2026-09-18T10:00:0${tick++}.000Z`, logger: { info() {}, warn() {}, error() {} } });
     await expect(worker.runOnce()).resolves.toEqual({ runId: 'run-1', providerId: 'fixture-provider', candidateCount: 2, insertedCount: 1, duplicateCount: 1, rejectedCount: 0, queryCount: 3, failedQueryCount: 1, qualificationJobIds: ['job-1'] });
     expect(events).toEqual(['campaign','begin','discover','upsert:2','complete']);
-    expect(completed).toEqual({ runId: 'run-1', completedAt: '2026-09-18T10:00:01.000Z', candidateCount: 2, insertedCount: 1, duplicateCount: 1, rejectedCount: 0 });
+    expect(completed).toEqual({ runId: 'run-1', completedAt: '2026-09-18T10:00:01.000Z', status: 'succeeded', failureCode: null, failureReason: null, candidateCount: 2, insertedCount: 1, duplicateCount: 1, rejectedCount: 0 });
   });
 
   it('completes the DiscoveryRun as failed evidence when the provider throws instead of leaking a running run', async () => {
@@ -49,7 +49,7 @@ describe('DiscoveryWorker', () => {
     const provider: DiscoveryProviderPort = { id: 'fixture-provider', sourceKind: 'zhilian', plan: () => ({}), async discover() { throw new Error('provider unavailable'); } };
     const worker = new DiscoveryWorker({ client, provider, campaignId: campaign.id, idFactory: () => 'nonce-fail', now: () => '2026-09-18T10:00:00.000Z', logger: { info() {}, warn() {}, error() {} } });
     await expect(worker.runOnce()).rejects.toThrow('provider unavailable');
-    expect(completed).toEqual({ runId: 'run-fail', completedAt: '2026-09-18T10:00:00.000Z', candidateCount: 0, insertedCount: 0, duplicateCount: 0, rejectedCount: 1 });
+    expect(completed).toEqual({ runId: 'run-fail', completedAt: '2026-09-18T10:00:00.000Z', status: 'failed', failureCode: 'provider_error', failureReason: 'provider unavailable', candidateCount: 0, insertedCount: 0, duplicateCount: 0, rejectedCount: 1 });
   });
 
   it('chunks complete JDs by serialized body budget instead of the 100-item contract maximum', async () => {

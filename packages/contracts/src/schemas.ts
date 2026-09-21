@@ -5,6 +5,7 @@ import {
   APPLICATION_STAGES,
   CAMPAIGN_STATUSES,
   DISCOVERY_EXECUTORS,
+  DISCOVERY_RUN_STATUSES,
   EVENT_ACTORS,
   JOB_LISTING_IDENTITY_KINDS,
   JOB_LISTING_STATUSES,
@@ -30,6 +31,7 @@ export const JobOutreachEventTypeSchema = z.enum(JOB_OUTREACH_EVENT_TYPES);
 export const ApplicationSubmissionChannelSchema = z.enum(APPLICATION_SUBMISSION_CHANNELS);
 export const CampaignStatusSchema = z.enum(CAMPAIGN_STATUSES);
 export const DiscoveryExecutorSchema = z.enum(DISCOVERY_EXECUTORS);
+export const DiscoveryRunStatusSchema = z.enum(DISCOVERY_RUN_STATUSES);
 export const JobSourceKindSchema = z.enum(JOB_SOURCE_KINDS);
 export const EventActorSchema = z.enum(EVENT_ACTORS);
 export const SubmissionIntentStatusSchema = z.enum(SUBMISSION_INTENT_STATUSES);
@@ -262,6 +264,9 @@ export const DiscoveryRunSchema = z
     contextSnapshot: z.record(z.string(), z.unknown()).default({}),
     startedAt: IsoDateTimeSchema,
     completedAt: NullableIsoDateTimeSchema.default(null),
+    status: DiscoveryRunStatusSchema.default('running'),
+    failureCode: z.string().trim().min(1).max(120).nullable().default(null),
+    failureReason: z.string().trim().min(1).max(1000).nullable().default(null),
     candidateCount: z.number().int().nonnegative().default(0),
     insertedCount: z.number().int().nonnegative().default(0),
     duplicateCount: z.number().int().nonnegative().default(0),
