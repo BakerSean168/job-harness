@@ -274,6 +274,7 @@ The overlay now waits for the global detail panel to match the clicked card's no
 
 ```bash
 pnpm upstream:check
+pnpm upstream:report
 pnpm upstream:diff czc-good-job
 pnpm upstream:sync czc-good-job
 pnpm upstream:test czc-good-job
@@ -290,6 +291,7 @@ pnpm upstream:test vvvsrx-get-jobs
 Semantics:
 
 - `check`: verify registry hashes/local baselines and compare remote HEAD;
+- `report`: generate review-only Markdown/JSON UpgradeCandidate evidence for all tracked upstreams, including tracked-path drift, overlay compatibility, license-hash drift and promotion policy;
 - `diff`: report remote movement and whether a local overlay still applies;
 - `sync`: materialize a non-production candidate under `.tmp/upstreams`;
 - `test`: run the candidate/build characterization gates plus current integration regression checks.

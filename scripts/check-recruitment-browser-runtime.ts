@@ -34,12 +34,15 @@ async function main(): Promise<void> {
     if (!/^[0-9a-f]{64}$/.test(file.sha256) || file.bytes <= 0) throw new Error(`Invalid external Runtime file metadata for ${file.id}`);
   }
 
-  const [supervisor, bootstrap, installer, getJobsBootstrap, getJobsManager] = await Promise.all([
+  const [supervisor, bootstrap, installer, getJobsBootstrap, getJobsManager, upstreamWatch, packageJson, upstreamRegistryScript] = await Promise.all([
     readFile(resolve(root, 'integrations/recruitment-browser/windows/job-harness-browser-supervisor.ps1'), 'utf8'),
     readFile(resolve(root, 'integrations/recruitment-browser/windows/start-recruitment-browser.ps1'), 'utf8'),
     readFile(resolve(root, 'integrations/recruitment-browser/windows/install-recruitment-browser.ps1'), 'utf8'),
     readFile(resolve(root, 'integrations/get-jobs-runtime/wsl/start-job-harness-get-jobs.sh'), 'utf8'),
     readFile(resolve(root, 'integrations/get-jobs-runtime/wsl/job-harness-get-jobs-supervisor.sh'), 'utf8'),
+    readFile(resolve(root, '.github/workflows/upstream-runtime-watch.yml'), 'utf8'),
+    readFile(resolve(root, 'package.json'), 'utf8'),
+    readFile(resolve(root, 'scripts/upstream-registry.mjs'), 'utf8'),
   ]);
 
   for (const marker of ['JobHarness\\RecruitmentBrowser', "$currentRoot = Join-Path $runtimeRoot 'current'", '--user-data-dir=', '--load-extension=', '--remote-debugging-port=', 'Get-DedicatedBrowserProcesses', 'Get-FileHash', 'bundleVersion', 'Ensure-SupervisorCurrent', 'Get-RecruitmentSiteHealth', 'Get-BossRuntimeServerHealth', 'Get-BossRuntimeServerControl', 'bossTaskRunning', 'bossRuntimeOfflineStreak', 'lastSelfHealAction', 'lastSelfHealAt', 'login_required', 'challenge']) {
@@ -64,6 +67,17 @@ async function main(): Promise<void> {
   }
   for (const forbidden of ['JOB_HARNESS_AUTH_TOKEN', 'JOB_HARNESS_EXECUTOR_AUTH_TOKEN', 'server root']) {
     if (getJobsBootstrap.includes(forbidden) || getJobsManager.includes(forbidden)) throw new Error(`get_jobs WSL runtime bootstrap unexpectedly contains privileged marker '${forbidden}'`);
+  }
+
+  const packageScripts = JSON.parse(packageJson).scripts as Record<string, string>;
+  if (packageScripts['upstream:report'] !== 'node scripts/upstream-registry.mjs report') {
+    throw new Error('Upstream Runtime watch lost the canonical upgrade-candidate report command');
+  }
+  for (const marker of ["cron: '17 1 * * 1'", 'pnpm upstream:report', 'actions/upload-artifact@v4', 'pnpm upstream:check --strict-updates']) {
+    if (!upstreamWatch.includes(marker)) throw new Error(`Upstream Runtime watch lost invariant '${marker}'`);
+  }
+  for (const marker of ['upgrade-candidates.json', 'upgrade-candidates.md', 'licenseChanged', 'Overlay conflicts', 'never updates registry pins']) {
+    if (!upstreamRegistryScript.includes(marker)) throw new Error(`Upstream Runtime report lost invariant '${marker}'`);
   }
 
   console.log(`recruitment browser runtime ok: bundle ${manifest.bundleVersion.slice(0, 12)}, ${manifest.extensions.length} extensions, ${files.length} extension assets, external ${getJobs.id}@${getJobs.version.slice(0, 12)} collect-only Runtime, hash-verified supervisors`);

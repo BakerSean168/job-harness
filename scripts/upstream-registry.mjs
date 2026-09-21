@@ -257,6 +257,159 @@ async function materializeCandidate(projectId, project) {
   }
 }
 
+async function inspectUpgradeCandidate(projectId, project) {
+  await verifyLocalProject(projectId, project);
+  await verifyPinnedRemote(projectId, project);
+  const { head, dir } = await inspectCandidate(projectId, project);
+  try {
+    const updateAvailable = head.commit !== project.pinnedCommit;
+    const trackedPaths = [...new Set([
+      project.licensePath,
+      ...(project.trackedPaths ?? []).map((item) => item.upstreamPath).filter(Boolean),
+    ])];
+    const changedPaths = updateAvailable
+      ? run('git', ['diff', '--name-only', project.pinnedCommit, head.commit, '--', ...trackedPaths], { cwd: dir })
+        .split(/\r?\n/)
+        .map((value) => value.trim())
+        .filter(Boolean)
+      : [];
+
+    const licenseText = run('git', ['show', `${head.commit}:${project.licensePath}`], { cwd: dir });
+    const candidateLicenseSha256 = sha256(Buffer.from(licenseText));
+    const overlays = [];
+    for (const tracked of project.trackedPaths ?? []) {
+      if (!tracked.overlayPath || !tracked.upstreamPath) continue;
+      const candidateRoot = await mkdtemp(resolve(tmpdir(), 'job-harness-overlay-report-'));
+      try {
+        const upstreamText = run('git', ['show', `${head.commit}:${tracked.upstreamPath}`], { cwd: dir });
+        const candidatePath = resolve(candidateRoot, tracked.upstreamPath);
+        await mkdir(dirname(candidatePath), { recursive: true });
+        await writeFile(candidatePath, upstreamText, 'utf8');
+        const result = spawnSync('git', ['apply', '--check', resolve(root, tracked.overlayPath)], {
+          cwd: candidateRoot,
+          encoding: 'utf8',
+        });
+        overlays.push({
+          overlayPath: tracked.overlayPath,
+          upstreamPath: tracked.upstreamPath,
+          state: result.status === 0 ? 'applies' : 'conflict',
+          detail: result.status === 0 ? null : String(result.stderr || result.stdout || '').trim().slice(0, 2000),
+        });
+      } finally {
+        await rm(candidateRoot, { recursive: true, force: true });
+      }
+    }
+
+    return {
+      projectId,
+      repository: project.repository,
+      integrationKind: project.integrationKind,
+      productionRole: project.productionRole ?? null,
+      promotion: project.promotion ?? null,
+      pinnedCommit: project.pinnedCommit,
+      candidateCommit: head.commit,
+      branch: head.branch ?? project.defaultBranch ?? null,
+      state: updateAvailable ? 'update-available' : 'current',
+      license: project.license,
+      pinnedLicenseSha256: project.licenseSha256,
+      candidateLicenseSha256,
+      licenseChanged: candidateLicenseSha256 !== project.licenseSha256,
+      changedTrackedPaths: changedPaths,
+      overlays,
+    };
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+function markdownCell(value) {
+  return String(value ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+}
+
+async function commandReport(registry, id, outputDir) {
+  const selected = selectProjects(registry, id);
+  const projects = [];
+  for (const [projectId, project] of selected) {
+    projects.push(await inspectUpgradeCandidate(projectId, project));
+  }
+
+  const generatedAt = new Date().toISOString();
+  const updateCount = projects.filter((project) => project.state === 'update-available').length;
+  const conflictCount = projects.reduce(
+    (count, project) => count + project.overlays.filter((overlay) => overlay.state === 'conflict').length,
+    0,
+  );
+  const licenseChangeCount = projects.filter((project) => project.licenseChanged).length;
+  const report = {
+    schemaVersion: 1,
+    generatedAt,
+    registryUpdatedAt: registry.updatedAt ?? null,
+    updateCount,
+    conflictCount,
+    licenseChangeCount,
+    projects,
+  };
+
+  const destination = resolve(root, outputDir || '.tmp/upstream-watch-report');
+  await rm(destination, { recursive: true, force: true });
+  await mkdir(destination, { recursive: true });
+  await writeFile(resolve(destination, 'upgrade-candidates.json'), JSON.stringify(report, null, 2) + '\n', 'utf8');
+
+  const lines = [
+    '# Recruitment Runtime Upstream Watch',
+    '',
+    `Generated: ${generatedAt}`,
+    '',
+    `Updates: **${updateCount}** · Overlay conflicts: **${conflictCount}** · License changes: **${licenseChangeCount}**`,
+    '',
+    '| Upstream | State | Pinned | Candidate | Tracked changes | Overlay | License | Promotion |',
+    '| --- | --- | --- | --- | ---: | --- | --- | --- |',
+  ];
+  for (const project of projects) {
+    const overlayState = project.overlays.some((overlay) => overlay.state === 'conflict')
+      ? 'CONFLICT'
+      : project.overlays.length ? 'applies' : 'n/a';
+    lines.push(
+      `| ${markdownCell(project.projectId)} | ${project.state === 'update-available' ? '**UPDATE**' : 'current'} | ${project.pinnedCommit.slice(0, 12)} | ${project.candidateCommit.slice(0, 12)} | ${project.changedTrackedPaths.length} | ${overlayState} | ${project.licenseChanged ? '**CHANGED**' : 'unchanged'} | ${markdownCell(project.promotion ?? 'manual review')} |`,
+    );
+  }
+  for (const project of projects.filter((item) => item.state === 'update-available')) {
+    lines.push('', `## ${project.projectId}`, '');
+    lines.push(`- Repository: \`${project.repository}\``);
+    lines.push(`- Pinned: \`${project.pinnedCommit}\``);
+    lines.push(`- Candidate: \`${project.candidateCommit}\``);
+    lines.push(`- License hash: ${project.licenseChanged ? '**changed — manual review required**' : 'unchanged'}`);
+    lines.push(`- Promotion policy: \`${project.promotion ?? 'manual-review'}\``);
+    lines.push('- Changed tracked paths:');
+    if (project.changedTrackedPaths.length) {
+      for (const path of project.changedTrackedPaths) lines.push(`  - \`${path}\``);
+    } else {
+      lines.push('  - none (repository HEAD changed outside tracked paths)');
+    }
+    if (project.overlays.length) {
+      lines.push('- Overlay compatibility:');
+      for (const overlay of project.overlays) {
+        lines.push(`  - \`${overlay.overlayPath}\` -> **${overlay.state.toUpperCase()}** against \`${overlay.upstreamPath}\``);
+        if (overlay.detail) lines.push(`    - ${overlay.detail.replace(/\r?\n/g, ' ').slice(0, 500)}`);
+      }
+    }
+  }
+  lines.push(
+    '',
+    '## Promotion boundary',
+    '',
+    'This report is evidence only. It never updates registry pins, production source, browser bundles, or deployment state.',
+    'An update still requires candidate characterization, diff review, a paused/real-browser canary where applicable, and explicit promotion.',
+    '',
+  );
+  await writeFile(resolve(destination, 'upgrade-candidates.md'), lines.join('\n'), 'utf8');
+
+  console.log(`report=${destination}`);
+  console.log(`updates=${updateCount}`);
+  console.log(`overlay_conflicts=${conflictCount}`);
+  console.log(`license_changes=${licenseChangeCount}`);
+}
+
 async function commandSync(registry, id) {
   if (!id) fail('Usage: pnpm upstream:sync <upstream-id>');
   const [[projectId, project]] = selectProjects(registry, id);
@@ -305,14 +458,23 @@ async function commandTest(registry, id) {
   console.log(`upstream candidate test passed: ${projectId}@${manifest.candidateCommit.slice(0, 12)}`);
 }
 
+function optionValue(name) {
+  const inline = process.argv.find((arg) => arg.startsWith(`${name}=`));
+  if (inline) return inline.slice(name.length + 1);
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] ?? null : null;
+}
+
 async function main() {
   const registry = await loadRegistry();
   const command = process.argv[2] ?? 'check';
   const id = process.argv[3] && !process.argv[3].startsWith('--') ? process.argv[3] : null;
   const strictUpdates = process.argv.includes('--strict-updates');
+  const outputDir = optionValue('--output-dir');
 
   if (command === 'check') return commandCheck(registry, id, strictUpdates);
   if (command === 'diff') return commandDiff(registry, id);
+  if (command === 'report') return commandReport(registry, id, outputDir);
   if (command === 'sync') return commandSync(registry, id);
   if (command === 'test') return commandTest(registry, id);
   fail(`Unknown upstream command '${command}'`);

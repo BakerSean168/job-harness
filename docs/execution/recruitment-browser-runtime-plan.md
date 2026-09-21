@@ -951,16 +951,21 @@ Bridge 只做 task/event transport。
 - 过渡期 compatibility special case；
 - 同一站点两份独立 retry / pacing 逻辑。
 
-### Phase 7 — Upstream maintenance automation
+### Phase 7 — Upstream maintenance automation ✅
 
-完成：
+已实现：
 
 - weekly upstream check；
-- UpgradeCandidate report；
+- `pnpm upstream:report` 生成 JSON + Markdown UpgradeCandidate evidence；
+- report 同时检查 tracked-path diff、overlay apply/conflict、license hash drift 和 promotion policy；
+- GitHub Actions 每周上传 30 天保留的 upstream-watch artifact；
 - one-command sync；
-- CI characterization；
+- current upstream HEAD candidate characterization；
+- strict update gate：发现新 revision 时 CI 显式失败，而不是自动改 production pin；
 - staged promotion；
 - version rollback。
+
+该自动化只生成升级证据，不修改 registry pin、production source、browser bundle 或 deployment state。
 
 ---
 

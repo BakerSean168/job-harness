@@ -37,6 +37,7 @@
     "check:recruitment-browser-runtime": "tsx scripts/check-recruitment-browser-runtime.ts",
     "sync:browser-form-engine": "node scripts/sync-browser-form-engine.mjs",
     "upstream:check": "node scripts/upstream-registry.mjs check",
+    "upstream:report": "node scripts/upstream-registry.mjs report",
     "upstream:diff": "node scripts/upstream-registry.mjs diff",
     "upstream:sync": "node scripts/upstream-registry.mjs sync",
     "upstream:test": "node scripts/upstream-registry.mjs test",
