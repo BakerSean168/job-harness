@@ -298,7 +298,7 @@ Semantics:
 
 ## 12. Next migration boundary
 
-RBR-002 is now implemented: the versioned Runtime Channel and self-updating Windows Supervisor own dedicated-browser startup, extension bundle promotion, runtime versioning and crash recovery without changing Job Harness domain ownership.
+RBR-002 is now implemented: the versioned Runtime Channel and self-updating Windows Supervisor own dedicated-browser startup, extension bundle promotion, runtime versioning and crash recovery without changing Job Harness domain ownership. BOSS heartbeat self-heal is circuit-broken: after one dedicated-browser restart for a task, the Supervisor waits for a real Runtime heartbeat recovery before allowing another restart and also enforces a 15-minute cooldown. This prevents the previous close/reopen loop when the page is healthy but the Runtime heartbeat stays stale.
 
 RBR-003 is now implemented and production-deployed for BOSS: `boss-czc-good-job` exposes coarse Runtime descriptor/control/events while keeping the upstream-derived browser state machine intact. Campaign outreach policy, task TTL and per-run external-effect budget are enforced server-side.
 

@@ -6,6 +6,7 @@ param(
   [int]$PollSeconds = 60,
   [string]$ProfilePath = '',
   [string]$BossRuntimeHealthUrl = 'https://oracle.taile92a8e.ts.net:10444/api/runtime/health',
+  [int]$BossRuntimeSelfHealCooldownSeconds = 900,
   [switch]$Once,
   [switch]$ResetProfile,
   [switch]$NoLaunch
@@ -21,6 +22,10 @@ $defaultProfile = Join-Path $root 'Profile'
 $profile = if ($ProfilePath) { $ProfilePath } elseif (Test-Path $legacyProfile) { $legacyProfile } else { $defaultProfile }
 $statePath = Join-Path $root 'supervisor-state.json'
 $bossRuntimeOfflineStreak = 0
+$bossRuntimeLastTaskId = ''
+$bossRuntimeLastSelfHealTaskId = ''
+$bossRuntimeRecoveredAfterSelfHeal = $true
+$bossRuntimeLastSelfHealAt = [DateTime]::MinValue
 
 function Get-DedicatedBrowserProcesses {
   $escapedProfile = [Regex]::Escape($profile)
@@ -65,6 +70,24 @@ function Write-SupervisorState([hashtable]$Patch) {
   $temp = "$statePath.tmp"
   $state | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $temp -Encoding UTF8
   Move-Item -Force -LiteralPath $temp -Destination $statePath
+}
+
+if (Test-Path $statePath) {
+  try {
+    $existingState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
+    if ($existingState.lastSelfHealTaskId) {
+      $bossRuntimeLastSelfHealTaskId = [string]$existingState.lastSelfHealTaskId
+    }
+    if ($null -ne $existingState.bossRuntimeRecoveredAfterSelfHeal) {
+      $bossRuntimeRecoveredAfterSelfHeal = [bool]$existingState.bossRuntimeRecoveredAfterSelfHeal
+    }
+    if ($existingState.lastSelfHealAt) {
+      $parsedSelfHealAt = [DateTime]::MinValue
+      if ([DateTime]::TryParse([string]$existingState.lastSelfHealAt, [ref]$parsedSelfHealAt)) {
+        $bossRuntimeLastSelfHealAt = $parsedSelfHealAt.ToUniversalTime()
+      }
+    }
+  } catch {}
 }
 
 function Get-AppPath([string]$Exe) {
@@ -326,24 +349,64 @@ function Run-SupervisorIteration {
     $bossRuntimeHealth = Get-BossRuntimeServerHealth
     $bossRuntimeControl = Get-BossRuntimeServerControl
     $selfHealAction = $null
+    $selfHealSuppressedReason = $null
     $bossTaskRunning = $bossRuntimeControl -and $bossRuntimeControl.task -and [string]$bossRuntimeControl.desiredState -eq 'running'
+    $bossTaskId = if ($bossTaskRunning) { [string]$bossRuntimeControl.task.id } else { '' }
+
+    if ($bossTaskId -and $bossTaskId -ne $script:bossRuntimeLastTaskId) {
+      $script:bossRuntimeLastTaskId = $bossTaskId
+      $script:bossRuntimeOfflineStreak = 0
+      if ($bossTaskId -ne $script:bossRuntimeLastSelfHealTaskId) {
+        $script:bossRuntimeRecoveredAfterSelfHeal = $true
+      }
+    }
+
+    if ($bossTaskRunning -and $bossRuntimeHealth -and [string]$bossRuntimeHealth.state -eq 'ready') {
+      if ($bossTaskId -and $bossTaskId -eq $script:bossRuntimeLastSelfHealTaskId) {
+        $script:bossRuntimeRecoveredAfterSelfHeal = $true
+      }
+    }
+
     if ($bossTaskRunning -and $bossRuntimeHealth -and [string]$bossRuntimeHealth.state -eq 'offline' -and $siteHealth.boss.state -eq 'ready') {
       $script:bossRuntimeOfflineStreak += 1
     } else {
       $script:bossRuntimeOfflineStreak = 0
     }
 
-    if (-not $NoLaunch -and $script:bossRuntimeOfflineStreak -ge 3) {
-      Write-Warning 'BOSS page is open but the Site Runtime heartbeat is stale; restarting the dedicated browser to reload the runtime.'
+    $cooldownSeconds = [Math]::Max(60, $BossRuntimeSelfHealCooldownSeconds)
+    $secondsSinceLastSelfHeal = if ($script:bossRuntimeLastSelfHealAt -eq [DateTime]::MinValue) {
+      [double]::PositiveInfinity
+    } else {
+      ([DateTime]::UtcNow - $script:bossRuntimeLastSelfHealAt).TotalSeconds
+    }
+    $sameTaskAwaitingRecovery = $bossTaskId -and $bossTaskId -eq $script:bossRuntimeLastSelfHealTaskId -and -not $script:bossRuntimeRecoveredAfterSelfHeal
+    $withinSelfHealCooldown = $secondsSinceLastSelfHeal -lt $cooldownSeconds
+
+    if (-not $NoLaunch -and $script:bossRuntimeOfflineStreak -ge 3 -and -not $sameTaskAwaitingRecovery -and -not $withinSelfHealCooldown) {
+      Write-Warning 'BOSS page is open but the Site Runtime heartbeat is stale; restarting the dedicated browser once and waiting for a real heartbeat recovery before another restart.'
       Stop-JobHarnessBrowser
       Start-Sleep -Seconds 2
       Start-JobHarnessBrowser $manifest
       $script:bossRuntimeOfflineStreak = 0
+      $script:bossRuntimeLastSelfHealTaskId = $bossTaskId
+      $script:bossRuntimeRecoveredAfterSelfHeal = $false
+      $script:bossRuntimeLastSelfHealAt = [DateTime]::UtcNow
       $selfHealAction = 'restart-dedicated-browser-for-stale-boss-runtime'
       Start-Sleep -Seconds 3
       $siteHealth = Get-RecruitmentSiteHealth
       $bossRuntimeHealth = Get-BossRuntimeServerHealth
       $bossRuntimeControl = Get-BossRuntimeServerControl
+      if ($bossRuntimeHealth -and [string]$bossRuntimeHealth.state -eq 'ready') {
+        $script:bossRuntimeRecoveredAfterSelfHeal = $true
+      }
+    } elseif ($script:bossRuntimeOfflineStreak -ge 3) {
+      if ($sameTaskAwaitingRecovery) {
+        $selfHealSuppressedReason = 'awaiting-runtime-heartbeat-recovery'
+      } elseif ($withinSelfHealCooldown) {
+        $selfHealSuppressedReason = 'self-heal-cooldown'
+      } elseif ($NoLaunch) {
+        $selfHealSuppressedReason = 'no-launch-mode'
+      }
     }
 
     $statePatch = @{
@@ -352,11 +415,15 @@ function Run-SupervisorIteration {
       bossRuntimeHealth = $bossRuntimeHealth
       bossRuntimeControl = $bossRuntimeControl
       bossRuntimeOfflineStreak = $script:bossRuntimeOfflineStreak
+      bossRuntimeLastTaskId = $script:bossRuntimeLastTaskId
+      lastSelfHealTaskId = $script:bossRuntimeLastSelfHealTaskId
+      bossRuntimeRecoveredAfterSelfHeal = $script:bossRuntimeRecoveredAfterSelfHeal
+      selfHealSuppressedReason = $selfHealSuppressedReason
       lastError = $null
     }
     if ($selfHealAction) {
       $statePatch['lastSelfHealAction'] = $selfHealAction
-      $statePatch['lastSelfHealAt'] = [DateTime]::UtcNow.ToString('o')
+      $statePatch['lastSelfHealAt'] = $script:bossRuntimeLastSelfHealAt.ToString('o')
     }
     Write-SupervisorState $statePatch
   } catch {
