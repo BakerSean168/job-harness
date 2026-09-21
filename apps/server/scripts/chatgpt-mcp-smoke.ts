@@ -48,7 +48,7 @@ async function main(): Promise<void> {
     const intentData = intents.structuredContent as { total?: unknown } | undefined;
     const resumeData = resumes.structuredContent as { total?: unknown } | undefined;
     const bossGreetingData = bossGreetings.structuredContent as { total?: unknown; mode?: unknown } | undefined;
-    const bossRuntimeData = bossRuntime.structuredContent as { descriptor?: { runtimeId?: unknown }; control?: { desiredState?: unknown; task?: unknown } } | undefined;
+    const bossRuntimeData = bossRuntime.structuredContent as { descriptor?: { runtimeId?: unknown }; control?: { desiredState?: unknown; lifecycleState?: unknown; task?: unknown } } | undefined;
     const zhilianRuntimeData = zhilianRuntime.structuredContent as { descriptor?: { runtimeId?: unknown }; health?: { state?: unknown }; collectOnly?: unknown } | undefined;
     console.log(JSON.stringify({
       endpoint: new URL(url).origin,
@@ -62,7 +62,8 @@ async function main(): Promise<void> {
       bossGreetingMode: bossGreetingData?.mode ?? null,
       bossRuntimeId: bossRuntimeData?.descriptor?.runtimeId ?? null,
       bossRuntimeState: bossRuntimeData?.control?.desiredState ?? null,
-      bossRuntimeTaskActive: Boolean(bossRuntimeData?.control?.task),
+      bossRuntimeLifecycleState: bossRuntimeData?.control?.lifecycleState ?? null,
+      bossRuntimeTaskActive: Boolean(bossRuntimeData?.control?.task && bossRuntimeData?.control?.lifecycleState !== 'expired'),
       zhilianRuntimeId: zhilianRuntimeData?.descriptor?.runtimeId ?? null,
       zhilianRuntimeState: zhilianRuntimeData?.health?.state ?? null,
       zhilianCollectOnly: zhilianRuntimeData?.collectOnly ?? null,
