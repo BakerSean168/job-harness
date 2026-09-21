@@ -348,6 +348,7 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
       ...pageQuery(req.query),
       ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
       ...(first(req.query.executor) ? { executor: first(req.query.executor) } : {}),
+      ...(first(req.query.status) ? { status: first(req.query.status) } : {}),
     });
     res.json(await career.workspace.listDiscoveryRuns(input));
   }));

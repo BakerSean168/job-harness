@@ -1126,6 +1126,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     const params: Array<string | number> = [];
     if (input.campaignId) { where.push('d.campaign_id = ?'); params.push(input.campaignId); }
     if (input.executor) { where.push('d.executor = ?'); params.push(input.executor); }
+    if (input.status) { where.push('d.status = ?'); params.push(input.status); }
     const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM discovery_runs d ${clause}`).get(...params) as Row).n);
     const rows = this.db.prepare(`SELECT d.* FROM discovery_runs d ${clause} ORDER BY d.started_at DESC, d.id DESC LIMIT ? OFFSET ?`).all(

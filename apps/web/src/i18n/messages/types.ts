@@ -83,9 +83,10 @@ export interface MessageCatalog {
     note: string;
   };
   discoveryWorkspace: {
-    filters: { campaign: string; executor: string; all: string; apply: string; reset: string; };
-    list: { runs: string; empty: string; running: string; completed: string; started: string; campaign: string; executor: string; candidates: string; inserted: string; duplicates: string; rejected: string; };
-    detail: { title: string; observations: string; affectedJobs: string; context: string; completedAt: string; noCampaign: string; noAffectedJobs: string; openJob: string; close: string; full: string; };
+    filters: { campaign: string; executor: string; status: string; all: string; apply: string; reset: string; };
+    list: { runs: string; empty: string; running: string; completed: string; status: string; started: string; campaign: string; executor: string; candidates: string; inserted: string; duplicates: string; rejected: string; };
+    detail: { title: string; observations: string; affectedJobs: string; context: string; completedAt: string; status: string; failureCode: string; failureReason: string; noCampaign: string; noAffectedJobs: string; openJob: string; close: string; full: string; };
+    statuses: Record<'running' | 'succeeded' | 'failed' | 'aborted', string>;
     executors: Record<'chatgpt-web' | 'memoflow-ai' | 'import' | 'manual' | 'other', string>;
   };
   executorsWorkspace: {

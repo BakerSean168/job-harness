@@ -79,9 +79,10 @@ export const zhCN: MessageCatalog = {
     note: 'Resume 已成为 Job Harness 内的一等领域；旧 Resume Registry 暂时保留为投递兼容投影。',
   },
   discoveryWorkspace: {
-    filters: { campaign: '求职目标', executor: '执行器', all: '全部', apply: '筛选', reset: '重置' },
-    list: { runs: '次发现任务', empty: '暂无发现任务。外部 ChatGPT、导入器或其他执行器运行后会出现在这里。', running: '运行中', completed: '已完成', started: '开始', campaign: '求职目标', executor: '执行器', candidates: '候选', inserted: '新增', duplicates: '重复', rejected: '拒绝' },
-    detail: { title: '发现任务详情', observations: '观察记录', affectedJobs: '受影响岗位', context: '执行上下文', completedAt: '完成时间', noCampaign: '未绑定求职目标', noAffectedJobs: '该任务没有关联岗位。', openJob: '查看岗位', close: '关闭详情', full: '打开完整详情' },
+    filters: { campaign: '求职目标', executor: '执行器', status: '状态', all: '全部', apply: '筛选', reset: '重置' },
+    list: { runs: '次发现任务', empty: '暂无发现任务。外部 ChatGPT、导入器或其他执行器运行后会出现在这里。', running: '运行中', completed: '已完成', status: '状态', started: '开始', campaign: '求职目标', executor: '执行器', candidates: '候选', inserted: '新增', duplicates: '重复', rejected: '拒绝' },
+    detail: { title: '发现任务详情', observations: '观察记录', affectedJobs: '受影响岗位', context: '执行上下文', completedAt: '完成时间', status: '执行状态', failureCode: '失败代码', failureReason: '终止原因：', noCampaign: '未绑定求职目标', noAffectedJobs: '该任务没有关联岗位。', openJob: '查看岗位', close: '关闭详情', full: '打开完整详情' },
+    statuses: { running: '运行中', succeeded: '成功', failed: '失败', aborted: '已中止' },
     executors: { 'chatgpt-web': 'ChatGPT Web', 'memoflow-ai': 'MemoFlow AI', import: '历史导入', manual: '手动', other: '其他' },
   },
   executorsWorkspace: {

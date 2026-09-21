@@ -1,6 +1,6 @@
 # Offline Control Plane Hardening Plan
 
-Status: **implementation active — Phases A-D code-complete; Phase E verification/deployment active**
+Status: **implementation active — Phases A-E code-complete; final verification/deployment active**
 
 Date: 2026-09-21
 
@@ -186,7 +186,7 @@ Acceptance:
 - sync tests can run without HTTP/runtime orchestration;
 - health tests can run without persistence.
 
-### Phase E — observability and stale-run hygiene ⏳
+### Phase E — observability and stale-run hygiene ✅
 
 1. Add structured runtime-offline detail codes where possible.
 2. Add tests ensuring no external-effect counter/Application changes during collect-only sync.

@@ -79,9 +79,10 @@ export const en: MessageCatalog = {
     note: 'Resume is now a first-class Job Harness domain. The legacy Resume Registry remains temporarily as an application compatibility projection.',
   },
   discoveryWorkspace: {
-    filters: { campaign: 'Campaign', executor: 'Executor', all: 'All', apply: 'Filter', reset: 'Reset' },
-    list: { runs: 'discovery runs', empty: 'No discovery runs yet. External ChatGPT, importers, and other executors will appear here.', running: 'Running', completed: 'Completed', started: 'Started', campaign: 'Campaign', executor: 'Executor', candidates: 'Candidates', inserted: 'New', duplicates: 'Duplicates', rejected: 'Rejected' },
-    detail: { title: 'Discovery run detail', observations: 'Observations', affectedJobs: 'Affected jobs', context: 'Execution context', completedAt: 'Completed at', noCampaign: 'No campaign', noAffectedJobs: 'This run has no related jobs.', openJob: 'View job', close: 'Close detail', full: 'Open full detail' },
+    filters: { campaign: 'Campaign', executor: 'Executor', status: 'Status', all: 'All', apply: 'Filter', reset: 'Reset' },
+    list: { runs: 'discovery runs', empty: 'No discovery runs yet. External ChatGPT, importers, and other executors will appear here.', running: 'Running', completed: 'Completed', status: 'Status', started: 'Started', campaign: 'Campaign', executor: 'Executor', candidates: 'Candidates', inserted: 'New', duplicates: 'Duplicates', rejected: 'Rejected' },
+    detail: { title: 'Discovery run detail', observations: 'Observations', affectedJobs: 'Affected jobs', context: 'Execution context', completedAt: 'Completed at', status: 'Execution status', failureCode: 'Failure code', failureReason: 'Termination reason:', noCampaign: 'No campaign', noAffectedJobs: 'This run has no related jobs.', openJob: 'View job', close: 'Close detail', full: 'Open full detail' },
+    statuses: { running: 'Running', succeeded: 'Succeeded', failed: 'Failed', aborted: 'Aborted' },
     executors: { 'chatgpt-web': 'ChatGPT Web', 'memoflow-ai': 'MemoFlow AI', import: 'Import', manual: 'Manual', other: 'Other' },
   },
   executorsWorkspace: {

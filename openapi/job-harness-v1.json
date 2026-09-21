@@ -68572,6 +68572,20 @@
                 "other"
               ]
             }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "running",
+                "succeeded",
+                "failed",
+                "aborted"
+              ]
+            }
           }
         ],
         "responses": {

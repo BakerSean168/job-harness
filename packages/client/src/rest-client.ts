@@ -359,6 +359,7 @@ function discoveryQuery(input: ListDiscoveryRunsInput): string {
   append(query, 'offset', input.offset);
   append(query, 'campaignId', input.campaignId);
   append(query, 'executor', input.executor);
+  append(query, 'status', input.status);
   return query.toString();
 }
 
@@ -890,6 +891,9 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
           method: 'POST',
           body: JSON.stringify({
             completedAt: input.completedAt,
+            status: input.status,
+            failureCode: input.failureCode,
+            failureReason: input.failureReason,
             candidateCount: input.candidateCount,
             insertedCount: input.insertedCount,
             duplicateCount: input.duplicateCount,

@@ -10,6 +10,7 @@ import {
   CompanySchema,
   DiscoveryExecutorSchema,
   DiscoveryRunSchema,
+  DiscoveryRunStatusSchema,
   EntityIdSchema,
   IsoDateTimeSchema,
   JobListingSchema,
@@ -212,6 +213,7 @@ export const DiscoveryRunSummarySchema = z.object({
 export const ListDiscoveryRunsInputSchema = PageSchema.extend({
   campaignId: EntityIdSchema.optional(),
   executor: DiscoveryExecutorSchema.optional(),
+  status: DiscoveryRunStatusSchema.optional(),
 });
 export const ListDiscoveryRunsOutputSchema = z.object({
   items: z.array(DiscoveryRunSummarySchema),

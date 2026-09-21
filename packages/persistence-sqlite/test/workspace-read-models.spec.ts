@@ -253,6 +253,8 @@ describe('workspace read models', () => {
       expect(discoveryList.items[0]).toMatchObject({ run: { id: run.id, executor: 'chatgpt-web' }, campaign: { id: campaign.id } });
       const noManualRuns = await career.workspace.listDiscoveryRuns({ executor: 'manual', limit: 20, offset: 0 });
       expect(noManualRuns.total).toBe(0);
+      expect((await career.workspace.listDiscoveryRuns({ status: 'succeeded', limit: 20, offset: 0 })).total).toBe(1);
+      expect((await career.workspace.listDiscoveryRuns({ status: 'failed', limit: 20, offset: 0 })).total).toBe(0);
 
       const runDetail = await career.workspace.getDiscoveryRunDetail(run.id);
       expect(runDetail?.run.id).toBe(run.id);
