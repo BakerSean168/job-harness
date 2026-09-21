@@ -8,6 +8,7 @@ import {
 async function main(): Promise<void> {
   const command = process.argv[2] ?? 'status';
   const site = GetJobsRuntimeSiteSchema.parse(process.argv[3] ?? 'zhilian');
+  const force = process.argv.includes('--force');
   const runtimeUrl = process.env.JOB_HARNESS_GET_JOBS_RUNTIME_URL?.trim();
   if (!runtimeUrl) throw new Error('JOB_HARNESS_GET_JOBS_RUNTIME_URL is required');
   const runtime = createGetJobsRuntimeClient({ baseUrl: runtimeUrl, requestTimeoutMs: 15_000 });
@@ -18,7 +19,7 @@ async function main(): Promise<void> {
     return;
   }
   if (command === 'login') {
-    console.log(JSON.stringify(await runtime.login(site), null, 2));
+    console.log(JSON.stringify(await runtime.login(site, { force }), null, 2));
     return;
   }
   if (command === 'start') {
@@ -46,7 +47,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  throw new Error(`Unknown command '${command}'. Expected status|login|start|stop|sync.`);
+  throw new Error(`Unknown command '${command}'. Expected status|login [--force]|start|stop|sync.`);
 }
 
 void main();

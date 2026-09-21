@@ -191,7 +191,7 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
     const calls: Array<{ path: string; method: string }> = [];
     const fetch = async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url);
-      calls.push({ path: url.pathname, method: init?.method ?? 'GET' });
+      calls.push({ path: `${url.pathname}${url.search}`, method: init?.method ?? 'GET' });
       if (url.pathname === '/api/job-harness-runtime') return new Response(JSON.stringify({ integration: 'job-harness', collectOnly: true, mode: 'collect-only' }), { status: 200 });
       if (url.pathname === '/api/zhilian/login') return new Response(JSON.stringify({ success: true, message: 'login-opened', status: null }), { status: 200 });
       if (url.pathname === '/api/zhilian/start') return new Response(JSON.stringify({ success: true, message: 'started', status: 'started' }), { status: 200 });
@@ -200,11 +200,14 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
     };
     const client = createGetJobsRuntimeClient({ baseUrl: 'http://get-jobs-runtime:8000', fetch: fetch as typeof globalThis.fetch });
     await expect(client.login('zhilian')).resolves.toMatchObject({ success: true, message: 'login-opened' });
+    await expect(client.login('zhilian', { force: true })).resolves.toMatchObject({ success: true, message: 'login-opened' });
     await expect(client.startCollection('zhilian')).resolves.toMatchObject({ success: true, status: 'started' });
     await expect(client.stop('zhilian')).resolves.toMatchObject({ success: true });
     expect(calls).toEqual([
       { path: '/api/job-harness-runtime', method: 'GET' },
       { path: '/api/zhilian/login', method: 'POST' },
+      { path: '/api/job-harness-runtime', method: 'GET' },
+      { path: '/api/zhilian/login?force=true', method: 'POST' },
       { path: '/api/job-harness-runtime', method: 'GET' },
       { path: '/api/zhilian/start', method: 'POST' },
       { path: '/api/zhilian/stop', method: 'POST' },

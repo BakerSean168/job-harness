@@ -72,6 +72,8 @@ requireMarkers('jobs router login singleton', jobsRouter, [
   '_login_tasks: dict[str, asyncio.Task]',
   'def _start_platform_login(platform: str) -> bool:',
   'status="already_running"',
+  'status="already_logged_in"',
+  'if not force and await _check_login_status(CookieService(db), "zhilian"):',
 ]);
 for (const platform of ['boss', 'liepin', 'zhilian', 'job51']) {
   if (jobsRouter.includes(`asyncio.create_task(_run_platform_login("${platform}"))`)) {

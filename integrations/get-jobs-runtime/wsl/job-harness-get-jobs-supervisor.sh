@@ -118,6 +118,7 @@ sync_source() {
 
   grep -q 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY' "$stage/app/main.py"
   grep -q '_login_tasks: dict\[str, asyncio.Task\]' "$stage/app/routers/jobs.py"
+  grep -q 'status="already_logged_in"' "$stage/app/routers/jobs.py"
   grep -q 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY' "$stage/app/worker/zhilian_bot.py"
   grep -q 'div.job-card' "$stage/app/worker/zhilian_locators.py"
   grep -q 'DETAIL_TITLE' "$stage/app/worker/zhilian_locators.py"

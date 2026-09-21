@@ -128,13 +128,14 @@ export function createGetJobsRuntimeClient(options: GetJobsRuntimeClientOptions)
       return { city: input.city, cityCode: cityOption.code, keywords };
     },
 
-    async login(siteInput: GetJobsRuntimeSite) {
+    async login(siteInput: GetJobsRuntimeSite, input: { force?: boolean } = {}) {
       const site = GetJobsRuntimeSiteSchema.parse(siteInput);
       const info = RuntimeInfoSchema.parse(await request('/api/job-harness-runtime'));
       if (!info.collectOnly || info.mode !== 'collect-only') {
         throw new Error('get_jobs runtime is not in Job Harness collect-only mode; refusing to open a platform login');
       }
-      const result = ActionResponseSchema.parse(await request(`/api/${site}/login`, { method: 'POST' }));
+      const forceQuery = input.force ? '?force=true' : '';
+      const result = ActionResponseSchema.parse(await request(`/api/${site}/login${forceQuery}`, { method: 'POST' }));
       if (!result.success) throw new Error(`get_jobs ${site} login failed: ${result.status ?? result.message}`);
       return result;
     },

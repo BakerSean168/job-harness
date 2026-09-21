@@ -1,6 +1,7 @@
 --- a/app/routers/jobs.py
 +++ b/app/routers/jobs.py
-@@ -402,5 +402,24 @@
+@@ -401,6 +401,25 @@ _LOGIN_BOT_CLASSES = {
+     "job51": Job51Bot,
  }
  
 +_login_tasks: dict[str, asyncio.Task] = {}
@@ -25,35 +26,48 @@
  
  async def _run_platform_login(platform: str):
      """Open browser, wait for user login, save cookies."""
-@@ -474,23 +493,27 @@
+@@ -473,24 +492,36 @@ async def _run_platform_login(platform: str):
+ 
  
  @router.post("/boss/login", response_model=ApiResponse)
- async def login_boss():
+-async def login_boss():
 -    asyncio.create_task(_run_platform_login("boss"))
++async def login_boss(force: bool = False, db: AsyncSession = Depends(get_db)):
++    if not force and await _check_login_status(CookieService(db), "boss"):
++        return ApiResponse(success=True, message="Boss直聘已登录", status="already_logged_in")
 +    if not _start_platform_login("boss"):
 +        return ApiResponse(success=True, message="Boss直聘登录窗口已打开", status="already_running")
      return ApiResponse(success=True, message="请在打开的浏览器中登录Boss直聘")
  
  
  @router.post("/liepin/login", response_model=ApiResponse)
- async def login_liepin():
+-async def login_liepin():
 -    asyncio.create_task(_run_platform_login("liepin"))
++async def login_liepin(force: bool = False, db: AsyncSession = Depends(get_db)):
++    if not force and await _check_login_status(CookieService(db), "liepin"):
++        return ApiResponse(success=True, message="猎聘已登录", status="already_logged_in")
 +    if not _start_platform_login("liepin"):
 +        return ApiResponse(success=True, message="猎聘登录窗口已打开", status="already_running")
      return ApiResponse(success=True, message="请在打开的浏览器中登录猎聘")
  
  
  @router.post("/zhilian/login", response_model=ApiResponse)
- async def login_zhilian():
+-async def login_zhilian():
 -    asyncio.create_task(_run_platform_login("zhilian"))
++async def login_zhilian(force: bool = False, db: AsyncSession = Depends(get_db)):
++    if not force and await _check_login_status(CookieService(db), "zhilian"):
++        return ApiResponse(success=True, message="智联招聘已登录", status="already_logged_in")
 +    if not _start_platform_login("zhilian"):
 +        return ApiResponse(success=True, message="智联招聘登录窗口已打开", status="already_running")
      return ApiResponse(success=True, message="请在打开的浏览器中登录智联招聘")
  
  
  @router.post("/job51/login", response_model=ApiResponse)
- async def login_job51():
+-async def login_job51():
 -    asyncio.create_task(_run_platform_login("job51"))
++async def login_job51(force: bool = False, db: AsyncSession = Depends(get_db)):
++    if not force and await _check_login_status(CookieService(db), "job51"):
++        return ApiResponse(success=True, message="51job已登录", status="already_logged_in")
 +    if not _start_platform_login("job51"):
 +        return ApiResponse(success=True, message="51job登录窗口已打开", status="already_running")
      return ApiResponse(success=True, message="请在打开的浏览器中登录51job")
