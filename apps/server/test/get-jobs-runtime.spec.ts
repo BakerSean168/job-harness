@@ -44,7 +44,7 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
       discoveryRunId: 'run-1',
       listings: [{
         sourceKind: 'zhilian',
-        externalNamespace: 'vvvsrx-get-jobs:zhilian',
+        externalNamespace: 'zhilian',
         externalId: 'Z-100',
         identityKind: 'external-id',
         metadataSnapshot: {
@@ -96,7 +96,7 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
       companyName: '示例公司',
       title: '全栈开发',
       city: '杭州',
-      listings: [{ sourceKind: 'job51', externalId: 'J-9', metadataSnapshot: { upstreamDelivered: false, comp_industry: '软件' } }],
+      listings: [{ sourceKind: 'job51', externalNamespace: 'job51', externalId: 'J-9', metadataSnapshot: { upstreamDelivered: false, comp_industry: '软件' } }],
     });
   });
 

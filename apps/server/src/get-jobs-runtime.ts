@@ -258,7 +258,7 @@ export function getJobsRuntimeRowToCandidate(
       label: SITE_LABELS[site],
       ...(url ? { url } : {}),
       ...(externalId ? {
-        externalNamespace: `vvvsrx-get-jobs:${site}`,
+        externalNamespace: site,
         externalId,
         identityKind: 'external-id' as const,
       } : {
