@@ -124,7 +124,7 @@ async function findCandidateDuplicate(tx: CareerStoreTransactionPort, candidate:
       `Candidate listings resolve to multiple existing Jobs: ${result.potentialMatches.map((job) => job.id).join(', ')}`,
     );
   }
-  if (result.duplicate && result.job && (result.matchedBy === 'listing-external-id' || result.matchedBy === 'listing-url')) {
+  if (result.duplicate && result.job && result.matchedBy === 'listing-external-id') {
     const companyCompatible = await tx.companyOwnsName(result.job.companyId, candidate.companyName);
     if (!companyCompatible) {
       throw new CareerConflictError(`strong-identity-conflict:company:job=${result.job.id}`);

@@ -1500,14 +1500,21 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
   async companyOwnsName(companyId: string, name: string): Promise<boolean> {
     const normalized = normalizeIdentityText(name);
     if (!normalized) return false;
-    const row = this.db.prepare(`
-      SELECT 1
+    const rows = this.db.prepare(`
+      SELECT c.normalized_name AS normalized_name, ca.normalized_alias AS normalized_alias
       FROM companies c
       LEFT JOIN company_aliases ca ON ca.company_id = c.id
-      WHERE c.id = ? AND (c.normalized_name = ? OR ca.normalized_alias = ?)
-      LIMIT 1
-    `).get(companyId, normalized, normalized) as Row | undefined;
-    return Boolean(row);
+      WHERE c.id = ?
+    `).all(companyId) as Row[];
+    const compact = (value: string) => value.replace(/[\s/\\()（）【】\[\]·,，.。:：;；_\-]/g, '');
+    const incoming = compact(normalized);
+    return rows.some((row) => [row.normalized_name, row.normalized_alias].some((value) => {
+      if (value == null) return false;
+      const existing = compact(String(value));
+      if (!existing || !incoming) return false;
+      if (existing === incoming) return true;
+      return Math.min(existing.length, incoming.length) >= 4 && (existing.includes(incoming) || incoming.includes(existing));
+    }));
   }
 
   async addCompanyAlias(companyId: string, alias: string, now: string): Promise<Company> {
