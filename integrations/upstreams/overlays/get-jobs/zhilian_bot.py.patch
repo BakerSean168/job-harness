@@ -66,7 +66,7 @@
  
              # 等待职位列表
              try:
-@@ -270,19 +296,20 @@
+@@ -270,9 +296,55 @@
              else:
                  break
  
@@ -74,14 +74,56 @@
 +        self._info(f"【{keyword}】关键词{action_label}完成！")
          return posted
  
++    @staticmethod
++    def _normalize_identity_text(value: str) -> str:
++        return re.sub(r"\s+", " ", value or "").strip().casefold()
++
++    async def _read_verified_detail_link(self, card, job_title: str, company_name: str) -> Optional[str]:
++        from app.worker.zhilian_locators import DETAIL_TITLE, DETAIL_COMPANY, DETAIL_JOB_LINK
++
++        expected_title = self._normalize_identity_text(job_title)
++        expected_company = self._normalize_identity_text(company_name)
++        if not expected_title or not expected_company:
++            return None
++
++        try:
++            await card.scroll_into_view_if_needed(timeout=2000)
++            await card.click(force=True, timeout=2000)
++        except Exception as e:
++            logger.debug("切换智联职位详情面板失败：%s", e)
++            return None
++
++        detail_title = self.page.locator(DETAIL_TITLE).first
++        detail_company = self.page.locator(DETAIL_COMPANY).first
++        detail_link = self.page.locator(DETAIL_JOB_LINK).first
++        last_title = ""
++        last_company = ""
++        for _ in range(30):
++            try:
++                if await detail_title.count() > 0 and await detail_company.count() > 0:
++                    last_title = self._normalize_identity_text(await detail_title.text_content() or "")
++                    last_company = self._normalize_identity_text(await detail_company.text_content() or "")
++                    if last_title == expected_title and last_company == expected_company and await detail_link.count() > 0:
++                        href = await detail_link.get_attribute("href")
++                        if href:
++                            return href
++            except Exception:
++                pass
++            await asyncio.sleep(0.1)
++
++        logger.warning(
++            "智联详情面板未在时限内匹配当前卡片，拒绝强身份绑定: title=%s company=%s detail_title=%s detail_company=%s",
++            job_title,
++            company_name,
++            last_title,
++            last_company,
++        )
++        return None
++
      async def _deliver_current_page(self) -> int:
          from app.worker.zhilian_locators import (
              JOB_CARDS, APPLY_BUTTON, ALREADY_APPLIED_MARKER,
--            JOB_TITLE, JOB_SALARY, JOB_LOCATION, JOB_EXPERIENCE,
-+            JOB_TITLE, JOB_LINK, JOB_SALARY, JOB_LOCATION, JOB_EXPERIENCE,
-             JOB_DEGREE, COMPANY_NAME,
-         )
- 
+@@ -283,6 +355,7 @@
          job_cards = self.page.locator(JOB_CARDS)
          count = await job_cards.count()
          posted = 0
@@ -89,42 +131,41 @@
  
          # 先采集所有职位信息
          jobs_data = []
-@@ -292,13 +319,29 @@
+@@ -290,16 +363,26 @@
+             card = job_cards.nth(i)
+             try:
                  job_title = await self._safe_get_text(card, JOB_TITLE)
-                 job_link = None
+-                job_link = None
++                company_name = await self._safe_get_text(card, COMPANY_NAME)
++                job_link = await self._read_verified_detail_link(card, job_title, company_name)
++                if collect_only and not job_link:
++                    logger.warning("智联职位缺少已验证详情链接，跳过强身份绑定：%s / %s", job_title, company_name)
++                salary = await self._safe_get_text(card, JOB_SALARY)
++                location = await self._safe_get_text(card, JOB_LOCATION)
++                tag_texts = []
                  try:
 -                    job_link = await card.locator(JOB_TITLE).get_attribute("href")
--                except Exception:
--                    pass
-+                    link = card.locator(JOB_LINK).first
-+                    if await link.count() > 0:
-+                        job_link = await link.get_attribute("href")
-+                except Exception as e:
-+                    logger.debug("读取智联卡片职位链接失败：%s", e)
-+                if collect_only and not job_link:
-+                    logger.warning("智联卡片缺少同卡片职位链接，跳过强身份绑定：%s", job_title)
-                 salary = await self._safe_get_text(card, JOB_SALARY)
-                 location = await self._safe_get_text(card, JOB_LOCATION)
--                experience = await self._safe_get_text(card, JOB_EXPERIENCE)
--                degree = await self._safe_get_text(card, JOB_DEGREE)
-+                tag_texts = []
-+                try:
 +                    tag_texts = [
 +                        re.sub(r"\s+", " ", value or "").strip()
 +                        for value in await card.locator("span.job-card__skill-tag").all_text_contents()
 +                    ]
-+                except Exception:
-+                    pass
+                 except Exception:
+                     pass
+-                salary = await self._safe_get_text(card, JOB_SALARY)
+-                location = await self._safe_get_text(card, JOB_LOCATION)
+-                experience = await self._safe_get_text(card, JOB_EXPERIENCE)
+-                degree = await self._safe_get_text(card, JOB_DEGREE)
+-                company_name = await self._safe_get_text(card, COMPANY_NAME)
 +                degree = next((value for value in tag_texts if re.search(r"^(学历不限|不限学历|中专|高中|大专|本科|硕士|博士)$", value)), "")
 +                experience = next((value for value in tag_texts if re.search(r"^(经验不限|不限经验|无经验|应届生?|在校生|实习生|\d+年以内|\d+年以上|\d+-\d+年)$", value)), "")
 +                if not experience:
 +                    experience = await self._safe_get_text(card, JOB_EXPERIENCE)
 +                if not degree:
 +                    degree = await self._safe_get_text(card, JOB_DEGREE)
-                 company_name = await self._safe_get_text(card, COMPANY_NAME)
                  job_id = self._extract_job_id(job_link, job_title, company_name)
                  if not job_id:
-@@ -335,6 +378,10 @@
+                     logger.warning("无法提取 job_id，链接: %s", job_link)
+@@ -335,6 +418,10 @@
              except Exception as e:
                  logger.warning("保存岗位数据失败 %s: %s", job_id, e)
  
@@ -135,7 +176,7 @@
          # 投递
          for job in jobs_data:
              from app.worker.task_state import task_state
-@@ -468,6 +515,9 @@
+@@ -468,6 +555,9 @@
      def _extract_job_id(self, link: Optional[str], job_title: str = "", company_name: str = "") -> Optional[str]:
          if link:
              try:

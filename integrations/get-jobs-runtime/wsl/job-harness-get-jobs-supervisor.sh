@@ -120,12 +120,12 @@ sync_source() {
   grep -q '_login_tasks: dict\[str, asyncio.Task\]' "$stage/app/routers/jobs.py"
   grep -q 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY' "$stage/app/worker/zhilian_bot.py"
   grep -q 'div.job-card' "$stage/app/worker/zhilian_locators.py"
-  grep -q 'JOB_LINK' "$stage/app/worker/zhilian_locators.py"
-  grep -q 'card.locator(JOB_LINK).first' "$stage/app/worker/zhilian_bot.py"
-  if grep -q 'job-company-info__view-all' "$stage/app/worker/zhilian_bot.py"; then
-    echo 'zhilian identity extraction still depends on the global detail panel' >&2
-    exit 1
-  fi
+  grep -q 'DETAIL_TITLE' "$stage/app/worker/zhilian_locators.py"
+  grep -q 'DETAIL_COMPANY' "$stage/app/worker/zhilian_locators.py"
+  grep -q 'DETAIL_JOB_LINK' "$stage/app/worker/zhilian_locators.py"
+  grep -q 'async def _read_verified_detail_link' "$stage/app/worker/zhilian_bot.py"
+  grep -q 'last_title == expected_title and last_company == expected_company' "$stage/app/worker/zhilian_bot.py"
+  grep -q 'job_link = await self._read_verified_detail_link(card, job_title, company_name)' "$stage/app/worker/zhilian_bot.py"
   grep -q 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY' "$stage/app/worker/liepin_bot.py"
   grep -q 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY' "$stage/app/worker/job51_bot.py"
   python3 -m py_compile "$stage/app/main.py" "$stage/app/routers/jobs.py" "$stage/app/schemas.py" "$stage/app/worker/zhilian_bot.py" "$stage/app/worker/zhilian_locators.py" "$stage/app/worker/liepin_bot.py" "$stage/app/worker/job51_bot.py"
