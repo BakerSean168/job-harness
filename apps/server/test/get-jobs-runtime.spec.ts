@@ -325,4 +325,22 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
       mode: 'collect-only',
     });
   });
+
+  it('uses a short independent timeout budget for offline health probes', async () => {
+    const fetch = (async (_input: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      if (!signal) return reject(new Error('missing abort signal'));
+      if (signal.aborted) return reject(signal.reason ?? new Error('aborted'));
+      signal.addEventListener('abort', () => reject(signal.reason ?? new Error('aborted')), { once: true });
+    })) as typeof globalThis.fetch;
+    const client = createGetJobsRuntimeClient({
+      baseUrl: 'http://get-jobs-runtime:8000',
+      fetch,
+      requestTimeoutMs: 5_000,
+      healthTimeoutMs: 100,
+    });
+    const startedAt = Date.now();
+    await expect(client.health('job51')).resolves.toMatchObject({ site: 'job51', state: 'offline', browserConnected: false });
+    expect(Date.now() - startedAt).toBeLessThan(1_000);
+  });
 });

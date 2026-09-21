@@ -35,6 +35,7 @@ const ACTION_EVENT_TYPE = new Map<string, RecruitmentRuntimeEvent['type']>([
   ['runtime_task_started', 'task-started'],
   ['runtime_task_paused', 'task-paused'],
   ['runtime_task_pause_requested', 'task-paused'],
+  ['runtime_task_expired', 'task-expired'],
   ['job_observed', 'job-observed'],
   ['job_skip', 'job-skipped'],
   ['job_already_talked', 'job-skipped'],

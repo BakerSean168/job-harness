@@ -113,6 +113,7 @@ export interface GetJobsRuntimeClientOptions {
   readonly baseUrl: string;
   readonly fetch?: typeof globalThis.fetch;
   readonly requestTimeoutMs?: number;
+  readonly healthTimeoutMs?: number;
 }
 
 export interface GetJobsRuntimeListInput {
@@ -274,8 +275,9 @@ export function createGetJobsRuntimeClient(options: GetJobsRuntimeClientOptions)
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const requestTimeoutMs = Math.max(1_000, Math.min(60_000, options.requestTimeoutMs ?? 10_000));
+  const healthTimeoutMs = Math.max(100, Math.min(10_000, options.healthTimeoutMs ?? 2_500));
 
-  const request = async (path: string, init: RequestInit = {}): Promise<unknown> => {
+  const request = async (path: string, init: RequestInit = {}, timeoutMs = requestTimeoutMs): Promise<unknown> => {
     const response = await fetchImpl(`${baseUrl}${path}`, {
       ...init,
       headers: {
@@ -283,7 +285,7 @@ export function createGetJobsRuntimeClient(options: GetJobsRuntimeClientOptions)
         ...(init.body ? { 'content-type': 'application/json' } : {}),
         ...init.headers,
       },
-      signal: AbortSignal.timeout(requestTimeoutMs),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok) throw new Error(`get_jobs runtime request failed: http_${response.status}`);
@@ -373,8 +375,8 @@ export function createGetJobsRuntimeClient(options: GetJobsRuntimeClientOptions)
       const checkedAt = new Date().toISOString();
       try {
         const [status, login] = await Promise.all([
-          request(`/api/${site}/status`).then((value) => StatusSchema.parse(value)),
-          request(`/api/${site}/login-status`).then((value) => LoginStatusSchema.parse(value)),
+          request(`/api/${site}/status`, {}, healthTimeoutMs).then((value) => StatusSchema.parse(value)),
+          request(`/api/${site}/login-status`, {}, healthTimeoutMs).then((value) => LoginStatusSchema.parse(value)),
         ]);
         const state = !login.isLoggedIn ? 'login-required' : 'ready';
         return RecruitmentRuntimeHealthSchema.parse({

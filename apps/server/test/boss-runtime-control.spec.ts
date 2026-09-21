@@ -33,9 +33,10 @@ describe('BossRuntimeControlStore', () => {
     const first = await store.start(taskInput('run-1'));
     const repeated = await store.start(taskInput('run-1'));
     expect(repeated.task?.id).toBe(first.task?.id);
+    expect(first.lifecycleState).toBe('running');
 
     const paused = await store.pause(first.task!.id, 'bounded-run-complete');
-    expect(paused).toMatchObject({ desiredState: 'paused', reason: 'bounded-run-complete' });
+    expect(paused).toMatchObject({ desiredState: 'paused', lifecycleState: 'paused', reason: 'bounded-run-complete' });
 
     const repeatedAfterPause = await store.start(taskInput('run-1'));
     expect(repeatedAfterPause).toMatchObject({ desiredState: 'paused', task: { id: first.task!.id } });
@@ -45,6 +46,24 @@ describe('BossRuntimeControlStore', () => {
 
     const second = await recovered.start(taskInput('run-2'));
     expect(second.task?.id).not.toBe(first.task?.id);
-    expect(second.desiredState).toBe('running');
+    expect(second).toMatchObject({ desiredState: 'running', lifecycleState: 'running' });
+
+    const expired = await recovered.expire(second.task!.id);
+    expect(expired).toMatchObject({
+      desiredState: 'paused',
+      lifecycleState: 'expired',
+      reason: 'runtime-task-expired',
+      task: { id: second.task!.id, idempotencyKey: 'run-2' },
+    });
+    await expect(recovered.pause(second.task!.id, 'too-late')).rejects.toThrow(/not active/);
+
+    const repeatedAfterExpiry = await recovered.start(taskInput('run-2'));
+    expect(repeatedAfterExpiry).toMatchObject({ lifecycleState: 'expired', task: { id: second.task!.id } });
+
+    const recoveredExpired = new BossRuntimeControlStore(path);
+    await expect(recoveredExpired.recover()).resolves.toMatchObject({
+      lifecycleState: 'expired',
+      task: { id: second.task!.id, idempotencyKey: 'run-2' },
+    });
   });
 });

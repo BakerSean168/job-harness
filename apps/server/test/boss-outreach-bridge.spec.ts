@@ -6,6 +6,7 @@ import { ApplicantProfileContextSchema } from '@job-harness/applicant-contracts'
 import { JobSearchCampaignSchema } from '@job-harness/contracts';
 import { ListResumeProfilesOutputSchema, ResumeProfileSchema } from '@job-harness/resume-contracts';
 import { createBossOutreachBridge, decideBossJob } from '../src/boss-outreach-bridge';
+import { BossRuntimeControlStore } from '../src/boss-runtime-control';
 import { patchBossResumeFollowupUserscript } from '../src/boss-resume-followup';
 
 const zh = (value: string) => ({ 'zh-CN': value });
@@ -246,6 +247,66 @@ describe('Job Harness BOSS outreach bridge', () => {
       expect(persistedOutreach[0]).toMatchObject({ type: 'recruiter_replied', jobId: 'boss-job-followup', resumeProfileId: 'ai-fullstack', message: '可以发份简历看看吗' });
       expect(persistedOutreach[1]).toMatchObject({ type: 'resume_sent', jobId: 'boss-job-followup', resumeProfileId: 'ai-fullstack' });
       expect(persistedOutreach[0].idempotencyKey).toMatch(/^boss-outreach:boss-job-followup:recruiter_replied:/);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
+  it('expires paused tasks without projecting them as active browser work', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-boss-expired-runtime-'));
+    const logPath = join(dir, 'events.jsonl');
+    const control = new BossRuntimeControlStore();
+    const started = await control.start({
+      runtimeId: 'boss-czc-good-job',
+      site: 'boss',
+      kind: 'campaign-discovery',
+      campaignId: 'campaign-1',
+      jobId: null,
+      listingId: null,
+      resumeProfileId: null,
+      resumeArtifactId: null,
+      targetUrl: 'https://www.zhipin.com/web/geek/job',
+      policy: { collect: true, greeting: true, recruiterInbox: true, resumeFollowup: true, formFill: false, resumeUpload: false, finalSubmit: false, maxExternalEffects: 20 },
+      createdAt: '2026-09-20T06:00:00.000Z',
+      expiresAt: '2026-09-20T06:05:00.000Z',
+      idempotencyKey: 'expired-run-1',
+    });
+    await control.pause(started.task!.id, 'operator-pause-before-expiry');
+
+    const server = createBossOutreachBridge({
+      client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath,
+      baseDelayMs: 0, delayJitterMs: 0, greetingWaitMs: 5_000,
+      campaignId: 'campaign-1', controlToken: 'runtime-control-secret', runtimeControl: control,
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('missing server address');
+      const base = `http://127.0.0.1:${address.port}`;
+      const browserControl = await fetch(`${base}/p/ai-agent-app/runtime-control?pageUrl=${encodeURIComponent('https://www.zhipin.com/web/geek/job')}&pageTitle=${encodeURIComponent('BOSS直聘')}`);
+      expect(await browserControl.json()).toMatchObject({ taskId: null, desiredState: 'paused', policy: null });
+
+      const health = await fetch(`${base}/api/runtime/health`);
+      expect(await health.json()).toMatchObject({ state: 'ready', browserConnected: true, activeTaskId: null });
+
+      const runtimeControl = await fetch(`${base}/api/runtime/control`);
+      expect(await runtimeControl.json()).toMatchObject({
+        lifecycleState: 'expired',
+        desiredState: 'paused',
+        reason: 'runtime-task-expired',
+        task: { id: started.task!.id, idempotencyKey: 'expired-run-1' },
+      });
+
+      const sameKeyStart = await fetch(`${base}/api/runtime/tasks/start`, {
+        method: 'POST',
+        headers: { authorization: 'Bearer runtime-control-secret', 'content-type': 'application/json' },
+        body: JSON.stringify({ mode: 'manual', idempotencyKey: 'expired-run-1' }),
+      });
+      expect(await sameKeyStart.json()).toMatchObject({ lifecycleState: 'expired', task: { id: started.task!.id } });
+
+      const events = await fetch(`${base}/api/runtime/events?limit=10`);
+      const eventBody = await events.json() as { items: Array<{ type: string; taskId: string | null }> };
+      expect(eventBody.items).toContainEqual(expect.objectContaining({ type: 'task-expired', taskId: started.task!.id }));
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }

@@ -419,8 +419,16 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
   const ensureRuntimeTaskNotExpired = async () => {
     const snapshot = runtimeControl.current();
     const expiresAt = snapshot.task?.expiresAt ? Date.parse(snapshot.task.expiresAt) : Number.NaN;
-    if (snapshot.task && snapshot.desiredState === 'running' && Number.isFinite(expiresAt) && Date.now() >= expiresAt) {
-      return runtimeControl.pause(snapshot.task.id, 'runtime-task-expired');
+    if (snapshot.task && snapshot.lifecycleState !== 'expired' && Number.isFinite(expiresAt) && Date.now() >= expiresAt) {
+      const runtimeTaskId = snapshot.task.id;
+      const expired = await runtimeControl.expire(runtimeTaskId, 'runtime-task-expired');
+      await appendEvent(options.logPath, {
+        loggedAt: expired.updatedAt,
+        action: 'runtime_task_expired',
+        runtimeTaskId,
+        reason: 'runtime-task-expired',
+      });
+      return expired;
     }
     return snapshot;
   };
@@ -432,6 +440,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
     return {
       task: snapshot.task,
       desiredState: snapshot.desiredState,
+      lifecycleState: snapshot.lifecycleState,
       usedExternalEffects,
       remainingExternalEffects: Math.max(0, snapshot.task.policy.maxExternalEffects - usedExternalEffects),
     };
@@ -442,6 +451,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
     capability: 'greeting' | 'resumeFollowup',
   ): string | null => {
     if (!state) return null;
+    if (state.lifecycleState === 'expired') return 'runtime-task-expired';
     if (state.desiredState !== 'running') return 'runtime-task-paused';
     if (!state.task.policy[capability]) return capability === 'greeting' ? 'runtime-greeting-disabled' : 'runtime-resume-followup-disabled';
     if (state.remainingExternalEffects <= 0) return 'runtime-external-effect-budget-exhausted';
@@ -468,7 +478,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
       ? 'offline'
       : pageState !== 'ready'
         ? pageState
-        : snapshot.task && snapshot.desiredState === 'paused'
+        : snapshot.task && snapshot.lifecycleState === 'paused'
           ? 'paused'
           : 'ready';
     return RecruitmentRuntimeHealthSchema.parse({
@@ -476,7 +486,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
       site: 'boss',
       state,
       browserConnected,
-      activeTaskId: snapshot.task?.id ?? null,
+      activeTaskId: snapshot.task && snapshot.lifecycleState !== 'expired' ? snapshot.task.id : null,
       lastEventAt: lastRuntimePollAt,
       detail: browserConnected
         ? `${lastRuntimePageUrl ?? 'unknown-page'}${lastRuntimePageTitle ? ` | ${lastRuntimePageTitle}` : ''}`.slice(0, 1000)
@@ -750,6 +760,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         if (!idempotencyKey) return sendJson(res, 400, { error: 'runtime_idempotency_key_required' });
         const nowDate = new Date();
         const now = nowDate.toISOString();
+        await ensureRuntimeTaskNotExpired();
         const snapshot = await runtimeControl.start({
           runtimeId: BOSS_COMPAT_RUNTIME_DESCRIPTOR.runtimeId,
           site: 'boss',
@@ -889,7 +900,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         lastRuntimePageTitle = pageTitle ? pageTitle.slice(0, 500) : lastRuntimePageTitle;
         let snapshot = await ensureRuntimeTaskNotExpired();
         const pageState = runtimePageState();
-        if (snapshot.task && snapshot.desiredState === 'running' && pageState !== 'ready') {
+        if (snapshot.task && snapshot.lifecycleState === 'running' && pageState !== 'ready') {
           const runtimeTaskId = snapshot.task.id;
           snapshot = await runtimeControl.pause(runtimeTaskId, `runtime-${pageState}`);
           await appendEvent(options.logPath, {
@@ -899,12 +910,13 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
             reason: `runtime-${pageState}`,
           });
         }
+        const taskActive = Boolean(snapshot.task && snapshot.lifecycleState !== 'expired');
         return sendJson(res, 200, {
           runtimeId: BOSS_COMPAT_RUNTIME_DESCRIPTOR.runtimeId,
-          taskId: snapshot.task?.id ?? null,
-          desiredState: snapshot.task ? snapshot.desiredState : 'paused',
+          taskId: taskActive ? snapshot.task!.id : null,
+          desiredState: taskActive ? snapshot.desiredState : 'paused',
           updatedAt: snapshot.updatedAt,
-          policy: snapshot.task?.policy ?? null,
+          policy: taskActive ? snapshot.task!.policy : null,
         });
       }
 

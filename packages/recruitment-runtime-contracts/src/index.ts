@@ -114,6 +114,7 @@ export const RecruitmentRuntimeEventTypeSchema = z.enum([
   'submission-confirmed',
   'human-required',
   'task-paused',
+  'task-expired',
   'task-completed',
   'task-failed',
 ]);
@@ -148,6 +149,7 @@ export type RecruitmentRuntimeHealth = z.infer<typeof RecruitmentRuntimeHealthSc
 export const RecruitmentRuntimeControlSnapshotSchema = z.object({
   task: RecruitmentRuntimeTaskSchema.nullable(),
   desiredState: z.enum(['running', 'paused']),
+  lifecycleState: z.enum(['running', 'paused', 'expired']).optional(),
   updatedAt: z.iso.datetime(),
   reason: z.string().trim().max(500).nullable(),
 }).strict();
