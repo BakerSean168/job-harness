@@ -1,7 +1,7 @@
 # Recruitment Browser Runtime Capability Inventory
 
-Status: Phase 0 baseline  
-Date: 2026-09-20  
+Status: upstream-first control plane implemented; offline hardening complete; fresh multi-platform live acceptance pending
+Date: 2026-09-21
 Related plan: `docs/execution/recruitment-browser-runtime-plan.md`
 
 ## 1. Purpose

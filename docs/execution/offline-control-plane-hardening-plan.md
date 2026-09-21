@@ -1,6 +1,6 @@
 # Offline Control Plane Hardening Plan
 
-Status: **implementation active — Phases A-E code-complete; final verification/deployment active**
+Status: **complete — Phases A-E deployed to Oracle2; workstation-dependent site canaries remain intentionally gated**
 
 Date: 2026-09-21
 
@@ -234,4 +234,19 @@ When Windows/WSL becomes available again:
 6. complete the DiscoveryRun with an explicit outcome;
 7. then repeat for 猎聘 and 51job.
 
-No workstation-dependent canary is required to complete Phases A-D at code level.
+No workstation-dependent canary is required to complete this offline hardening phase. The remaining 智联 / 猎聘 / 51job work is a separate live-runtime acceptance gate after the workstation returns.
+
+## 8. Completion evidence
+
+Completed on 2026-09-21:
+
+- SQLite migrated in production from v17 to **v18** with `integrity_check=ok` and zero foreign-key violations;
+- all three previously open historical DiscoveryRuns were explicitly classified as `aborted` with bounded reasons; production now has **0 running/open DiscoveryRuns**;
+- production business counts remained stable across the migration and reconciliation: Applications stayed **42** and durable BOSS outreach events stayed **6**;
+- full repository gate passed **137 test files / 387 tests**, including production Web build, OpenAPI drift, ChatGPT/MCP, Browser Runtime and deployment topology checks;
+- isolated deployment smoke passed with the production BOSS bridge still bound on `127.0.0.1:18788`, proving the smoke environment no longer collides with the live bridge;
+- production Server/Web/BOSS Bridge are healthy on the promoted image built from revision `c2c05fb`;
+- the dedicated Secure MCP Tunnel verifier reports ready with a successful control-plane poll;
+- BOSS runtime control remains `paused/expired` while the workstation is offline, so no recruiter-facing work was resumed during this rollout.
+
+The next live acceptance sequence remains the one in section 7.
