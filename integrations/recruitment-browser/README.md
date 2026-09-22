@@ -56,13 +56,21 @@ One-time installation can be performed with:
 .\windows\install-recruitment-browser.ps1
 ```
 
-The installer:
+The installer is manual-first:
 
 1. copies the small bootstrap launcher into LocalAppData;
-2. installs a per-user Startup launcher unless `-SkipAutoStart` is used;
-3. starts the bootstrap unless `-SkipLaunch` is used.
+2. does **not** install Windows Startup integration by default, and removes the legacy `JobHarnessRecruitmentBrowser.cmd` Startup launcher if one is still present;
+3. does **not** start the browser/runtime by default.
 
-At each bootstrap, the latest supervisor file is downloaded from the runtime channel and SHA-256 verified before execution. The long-running supervisor then polls the runtime manifest and promotes extension bundles automatically.
+Start it when needed with `start-recruitment-browser.ps1`, or use `-LaunchNow` on the installer for an explicit immediate launch. Windows sign-in auto-start exists only as an explicit `-EnableAutoStart` opt-in.
+
+To remove legacy Startup launchers from older installs, run:
+
+```powershell
+.\windows\disable-job-harness-local-autostart.ps1
+```
+
+At each manual bootstrap, the latest supervisor file is downloaded from the runtime channel and SHA-256 verified before execution. The long-running supervisor then polls the runtime manifest and promotes extension bundles automatically while it is running.
 
 ## One-shot validation
 

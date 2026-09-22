@@ -34,10 +34,23 @@ async function main(): Promise<void> {
     if (!/^[0-9a-f]{64}$/.test(file.sha256) || file.bytes <= 0) throw new Error(`Invalid external Runtime file metadata for ${file.id}`);
   }
 
-  const [supervisor, bootstrap, installer, getJobsBootstrap, getJobsManager, upstreamWatch, packageJson, upstreamRegistryScript] = await Promise.all([
+  const [
+    supervisor,
+    bootstrap,
+    installer,
+    localAutostartCleanup,
+    getJobsStartupInstaller,
+    getJobsBootstrap,
+    getJobsManager,
+    upstreamWatch,
+    packageJson,
+    upstreamRegistryScript,
+  ] = await Promise.all([
     readFile(resolve(root, 'integrations/recruitment-browser/windows/job-harness-browser-supervisor.ps1'), 'utf8'),
     readFile(resolve(root, 'integrations/recruitment-browser/windows/start-recruitment-browser.ps1'), 'utf8'),
     readFile(resolve(root, 'integrations/recruitment-browser/windows/install-recruitment-browser.ps1'), 'utf8'),
+    readFile(resolve(root, 'integrations/recruitment-browser/windows/disable-job-harness-local-autostart.ps1'), 'utf8'),
+    readFile(resolve(root, 'integrations/get-jobs-runtime/windows/install-get-jobs-runtime-startup.ps1'), 'utf8'),
     readFile(resolve(root, 'integrations/get-jobs-runtime/wsl/start-job-harness-get-jobs.sh'), 'utf8'),
     readFile(resolve(root, 'integrations/get-jobs-runtime/wsl/job-harness-get-jobs-supervisor.sh'), 'utf8'),
     readFile(resolve(root, '.github/workflows/upstream-runtime-watch.yml'), 'utf8'),
@@ -56,8 +69,17 @@ async function main(): Promise<void> {
   if (!bootstrap.includes('supervisor.sha256') || !bootstrap.includes('Get-FileHash')) {
     throw new Error('Recruitment Browser bootstrap must verify the downloaded supervisor hash');
   }
-  if (!installer.includes("[Environment]::GetFolderPath('Startup')") || !installer.includes('start-recruitment-browser.ps1')) {
-    throw new Error('Recruitment Browser installer lost per-user auto-start bootstrap');
+  for (const marker of ['[switch]$EnableAutoStart', '[switch]$LaunchNow', 'if ($EnableAutoStart)', 'if ($LaunchNow)', "[Environment]::GetFolderPath('Startup')", 'start-recruitment-browser.ps1', 'Remove-Item -Force -LiteralPath $launcher']) {
+    if (!installer.includes(marker)) throw new Error(`Recruitment Browser installer lost manual-first marker '${marker}'`);
+  }
+  for (const forbidden of ['[switch]$SkipAutoStart', '[switch]$SkipLaunch', 'if (-not $SkipAutoStart)', 'if (-not $SkipLaunch)']) {
+    if (installer.includes(forbidden)) throw new Error(`Recruitment Browser installer regressed to implicit auto-start marker '${forbidden}'`);
+  }
+  for (const marker of ['JobHarnessRecruitmentBrowser.cmd', 'JobHarnessGetJobsRuntime.cmd', 'Get-ScheduledTask', 'Remove-Item']) {
+    if (!localAutostartCleanup.includes(marker)) throw new Error(`Local auto-start cleanup lost marker '${marker}'`);
+  }
+  for (const marker of ['[switch]$EnableAutoStart', 'if (-not $EnableAutoStart)', 'JobHarnessGetJobsRuntime.cmd', 'Remove-Item -Force -LiteralPath $launcher']) {
+    if (!getJobsStartupInstaller.includes(marker)) throw new Error(`get_jobs Startup installer lost explicit opt-in marker '${marker}'`);
   }
   for (const marker of ['vvvsrx-get-jobs', 'manager_sha', 'sha256sum', '/files/', 'externalRuntimes']) {
     if (!getJobsBootstrap.includes(marker)) throw new Error(`get_jobs WSL bootstrap lost invariant '${marker}'`);

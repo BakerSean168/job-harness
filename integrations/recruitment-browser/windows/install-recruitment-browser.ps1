@@ -1,7 +1,7 @@
 param(
   [string]$RuntimeBaseUrl = 'https://oracle.taile92a8e.ts.net:20901/runtime/recruitment-browser/v1',
-  [switch]$SkipAutoStart,
-  [switch]$SkipLaunch
+  [switch]$EnableAutoStart,
+  [switch]$LaunchNow
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,16 +14,28 @@ $bootstrap = Join-Path $bootstrapRoot 'start-recruitment-browser.ps1'
 New-Item -ItemType Directory -Force -Path $bootstrapRoot | Out-Null
 Copy-Item -Force -LiteralPath $source -Destination $bootstrap
 
-if (-not $SkipAutoStart) {
-  $startup = [Environment]::GetFolderPath('Startup')
-  $launcher = Join-Path $startup 'JobHarnessRecruitmentBrowser.cmd'
+Write-Host "Installed Recruitment Browser bootstrap:"
+Write-Host "  $bootstrap"
+Write-Host "Manual start:"
+Write-Host "  powershell.exe -NoProfile -ExecutionPolicy Bypass -File $bootstrap -RuntimeBaseUrl $RuntimeBaseUrl"
+
+$startup = [Environment]::GetFolderPath('Startup')
+$launcher = Join-Path $startup 'JobHarnessRecruitmentBrowser.cmd'
+
+if ($EnableAutoStart) {
   $command = '@echo off' + [Environment]::NewLine +
     'start "" powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $bootstrap + '" -RuntimeBaseUrl "' + $RuntimeBaseUrl + '"' + [Environment]::NewLine
   Set-Content -LiteralPath $launcher -Value $command -Encoding ASCII
-  Write-Host "Installed per-user auto-start launcher: $launcher"
+  Write-Warning "Enabled per-user auto-start by explicit request: $launcher"
+} else {
+  if (Test-Path -LiteralPath $launcher) {
+    Remove-Item -Force -LiteralPath $launcher
+    Write-Host "Removed legacy per-user auto-start launcher: $launcher"
+  }
+  Write-Host 'Auto-start is disabled. Use -EnableAutoStart only if you explicitly want Windows sign-in startup.'
 }
 
-if (-not $SkipLaunch) {
+if ($LaunchNow) {
   $arguments = @(
     '-NoProfile',
     '-ExecutionPolicy', 'Bypass',
@@ -31,5 +43,7 @@ if (-not $SkipLaunch) {
     '-RuntimeBaseUrl', ('"' + $RuntimeBaseUrl + '"')
   )
   $process = Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -PassThru
-  Write-Host "Started Recruitment Browser bootstrap: PID $($process.Id)"
+  Write-Host "Started Recruitment Browser bootstrap by explicit request: PID $($process.Id)"
+} else {
+  Write-Host 'Recruitment Browser was not started. Start it manually when needed.'
 }

@@ -52,7 +52,7 @@ The overlay does not replace the upstream locators or page state machines.
 
 The runtime is intended to run inside the user's WSL/WSLg environment so the upstream Camoufox windows are isolated from the normal Windows browser while still being visible for login when needed. The Job Harness Runtime Channel publishes both a tiny stable bootstrap and a content-addressed manager script plus the exact integration overlays.
 
-The bootstrap can be installed once anywhere convenient, for example under `~/.local/share/job-harness/get-jobs-runtime/start.sh`. Each invocation fetches the current Runtime Channel manifest, verifies the manager SHA-256, and hands control to the current manager. On Windows + WSL, `integrations/get-jobs-runtime/windows/install-get-jobs-runtime-startup.ps1` can add a user Startup launcher so the self-updating WSL Runtime is restored automatically after sign-in. The manager then:
+The bootstrap can be installed once anywhere convenient, for example under `~/.local/share/job-harness/get-jobs-runtime/start.sh`. Each invocation fetches the current Runtime Channel manifest, verifies the manager SHA-256, and hands control to the current manager. The supported default is manual start. On Windows + WSL, `integrations/get-jobs-runtime/windows/install-get-jobs-runtime-startup.ps1` only adds a user Startup launcher when it is explicitly invoked with `-EnableAutoStart`; running the helper without that flag removes a legacy `JobHarnessGetJobsRuntime.cmd` launcher if present and leaves auto-start disabled. The manager then:
 
 - clones the exact pinned upstream commit rather than relying on the stale local Job Harness checkout;
 - downloads and hash-verifies only the Job Harness integration overlays;
