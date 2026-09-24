@@ -239,6 +239,13 @@ describe('browser-extension validation scope', () => {
     expect(uploadCommand.command).toMatchObject({ type: 'upload', payload: { file: { name: 'front.pdf', mimeType: 'application/pdf' } } });
     await expect(upload).resolves.toMatchObject({ run: { writeCount: 1 } });
 
+    const screenshot = registry.invoke(uploadRun.id, {
+      sessionRef: 'chrome-tab:boss-resume-upload', command: { type: 'screenshot', payload: {} }, timeoutMs: 5_000,
+    });
+    await answerOne(bridge, uploadTarget);
+    await answerOne(bridge, 'cG5n');
+    await expect(screenshot).resolves.toMatchObject({ result: 'cG5n', run: { writeCount: 1 } });
+
     await expect(registry.invoke(uploadRun.id, {
       sessionRef: 'chrome-tab:boss-resume-upload', command: { type: 'click', payload: { selector: 'button', expectedText: '发送' } }, timeoutMs: 5_000,
     })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });

@@ -90,6 +90,46 @@ describe('BossOutreachExtensionClient', () => {
     expect(createBodies.every((body) => !('bossOutreachIntent' in body))).toBe(true);
   });
 
+  it('inspects BOSS resume management with privacy-reduced semantic evidence only', async () => {
+    const requests: any[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : null;
+      requests.push({ url: String(url), body });
+      if (String(url).endsWith('/validation-runs')) return json({ id: 'run-resume-manage', targetUrl: body.targetUrl, sessionRef: null }, 201);
+      const type = body?.command?.type;
+      if (type === 'session_acquire') return invoke({ sessionRef: 'chrome-tab:resume', currentUrl: 'https://www.zhipin.com/web/geek/recommend' });
+      if (type === 'wait') return invoke(null);
+      if (type === 'current_url') return invoke('https://www.zhipin.com/web/geek/recommend');
+      if (type === 'title') return invoke('BOSS直聘 - 个人中心');
+      if (type === 'body_text') return invoke('卢楼豪 15258927042 bakersean@foxmail.com\n附件简历\n前端开发工程师.pdf\n删除\n导入简历');
+      if (type === 'scan_actions') return invoke([
+        { actionRef: '[data-job-harness-action-id="jha-1"]', text: '附件简历', href: 'https://www.zhipin.com/web/user/resume-parse', tag: 'a', role: null, disabled: false, ariaDisabled: false },
+        { actionRef: '[data-job-harness-action-id="jha-2"]', text: '设置', href: null, tag: 'button', role: null, disabled: false, ariaDisabled: false },
+      ]);
+      if (type === 'scan_controls') return invoke([
+        { controlRef: '[data-job-harness-field-id="jh-1"]', kind: 'file', label: '上传附件简历', name: 'resume', accept: '.pdf,.doc,.docx', sectionLabel: '附件简历', semanticHints: ['resume'] },
+        { controlRef: '[data-job-harness-field-id="jh-2"]', kind: 'text', label: '昵称', name: 'nickname', accept: null, sectionLabel: null, semanticHints: [] },
+      ]);
+      throw new Error('Unexpected ' + type);
+    }));
+
+    const result = await clientFixture().inspectResumeManagement();
+    expect(result).toMatchObject({
+      runId: 'run-resume-manage',
+      currentUrl: 'https://www.zhipin.com/web/geek/recommend',
+      title: 'BOSS直聘 - 个人中心',
+      actions: [{ text: '附件简历', href: 'https://www.zhipin.com/web/user/resume-parse' }],
+      controls: [{ kind: 'file', label: '上传附件简历', accept: '.pdf,.doc,.docx' }],
+    });
+    expect(result.bodySignals.join(' ')).toContain('附件简历');
+    expect(result.bodySignals.join(' ')).not.toContain('15258927042');
+    expect(result.bodySignals.join(' ')).not.toContain('bakersean@foxmail.com');
+    expect(requests.find((request) => request.url.endsWith('/validation-runs'))?.body).toMatchObject({
+      mode: 'boss-resume-sync',
+      targetUrl: 'https://www.zhipin.com/web/geek/recommend',
+    });
+  });
+
   it('binds a resume follow-up to the exact conversation job and Resume Profile index', async () => {
     const requests: any[] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
