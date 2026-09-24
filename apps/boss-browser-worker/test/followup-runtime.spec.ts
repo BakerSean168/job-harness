@@ -71,7 +71,7 @@ describe('BOSS resume follow-up runtime', () => {
     expect(result).toMatchObject({ inspected: 1, policyAuthorized: 1, resumesSent: 1, skipped: 0 });
     expect(sent).toEqual([expect.objectContaining({
       jobUrl: 'https://www.zhipin.com/job_detail/abc.html',
-      resumeIndex: 1,
+      resumeLabel: '前端开发工程师',
       score: 71,
       threshold: 58,
       authorizationReason: 'explicit-request',

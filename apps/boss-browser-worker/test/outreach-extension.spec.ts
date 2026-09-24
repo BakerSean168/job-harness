@@ -130,7 +130,7 @@ describe('BossOutreachExtensionClient', () => {
     });
   });
 
-  it('binds a resume follow-up to the exact conversation job and Resume Profile index', async () => {
+  it('resolves the current BOSS resume index from the policy-authorized Resume Profile label', async () => {
     const requests: any[] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       const body = init?.body ? JSON.parse(String(init.body)) : null;
@@ -145,29 +145,29 @@ describe('BossOutreachExtensionClient', () => {
         jobUrl: 'https://www.zhipin.com/job_detail/abc.html', jobText: '前端开发工程师', title: '前端开发工程师',
         recruiter: '李女士', company: '四化信息科技', bodyText: 'chat',
       });
-      if (type === 'boss_prepare_resume') return invoke({ status: 'ready', mode: 'resume_list', resumes: [{ resumeIndex: 1, label: '前端简历' }] });
-      if (type === 'boss_confirm_resume') return invoke({ sent: true, selectedResumeIndex: 1, mode: 'resume_list' });
+      if (type === 'boss_prepare_resume') return invoke({ status: 'ready', mode: 'resume_list', resumes: [{ resumeIndex: 0, label: '卢楼豪-前端开发工程师.pdf' }, { resumeIndex: 1, label: '卢楼豪-全栈开发工程师.pdf' }, { resumeIndex: 2, label: '卢楼豪-AI Agent应用开发工程师.pdf' }] });
+      if (type === 'boss_confirm_resume') return invoke({ sent: true, selectedResumeIndex: 0, mode: 'resume_list' });
       throw new Error('Unexpected ' + type);
     }));
 
     const result = await clientFixture().sendResumeFollowup({
       jobUrl: 'https://www.zhipin.com/job_detail/abc.html',
-      resumeIndex: 1,
+      resumeLabel: '前端开发工程师',
       score: 71,
       threshold: 58,
       authorizationReason: 'explicit-request',
     });
-    expect(result).toEqual({ status: 'sent', selectedResumeIndex: 1, mode: 'resume_list' });
+    expect(result).toEqual({ status: 'sent', selectedResumeIndex: 0, mode: 'resume_list' });
 
     const create = requests.find((request) => request.url.endsWith('/validation-runs'));
     expect(create.body.bossOutreachIntent).toMatchObject({
       operation: 'resume-followup',
       jobUrl: 'https://www.zhipin.com/job_detail/abc.html',
-      expectedResumeIndex: 1,
+      expectedResumeLabel: '前端开发工程师',
       authorizationReason: 'explicit-request',
     });
     expect(requests.find((request) => request.body?.command?.type === 'boss_confirm_resume')?.body.command.payload)
-      .toEqual({ resumeIndex: 1, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc.html' });
+      .toEqual({ resumeIndex: 0, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc.html', expectedResumeLabel: '前端开发工程师' });
   });
 });
 

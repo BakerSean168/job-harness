@@ -138,7 +138,7 @@ export async function runBossResumeFollowup(options: BossFollowupRunOptions): Pr
       }
       const sent = await options.outreach.sendResumeFollowup({
         jobUrl,
-        resumeIndex: decision.resumeIndex,
+        resumeLabel: decision.profileLabel,
         score: decision.score,
         threshold,
         authorizationReason: policy.reason,

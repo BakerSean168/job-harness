@@ -31,7 +31,7 @@ const BossOutreachIntentSchema = z.discriminatedUnion('operation', [
   z.object({
     operation: z.literal('resume-followup'),
     jobUrl: z.url(),
-    expectedResumeIndex: z.number().int().min(0).max(20),
+    expectedResumeLabel: z.string().trim().min(1).max(500),
     score: z.number().min(0).max(100),
     threshold: z.number().min(0).max(100),
     authorizationReason: z.enum(['explicit-request', 'qualified-followup']),
@@ -228,6 +228,9 @@ export class BrowserExtensionValidationRegistry {
     }
     if ((input.mode === 'boss-chat-inspect' || input.mode === 'boss-outreach') && !versionAtLeast(agent.version, '0.2.3')) {
       throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `BOSS chat/outreach requires Browser Bridge >= 0.2.3; agent '${input.agentId}' reports '${agent.version}'`, 409);
+    }
+    if (input.mode === 'boss-outreach' && input.bossOutreachIntent?.operation === 'resume-followup' && !versionAtLeast(agent.version, '0.2.5')) {
+      throw new BrowserExtensionBridgeError('VALIDATION_CLIENT_UPGRADE_REQUIRED', `BOSS label-verified resume follow-up requires Browser Bridge >= 0.2.5; agent '${input.agentId}' reports '${agent.version}'`, 409);
     }
     if (input.mode === 'boss-outreach') this.validateBossOutreachIntentTarget(target, input.bossOutreachIntent!);
     const createdAt = this.now().toISOString();
@@ -840,8 +843,8 @@ export class BrowserExtensionValidationRegistry {
       if (!run.bossResumePrepared || run.bossResumeConfirmed) {
         throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', 'BOSS resume send requires one prepared, unconfirmed chooser', 409);
       }
-      if (command.payload.resumeIndex !== intent.expectedResumeIndex) {
-        throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', 'BOSS resume index differs from the server-authorized Resume Profile mapping', 403);
+      if (command.payload.expectedResumeLabel !== intent.expectedResumeLabel) {
+        throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', 'BOSS resume label differs from the server-authorized Resume Profile mapping', 403);
       }
       if (canonicalBossDetailUrl(command.payload.expectedJobUrl) !== canonicalBossDetailUrl(intent.jobUrl)) {
         throw new BrowserExtensionBridgeError('VALIDATION_COMMAND_DENIED', 'BOSS resume confirmation job differs from the policy-authorized conversation job', 403);

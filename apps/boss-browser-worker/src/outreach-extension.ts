@@ -215,7 +215,7 @@ export class BossOutreachExtensionClient {
 
   async sendResumeFollowup(input: {
     jobUrl: string;
-    resumeIndex: number;
+    resumeLabel: string;
     score: number;
     threshold: number;
     authorizationReason: 'explicit-request' | 'qualified-followup';
@@ -224,7 +224,7 @@ export class BossOutreachExtensionClient {
     const run = await this.createRun(target, 'boss-outreach', {
       operation: 'resume-followup',
       jobUrl: input.jobUrl,
-      expectedResumeIndex: input.resumeIndex,
+      expectedResumeLabel: input.resumeLabel,
       score: input.score,
       threshold: input.threshold,
       authorizationReason: input.authorizationReason,
@@ -242,21 +242,20 @@ export class BossOutreachExtensionClient {
     }), 'boss_prepare_resume');
     if (prepared.status === 'already_sent') return { status: 'already_sent' };
     const mode = nullableString(prepared.mode);
-    if (mode === 'small_dialog' && input.resumeIndex !== 0) {
-      return { status: 'resume_selection_unprovable', reason: 'BOSS small resume dialog does not expose a verifiable non-default resume choice' };
+    if (mode === 'small_dialog') {
+      return { status: 'resume_selection_unprovable', reason: 'BOSS small resume dialog does not expose a verifiable Resume Profile label' };
     }
-    if (mode === 'resume_list') {
-      const resumes = Array.isArray(prepared.resumes) ? prepared.resumes : [];
-      const available = resumes.some((item) => objectOrNull(item)?.resumeIndex === input.resumeIndex);
-      if (!available) return { status: 'requested_resume_unavailable', reason: 'Requested Resume Profile index is absent from the BOSS chooser' };
-    }
+    const resumes = Array.isArray(prepared.resumes) ? prepared.resumes : [];
+    const matched = uniqueResumeMatch(resumes, input.resumeLabel);
+    if (matched.status === 'missing') return { status: 'requested_resume_unavailable', reason: `Requested Resume Profile '${input.resumeLabel}' is absent from the BOSS chooser` };
+    if (matched.status === 'ambiguous') return { status: 'resume_selection_unprovable', reason: `BOSS chooser has multiple resumes matching '${input.resumeLabel}'` };
 
     const confirmed = objectResult(await this.invoke(run.id, sessionRef, {
       type: 'boss_confirm_resume',
-      payload: { resumeIndex: input.resumeIndex, expectedJobUrl: input.jobUrl },
+      payload: { resumeIndex: matched.resumeIndex, expectedJobUrl: input.jobUrl, expectedResumeLabel: input.resumeLabel },
     }), 'boss_confirm_resume');
-    if (confirmed.sent === true && confirmed.selectedResumeIndex === input.resumeIndex) {
-      return { status: 'sent', selectedResumeIndex: input.resumeIndex, mode: nullableString(confirmed.mode) ?? 'unknown' };
+    if (confirmed.sent === true && confirmed.selectedResumeIndex === matched.resumeIndex) {
+      return { status: 'sent', selectedResumeIndex: matched.resumeIndex, mode: nullableString(confirmed.mode) ?? 'unknown' };
     }
     if (confirmed.reason === 'already_sent') return { status: 'already_sent' };
     return { status: 'send_unverified', reason: 'BOSS did not expose the expected resume-sent marker after confirmation' };
@@ -332,6 +331,35 @@ async function parseResponse<T>(response: Response, action: string): Promise<T> 
     throw error;
   }
   return parsed as T;
+}
+
+function uniqueResumeMatch(value: unknown[], expectedLabel: string):
+  | { status: 'matched'; resumeIndex: number }
+  | { status: 'missing' }
+  | { status: 'ambiguous' } {
+  const expected = normalizeResumeLabel(expectedLabel);
+  const matches = value.flatMap((item) => {
+    const row = objectOrNull(item);
+    const label = nullableString(row?.label);
+    const resumeIndex = row?.resumeIndex;
+    if (!label || !Number.isInteger(resumeIndex)) return [];
+    const normalized = normalizeResumeLabel(label);
+    return normalized.includes(expected) || expected.includes(normalized)
+      ? [{ resumeIndex: Number(resumeIndex) }]
+      : [];
+  });
+  if (!matches.length) return { status: 'missing' };
+  if (matches.length !== 1) return { status: 'ambiguous' };
+  return { status: 'matched', resumeIndex: matches[0]!.resumeIndex };
+}
+
+function normalizeResumeLabel(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\.pdf\b/gi, '')
+    .replace(/简历/g, '')
+    .replace(/[\s·•,，.。;；:_\-—–/\\()（）\[\]【】]+/g, '')
+    .trim();
 }
 
 function parseResumeManagementActions(value: unknown): BossResumeManagementAction[] {

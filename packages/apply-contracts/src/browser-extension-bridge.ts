@@ -117,7 +117,11 @@ const BossPrepareResumeCommandSchema = z.object({
 }).strict();
 const BossConfirmResumeCommandSchema = z.object({
   type: z.literal('boss_confirm_resume'),
-  payload: z.object({ resumeIndex: z.number().int().min(0).max(20), expectedJobUrl: z.url() }).strict(),
+  payload: z.object({
+    resumeIndex: z.number().int().min(0).max(20),
+    expectedJobUrl: z.url(),
+    expectedResumeLabel: z.string().trim().min(1).max(500),
+  }).strict(),
 }).strict();
 
 export const BrowserExtensionDriverCommandSchema = z.discriminatedUnion('type', [

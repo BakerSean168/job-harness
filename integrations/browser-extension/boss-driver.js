@@ -25,7 +25,7 @@
       case 'boss_open_contact': return openContact(String(payload.contactRef || ''));
       case 'boss_chat_snapshot': return chatSnapshot();
       case 'boss_prepare_resume': return prepareResume(String(payload.expectedJobUrl || ''));
-      case 'boss_confirm_resume': return confirmResume(Number(payload.resumeIndex), String(payload.expectedJobUrl || ''));
+      case 'boss_confirm_resume': return confirmResume(Number(payload.resumeIndex), String(payload.expectedJobUrl || ''), String(payload.expectedResumeLabel || ''));
       default: throw new Error(`Unsupported BOSS driver command '${type}'`);
     }
   }
@@ -291,6 +291,15 @@
     });
   }
 
+  function normalizeResumeLabel(value) {
+    return compact(value || '', 1000)
+      .toLowerCase()
+      .replace(/\.pdf\b/gi, '')
+      .replace(/简历/g, '')
+      .replace(/[\s·•,，.。;；:_\-—–/\\()（）\[\]【】]+/g, '')
+      .trim();
+  }
+
   function assertCurrentChatJob(expectedJobUrl) {
     const expected = safeHref(expectedJobUrl);
     if (!expected) throw new Error('BOSS expected job URL is invalid');
@@ -325,23 +334,17 @@
     return { status: 'ready', mode: 'resume_list', resumes: allocateResumeRefs(items), dialogText: null };
   }
 
-  async function confirmResume(resumeIndex, expectedJobUrl) {
+  async function confirmResume(resumeIndex, expectedJobUrl, expectedResumeLabel) {
     requirePath(/^\/web\/geek\/chat(?:\/|$)/i, 'BOSS chat');
     assertCurrentChatJob(expectedJobUrl);
     if (!Number.isInteger(resumeIndex) || resumeIndex < 0 || resumeIndex > 20) throw new Error('Invalid BOSS resume index');
+    const expectedLabel = normalizeResumeLabel(expectedResumeLabel);
+    if (!expectedLabel) throw new Error('BOSS expected resume label is required');
     if (resumeAlreadySent()) return { sent: false, reason: 'already_sent', selectedResumeIndex: null, mode: null };
 
     const small = document.querySelector('.panel-resume');
     if (small instanceof HTMLElement && visible(small)) {
-      // A small BOSS dialog does not expose which stored resume is selected. It
-      // is safe only for the first/default resume; all other indices fail closed.
-      if (resumeIndex !== 0) throw new Error('BOSS small resume dialog cannot prove the requested non-default resume selection');
-      const confirm = [...small.querySelectorAll('.btn-sure-v2,button,[role="button"]')]
-        .find((element) => element instanceof HTMLElement && visible(element) && /确定|发送|确认/.test(compact(element.innerText || element.textContent || '', 100)));
-      if (!(confirm instanceof HTMLElement)) throw new Error('BOSS small resume dialog confirm action is unavailable');
-      confirm.click();
-      await sleep(700);
-      return { sent: resumeAlreadySent(), reason: null, selectedResumeIndex: 0, mode: 'small_dialog' };
+      throw new Error('BOSS small resume dialog cannot prove the requested Resume Profile label');
     }
 
     const list = document.querySelector('.resume-list');
@@ -349,6 +352,10 @@
     const items = [...list.querySelectorAll('li')].filter((item) => item instanceof HTMLElement && visible(item));
     const item = items[resumeIndex];
     if (!(item instanceof HTMLElement)) throw new Error(`BOSS requested resume index ${resumeIndex} is unavailable`);
+    const actualLabel = normalizeResumeLabel(item.innerText || item.textContent || '');
+    if (!actualLabel || (!actualLabel.includes(expectedLabel) && !expectedLabel.includes(actualLabel))) {
+      throw new Error('BOSS requested resume index no longer matches the authorized Resume Profile label');
+    }
     item.click();
     await sleep(250);
     const confirm = [...document.querySelectorAll('.btn-confirm,button,[role="button"]')]
