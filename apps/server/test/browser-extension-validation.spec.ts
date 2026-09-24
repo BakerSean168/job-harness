@@ -185,6 +185,66 @@ describe('browser-extension validation scope', () => {
     bridge.close();
   });
 
+  it('bounds BOSS resume sync to resume-management surfaces and keeps upload off the personal-center page', async () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge, '0.2.4');
+    const registry = new BrowserExtensionValidationRegistry(bridge, { allowedOrigin: 'https://job-harness.test:20900' });
+
+    expect(() => registry.create({
+      agentId: 'windows-chrome-primary', targetUrl: 'https://www.zhipin.com/web/geek/chat', mode: 'boss-resume-sync',
+    })).toThrow(/personal-center or attachment-resume import page/);
+
+    const inspectTarget = 'https://www.zhipin.com/web/geek/recommend?ka=header-resume';
+    const inspectRun = registry.create({ agentId: 'windows-chrome-primary', targetUrl: inspectTarget, mode: 'boss-resume-sync' });
+    expect(inspectRun).toMatchObject({ mode: 'boss-resume-sync', targetUrl: 'https://www.zhipin.com/web/geek/recommend', writeCount: 0 });
+
+    const inspectAcquire = registry.invoke(inspectRun.id, {
+      sessionRef: null,
+      command: { type: 'session_acquire', payload: { preferredUrl: inspectTarget, reuseLiveSession: false, requireLiveSession: false } },
+      timeoutMs: 5_000,
+    });
+    await answerOne(bridge, { sessionRef: 'chrome-tab:boss-resume-inspect', currentUrl: 'https://www.zhipin.com/web/geek/recommend' });
+    await expect(inspectAcquire).resolves.toMatchObject({ run: { sessionRef: 'chrome-tab:boss-resume-inspect', writeCount: 0 } });
+
+    const scan = registry.invoke(inspectRun.id, {
+      sessionRef: 'chrome-tab:boss-resume-inspect', command: { type: 'scan_actions', payload: {} }, timeoutMs: 5_000,
+    });
+    await answerOne(bridge, 'https://www.zhipin.com/web/geek/recommend');
+    await answerOne(bridge, [{ actionRef: '[data-job-harness-action-id="jha-resume"]', text: '简历', href: 'https://www.zhipin.com/web/user/resume-parse' }]);
+    await expect(scan).resolves.toMatchObject({ run: { writeCount: 0 } });
+
+    await expect(registry.invoke(inspectRun.id, {
+      sessionRef: 'chrome-tab:boss-resume-inspect',
+      command: { type: 'upload', payload: { selector: '[data-job-harness-field-id="jh-resume"]', file: { name: 'front.pdf', mimeType: 'application/pdf', bytesBase64: 'AA==' } } },
+      timeoutMs: 5_000,
+    })).rejects.toMatchObject({ code: 'VALIDATION_UPLOAD_DENIED' });
+
+    const uploadTarget = 'https://www.zhipin.com/web/user/resume-parse';
+    const uploadRun = registry.create({ agentId: 'windows-chrome-primary', targetUrl: uploadTarget, mode: 'boss-resume-sync' });
+    const uploadAcquire = registry.invoke(uploadRun.id, {
+      sessionRef: null,
+      command: { type: 'session_acquire', payload: { preferredUrl: uploadTarget, reuseLiveSession: false, requireLiveSession: false } },
+      timeoutMs: 5_000,
+    });
+    await answerOne(bridge, { sessionRef: 'chrome-tab:boss-resume-upload', currentUrl: uploadTarget });
+    await uploadAcquire;
+
+    const upload = registry.invoke(uploadRun.id, {
+      sessionRef: 'chrome-tab:boss-resume-upload',
+      command: { type: 'upload', payload: { selector: '[data-job-harness-field-id="jh-resume"]', file: { name: 'front.pdf', mimeType: 'application/pdf', bytesBase64: 'AA==' } } },
+      timeoutMs: 5_000,
+    });
+    await answerOne(bridge, uploadTarget);
+    const uploadCommand = await answerOne(bridge, null);
+    expect(uploadCommand.command).toMatchObject({ type: 'upload', payload: { file: { name: 'front.pdf', mimeType: 'application/pdf' } } });
+    await expect(upload).resolves.toMatchObject({ run: { writeCount: 1 } });
+
+    await expect(registry.invoke(uploadRun.id, {
+      sessionRef: 'chrome-tab:boss-resume-upload', command: { type: 'click', payload: { selector: 'button', expectedText: '发送' } }, timeoutMs: 5_000,
+    })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
+    bridge.close();
+  });
+
   it('binds BOSS greet to one scored job and one exact server-authorized message', async () => {
     const bridge = new BrowserExtensionBridge();
     register(bridge, '0.2.3');
