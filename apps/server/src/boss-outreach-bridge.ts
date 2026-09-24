@@ -153,6 +153,13 @@ export function bossResumeIndex(profileId: string): number {
   return 0;
 }
 
+async function bossResumeProfileLabel(client: BossOutreachBridgeClient, profileId: string, fallback: string): Promise<string> {
+  const profiles = await client.resume.listProfiles();
+  const profile = profiles.items.find((item) => item.id === profileId);
+  if (!profile) return fallback;
+  return profile.name[profile.locale] ?? profile.name['zh-CN'] ?? profile.name.en ?? fallback;
+}
+
 function compactSignal(value: string): string {
   return value.replace(/\s+/g, ' ').trim().slice(0, 80);
 }
@@ -998,11 +1005,14 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
             const historicalScore = typeof greeting.metadata.score === 'number' && Number.isFinite(greeting.metadata.score)
               ? Math.max(0, Math.min(100, greeting.metadata.score))
               : decision.score;
+            const historicalProfileLabel = decision.profileId === greeting.resumeProfileId
+              ? decision.profileLabel
+              : await bossResumeProfileLabel(options.client, greeting.resumeProfileId, greeting.resumeProfileId);
             decision = {
               ...decision,
               score: historicalScore,
               profileId: greeting.resumeProfileId,
-              profileLabel: decision.profileId === greeting.resumeProfileId ? decision.profileLabel : greeting.resumeProfileId,
+              profileLabel: historicalProfileLabel,
               resumeIndex: bossResumeIndex(greeting.resumeProfileId),
             };
             resumeBindingSource = 'greeting-history';

@@ -225,7 +225,7 @@ describe('Job Harness BOSS outreach bridge', () => {
       });
       expect(contextResponse.status).toBe(200);
       const context = await contextResponse.json() as any;
-      expect(context).toMatchObject({ jobId: 'boss-job-followup', listingId: 'boss-listing-followup', profileId: 'ai-fullstack', resumeIndex: 2, score: 76, resumeBindingSource: 'greeting-history' });
+      expect(context).toMatchObject({ jobId: 'boss-job-followup', listingId: 'boss-listing-followup', profileId: 'ai-fullstack', profileLabel: '全栈开发工程师', resumeIndex: 2, score: 76, resumeBindingSource: 'greeting-history' });
 
       const reply = await fetch(`${base}/p/ai-agent-app/log-action`, {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
