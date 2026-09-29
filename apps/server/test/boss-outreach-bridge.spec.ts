@@ -49,6 +49,21 @@ function client() {
 
 const payload = '# 职位名称\nAgent开发工程师\n\n# 薪资范围\n15-25K\n\n# 职位描述\n负责 Agent Harness、Orchestration、Tool Calling、Memory、Planning、MCP、多智能体 Supervisor 系统。';
 
+async function claimGreeting(base: string, controlToken?: string) {
+  const response = await fetch(`${base}/api/greetings/claim`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(controlToken ? { authorization: `Bearer ${controlToken}` } : {}),
+    },
+    body: JSON.stringify({ owner: 'vitest-resolver', leaseMs: 5_000 }),
+  });
+  expect(response.status).toBe(200);
+  const body = await response.json() as { claim: null | { request: { id: string }; leaseToken: string } };
+  expect(body.claim).not.toBeNull();
+  return body.claim!;
+}
+
 describe('Job Harness BOSS outreach bridge', () => {
   it('defaults the ChatGPT greeting resolution window to 35 seconds', async () => {
     dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
@@ -120,6 +135,57 @@ describe('Job Harness BOSS outreach bridge', () => {
     }
   });
 
+  it('leases one greeting to exactly one resolver and supports safe lease release', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
+    const logPath = join(dir, 'events.jsonl');
+    const server = createBossOutreachBridge({ client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0, greetingWaitMs: 5_000, campaignId: 'campaign-1' });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('missing server address');
+      const base = `http://127.0.0.1:${address.port}`;
+      const scorePromise = fetch(`${base}/p/ai-agent-app/get-job-score`, { method: 'POST', body: JSON.stringify(payload), headers: { 'content-type': 'application/json' } });
+      let requestId = '';
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        const pending = await fetch(`${base}/api/greetings/pending`);
+        const body = await pending.json() as { items?: Array<{ id?: string }> };
+        requestId = body.items?.[0]?.id ?? '';
+        if (requestId) break;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(requestId).not.toBe('');
+      const first = await claimGreeting(base);
+      expect(first.request.id).toBe(requestId);
+      const secondClaimResponse = await fetch(`${base}/api/greetings/claim`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ owner: 'vitest-resolver-2', leaseMs: 5_000 }) });
+      expect(await secondClaimResponse.json()).toMatchObject({ mode: 'leased-chatgpt-assisted', claim: null });
+      const wrongResolve = await fetch(`${base}/api/greetings/${requestId}/resolve`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'send', leaseToken: '123e4567-e89b-42d3-a456-426614174099', message: '您好，我有 Agent Harness 相关项目实践，希望进一步沟通。', source: 'chatgpt-web-test' }),
+      });
+      expect(wrongResolve.status).toBe(409);
+      expect(await wrongResolve.json()).toMatchObject({ error: 'greeting_lease_mismatch' });
+      const released = await fetch(`${base}/api/greetings/${requestId}/release`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ leaseToken: first.leaseToken, reason: 'test-provider-failed' }),
+      });
+      expect(await released.json()).toMatchObject({ ok: true, id: requestId, released: true });
+      const second = await claimGreeting(base);
+      expect(second.request.id).toBe(requestId);
+      expect(second.leaseToken).not.toBe(first.leaseToken);
+      const greeting = '您好，我在 Agent Harness、多智能体编排和 MCP 方面有相关项目实践，希望有机会进一步沟通。';
+      const resolved = await fetch(`${base}/api/greetings/${requestId}/resolve`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'send', leaseToken: second.leaseToken, message: greeting, source: 'chatgpt-web-test' }),
+      });
+      expect(await resolved.json()).toMatchObject({ ok: true, id: requestId, action: 'send' });
+      expect(await (await scorePromise).json()).toMatchObject({ introduce: greeting, greetingGenerationSource: 'chatgpt-web-test' });
+      const rows = (await readFile(logPath, 'utf8')).trim().split(/\n/).map((line) => JSON.parse(line));
+      expect(rows.filter((row) => row.action === 'greeting_claimed')).toHaveLength(2);
+      expect(rows.some((row) => row.action === 'greeting_lease_released' && row.reason === 'test-provider-failed')).toBe(true);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
   it('lets ChatGPT skip a semantic mismatch without sending a recruiter-facing greeting', async () => {
     dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
     const logPath = join(dir, 'events.jsonl');
@@ -139,9 +205,11 @@ describe('Job Harness BOSS outreach bridge', () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
       expect(requestId).not.toBe('');
+      const claim = await claimGreeting(base);
+      expect(claim.request.id).toBe(requestId);
       const resolved = await fetch(`${base}/api/greetings/${requestId}/resolve`, {
         method: 'POST',
-        body: JSON.stringify({ action: 'skip', reason: '核心技术栈与当前真实经历明显不匹配', source: 'chatgpt-web-test' }),
+        body: JSON.stringify({ action: 'skip', leaseToken: claim.leaseToken, reason: '核心技术栈与当前真实经历明显不匹配', source: 'chatgpt-web-test' }),
         headers: { 'content-type': 'application/json' },
       });
       expect(await resolved.json()).toMatchObject({ ok: true, id: requestId, action: 'skip', source: 'chatgpt-web-test' });
@@ -197,6 +265,71 @@ describe('Job Harness BOSS outreach bridge', () => {
       expect(logged.status).toBe(200);
       expect(persistedOutreach).toHaveLength(1);
       expect(persistedOutreach[0]).toMatchObject({ jobId: 'boss-job-1', listingId: 'boss-listing-1', channel: 'boss', type: 'already_contacted' });
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
+  it('persists greeting request and generation provenance into durable outreach metadata', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
+    const logPath = join(dir, 'events.jsonl');
+    const persistedOutreach: any[] = [];
+    const h: any = client();
+    h.jobs = {
+      async upsertJobsBatch() { return { items: [{ index: 0, status: 'inserted', jobId: 'boss-job-provenance', reason: null }] }; },
+    };
+    h.workspace = {
+      async getJobDetail() {
+        return { job: { listings: [{ id: 'boss-listing-provenance', sourceKind: 'boss', externalId: 'prov123', url: 'https://www.zhipin.com/job_detail/prov123.html' }] } };
+      },
+    };
+    h.outreach = { async record(input: any) { persistedOutreach.push(input); return { id: 'outreach-provenance', ...input, createdAt: input.occurredAt }; } };
+    const server = createBossOutreachBridge({ client: h, publicBaseUrl: 'https://boss-bridge.example.test', logPath, baseDelayMs: 0, delayJitterMs: 0, greetingWaitMs: 5_000, campaignId: 'campaign-1' });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('missing server address');
+      const base = `http://127.0.0.1:${address.port}`;
+      const raw = { job: payload, company: '示例科技', city: '深圳', jobUrl: 'https://www.zhipin.com/job_detail/prov123.html', screeningSessionId: 'screen-prov' };
+      const scorePromise = fetch(`${base}/p/ai-agent-app/get-job-score`, { method: 'POST', body: JSON.stringify(raw), headers: { 'content-type': 'application/json' } });
+      let requestId = '';
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        const pending = await fetch(`${base}/api/greetings/pending`);
+        const body = await pending.json() as { items?: Array<{ id?: string }> };
+        requestId = body.items?.[0]?.id ?? '';
+        if (requestId) break;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(requestId).not.toBe('');
+      const claim = await claimGreeting(base);
+      const greeting = '您好，我在 Agent Harness、多智能体编排和 MCP 方面有相关项目实践，希望有机会进一步沟通。';
+      const resolved = await fetch(`${base}/api/greetings/${requestId}/resolve`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'send', leaseToken: claim.leaseToken, message: greeting, source: 'chatgpt-web-test' }),
+      });
+      expect(resolved.status).toBe(200);
+      const decision = await (await scorePromise).json() as any;
+      expect(decision).toMatchObject({ jobId: 'boss-job-provenance', listingId: 'boss-listing-provenance', greetingRequestId: requestId, greetingGenerationSource: 'chatgpt-web-test' });
+      const logged = await fetch(`${base}/p/ai-agent-app/log-action`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'greet_sent', scene: 'search', title: 'Agent开发工程师', jobId: 'boss-job-provenance', listingId: 'boss-listing-provenance', resumeIndex: decision.resumeIndex, runtimeTaskId: 'boss-runtime-test-1' }),
+      });
+      expect(logged.status).toBe(200);
+      expect(persistedOutreach).toHaveLength(1);
+      expect(persistedOutreach[0]).toMatchObject({
+        jobId: 'boss-job-provenance',
+        listingId: 'boss-listing-provenance',
+        channel: 'boss',
+        type: 'greeting_sent',
+        resumeProfileId: decision.profileId,
+        message: greeting,
+        metadata: {
+          runtimeTaskId: 'boss-runtime-test-1',
+          greetingRequestId: requestId,
+          greetingGenerationSource: 'chatgpt-web-test',
+          greetingResolutionReason: null,
+        },
+      });
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
@@ -407,10 +540,12 @@ async function x(){
       expect(pending?.items[0]?.candidate).toMatchObject({ displayName: '测试候选人' });
       expect(pending?.items[0]?.guidance.join(' ')).toContain('不使用固定文案模板');
       const greetingRequestId = pending!.items[0]!.id;
+      const claim = await claimGreeting(base, 'runtime-control-secret');
+      expect(claim.request.id).toBe(greetingRequestId);
       const greeting = '您好，看到贵司 Agent 开发岗位，我做过 Agent Harness 与多智能体编排相关项目，和岗位方向比较契合，希望有机会进一步沟通，谢谢。';
       const resolved = await fetch(`${base}/api/greetings/${greetingRequestId}/resolve`, {
         method: 'POST',
-        body: JSON.stringify({ message: greeting, source: 'chatgpt-web-test' }),
+        body: JSON.stringify({ message: greeting, leaseToken: claim.leaseToken, source: 'chatgpt-web-test' }),
         headers: { 'content-type': 'application/json' },
       });
       expect(await resolved.json()).toMatchObject({ ok: true, id: greetingRequestId, action: 'send', source: 'chatgpt-web-test' });
@@ -455,6 +590,8 @@ async function x(){
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
       expect(pausedGreetingRequestId).not.toBe('');
+      const pausedClaim = await claimGreeting(base, 'runtime-control-secret');
+      expect(pausedClaim.request.id).toBe(pausedGreetingRequestId);
       const pauseRuntime = await fetch(`${base}/api/runtime/tasks/${startedRuntime.task.id}/pause`, {
         method: 'POST', headers: { authorization: 'Bearer runtime-control-secret', 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'test-pause' }),
       });
@@ -465,7 +602,7 @@ async function x(){
       expect(await pausedHealth.json()).toMatchObject({ state: 'paused', browserConnected: true, activeTaskId: startedRuntime.task.id });
       const blockedResolve = await fetch(`${base}/api/greetings/${pausedGreetingRequestId}/resolve`, {
         method: 'POST',
-        body: JSON.stringify({ action: 'send', message: greeting, source: 'chatgpt-web-test' }),
+        body: JSON.stringify({ action: 'send', leaseToken: pausedClaim.leaseToken, message: greeting, source: 'chatgpt-web-test' }),
         headers: { 'content-type': 'application/json' },
       });
       expect(await blockedResolve.json()).toMatchObject({ ok: true, id: pausedGreetingRequestId, action: 'skip', source: 'job-harness-policy', reason: 'runtime-task-paused' });

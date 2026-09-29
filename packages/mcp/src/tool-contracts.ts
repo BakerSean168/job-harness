@@ -146,13 +146,29 @@ export const BossGreetingsPendingToolOutputSchema = z.object({
   total: z.number().int().nonnegative(),
   items: z.array(BossGreetingRequestSchema),
 }).strict();
+export const BossGreetingClaimToolInputSchema = z.object({
+  owner: z.string().trim().min(3).max(120).default('chatgpt-web-mcp'),
+  leaseSeconds: z.number().int().min(5).max(30).default(20),
+}).strict();
+export const BossGreetingClaimToolOutputSchema = z.object({
+  mode: z.literal('leased-chatgpt-assisted'),
+  claim: z.object({
+    request: BossGreetingRequestSchema,
+    leaseToken: z.string().uuid(),
+    owner: z.string().trim().min(3).max(120),
+    claimedAt: z.iso.datetime({ offset: true }),
+    leaseExpiresAt: z.iso.datetime({ offset: true }),
+  }).strict().nullable(),
+}).strict();
 const BossGreetingResolveSendSchema = z.object({
   id: z.string().uuid(),
+  leaseToken: z.string().uuid(),
   action: z.literal('send'),
   message: z.string().trim().min(12).max(320),
 }).strict();
 const BossGreetingResolveSkipSchema = z.object({
   id: z.string().uuid(),
+  leaseToken: z.string().uuid(),
   action: z.literal('skip'),
   reason: z.string().trim().min(3).max(240),
 }).strict();
@@ -269,7 +285,8 @@ export const JOB_RESUME_MCP_TOOLS = [
 
 export const BOSS_GREETING_MCP_TOOLS = [
   tool({ name: 'boss_greetings_pending', description: 'Read BOSS greeting requests currently waiting for ChatGPT to inspect the JD and true Resume context. This tool sends nothing.', mutability: 'read', externalSideEffect: false, inputSchema: BossGreetingsPendingToolInputSchema, outputSchema: BossGreetingsPendingToolOutputSchema }),
-  tool({ name: 'boss_greeting_resolve', idempotent: false, description: 'Resolve one waiting BOSS greeting request. action=send releases the already-waiting Compatibility Runtime to send exactly the supplied greeting externally; action=skip releases it without sending.', mutability: 'state-write', externalSideEffect: true, inputSchema: BossGreetingResolveToolInputSchema, outputSchema: BossGreetingResolveToolOutputSchema }),
+  tool({ name: 'boss_greeting_claim', idempotent: false, description: 'Claim the oldest unclaimed BOSS greeting request for a short single-writer lease. Claiming sends nothing and does not release the Compatibility Runtime.', mutability: 'state-write', externalSideEffect: false, inputSchema: BossGreetingClaimToolInputSchema, outputSchema: BossGreetingClaimToolOutputSchema }),
+  tool({ name: 'boss_greeting_resolve', idempotent: false, description: 'Resolve one leased BOSS greeting request. action=send releases the already-waiting Compatibility Runtime to send exactly the supplied greeting externally; action=skip releases it without sending. The active lease token is mandatory.', mutability: 'state-write', externalSideEffect: true, inputSchema: BossGreetingResolveToolInputSchema, outputSchema: BossGreetingResolveToolOutputSchema }),
 ] as const satisfies readonly CareerMcpToolContract[];
 
 export const BOSS_RUNTIME_MCP_TOOLS = [

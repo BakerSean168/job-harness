@@ -45,12 +45,18 @@ POST /api/runtime/tasks/start
 POST /api/runtime/tasks/:taskId/pause
 
 GET  /api/greetings/pending
+POST /api/greetings/claim
+POST /api/greetings/:requestId/release
 POST /api/greetings/:requestId/resolve
 ```
 
 Start/pause is business-task control. The browser still executes the mature upstream-derived search/detail/chat/resume state machine locally. Runtime start derives permissions from Campaign `automation.outreach`; callers cannot widen them in the request.
 
-The resolver supports two outcomes. Use `{ "action": "send", "message": "...", "source": "chatgpt-web" }` (or omit `action` for backward compatibility) to return a single 12-320 character greeting. Use `{ "action": "skip", "reason": "...", "source": "chatgpt-web" }` when the JD has a core requirement that the real Resume evidence does not support; the bridge then returns a below-threshold compatibility decision so the legacy runtime moves on without contacting the recruiter. A late `send` is revalidated against the current Runtime state and can be converted into a policy skip after pause/expiry/budget exhaustion. `JOB_HARNESS_BOSS_GREETING_WAIT_MS` controls the bounded greeting wait, `JOB_HARNESS_BOSS_GREETING_THRESHOLD` defaults to `58`, and `JOB_HARNESS_BOSS_RUNTIME_TASK_TTL_MS` defaults to one hour. Early-career campaigns also fail closed on explicit 3+ year minimum-experience requirements before a greeting request is created.
+Greeting resolution is leased. A resolver first calls `POST /api/greetings/claim` with an owner and bounded lease duration, receives one request plus an unguessable lease token, and must include that token in `resolve`. A second resolver cannot claim the same request while the lease is active. A failed provider can release the lease without sending anything so another resolver may retry before the original deadline. The lease never extends the overall greeting deadline.
+
+The resolver supports two outcomes. Use `{ "action": "send", "leaseToken": "...", "message": "...", "source": "chatgpt-web" }` to return a single 12-320 character greeting. Use `{ "action": "skip", "leaseToken": "...", "reason": "...", "source": "chatgpt-web" }` when the JD has a core requirement that the real Resume evidence does not support; the bridge then returns a below-threshold compatibility decision so the legacy runtime moves on without contacting the recruiter. A late `send` is revalidated against the current Runtime state and can be converted into a policy skip after pause/expiry/budget exhaustion. `JOB_HARNESS_BOSS_GREETING_WAIT_MS` controls the bounded greeting wait, `JOB_HARNESS_BOSS_GREETING_THRESHOLD` defaults to `58`, and `JOB_HARNESS_BOSS_RUNTIME_TASK_TTL_MS` defaults to one hour. Early-career campaigns also fail closed on explicit 3+ year minimum-experience requirements before a greeting request is created.
+
+`apps/server/scripts/boss-greeting-resolver-worker.ts` is the provider-neutral independent worker entrypoint. It claims requests, passes the exact request JSON to a trusted local command via stdin, expects one JSON resolution on stdout, resolves under the lease, and releases the lease on provider failure. It deliberately refuses to start unless `JOB_HARNESS_BOSS_GREETING_RESOLVER_COMMAND` is configured; Job Harness does not invent an LLM provider or silently fall back to an unrelated credential. Production can therefore keep ChatGPT Web MCP as the interactive resolver today and enable a dedicated provider later without changing the BOSS Runtime protocol.
 
 ## Compatibility boundary
 

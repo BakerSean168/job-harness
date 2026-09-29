@@ -1,6 +1,8 @@
 import {
   BossGreetingResolveToolInputSchema,
   BossGreetingResolveToolOutputSchema,
+  BossGreetingClaimToolInputSchema,
+  BossGreetingClaimToolOutputSchema,
   BossGreetingsPendingToolInputSchema,
   BossGreetingsPendingToolOutputSchema,
   BossGreetingRequestSchema,
@@ -26,6 +28,18 @@ const BridgePendingResponseSchema = z.object({
   mode: z.literal('chatgpt-assisted'),
   total: z.number().int().nonnegative(),
   items: z.array(BossGreetingRequestSchema),
+}).strict();
+
+const BridgeClaimResponseSchema = z.object({
+  ok: z.literal(true),
+  mode: z.literal('leased-chatgpt-assisted'),
+  claim: z.object({
+    request: BossGreetingRequestSchema,
+    leaseToken: z.string().uuid(),
+    owner: z.string().trim().min(3).max(120),
+    claimedAt: z.iso.datetime({ offset: true }),
+    leaseExpiresAt: z.iso.datetime({ offset: true }),
+  }).strict().nullable(),
 }).strict();
 
 const BridgeResolveResponseSchema = z.object({
@@ -100,11 +114,20 @@ export function createBossGreetingMcpBridge(options: BossGreetingMcpBridgeOption
         items: response.items.slice(0, parsed.limit),
       });
     },
+    async claim(input) {
+      if (!controlToken) throw new Error('BOSS greeting claim token is not configured');
+      const parsed = BossGreetingClaimToolInputSchema.parse(input);
+      const response = BridgeClaimResponseSchema.parse(await request('/api/greetings/claim', {
+        method: 'POST',
+        body: JSON.stringify({ owner: parsed.owner, leaseMs: parsed.leaseSeconds * 1_000 }),
+      }, true));
+      return BossGreetingClaimToolOutputSchema.parse({ mode: response.mode, claim: response.claim });
+    },
     async resolve(input) {
       const parsed = BossGreetingResolveToolInputSchema.parse(input);
       const body = parsed.action === 'send'
-        ? { action: 'send', message: parsed.message, source: 'chatgpt-web-mcp' }
-        : { action: 'skip', reason: parsed.reason, source: 'chatgpt-web-mcp' };
+        ? { action: 'send', message: parsed.message, leaseToken: parsed.leaseToken, source: 'chatgpt-web-mcp' }
+        : { action: 'skip', reason: parsed.reason, leaseToken: parsed.leaseToken, source: 'chatgpt-web-mcp' };
       const response = BridgeResolveResponseSchema.parse(await request(
         `/api/greetings/${encodeURIComponent(parsed.id)}/resolve`,
         { method: 'POST', body: JSON.stringify(body) },

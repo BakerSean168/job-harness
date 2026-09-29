@@ -68,29 +68,22 @@ A BOSS greeting is intentionally **Outreach truth, not formal Application truth*
 
 ## Follow-up gaps
 
-### P1 — concurrent greeting resolver
+### P1 — concurrent greeting resolver — implemented
 
-The ChatGPT-assisted greeting path should not depend on the same interactive session being free to poll within 35 seconds. Add a dedicated resolver orchestration path that can consume pending greetings concurrently while the operator session performs browser/runtime recovery or other work.
+The greeting protocol now has explicit short-lived single-writer leases. A resolver claims the oldest available request, receives an unguessable lease token, and must present that token to resolve. Another resolver cannot claim or resolve the same request while the lease is active. Provider failure may release the lease without sending anything. The lease never extends the original 35-second deadline, so deterministic fallback and policy-based skip remain the final safety net.
 
-Requirements:
+A provider-neutral independent worker entrypoint now exists at `apps/server/scripts/boss-greeting-resolver-worker.ts`. It deliberately refuses to start unless a trusted provider command is explicitly configured. Production currently has no LLM API credential, so ChatGPT Web MCP remains the active interactive provider rather than silently substituting a different model.
 
-- preserve the 35-second bounded wait;
-- preserve deterministic fallback when no resolver succeeds;
-- preserve policy-based `skip` behavior;
-- never create a second writer for the same greeting request;
-- carry the exact resolver source into durable evidence.
+### P1 — durable generation provenance — implemented
 
-### P1 — durable generation provenance
+New BOSS `greeting_sent` outreach events now carry these fields in durable metadata:
 
-`job_outreach_events` currently records the BOSS channel, Job/Listing identity, selected Resume Profile, message and score, but does not persist the greeting request ID or whether the message came from ChatGPT vs deterministic fallback.
-
-Add durable metadata such as:
-
+- `runtimeTaskId`;
 - `greetingRequestId`;
-- `greetingGenerationSource` (`chatgpt-web`, `job-harness-fallback`, etc.);
-- optional resolution/skip reason.
+- `greetingGenerationSource` (`chatgpt-web-mcp`, `job-harness-fallback`, provider-specific source, etc.);
+- `greetingResolutionReason` when applicable.
 
-The JSONL runtime log already contains this provenance, so this is a projection/durability gap rather than missing runtime evidence.
+The runtime JSONL remains the fine-grained event log, while `job_outreach_events` now preserves the generation provenance needed for canonical Job-level audit.
 
 ## Assessment
 

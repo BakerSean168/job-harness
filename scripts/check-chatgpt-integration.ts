@@ -29,6 +29,7 @@ async function main(): Promise<void> {
     'career_submission_intent_reconcile',
     'career_submission_intents_reconcile_pending',
     'boss_greetings_pending',
+    'boss_greeting_claim',
     'boss_greeting_resolve',
     'boss_runtime_status',
     'boss_runtime_start',
@@ -56,7 +57,7 @@ async function main(): Promise<void> {
   }
 
   const workflowText = await readFile(new URL('../integrations/chatgpt/workflow-policy.md', import.meta.url), 'utf8');
-  for (const invariant of ['career_submission_intent_prepare', 'career_submission_intent_prepare_recommended', 'career_email_application_prepare', 'career_email_application_authorize_send', 'career_submission_intent_begin', 'career_submission_intent_confirm', 'needs_manual_review', 'boss_greetings_pending', 'boss_greeting_resolve', 'boss_runtime_status', 'boss_runtime_start', 'boss_runtime_pause', 'recruitment_collection_runtime_status', 'recruitment_collection_runtime_start', 'recruitment_collection_runtime_stop', 'recruitment_collection_runtime_sync']) {
+  for (const invariant of ['career_submission_intent_prepare', 'career_submission_intent_prepare_recommended', 'career_email_application_prepare', 'career_email_application_authorize_send', 'career_submission_intent_begin', 'career_submission_intent_confirm', 'needs_manual_review', 'boss_greetings_pending', 'boss_greeting_claim', 'boss_greeting_resolve', 'boss_runtime_status', 'boss_runtime_start', 'boss_runtime_pause', 'recruitment_collection_runtime_status', 'recruitment_collection_runtime_start', 'recruitment_collection_runtime_stop', 'recruitment_collection_runtime_sync']) {
     if (!workflowText.includes(invariant)) throw new Error(`ChatGPT workflow policy is missing recovery invariant '${invariant}'`);
   }
 

@@ -46,16 +46,42 @@ describe('BOSS greeting MCP loopback bridge', () => {
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:18788/api/greetings/pending', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
-  it('resolves send with a fixed ChatGPT MCP provenance marker', async () => {
+  it('claims one greeting under a bounded single-writer lease', async () => {
+    const fetch = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      expect(headers.get('authorization')).toBe('Bearer resolver-secret');
+      expect(JSON.parse(String(init?.body ?? '{}'))).toEqual({ owner: 'chatgpt-worker-1', leaseMs: 20_000 });
+      return new Response(JSON.stringify({
+        ok: true,
+        mode: 'leased-chatgpt-assisted',
+        claim: {
+          request,
+          leaseToken: '123e4567-e89b-42d3-a456-426614174099',
+          owner: 'chatgpt-worker-1',
+          claimedAt: '2026-09-19T13:00:01.000Z',
+          leaseExpiresAt: '2026-09-19T13:00:21.000Z',
+        },
+      }), { status: 200 });
+    });
+    const bridge = createBossGreetingMcpBridge({ baseUrl: 'http://localhost:18788', controlToken: 'resolver-secret', fetch: fetch as typeof globalThis.fetch });
+    await expect(bridge.claim({ owner: 'chatgpt-worker-1', leaseSeconds: 20 })).resolves.toMatchObject({
+      mode: 'leased-chatgpt-assisted',
+      claim: { request: { id: request.id }, owner: 'chatgpt-worker-1' },
+    });
+  });
+
+  it('resolves send with the lease and a fixed ChatGPT MCP provenance marker', async () => {
+    const leaseToken = '123e4567-e89b-42d3-a456-426614174099';
     const fetch = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body ?? '{}'));
-      expect(body).toEqual({ action: 'send', message: '您好，我有 React 与 TypeScript 项目经验，希望进一步沟通。', source: 'chatgpt-web-mcp' });
+      expect(body).toEqual({ action: 'send', message: '您好，我有 React 与 TypeScript 项目经验，希望进一步沟通。', leaseToken, source: 'chatgpt-web-mcp' });
       return new Response(JSON.stringify({ ok: true, id: request.id, action: 'send', source: 'chatgpt-web-mcp' }), { status: 200 });
     });
     const bridge = createBossGreetingMcpBridge({ baseUrl: 'http://localhost:18788', fetch: fetch as typeof globalThis.fetch });
 
     await expect(bridge.resolve({
       id: request.id,
+      leaseToken,
       action: 'send',
       message: '您好，我有 React 与 TypeScript 项目经验，希望进一步沟通。',
     })).resolves.toEqual({ ok: true, id: request.id, action: 'send', source: 'chatgpt-web-mcp' });

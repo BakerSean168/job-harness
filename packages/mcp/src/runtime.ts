@@ -91,6 +91,8 @@ import {
   EmailApplicationAuthorizeSendToolInputSchema,
   BossGreetingsPendingToolInputSchema,
   BossGreetingsPendingToolOutputSchema,
+  BossGreetingClaimToolInputSchema,
+  BossGreetingClaimToolOutputSchema,
   BossGreetingResolveToolInputSchema,
   BossGreetingResolveToolOutputSchema,
   BossRuntimeStatusToolInputSchema,
@@ -133,6 +135,7 @@ export interface EmailApplicationMcpPort {
 
 export interface BossGreetingMcpPort {
   listPending(input: z.input<typeof BossGreetingsPendingToolInputSchema>): Promise<z.output<typeof BossGreetingsPendingToolOutputSchema>>;
+  claim(input: z.input<typeof BossGreetingClaimToolInputSchema>): Promise<z.output<typeof BossGreetingClaimToolOutputSchema>>;
   resolve(input: z.input<typeof BossGreetingResolveToolInputSchema>): Promise<z.output<typeof BossGreetingResolveToolOutputSchema>>;
 }
 
@@ -356,6 +359,11 @@ export class CareerMcpRuntime {
         if (!this.bossGreeting) throw new Error('BOSS greeting capability is not configured');
         const input = BossGreetingsPendingToolInputSchema.parse(rawInput);
         return BossGreetingsPendingToolOutputSchema.parse(await this.bossGreeting.listPending(input));
+      }
+      case 'boss_greeting_claim': {
+        if (!this.bossGreeting) throw new Error('BOSS greeting capability is not configured');
+        const input = BossGreetingClaimToolInputSchema.parse(rawInput);
+        return BossGreetingClaimToolOutputSchema.parse(await this.bossGreeting.claim(input));
       }
       case 'boss_greeting_resolve': {
         if (!this.bossGreeting) throw new Error('BOSS greeting capability is not configured');

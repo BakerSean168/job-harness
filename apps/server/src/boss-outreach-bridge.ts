@@ -77,6 +77,8 @@ export interface BossJobDecision {
   readonly decision: ResumeJobMatch['decision'];
   readonly signals: readonly string[];
   readonly greetingRequestId?: string | null;
+  readonly greetingGenerationSource?: string | null;
+  readonly greetingResolutionReason?: string | null;
   readonly policyBlocked?: boolean;
   readonly policyReason?: string | null;
   readonly jobId?: string | null;
@@ -327,11 +329,19 @@ type BossGreetingResolution =
   | { readonly action: 'send'; readonly message: string; readonly source: string }
   | { readonly action: 'skip'; readonly reason: string; readonly source: string };
 
+interface BossGreetingLease {
+  readonly token: string;
+  readonly owner: string;
+  readonly claimedAt: string;
+  readonly expiresAt: string;
+}
+
 interface PendingBossGreeting {
   readonly request: BossGreetingRequest;
   readonly wait: Promise<BossGreetingResolution | null>;
   readonly resolve: (resolution: BossGreetingResolution) => void;
   readonly timer: ReturnType<typeof setTimeout>;
+  lease: BossGreetingLease | null;
 }
 
 function screeningSummary(rows: readonly Record<string, unknown>[]) {
@@ -564,6 +574,10 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         intent: typeof body.intent === 'string' ? body.intent : null,
         reason: typeof body.reason === 'string' ? body.reason : null,
         resumeBindingSource: typeof body.resumeBindingSource === 'string' ? body.resumeBindingSource : null,
+        runtimeTaskId: typeof body.runtimeTaskId === 'string' ? body.runtimeTaskId : null,
+        greetingRequestId: decision?.greetingRequestId ?? null,
+        greetingGenerationSource: decision?.greetingGenerationSource ?? null,
+        greetingResolutionReason: decision?.greetingResolutionReason ?? null,
       },
       idempotencyKey: type === 'recruiter_replied'
         ? `boss-outreach:${jobId}:${type}:${createHash('sha256').update(String(body.message ?? '')).digest('hex').slice(0, 20)}`
@@ -605,6 +619,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
     const wait = new Promise<BossGreetingResolution | null>((resolve) => { resolveWait = resolve; });
     const timer = setTimeout(() => {
       void (async () => {
+        const expiredLease = pendingGreetings.get(id)?.lease ?? null;
         pendingGreetings.delete(id);
         const runtimeState = await getRuntimeExecutionState();
         const policyReason = runtimeExternalEffectBlockReason(runtimeState, 'greeting');
@@ -643,11 +658,12 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           recommendedProfileId: decision.profileId,
           recommendedProfileLabel: decision.profileLabel,
           fallbackMessage: message,
+          claimedBy: expiredLease?.owner ?? null,
         }).catch(() => undefined);
         resolveWait({ action: 'send', message, source: 'job-harness-fallback' });
       })();
     }, greetingWaitMs);
-    const pending: PendingBossGreeting = { request, wait, resolve: resolveWait, timer };
+    const pending: PendingBossGreeting = { request, wait, resolve: resolveWait, timer, lease: null };
     pendingGreetings.set(id, pending);
     await appendEvent(options.logPath, {
       loggedAt: createdAt.toISOString(),
@@ -790,12 +806,86 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
         return sendJson(res, 200, { ok: true, mode: 'chatgpt-assisted', total: items.length, items });
       }
+      if (req.method === 'POST' && url.pathname === '/api/greetings/claim') {
+        if (controlToken && !isRuntimeControlAuthorized(req)) return sendJson(res, 401, { error: 'greeting_claim_unauthorized' });
+        const body = await readJsonBody(req);
+        const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+        const owner = typeof record.owner === 'string' ? record.owner.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
+        if (owner.length < 3) return sendJson(res, 400, { error: 'invalid_greeting_claim_owner' });
+        const leaseMsRaw = Number(record.leaseMs ?? 20_000);
+        const leaseMs = Number.isFinite(leaseMsRaw) ? Math.max(5_000, Math.min(30_000, Math.trunc(leaseMsRaw))) : 20_000;
+        const nowMs = Date.now();
+        const now = new Date(nowMs).toISOString();
+        const candidates = [...pendingGreetings.values()].sort((left, right) => left.request.createdAt.localeCompare(right.request.createdAt));
+        let claimed: PendingBossGreeting | null = null;
+        for (const pending of candidates) {
+          if (pending.lease && new Date(pending.lease.expiresAt).getTime() <= nowMs) pending.lease = null;
+          const requestExpiresAtMs = new Date(pending.request.expiresAt).getTime();
+          if (pending.lease || requestExpiresAtMs - nowMs < 1_000) continue;
+          const leaseExpiresAt = new Date(Math.min(requestExpiresAtMs, nowMs + leaseMs)).toISOString();
+          pending.lease = { token: randomUUID(), owner, claimedAt: now, expiresAt: leaseExpiresAt };
+          claimed = pending;
+          break;
+        }
+        if (!claimed || !claimed.lease) return sendJson(res, 200, { ok: true, mode: 'leased-chatgpt-assisted', claim: null });
+        await appendEvent(options.logPath, {
+          loggedAt: now,
+          action: 'greeting_claimed',
+          runtimeTaskId: runtimeControl.current().task?.id ?? null,
+          greetingRequestId: claimed.request.id,
+          requestedProfileId: claimed.request.requestedProfileId,
+          title: claimed.request.job.title,
+          salary: claimed.request.job.salary,
+          owner: claimed.lease.owner,
+          leaseExpiresAt: claimed.lease.expiresAt,
+        });
+        return sendJson(res, 200, {
+          ok: true,
+          mode: 'leased-chatgpt-assisted',
+          claim: {
+            request: claimed.request,
+            leaseToken: claimed.lease.token,
+            owner: claimed.lease.owner,
+            claimedAt: claimed.lease.claimedAt,
+            leaseExpiresAt: claimed.lease.expiresAt,
+          },
+        });
+      }
+      const greetingReleaseMatch = /^\/api\/greetings\/([A-Za-z0-9-]+)\/release$/.exec(url.pathname);
+      if (req.method === 'POST' && greetingReleaseMatch) {
+        const id = greetingReleaseMatch[1]!;
+        const pending = pendingGreetings.get(id);
+        if (!pending) return sendJson(res, 404, { error: 'greeting_request_not_found', id });
+        const body = await readJsonBody(req);
+        const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+        const leaseToken = typeof record.leaseToken === 'string' ? record.leaseToken.trim() : '';
+        const lease = pending.lease;
+        if (!lease || !leaseToken || leaseToken !== lease.token) return sendJson(res, 409, { error: 'greeting_lease_mismatch', id });
+        const reason = typeof record.reason === 'string' ? record.reason.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240) : 'resolver-release';
+        pending.lease = null;
+        await appendEvent(options.logPath, {
+          loggedAt: new Date().toISOString(),
+          action: 'greeting_lease_released',
+          runtimeTaskId: runtimeControl.current().task?.id ?? null,
+          greetingRequestId: id,
+          requestedProfileId: pending.request.requestedProfileId,
+          title: pending.request.job.title,
+          owner: lease.owner,
+          reason,
+        });
+        return sendJson(res, 200, { ok: true, id, released: true });
+      }
       const greetingResolveMatch = /^\/api\/greetings\/([A-Za-z0-9-]+)\/resolve$/.exec(url.pathname);
       if (req.method === 'POST' && greetingResolveMatch) {
         const id = greetingResolveMatch[1]!;
         const pending = pendingGreetings.get(id);
         if (!pending) return sendJson(res, 404, { error: 'greeting_request_not_found', id });
         const body = await readJsonBody(req);
+        const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+        const leaseToken = typeof record.leaseToken === 'string' ? record.leaseToken.trim() : '';
+        const lease = pending.lease;
+        if (!lease || new Date(lease.expiresAt).getTime() <= Date.now()) return sendJson(res, 409, { error: 'greeting_lease_required_or_expired', id });
+        if (!leaseToken || leaseToken !== lease.token) return sendJson(res, 409, { error: 'greeting_lease_mismatch', id });
         const source = body && typeof body === 'object' && !Array.isArray(body) && typeof (body as { source?: unknown }).source === 'string'
           ? String((body as { source: string }).source).trim().slice(0, 80)
           : 'chatgpt-web';
@@ -820,6 +910,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
               score: pending.request.match.score,
               resumeIndex: pending.request.match.resumeIndex,
               source: resolution.source,
+              claimedBy: lease.owner,
               reason: policyReason,
             });
             pending.resolve(resolution);
@@ -852,6 +943,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           score: pending.request.match.score,
           resumeIndex: pending.request.match.resumeIndex,
           source,
+          claimedBy: lease.owner,
           ...(resolution.action === 'skip' ? { reason: resolution.reason } : {}),
         });
         pending.resolve(resolution);
@@ -1096,10 +1188,18 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
               decision: 'low-match',
               greetingRequestId: pending.request.id,
               policyBlocked: true,
+              greetingGenerationSource: resolution.source,
+              greetingResolutionReason: resolution.reason,
               policyReason: `${resolution.source === 'job-harness-policy' ? 'runtime-skip' : 'chatgpt-skip'}:${resolution.reason}`,
             };
           } else {
-            decision = { ...scored, introduce: resolution.message, greetingRequestId: pending.request.id };
+            decision = {
+              ...scored,
+              introduce: resolution.message,
+              greetingRequestId: pending.request.id,
+              greetingGenerationSource: resolution.source,
+              greetingResolutionReason: null,
+            };
           }
         }
         rememberDecision(job, decision);

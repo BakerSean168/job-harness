@@ -145,18 +145,21 @@ When a BOSS Site Runtime task is running and a greeting request is waiting:
 
 ```text
 boss_greetings_pending(limit <= 10)
-  -> inspect each request's JD, match data and true candidate context
-  -> boss_greeting_resolve(action=send, message=...) OR boss_greeting_resolve(action=skip, reason=...)
-  -> re-read boss_greetings_pending while the active run still has work
+  -> boss_greeting_claim(owner, leaseSeconds <= 30)
+  -> inspect the claimed request's JD, match data and true candidate context
+  -> boss_greeting_resolve(leaseToken, action=send, message=...) OR boss_greeting_resolve(leaseToken, action=skip, reason=...)
+  -> claim the next request while the active run still has work
 ```
 
 Rules:
 
 - `boss_greetings_pending` is read-only and sends nothing.
+- `boss_greeting_claim` only acquires a short single-writer lease; it sends nothing. Resolve only the request returned by your lease and never reuse a lease token for another request.
 - For `send`, write only a natural 1-3 sentence greeting grounded in the provided Resume facts and current JD. Do not invent experience, years, employers, awards or proficiency.
 - Use `skip` when the JD has an explicit hard requirement the candidate does not meet, or when the core role does not match the supplied evidence.
-- `boss_greeting_resolve(action=send)` is a bounded external side effect: it releases the already-waiting Compatibility Runtime, which sends exactly that greeting to the current BOSS recruiter. Do not call it outside an explicit BOSS-outreach task.
-- Do not spin indefinitely. Process a bounded batch during the active ChatGPT run; if there are no pending requests, stop cleanly.
+- `boss_greeting_resolve(action=send)` is a bounded external side effect: it requires the active lease token and releases the already-waiting Compatibility Runtime, which sends exactly that greeting to the current BOSS recruiter. Do not call it outside an explicit BOSS-outreach task.
+- A lease never extends the overall greeting deadline. If the resolver stalls or fails, Job Harness still falls back or skips at the original bounded deadline.
+- Do not spin indefinitely. Process a bounded batch during the active ChatGPT run; if no claim is available, stop cleanly.
 - A BOSS greeting is recruiter contact, not a completed job application. Durable outreach evidence and Application/Submission state remain separate.
 
 ## Recruiting-email workflow
