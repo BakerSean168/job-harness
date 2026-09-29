@@ -1,6 +1,8 @@
 import {
   BossGreetingResolveToolInputSchema,
   BossGreetingResolveToolOutputSchema,
+  BossGreetingResolverReadyToolInputSchema,
+  BossGreetingResolverReadyToolOutputSchema,
   BossGreetingClaimToolInputSchema,
   BossGreetingClaimToolOutputSchema,
   BossGreetingsPendingToolInputSchema,
@@ -30,6 +32,17 @@ const BridgePendingResponseSchema = z.object({
   items: z.array(BossGreetingRequestSchema),
 }).strict();
 
+const BridgeResolverReadyResponseSchema = z.object({
+  ok: z.literal(true),
+  mode: z.literal('interactive-priority'),
+  resolver: z.object({
+    owner: z.string().trim().min(3).max(120),
+    readyAt: z.iso.datetime({ offset: true }),
+    readyUntil: z.iso.datetime({ offset: true }),
+  }).strict(),
+  interactivePriorityMs: z.number().int().min(1_000).max(30_000),
+}).strict();
+
 const BridgeClaimResponseSchema = z.object({
   ok: z.literal(true),
   mode: z.literal('leased-chatgpt-assisted'),
@@ -37,6 +50,7 @@ const BridgeClaimResponseSchema = z.object({
     request: BossGreetingRequestSchema,
     leaseToken: z.string().uuid(),
     owner: z.string().trim().min(3).max(120),
+    resolverClass: z.enum(['interactive', 'background']),
     claimedAt: z.iso.datetime({ offset: true }),
     leaseExpiresAt: z.iso.datetime({ offset: true }),
   }).strict().nullable(),
@@ -114,12 +128,25 @@ export function createBossGreetingMcpBridge(options: BossGreetingMcpBridgeOption
         items: response.items.slice(0, parsed.limit),
       });
     },
+    async ready(input) {
+      if (!controlToken) throw new Error('BOSS greeting resolver-ready token is not configured');
+      const parsed = BossGreetingResolverReadyToolInputSchema.parse(input);
+      const response = BridgeResolverReadyResponseSchema.parse(await request('/api/greetings/resolver-ready', {
+        method: 'POST',
+        body: JSON.stringify({ owner: parsed.owner, readyMs: parsed.readySeconds * 1_000 }),
+      }, true));
+      return BossGreetingResolverReadyToolOutputSchema.parse({
+        mode: response.mode,
+        resolver: response.resolver,
+        interactivePriorityMs: response.interactivePriorityMs,
+      });
+    },
     async claim(input) {
       if (!controlToken) throw new Error('BOSS greeting claim token is not configured');
       const parsed = BossGreetingClaimToolInputSchema.parse(input);
       const response = BridgeClaimResponseSchema.parse(await request('/api/greetings/claim', {
         method: 'POST',
-        body: JSON.stringify({ owner: parsed.owner, leaseMs: parsed.leaseSeconds * 1_000 }),
+        body: JSON.stringify({ owner: parsed.owner, resolverClass: 'interactive', leaseMs: parsed.leaseSeconds * 1_000 }),
       }, true));
       return BossGreetingClaimToolOutputSchema.parse({ mode: response.mode, claim: response.claim });
     },

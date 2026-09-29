@@ -50,6 +50,7 @@ export interface BossOutreachBridgeOptions {
   readonly discovery?: BossDiscoveryCoordinator | null;
   readonly resumeFollowupUserscript?: string | null;
   readonly greetingWaitMs?: number;
+  readonly interactiveResolverPriorityMs?: number;
   readonly greetingThreshold?: number;
   readonly campaignId?: string | null;
   readonly runtimeControl?: BossRuntimeControlStore | null;
@@ -329,11 +330,20 @@ type BossGreetingResolution =
   | { readonly action: 'send'; readonly message: string; readonly source: string }
   | { readonly action: 'skip'; readonly reason: string; readonly source: string };
 
+type BossGreetingResolverClass = 'interactive' | 'background';
+
 interface BossGreetingLease {
   readonly token: string;
   readonly owner: string;
+  readonly resolverClass: BossGreetingResolverClass;
   readonly claimedAt: string;
   readonly expiresAt: string;
+}
+
+interface BossInteractiveResolverReadiness {
+  readonly owner: string;
+  readonly readyAt: string;
+  readonly readyUntil: string;
 }
 
 interface PendingBossGreeting {
@@ -341,6 +351,7 @@ interface PendingBossGreeting {
   readonly wait: Promise<BossGreetingResolution | null>;
   readonly resolve: (resolution: BossGreetingResolution) => void;
   readonly timer: ReturnType<typeof setTimeout>;
+  readonly interactivePriorityUntil: string | null;
   lease: BossGreetingLease | null;
 }
 
@@ -377,12 +388,14 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
   const random = options.random ?? Math.random;
   const greetingThreshold = Math.max(0, Math.min(100, options.greetingThreshold ?? 58));
   const greetingWaitMs = Math.max(1_000, Math.min(9 * 60_000, options.greetingWaitMs ?? 35_000));
+  const interactiveResolverPriorityMs = Math.max(1_000, Math.min(30_000, options.interactiveResolverPriorityMs ?? 10_000));
   const recentDecisions = new Map<string, BossJobDecision>();
   const recentDecisionsByJobId = new Map<string, BossJobDecision>();
   const pendingGreetings = new Map<string, PendingBossGreeting>();
   const runtimeControl = options.runtimeControl ?? new BossRuntimeControlStore();
   const runtimeTaskTtlMs = Math.max(5 * 60_000, Math.min(4 * 60 * 60_000, options.runtimeTaskTtlMs ?? 60 * 60_000));
   const controlToken = options.controlToken?.trim() || null;
+  let interactiveResolverReadiness: BossInteractiveResolverReadiness | null = null;
   let lastRuntimePollAt: string | null = null;
   let lastRuntimePageUrl: string | null = null;
   let lastRuntimePageTitle: string | null = null;
@@ -394,6 +407,14 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
   const getCampaign = (): Promise<JobSearchCampaign | null> => {
     if (!options.campaignId || !options.client.campaigns) return Promise.resolve(null);
     return options.client.campaigns.get(options.campaignId).catch(() => null);
+  };
+  const currentInteractiveResolverReadiness = (nowMs = Date.now()): BossInteractiveResolverReadiness | null => {
+    if (!interactiveResolverReadiness) return null;
+    if (Date.parse(interactiveResolverReadiness.readyUntil) <= nowMs) {
+      interactiveResolverReadiness = null;
+      return null;
+    }
+    return interactiveResolverReadiness;
   };
   const ensureRuntimeTaskNotExpired = async () => {
     const snapshot = runtimeControl.current();
@@ -594,6 +615,10 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
     const id = randomUUID();
     const createdAt = new Date();
     const expiresAt = new Date(createdAt.getTime() + greetingWaitMs);
+    const interactiveResolver = currentInteractiveResolverReadiness(createdAt.getTime());
+    const interactivePriorityUntil = interactiveResolver
+      ? new Date(Math.min(expiresAt.getTime(), createdAt.getTime() + interactiveResolverPriorityMs)).toISOString()
+      : null;
     const resume = options.client.resume.getProfileContext
       ? await options.client.resume.getProfileContext(decision.profileId)
       : null;
@@ -663,7 +688,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         resolveWait({ action: 'send', message, source: 'job-harness-fallback' });
       })();
     }, greetingWaitMs);
-    const pending: PendingBossGreeting = { request, wait, resolve: resolveWait, timer, lease: null };
+    const pending: PendingBossGreeting = { request, wait, resolve: resolveWait, timer, interactivePriorityUntil, lease: null };
     pendingGreetings.set(id, pending);
     await appendEvent(options.logPath, {
       loggedAt: createdAt.toISOString(),
@@ -677,6 +702,9 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
       resumeIndex: decision.resumeIndex,
       recommendedProfileId: decision.profileId,
       recommendedProfileLabel: decision.profileLabel,
+      preferredResolver: interactiveResolver ? 'chatgpt-web' : 'background',
+      interactiveResolverOwner: interactiveResolver?.owner ?? null,
+      interactivePriorityUntil,
     });
     return pending;
   };
@@ -699,6 +727,8 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           greetingMode: 'chatgpt-assisted-with-safe-fallback',
           greetingWaitMs,
           greetingFallback: 'job-harness-deterministic',
+          interactiveResolverPriorityMs,
+          interactiveResolver: currentInteractiveResolverReadiness(),
           pendingGreetings: pendingGreetings.size,
           profiles: profiles.items.map((p) => ({ id: p.id, name: p.name })),
           applicantProfileVersion: applicant.profile.version,
@@ -800,6 +830,35 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           return sendJson(res, 404, { error: 'runtime_task_not_active', message: error instanceof Error ? error.message : String(error) });
         }
       }
+      if (req.method === 'POST' && url.pathname === '/api/greetings/resolver-ready') {
+        if (controlToken && !isRuntimeControlAuthorized(req)) return sendJson(res, 401, { error: 'greeting_resolver_ready_unauthorized' });
+        const body = await readJsonBody(req);
+        const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+        const owner = typeof record.owner === 'string' ? record.owner.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
+        if (owner.length < 3) return sendJson(res, 400, { error: 'invalid_greeting_resolver_owner' });
+        const readyMsRaw = Number(record.readyMs ?? 180_000);
+        const readyMs = Number.isFinite(readyMsRaw) ? Math.max(15_000, Math.min(10 * 60_000, Math.trunc(readyMsRaw))) : 180_000;
+        const readyAtDate = new Date();
+        interactiveResolverReadiness = {
+          owner,
+          readyAt: readyAtDate.toISOString(),
+          readyUntil: new Date(readyAtDate.getTime() + readyMs).toISOString(),
+        };
+        await appendEvent(options.logPath, {
+          loggedAt: interactiveResolverReadiness.readyAt,
+          action: 'greeting_interactive_resolver_ready',
+          runtimeTaskId: runtimeControl.current().task?.id ?? null,
+          owner,
+          readyUntil: interactiveResolverReadiness.readyUntil,
+          interactivePriorityMs: interactiveResolverPriorityMs,
+        });
+        return sendJson(res, 200, {
+          ok: true,
+          mode: 'interactive-priority',
+          resolver: interactiveResolverReadiness,
+          interactivePriorityMs: interactiveResolverPriorityMs,
+        });
+      }
       if (req.method === 'GET' && url.pathname === '/api/greetings/pending') {
         const items = [...pendingGreetings.values()]
           .map((item) => item.request)
@@ -812,6 +871,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
         const owner = typeof record.owner === 'string' ? record.owner.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
         if (owner.length < 3) return sendJson(res, 400, { error: 'invalid_greeting_claim_owner' });
+        const resolverClass: BossGreetingResolverClass = record.resolverClass === 'background' ? 'background' : 'interactive';
         const leaseMsRaw = Number(record.leaseMs ?? 20_000);
         const leaseMs = Number.isFinite(leaseMsRaw) ? Math.max(5_000, Math.min(30_000, Math.trunc(leaseMsRaw))) : 20_000;
         const nowMs = Date.now();
@@ -821,9 +881,11 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         for (const pending of candidates) {
           if (pending.lease && new Date(pending.lease.expiresAt).getTime() <= nowMs) pending.lease = null;
           const requestExpiresAtMs = new Date(pending.request.expiresAt).getTime();
+          const interactivePriorityUntilMs = pending.interactivePriorityUntil ? Date.parse(pending.interactivePriorityUntil) : Number.NaN;
           if (pending.lease || requestExpiresAtMs - nowMs < 1_000) continue;
+          if (resolverClass === 'background' && Number.isFinite(interactivePriorityUntilMs) && nowMs < interactivePriorityUntilMs) continue;
           const leaseExpiresAt = new Date(Math.min(requestExpiresAtMs, nowMs + leaseMs)).toISOString();
-          pending.lease = { token: randomUUID(), owner, claimedAt: now, expiresAt: leaseExpiresAt };
+          pending.lease = { token: randomUUID(), owner, resolverClass, claimedAt: now, expiresAt: leaseExpiresAt };
           claimed = pending;
           break;
         }
@@ -837,6 +899,8 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           title: claimed.request.job.title,
           salary: claimed.request.job.salary,
           owner: claimed.lease.owner,
+          resolverClass: claimed.lease.resolverClass,
+          interactivePriorityUntil: claimed.interactivePriorityUntil,
           leaseExpiresAt: claimed.lease.expiresAt,
         });
         return sendJson(res, 200, {
@@ -846,6 +910,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
             request: claimed.request,
             leaseToken: claimed.lease.token,
             owner: claimed.lease.owner,
+            resolverClass: claimed.lease.resolverClass,
             claimedAt: claimed.lease.claimedAt,
             leaseExpiresAt: claimed.lease.expiresAt,
           },

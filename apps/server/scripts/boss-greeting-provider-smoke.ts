@@ -1,9 +1,9 @@
 import { BossGreetingRequestSchema } from '@job-harness/mcp';
 import { createOpenAICompatibleBossGreetingProvider } from '../src/boss-greeting-provider';
 
-const baseUrl = process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_BASE_URL?.trim() || 'https://api.deepseek.com/v1';
+const baseUrl = process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_BASE_URL?.trim() || 'https://api.groq.com/openai/v1';
 const apiKey = process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_API_KEY?.trim() || '';
-const model = process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_MODEL?.trim() || 'deepseek-v4-flash';
+const model = process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_MODEL?.trim() || 'qwen/qwen3.8-27b';
 const source = process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_SOURCE?.trim() || undefined;
 const timeoutMs = Math.max(1_000, Math.min(28_000, Number(process.env.JOB_HARNESS_BOSS_GREETING_RESOLVER_PROVIDER_TIMEOUT_MS ?? 18_000)));
 

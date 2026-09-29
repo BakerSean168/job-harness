@@ -123,6 +123,7 @@ BOSS browser automation is a coarse upstream-backed Site Runtime, not a sequence
 ```text
 boss_runtime_status
   -> inspect browser/runtime health, active task and recent normalized events
+  -> when the current ChatGPT session will generate greetings, boss_greeting_resolver_ready(owner, readySeconds)
   -> if an active task is already running, reuse it
   -> otherwise boss_runtime_start(mode=automatic|manual, stable idempotencyKey)
   -> runtime executes the mature upstream-derived search/detail/chat/resume state machine
@@ -141,10 +142,12 @@ Rules:
 
 ## BOSS greeting workflow
 
-When a BOSS Site Runtime task is running and a greeting request is waiting:
+When a BOSS Site Runtime task is running and the current ChatGPT session is expected to generate greetings, announce readiness before or immediately after starting the bounded runtime:
 
 ```text
-boss_greetings_pending(limit <= 10)
+boss_greeting_resolver_ready(owner=chatgpt-web-mcp, readySeconds ~= 180)
+  -> new greeting requests briefly prefer ChatGPT Web
+  -> boss_greetings_pending(limit <= 10)
   -> boss_greeting_claim(owner, leaseSeconds <= 30)
   -> inspect the claimed request's JD, match data and true candidate context
   -> boss_greeting_resolve(leaseToken, action=send, message=...) OR boss_greeting_resolve(leaseToken, action=skip, reason=...)
@@ -154,12 +157,14 @@ boss_greetings_pending(limit <= 10)
 Rules:
 
 - `boss_greetings_pending` is read-only and sends nothing.
+- `boss_greeting_resolver_ready` is a bounded presence/priority handshake and sends nothing. Renew it during a long interactive batch rather than assuming the browser conversation is permanently online.
+- A request created while ChatGPT readiness is active reserves only a short interactive-priority interval (10 seconds in the Oracle2 deployment). During that interval the background model worker cannot claim the request. Afterward the background Groq resolver may claim it automatically.
 - `boss_greeting_claim` only acquires a short single-writer lease; it sends nothing. Resolve only the request returned by your lease and never reuse a lease token for another request.
 - For `send`, write only a natural 1-3 sentence greeting grounded in the provided Resume facts and current JD. Do not invent experience, years, employers, awards or proficiency.
 - Use `skip` when the JD has an explicit hard requirement the candidate does not meet, or when the core role does not match the supplied evidence.
 - `boss_greeting_resolve(action=send)` is a bounded external side effect: it requires the active lease token and releases the already-waiting Compatibility Runtime, which sends exactly that greeting to the current BOSS recruiter. Do not call it outside an explicit BOSS-outreach task.
-- A lease never extends the overall greeting deadline. If the resolver stalls or fails, Job Harness still falls back or skips at the original bounded deadline.
-- Do not spin indefinitely. Process a bounded batch during the active ChatGPT run; if no claim is available, stop cleanly.
+- A lease never extends the overall greeting deadline. The resolver order is: ready ChatGPT Web first, configured background provider (Groq/Qwen on Oracle2) after the interactive priority interval, then deterministic Job Harness fallback at the original 35-second deadline.
+- Do not spin indefinitely. Process a bounded batch during the active ChatGPT run; if no claim is available, the background resolver may be handling it, so continue only within the active bounded run.
 - A BOSS greeting is recruiter contact, not a completed job application. Durable outreach evidence and Application/Submission state remain separate.
 
 ## Recruiting-email workflow

@@ -14,6 +14,7 @@ async function main(): Promise<void> {
     'career_email_application_authorize_send',
     'career_submission_intents_reconcile_pending',
     'boss_greetings_pending',
+    'boss_greeting_resolver_ready',
     'boss_greeting_claim',
     'boss_greeting_resolve',
     'boss_runtime_status',

@@ -46,11 +46,39 @@ describe('BOSS greeting MCP loopback bridge', () => {
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:18788/api/greetings/pending', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
+  it('announces an interactive ChatGPT resolver-ready window without sending anything', async () => {
+    const fetch = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      expect(headers.get('authorization')).toBe('Bearer resolver-secret');
+      expect(JSON.parse(String(init?.body ?? '{}'))).toEqual({ owner: 'chatgpt-worker-1', readyMs: 180_000 });
+      return new Response(JSON.stringify({
+        ok: true,
+        mode: 'interactive-priority',
+        resolver: {
+          owner: 'chatgpt-worker-1',
+          readyAt: '2026-09-19T13:00:00.000Z',
+          readyUntil: '2026-09-19T13:03:00.000Z',
+        },
+        interactivePriorityMs: 10_000,
+      }), { status: 200 });
+    });
+    const bridge = createBossGreetingMcpBridge({ baseUrl: 'http://localhost:18788', controlToken: 'resolver-secret', fetch: fetch as typeof globalThis.fetch });
+    await expect(bridge.ready({ owner: 'chatgpt-worker-1', readySeconds: 180 })).resolves.toEqual({
+      mode: 'interactive-priority',
+      resolver: {
+        owner: 'chatgpt-worker-1',
+        readyAt: '2026-09-19T13:00:00.000Z',
+        readyUntil: '2026-09-19T13:03:00.000Z',
+      },
+      interactivePriorityMs: 10_000,
+    });
+  });
+
   it('claims one greeting under a bounded single-writer lease', async () => {
     const fetch = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
       expect(headers.get('authorization')).toBe('Bearer resolver-secret');
-      expect(JSON.parse(String(init?.body ?? '{}'))).toEqual({ owner: 'chatgpt-worker-1', leaseMs: 20_000 });
+      expect(JSON.parse(String(init?.body ?? '{}'))).toEqual({ owner: 'chatgpt-worker-1', resolverClass: 'interactive', leaseMs: 20_000 });
       return new Response(JSON.stringify({
         ok: true,
         mode: 'leased-chatgpt-assisted',
@@ -58,6 +86,7 @@ describe('BOSS greeting MCP loopback bridge', () => {
           request,
           leaseToken: '123e4567-e89b-42d3-a456-426614174099',
           owner: 'chatgpt-worker-1',
+          resolverClass: 'interactive',
           claimedAt: '2026-09-19T13:00:01.000Z',
           leaseExpiresAt: '2026-09-19T13:00:21.000Z',
         },
@@ -66,7 +95,7 @@ describe('BOSS greeting MCP loopback bridge', () => {
     const bridge = createBossGreetingMcpBridge({ baseUrl: 'http://localhost:18788', controlToken: 'resolver-secret', fetch: fetch as typeof globalThis.fetch });
     await expect(bridge.claim({ owner: 'chatgpt-worker-1', leaseSeconds: 20 })).resolves.toMatchObject({
       mode: 'leased-chatgpt-assisted',
-      claim: { request: { id: request.id }, owner: 'chatgpt-worker-1' },
+      claim: { request: { id: request.id }, owner: 'chatgpt-worker-1', resolverClass: 'interactive' },
     });
   });
 

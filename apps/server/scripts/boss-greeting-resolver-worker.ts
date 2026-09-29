@@ -11,6 +11,7 @@ const ClaimResponseSchema = z.object({
     request: BossGreetingRequestSchema,
     leaseToken: z.string().uuid(),
     owner: z.string().trim().min(3).max(120),
+    resolverClass: z.enum(['interactive', 'background']),
     claimedAt: z.iso.datetime({ offset: true }),
     leaseExpiresAt: z.iso.datetime({ offset: true }),
   }).strict().nullable(),
@@ -31,9 +32,9 @@ if (!bridgeUrl.startsWith('http://')) throw new Error('BOSS greeting resolver wo
 function createProvider(): BossGreetingProvider {
   if (providerKind === 'openai-compatible') {
     return createOpenAICompatibleBossGreetingProvider({
-      baseUrl: process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_BASE_URL?.trim() || 'https://api.deepseek.com/v1',
+      baseUrl: process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_BASE_URL?.trim() || 'https://api.groq.com/openai/v1',
       apiKey: process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_API_KEY?.trim() || '',
-      model: process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_MODEL?.trim() || 'deepseek-v4-flash',
+      model: process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_MODEL?.trim() || 'qwen/qwen3.8-27b',
       source: process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_SOURCE?.trim() || undefined,
     });
   }
@@ -113,7 +114,7 @@ async function release(id: string, leaseToken: string, reason: string): Promise<
 async function iteration(): Promise<boolean> {
   const claimed = ClaimResponseSchema.parse(await jsonRequest('/api/greetings/claim', {
     method: 'POST',
-    body: JSON.stringify({ owner, leaseMs }),
+    body: JSON.stringify({ owner, resolverClass: 'background', leaseMs }),
   }, true));
   const claim = claimed.claim;
   if (!claim) return false;

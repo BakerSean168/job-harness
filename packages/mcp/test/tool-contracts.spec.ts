@@ -29,7 +29,7 @@ const expectedNames = [
   'career_campaign_upsert',
 ];
 
-const expectedBossGreetingNames = ['boss_greetings_pending', 'boss_greeting_claim', 'boss_greeting_resolve'];
+const expectedBossGreetingNames = ['boss_greetings_pending', 'boss_greeting_resolver_ready', 'boss_greeting_claim', 'boss_greeting_resolve'];
 const expectedBossRuntimeNames = ['boss_runtime_status', 'boss_runtime_start', 'boss_runtime_pause'];
 const expectedCollectionRuntimeNames = [
   'recruitment_collection_runtime_status',
@@ -82,6 +82,7 @@ describe('MCP contract surface', () => {
     expect(new Set(names).size).toBe(names.length);
     expect(JOB_HARNESS_MCP_TOOLS.filter((tool) => tool.externalSideEffect).map((tool) => tool.name)).toEqual(['career_email_application_authorize_send', 'boss_greeting_resolve', 'boss_runtime_start']);
     expect(BOSS_GREETING_MCP_TOOLS.find((tool) => tool.name === 'boss_greetings_pending')?.mutability).toBe('read');
+    expect(BOSS_GREETING_MCP_TOOLS.find((tool) => tool.name === 'boss_greeting_resolver_ready')).toMatchObject({ mutability: 'state-write', externalSideEffect: false, idempotent: true });
     expect(BOSS_GREETING_MCP_TOOLS.find((tool) => tool.name === 'boss_greeting_claim')).toMatchObject({ mutability: 'state-write', externalSideEffect: false, idempotent: false });
     expect(EMAIL_APPLICATION_MCP_TOOLS.find((tool) => tool.name === 'career_email_application_authorize_send')?.idempotent).toBe(false);
     expect(BOSS_GREETING_MCP_TOOLS.find((tool) => tool.name === 'boss_greeting_resolve')?.idempotent).toBe(false);

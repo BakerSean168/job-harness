@@ -51,6 +51,7 @@ tool_groups:
     - boss_runtime_pause
   boss_outreach:
     - boss_greetings_pending
+    - boss_greeting_resolver_ready
     - boss_greeting_claim
     - boss_greeting_resolve
   external_submission_recovery:

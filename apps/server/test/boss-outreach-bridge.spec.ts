@@ -56,7 +56,7 @@ async function claimGreeting(base: string, controlToken?: string) {
       'content-type': 'application/json',
       ...(controlToken ? { authorization: `Bearer ${controlToken}` } : {}),
     },
-    body: JSON.stringify({ owner: 'vitest-resolver', leaseMs: 5_000 }),
+    body: JSON.stringify({ owner: 'vitest-resolver', resolverClass: 'interactive', leaseMs: 5_000 }),
   });
   expect(response.status).toBe(200);
   const body = await response.json() as { claim: null | { request: { id: string }; leaseToken: string } };
@@ -181,6 +181,72 @@ describe('Job Harness BOSS outreach bridge', () => {
       const rows = (await readFile(logPath, 'utf8')).trim().split(/\n/).map((line) => JSON.parse(line));
       expect(rows.filter((row) => row.action === 'greeting_claimed')).toHaveLength(2);
       expect(rows.some((row) => row.action === 'greeting_lease_released' && row.reason === 'test-provider-failed')).toBe(true);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
+  it('gives a ready ChatGPT resolver a brief priority window before background model fallback', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
+    const logPath = join(dir, 'events.jsonl');
+    const server = createBossOutreachBridge({
+      client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath,
+      baseDelayMs: 0, delayJitterMs: 0, greetingWaitMs: 5_000, interactiveResolverPriorityMs: 1_000,
+      campaignId: 'campaign-1', controlToken: 'runtime-control-secret',
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('missing server address');
+      const base = `http://127.0.0.1:${address.port}`;
+      const ready = await fetch(`${base}/api/greetings/resolver-ready`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer runtime-control-secret' },
+        body: JSON.stringify({ owner: 'chatgpt-web-test', readyMs: 15_000 }),
+      });
+      expect(await ready.json()).toMatchObject({
+        ok: true, mode: 'interactive-priority', resolver: { owner: 'chatgpt-web-test' }, interactivePriorityMs: 1_000,
+      });
+
+      const scorePromise = fetch(`${base}/p/ai-agent-app/get-job-score`, { method: 'POST', body: JSON.stringify(payload), headers: { 'content-type': 'application/json' } });
+      let requestId = '';
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        const pending = await fetch(`${base}/api/greetings/pending`);
+        const body = await pending.json() as { items?: Array<{ id?: string }> };
+        requestId = body.items?.[0]?.id ?? '';
+        if (requestId) break;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(requestId).not.toBe('');
+
+      const earlyBackground = await fetch(`${base}/api/greetings/claim`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer runtime-control-secret' },
+        body: JSON.stringify({ owner: 'groq-background-test', resolverClass: 'background', leaseMs: 3_000 }),
+      });
+      expect(await earlyBackground.json()).toMatchObject({ mode: 'leased-chatgpt-assisted', claim: null });
+
+      await new Promise((resolve) => setTimeout(resolve, 1_050));
+      const background = await fetch(`${base}/api/greetings/claim`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer runtime-control-secret' },
+        body: JSON.stringify({ owner: 'groq-background-test', resolverClass: 'background', leaseMs: 3_000 }),
+      });
+      const claimed = await background.json() as { claim: null | { request: { id: string }; leaseToken: string; resolverClass: string } };
+      expect(claimed.claim).toMatchObject({ request: { id: requestId }, resolverClass: 'background' });
+
+      const greeting = '您好，我有 Agent Harness、多智能体编排和 MCP 相关项目实践，希望有机会进一步沟通，谢谢。';
+      const resolved = await fetch(`${base}/api/greetings/${requestId}/resolve`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'send', leaseToken: claimed.claim!.leaseToken, message: greeting, source: 'groq:qwen/qwen3.8-27b' }),
+      });
+      expect(resolved.status).toBe(200);
+      expect(await (await scorePromise).json()).toMatchObject({ introduce: greeting, greetingGenerationSource: 'groq:qwen/qwen3.8-27b' });
+      const rows = (await readFile(logPath, 'utf8')).trim().split(/\n/).map((line) => JSON.parse(line));
+      expect(rows.some((row) => row.action === 'greeting_interactive_resolver_ready' && row.owner === 'chatgpt-web-test')).toBe(true);
+      expect(rows.some((row) => row.action === 'greeting_requested' && row.greetingRequestId === requestId && row.preferredResolver === 'chatgpt-web')).toBe(true);
+      expect(rows.some((row) => row.action === 'greeting_claimed' && row.greetingRequestId === requestId && row.resolverClass === 'background')).toBe(true);
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
