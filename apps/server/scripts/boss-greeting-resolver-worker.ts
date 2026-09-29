@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { z } from 'zod';
 import { BossGreetingRequestSchema } from '@job-harness/mcp';
@@ -29,11 +30,23 @@ const providerMaxMs = boundedInt(process.env.JOB_HARNESS_BOSS_GREETING_RESOLVER_
 if (!authToken) throw new Error('JOB_HARNESS_AUTH_TOKEN is required for the BOSS greeting resolver worker');
 if (!bridgeUrl.startsWith('http://')) throw new Error('BOSS greeting resolver worker requires a private/internal HTTP bridge URL');
 
+function configuredProviderApiKey(): string {
+  const direct = process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_API_KEY?.trim() || '';
+  if (direct) return direct;
+  const file = process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_API_KEY_FILE?.trim() || '';
+  if (!file) return '';
+  try {
+    return readFileSync(file, 'utf8').trim();
+  } catch (error) {
+    throw new Error(`Unable to read BOSS greeting provider API key file: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 function createProvider(): BossGreetingProvider {
   if (providerKind === 'openai-compatible') {
     return createOpenAICompatibleBossGreetingProvider({
       baseUrl: process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_BASE_URL?.trim() || 'https://api.groq.com/openai/v1',
-      apiKey: process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_API_KEY?.trim() || '',
+      apiKey: configuredProviderApiKey(),
       model: process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_MODEL?.trim() || 'qwen/qwen3.8-27b',
       source: process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_SOURCE?.trim() || undefined,
     });
