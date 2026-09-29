@@ -68,6 +68,9 @@ function providerPrompt(request: BossGreetingProviderRequest): { system: string;
   const system = [
     '你是求职系统的首次招呼语解析器，只能根据提供的 JD、匹配结果和真实简历上下文做决定。',
     '只能输出 JSON 对象，不要 Markdown，不要解释。',
+    'match.signals 是 Job Harness 从真实 Resume 与当前 JD 中确定性提取出的已匹配证据，可以直接用于招呼语；不要因为 candidate.projects 没有展开具体项目细节就否定这些已验证信号。',
+    '当 match.decision 是 strong-match 或 match.score 已达到通过阈值，并且存在可用 matched signals 时，默认应 send；只有 JD 存在明确硬性要求且当前真实证据明显不满足，或核心角色方向不匹配时才 skip。',
+    '措辞要保守准确，优先直接使用“项目和实践中涉及 X / Y”“有相关项目实践”，不要自行加入“熟悉/熟练/精通/掌握”等能力强度判断。',
     '合适时输出 {"action":"send","message":"最终中文招呼语"}；核心要求明显不匹配时输出 {"action":"skip","reason":"简短原因"}。',
     ...request.guidance,
   ].join('\n');

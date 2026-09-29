@@ -72,7 +72,7 @@ A BOSS greeting is intentionally **Outreach truth, not formal Application truth*
 
 The greeting protocol now has explicit short-lived single-writer leases. A resolver claims the oldest available request, receives an unguessable lease token, and must present that token to resolve. Another resolver cannot claim or resolve the same request while the lease is active. Provider failure may release the lease without sending anything. The lease never extends the original 35-second deadline, so deterministic fallback and policy-based skip remain the final safety net.
 
-A provider-neutral independent worker entrypoint now exists at `apps/server/scripts/boss-greeting-resolver-worker.ts`. It deliberately refuses to start unless a trusted provider command is explicitly configured. Production currently has no LLM API credential, so ChatGPT Web MCP remains the active interactive provider rather than silently substituting a different model.
+A provider-neutral independent worker entrypoint now exists at `apps/server/scripts/boss-greeting-resolver-worker.ts`. The production follow-up now uses a three-stage resolver order: a ready ChatGPT Web session gets a short interactive-priority interval, then the background OpenAI-compatible provider may claim the request, and the deterministic Job Harness fallback remains at the original 35-second deadline. Oracle2 is configured for Groq `qwen/qwen3.8-27b`; the private API credential is deployment state and is not committed to the repository.
 
 ### P1 — durable generation provenance — implemented
 
