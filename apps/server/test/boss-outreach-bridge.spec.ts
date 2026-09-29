@@ -50,6 +50,20 @@ function client() {
 const payload = '# 职位名称\nAgent开发工程师\n\n# 薪资范围\n15-25K\n\n# 职位描述\n负责 Agent Harness、Orchestration、Tool Calling、Memory、Planning、MCP、多智能体 Supervisor 系统。';
 
 describe('Job Harness BOSS outreach bridge', () => {
+  it('defaults the ChatGPT greeting resolution window to 35 seconds', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-boss-bridge-'));
+    const server = createBossOutreachBridge({ client: client(), publicBaseUrl: 'https://boss-bridge.example.test', logPath: join(dir, 'events.jsonl'), baseDelayMs: 0, delayJitterMs: 0, campaignId: 'campaign-1' });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('missing server address');
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/health`);
+      expect(await response.json()).toMatchObject({ greetingWaitMs: 35_000 });
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
   it('keeps deterministic scoring separate from recruiter-facing copy generation', async () => {
     const decision = await decideBossJob(client(), payload);
     expect(decision).toMatchObject({ profileId: 'ai-agent-forgeflow', resumeIndex: 0, decision: 'strong-match', introduce: '' });

@@ -44,7 +44,7 @@ const server = createBossOutreachBridge({
   logPath: process.env.JOB_HARNESS_BOSS_OUTREACH_LOG?.trim() || join(homedir(), '.local', 'share', 'job-harness', 'data', 'boss-outreach-events.jsonl'),
   baseDelayMs: Number(process.env.JOB_HARNESS_BOSS_SCORE_DELAY_MS ?? 2500),
   delayJitterMs: Number(process.env.JOB_HARNESS_BOSS_SCORE_DELAY_JITTER_MS ?? 400),
-  greetingWaitMs: Number(process.env.JOB_HARNESS_BOSS_GREETING_WAIT_MS ?? 15_000),
+  greetingWaitMs: Number(process.env.JOB_HARNESS_BOSS_GREETING_WAIT_MS ?? 35_000),
   greetingThreshold: Number(process.env.JOB_HARNESS_BOSS_GREETING_THRESHOLD ?? 58),
   campaignId,
   discovery,

@@ -366,7 +366,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
   const delayJitterMs = Math.max(0, options.delayJitterMs ?? 400);
   const random = options.random ?? Math.random;
   const greetingThreshold = Math.max(0, Math.min(100, options.greetingThreshold ?? 58));
-  const greetingWaitMs = Math.max(1_000, Math.min(9 * 60_000, options.greetingWaitMs ?? 15_000));
+  const greetingWaitMs = Math.max(1_000, Math.min(9 * 60_000, options.greetingWaitMs ?? 35_000));
   const recentDecisions = new Map<string, BossJobDecision>();
   const recentDecisionsByJobId = new Map<string, BossJobDecision>();
   const pendingGreetings = new Map<string, PendingBossGreeting>();
