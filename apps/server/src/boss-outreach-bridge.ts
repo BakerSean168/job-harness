@@ -18,6 +18,7 @@ import type { ListResumeProfilesOutput, ResumeProfileContext } from '@job-harnes
 import { RecruitmentRuntimeHealthSchema } from '@job-harness/recruitment-runtime-contracts';
 import { BossDiscoveryReportSchema, parseBossDiscoveryDecision, renderBossDiscoveryReporter, type BossDiscoveryCoordinator } from './boss-discovery';
 import { BossResumeFollowupRequestSchema, decideBossResumeFollowup } from './boss-resume-followup';
+import { buildDeterministicOutreachGreeting, buildOutreachGreetingGuidance, normalizeOutreachGreetingMessage } from './outreach-message-policy';
 import { BOSS_COMPAT_RUNTIME_DESCRIPTOR, countBossRuntimeExternalEffects, projectBossRuntimeEvents } from './boss-site-runtime';
 import { BossRuntimeControlStore } from './boss-runtime-control';
 
@@ -206,35 +207,6 @@ function buildGreetingCandidateContext(
   };
 }
 
-function normalizeGreetingMessage(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const message = value.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
-  if (message.length < 12 || message.length > 320) return null;
-  return message;
-}
-
-function fallbackGreeting(
-  _applicant: ApplicantProfileContext['profile'],
-  decision: BossJobDecision,
-  job: ParsedBossJob,
-): string {
-  const genericSignal = /^(?:前端开发|全栈开发|后端开发|软件开发|开发工程师|AI Agent|Agent开发|全栈|前端|后端)$/i;
-  const signals = decision.signals
-    .map((value) => value.replace(/\s+/g, ' ').trim())
-    .filter((value) => value && !genericSignal.test(value))
-    .filter((value, index, all) => all.indexOf(value) === index)
-    .slice(0, 3);
-  const role = job.title.replace(/\s+/g, ' ').trim() || decision.profileLabel;
-  const evidence = signals.length >= 2
-    ? `项目和实践中涉及 ${signals.slice(0, 2).join('、')}`
-    : signals.length === 1
-      ? `有 ${signals[0]} 相关项目实践`
-      : `有与${decision.profileLabel}方向相关的项目实践`;
-  const message = `您好，看到贵司的${role}岗位，${evidence}，和岗位方向比较契合，希望有机会进一步沟通，谢谢。`;
-  return normalizeGreetingMessage(message)
-    ?? '您好，我关注到贵司这个岗位，我的项目经历与岗位方向有一定匹配，希望有机会进一步沟通，谢谢。';
-}
-
 function inferMinimumExperienceYears(text: string): number | null {
   const values: number[] = [];
   const patterns = [
@@ -361,16 +333,6 @@ interface PendingBossGreeting {
   readonly resolve: (resolution: BossGreetingResolution) => void;
   readonly timer: ReturnType<typeof setTimeout>;
 }
-
-const BOSS_GREETING_GUIDANCE = Object.freeze([
-  '根据岗位 JD 和候选人真实简历内容临时生成 BOSS 首次招呼语，不使用固定文案模板。',
-  '用中文，1-3 句，简洁自然，像真人求职者；通常控制在 50-120 个汉字左右。',
-  '优先挑选与当前 JD 最相关的 1-2 个真实经历、项目或技术点，不要机械堆砌匹配关键词。',
-  '不得编造候选人未提供的经历、年限、公司、奖项或技能熟练度。',
-  '如果 JD 的核心必备要求与候选人真实经历明显不符（例如岗位核心是候选人没有实践的专用技术栈），应选择 skip，而不是勉强生成招呼语。',
-  '可以自然提到学校、专业、应届身份；无需重复姓名，结尾自然表达希望进一步沟通。',
-  'send 时只提交最终要发送给招聘方的招呼语，不要解释生成过程；skip 时给出简短原因。',
-]);
 
 function screeningSummary(rows: readonly Record<string, unknown>[]) {
   const decisions = rows.filter((row) => row.action === 'job_decision_consumed' && typeof row.screeningSessionId === 'string');
@@ -636,7 +598,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
         signals: decision.signals,
       },
       candidate: buildGreetingCandidateContext(applicant, resume, decision),
-      guidance: BOSS_GREETING_GUIDANCE,
+      guidance: buildOutreachGreetingGuidance({ profileId: decision.profileId, profileLabel: decision.profileLabel, jobTitle: job.title }),
     };
 
     let resolveWait!: (resolution: BossGreetingResolution | null) => void;
@@ -662,7 +624,12 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           resolveWait({ action: 'skip', reason: policyReason, source: 'job-harness-policy' });
           return;
         }
-        const message = fallbackGreeting(applicant, decision, job);
+        const message = buildDeterministicOutreachGreeting({
+          profileId: decision.profileId,
+          profileLabel: decision.profileLabel,
+          jobTitle: job.title,
+          signals: decision.signals,
+        });
         await appendEvent(options.logPath, {
           loggedAt: new Date().toISOString(),
           action: 'greeting_assist_timeout_fallback',
@@ -866,7 +833,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           if (reason.length < 3) return sendJson(res, 400, { error: 'invalid_skip_reason', message: 'Skip reason must be at least 3 characters.' });
           resolution = { action: 'skip', reason, source };
         } else {
-          const message = normalizeGreetingMessage(
+          const message = normalizeOutreachGreetingMessage(
             body && typeof body === 'object' && !Array.isArray(body) ? (body as { message?: unknown }).message : null,
           );
           if (!message) return sendJson(res, 400, { error: 'invalid_greeting', message: 'Greeting must be a single 12-320 character message.' });
