@@ -85,6 +85,18 @@ New BOSS `greeting_sent` outreach events now carry these fields in durable metad
 
 The runtime JSONL remains the fine-grained event log, while `job_outreach_events` now preserves the generation provenance needed for canonical Job-level audit.
 
+## Production follow-up validation
+
+The production follow-up was completed later on 2026-09-29:
+
+- ChatGPT Web MCP now exposes `boss_greeting_resolver_ready`; production MCP catalog count is 51 tools.
+- The interactive priority window is 10 seconds and the total greeting deadline remains 35 seconds.
+- Groq `qwen/qwen3.8-27b` is the background provider through the OpenAI-compatible adapter.
+- A container-local provider smoke completed in about 360 ms and produced a truthful `send` greeting from matched Vue3/TypeScript evidence.
+- The Groq key is mounted from `/home/ubuntu/.config/job-harness/groq-api-key` as a read-only secret file rather than committed or passed in the service command line.
+- `job-harness-boss-greeting-resolver-1` started successfully with zero restarts and reports provider `groq:qwen/qwen3.8-27b`.
+- The BOSS Runtime remained paused/expired during validation, so these checks created no recruiter-facing external effects.
+
 ## Assessment
 
 The safety and evidence path worked correctly. The incident exposed an orchestration/observability gap rather than a recruiter-facing correctness failure.
