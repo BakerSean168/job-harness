@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { hostname } from 'node:os';
 import { z } from 'zod';
 import { BossGreetingRequestSchema } from '@job-harness/mcp';
+import { BossGreetingProviderResolutionSchema, createOpenAICompatibleBossGreetingProvider, type BossGreetingProvider } from '../src/boss-greeting-provider';
 
 const ClaimResponseSchema = z.object({
   ok: z.literal(true),
@@ -15,30 +16,36 @@ const ClaimResponseSchema = z.object({
   }).strict().nullable(),
 }).strict();
 
-const ProviderResolutionSchema = z.discriminatedUnion('action', [
-  z.object({
-    action: z.literal('send'),
-    message: z.string().trim().min(12).max(320),
-    source: z.string().trim().min(1).max(80).default('resolver-worker'),
-  }).strict(),
-  z.object({
-    action: z.literal('skip'),
-    reason: z.string().trim().min(3).max(240),
-    source: z.string().trim().min(1).max(80).default('resolver-worker'),
-  }).strict(),
-]);
-
 const bridgeUrl = (process.env.JOB_HARNESS_BOSS_GREETING_BRIDGE_URL?.trim() || 'http://127.0.0.1:18788').replace(/\/+$/, '');
 const authToken = process.env.JOB_HARNESS_AUTH_TOKEN?.trim() || '';
 const providerCommand = process.env.JOB_HARNESS_BOSS_GREETING_RESOLVER_COMMAND?.trim() || '';
+const providerKind = process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_KIND?.trim() || (providerCommand ? 'command' : 'openai-compatible');
 const owner = (process.env.JOB_HARNESS_BOSS_GREETING_RESOLVER_OWNER?.trim() || `resolver-${hostname()}`).slice(0, 120);
 const pollMs = boundedInt(process.env.JOB_HARNESS_BOSS_GREETING_RESOLVER_POLL_MS, 1_000, 250, 10_000);
 const leaseMs = boundedInt(process.env.JOB_HARNESS_BOSS_GREETING_RESOLVER_LEASE_MS, 20_000, 5_000, 30_000);
 const providerMaxMs = boundedInt(process.env.JOB_HARNESS_BOSS_GREETING_RESOLVER_PROVIDER_TIMEOUT_MS, 18_000, 1_000, 28_000);
 
 if (!authToken) throw new Error('JOB_HARNESS_AUTH_TOKEN is required for the BOSS greeting resolver worker');
-if (!providerCommand) throw new Error('JOB_HARNESS_BOSS_GREETING_RESOLVER_COMMAND is required; refusing to pretend a model provider exists');
 if (!bridgeUrl.startsWith('http://')) throw new Error('BOSS greeting resolver worker requires a private/internal HTTP bridge URL');
+
+function createProvider(): BossGreetingProvider {
+  if (providerKind === 'openai-compatible') {
+    return createOpenAICompatibleBossGreetingProvider({
+      baseUrl: process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_BASE_URL?.trim() || 'https://api.deepseek.com/v1',
+      apiKey: process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_API_KEY?.trim() || '',
+      model: process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_MODEL?.trim() || 'deepseek-v4-flash',
+      source: process.env.JOB_HARNESS_BOSS_GREETING_PROVIDER_SOURCE?.trim() || undefined,
+    });
+  }
+  if (providerKind === 'command') {
+    if (!providerCommand) throw new Error('JOB_HARNESS_BOSS_GREETING_RESOLVER_COMMAND is required for command provider mode');
+    return {
+      providerId: 'command-provider',
+      resolve: runCommandProvider,
+    };
+  }
+  throw new Error(`Unsupported BOSS greeting provider kind: ${providerKind}`);
+}
 
 let stopping = false;
 process.on('SIGTERM', () => { stopping = true; });
@@ -73,7 +80,7 @@ async function jsonRequest(path: string, init: RequestInit = {}, privileged = fa
   return payload;
 }
 
-async function runProvider(request: z.infer<typeof BossGreetingRequestSchema>, timeoutMs: number): Promise<z.infer<typeof ProviderResolutionSchema>> {
+async function runCommandProvider(request: z.infer<typeof BossGreetingRequestSchema>, timeoutMs: number): Promise<z.infer<typeof BossGreetingProviderResolutionSchema>> {
   const child = spawn('/bin/sh', ['-lc', providerCommand], { stdio: ['pipe', 'pipe', 'pipe'], env: process.env });
   child.stdin.end(`${JSON.stringify({ request })}\n`);
   let stdout = '';
@@ -91,8 +98,10 @@ async function runProvider(request: z.infer<typeof BossGreetingRequestSchema>, t
   if (exitCode !== 0) throw new Error(`resolver provider exited ${exitCode}: ${stderr.trim().slice(0, 1000)}`);
   const line = stdout.trim();
   if (!line) throw new Error('resolver provider returned empty stdout');
-  return ProviderResolutionSchema.parse(JSON.parse(line));
+  return BossGreetingProviderResolutionSchema.parse(JSON.parse(line));
 }
+
+const provider = createProvider();
 
 async function release(id: string, leaseToken: string, reason: string): Promise<void> {
   await jsonRequest(`/api/greetings/${encodeURIComponent(id)}/release`, {
@@ -117,7 +126,7 @@ async function iteration(): Promise<boolean> {
   }
 
   try {
-    const resolution = await runProvider(claim.request, timeoutMs);
+    const resolution = await provider.resolve(claim.request, timeoutMs);
     const body = resolution.action === 'send'
       ? { action: 'send', message: resolution.message, source: resolution.source, leaseToken: claim.leaseToken }
       : { action: 'skip', reason: resolution.reason, source: resolution.source, leaseToken: claim.leaseToken };
@@ -134,7 +143,7 @@ async function iteration(): Promise<boolean> {
   return true;
 }
 
-console.log(`[boss-greeting-resolver] started owner=${owner} pollMs=${pollMs} leaseMs=${leaseMs}`);
+console.log(`[boss-greeting-resolver] started owner=${owner} provider=${provider.providerId} pollMs=${pollMs} leaseMs=${leaseMs}`);
 while (!stopping) {
   try {
     const worked = await iteration();
