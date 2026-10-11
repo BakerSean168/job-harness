@@ -1,0 +1,14 @@
+apiVersion: pds/v1alpha1
+kind: Component
+metadata:
+  id: job-harness
+  name: Job Harness
+spec:
+  type: career-workflow-platform
+  domain: products
+  lifecycle: active
+  repository:
+    url: https://github.com/BakerSean168/job-harness.git
+    visibility: public
+  provides:
+    - pds://products/app/job-harness
