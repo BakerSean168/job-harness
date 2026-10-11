@@ -4,16 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { UpsertCampaignInputSchema } from '@job-harness/contracts';
 import { JobHarnessRestError } from '@job-harness/client';
 import { getJobHarnessClient } from '../../lib/job-harness-client';
-
-export interface CampaignActionState {
-  ok: boolean;
-  id?: string;
-  code?: string;
-  message?: string;
-}
-
-const initialCampaignActionState: CampaignActionState = { ok: false };
-export { initialCampaignActionState };
+import type { CampaignActionState } from './action-state';
 
 function text(formData: FormData, key: string): string {
   const value = formData.get(key);

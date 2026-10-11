@@ -6,7 +6,8 @@ import type { JobListing } from '@job-harness/contracts';
 import type { ResumeProfile } from '@job-harness/resume-contracts';
 import { APPLICATION_SUBMISSION_CHANNELS } from '@job-harness/domain';
 import type { Locale, MessageCatalog } from '@/i18n';
-import { initialRecordApplicationActionState, recordApplicationAction } from '@/app/applications/actions';
+import { recordApplicationAction } from '@/app/applications/actions';
+import { initialRecordApplicationActionState } from '@/app/applications/action-state';
 
 function localized(value: Record<string, string | undefined>, locale: ResumeProfile['locale'] | Locale): string {
   return value[locale] ?? value['zh-CN'] ?? value.en ?? '';

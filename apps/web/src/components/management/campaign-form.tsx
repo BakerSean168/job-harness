@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import type { JobSearchCampaign, ResumeUsageSummary } from '@job-harness/contracts';
 import { CAMPAIGN_STATUSES, JOB_SOURCE_KINDS } from '@job-harness/domain';
 import type { MessageCatalog } from '@/i18n';
-import { initialCampaignActionState, saveCampaignAction } from '@/app/campaigns/actions';
+import { saveCampaignAction } from '@/app/campaigns/actions';
+import { initialCampaignActionState } from '@/app/campaigns/action-state';
 
 function joined(values: readonly (string | number)[]): string {
   return values.join(', ');

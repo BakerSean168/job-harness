@@ -2,10 +2,8 @@
 
 import { useActionState } from 'react';
 import type { BrowserExtensionAgentView } from '@/lib/job-harness-client';
-import {
-  createBrowserExtensionPairingAction,
-  initialBrowserExtensionPairingState,
-} from '@/app/settings/actions';
+import { createBrowserExtensionPairingAction } from '@/app/settings/actions';
+import { initialBrowserExtensionPairingState } from '@/app/settings/action-state';
 
 export interface BrowserExtensionPairingCopy {
   readonly title: string;
