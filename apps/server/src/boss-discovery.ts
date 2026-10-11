@@ -341,7 +341,7 @@ export class BossDiscoveryCoordinator {
 
   private scheduleCompletion(state: SessionState): void {
     if (state.timer) clearTimeout(state.timer);
-    const elapsed = Math.max(0, Date.now() - Date.parse(state.lastAt));
+    const elapsed = Math.max(0, Date.parse(this.now()) - Date.parse(state.lastAt));
     const delay = Math.max(1, this.idleCompleteMs - elapsed);
     state.timer = setTimeout(() => {
       void this.complete(state).catch((error) => this.logger.error('BOSS discovery session completion failed', error));
