@@ -18,6 +18,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # pnpm check runs browser-backed Vitest suites as well as unit tests.
+      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm check
 
   deployment:
