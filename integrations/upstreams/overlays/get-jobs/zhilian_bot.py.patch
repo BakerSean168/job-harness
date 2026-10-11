@@ -1,0 +1,188 @@
+--- a/app/worker/zhilian_bot.py
++++ b/app/worker/zhilian_bot.py
+@@ -171,18 +171,20 @@
+         city_code = db_config.city_code or self.config.get("city_code", "")
+         salary = db_config.salary or self.config.get("salary", "")
+ 
+-        total_posted = 0
++        collect_only = os.getenv("JOB_HARNESS_GET_JOBS_COLLECT_ONLY", "0") == "1"
++        action_label = "采集" if collect_only else "投递"
++        total_processed = 0
+ 
+         for keyword in keyword_list:
+             if task_state.should_stop() or self.is_limit:
+                 self._info("收到停止信号，终止投递")
+                 return
+ 
+-            self._info(f"开始投递关键词：{keyword}")
+-            posted = await self._submit_keyword(keyword, city_code, salary, task_state)
+-            total_posted += posted
++            self._info(f"开始{action_label}关键词：{keyword}")
++            processed = await self._submit_keyword(keyword, city_code, salary, task_state)
++            total_processed += processed
+ 
+-        self._info(f"投递完成，共投递 {total_posted} 个职位")
++        self._info(f"{action_label}完成，共{action_label} {total_processed} 个职位")
+ 
+     async def _submit_keyword(self, keyword, city_code, salary, task_state):
+         from app.worker.zhilian_locators import (
+@@ -228,6 +230,30 @@
+             logger.warning("等待职位列表超时")
+             return 0
+ 
++        collect_only = os.getenv("JOB_HARNESS_GET_JOBS_COLLECT_ONLY", "0") == "1"
++        action_label = "采集" if collect_only else "投递"
++        if collect_only:
++            try:
++                requested_max = int(os.getenv("JOB_HARNESS_GET_JOBS_MAX_CARDS_PER_KEYWORD", "60"))
++            except ValueError:
++                requested_max = 60
++            max_cards = max(20, min(requested_max, 120))
++            stagnant_rounds = 0
++            last_count = 0
++            while not task_state.should_stop():
++                count = await self.page.locator(JOB_CARDS).count()
++                if count >= max_cards:
++                    break
++                await self.page.evaluate("() => window.scrollTo(0, document.documentElement.scrollHeight)")
++                await asyncio.sleep(1.2)
++                new_count = await self.page.locator(JOB_CARDS).count()
++                stagnant_rounds = stagnant_rounds + 1 if new_count <= max(count, last_count) else 0
++                last_count = new_count
++                if stagnant_rounds >= 2:
++                    break
++            self._info(f"智联无限滚动已加载 {await self.page.locator(JOB_CARDS).count()} 个职位，开始{action_label}")
++            return await self._deliver_current_page()
++
+         posted = 0
+         page_num = 1
+ 
+@@ -236,7 +262,7 @@
+                 self._info("收到停止指令，结束分页循环")
+                 return posted
+ 
+-            self._info(f"正在投递【{keyword}】第【{page_num}】页...")
++            self._info(f"正在{action_label}【{keyword}】第【{page_num}】页...")
+ 
+             # 等待职位列表
+             try:
+@@ -270,9 +296,55 @@
+             else:
+                 break
+ 
+-        self._info(f"【{keyword}】关键词投递完成！")
++        self._info(f"【{keyword}】关键词{action_label}完成！")
+         return posted
+ 
++    @staticmethod
++    def _normalize_identity_text(value: str) -> str:
++        return re.sub(r"\s+", " ", value or "").strip().casefold()
++
++    async def _read_verified_detail_link(self, card, job_title: str, company_name: str) -> Optional[str]:
++        from app.worker.zhilian_locators import DETAIL_TITLE, DETAIL_COMPANY, DETAIL_JOB_LINK
++
++        expected_title = self._normalize_identity_text(job_title)
++        expected_company = self._normalize_identity_text(company_name)
++        if not expected_title or not expected_company:
++            return None
++
++        try:
++            await card.scroll_into_view_if_needed(timeout=2000)
++            await card.click(force=True, timeout=2000)
++        except Exception as e:
++            logger.debug("切换智联职位详情面板失败：%s", e)
++            return None
++
++        detail_title = self.page.locator(DETAIL_TITLE).first
++        detail_company = self.page.locator(DETAIL_COMPANY).first
++        detail_link = self.page.locator(DETAIL_JOB_LINK).first
++        last_title = ""
++        last_company = ""
++        for _ in range(30):
++            try:
++                if await detail_title.count() > 0 and await detail_company.count() > 0:
++                    last_title = self._normalize_identity_text(await detail_title.text_content() or "")
++                    last_company = self._normalize_identity_text(await detail_company.text_content() or "")
++                    if last_title == expected_title and last_company == expected_company and await detail_link.count() > 0:
++                        href = await detail_link.get_attribute("href")
++                        if href:
++                            return href
++            except Exception:
++                pass
++            await asyncio.sleep(0.1)
++
++        logger.warning(
++            "智联详情面板未在时限内匹配当前卡片，拒绝强身份绑定: title=%s company=%s detail_title=%s detail_company=%s",
++            job_title,
++            company_name,
++            last_title,
++            last_company,
++        )
++        return None
++
+     async def _deliver_current_page(self) -> int:
+         from app.worker.zhilian_locators import (
+             JOB_CARDS, APPLY_BUTTON, ALREADY_APPLIED_MARKER,
+@@ -283,6 +355,7 @@
+         job_cards = self.page.locator(JOB_CARDS)
+         count = await job_cards.count()
+         posted = 0
++        collect_only = os.getenv("JOB_HARNESS_GET_JOBS_COLLECT_ONLY", "0") == "1"
+ 
+         # 先采集所有职位信息
+         jobs_data = []
+@@ -290,16 +363,26 @@
+             card = job_cards.nth(i)
+             try:
+                 job_title = await self._safe_get_text(card, JOB_TITLE)
+-                job_link = None
++                company_name = await self._safe_get_text(card, COMPANY_NAME)
++                job_link = await self._read_verified_detail_link(card, job_title, company_name)
++                if collect_only and not job_link:
++                    logger.warning("智联职位缺少已验证详情链接，跳过强身份绑定：%s / %s", job_title, company_name)
++                salary = await self._safe_get_text(card, JOB_SALARY)
++                location = await self._safe_get_text(card, JOB_LOCATION)
++                tag_texts = []
+                 try:
+-                    job_link = await card.locator(JOB_TITLE).get_attribute("href")
++                    tag_texts = [
++                        re.sub(r"\s+", " ", value or "").strip()
++                        for value in await card.locator("span.job-card__skill-tag").all_text_contents()
++                    ]
+                 except Exception:
+                     pass
+-                salary = await self._safe_get_text(card, JOB_SALARY)
+-                location = await self._safe_get_text(card, JOB_LOCATION)
+-                experience = await self._safe_get_text(card, JOB_EXPERIENCE)
+-                degree = await self._safe_get_text(card, JOB_DEGREE)
+-                company_name = await self._safe_get_text(card, COMPANY_NAME)
++                degree = next((value for value in tag_texts if re.search(r"^(学历不限|不限学历|中专|高中|大专|本科|硕士|博士)$", value)), "")
++                experience = next((value for value in tag_texts if re.search(r"^(经验不限|不限经验|无经验|应届生?|在校生|实习生|\d+年以内|\d+年以上|\d+-\d+年)$", value)), "")
++                if not experience:
++                    experience = await self._safe_get_text(card, JOB_EXPERIENCE)
++                if not degree:
++                    degree = await self._safe_get_text(card, JOB_DEGREE)
+                 job_id = self._extract_job_id(job_link, job_title, company_name)
+                 if not job_id:
+                     logger.warning("无法提取 job_id，链接: %s", job_link)
+@@ -335,6 +418,10 @@
+             except Exception as e:
+                 logger.warning("保存岗位数据失败 %s: %s", job_id, e)
+ 
++        if collect_only:
++            self._info(f"仅采集模式：当前页已采集 {len(valid_jobs)} 个智联岗位，不执行投递")
++            return len(valid_jobs)
++
+         # 投递
+         for job in jobs_data:
+             from app.worker.task_state import task_state
+@@ -468,6 +555,9 @@
+     def _extract_job_id(self, link: Optional[str], job_title: str = "", company_name: str = "") -> Optional[str]:
+         if link:
+             try:
++                stable = re.search(r"/jobdetail/([^/?#]+?)\.htm", link, re.IGNORECASE)
++                if stable:
++                    return stable.group(1)
+                 for pattern in [
+                     r"jobdetail/(\d+)",
+                     r"job_detail/(\d+)",

@@ -21,8 +21,11 @@ import {
   ListCompaniesInputSchema,
   ListResumesInputSchema,
   ListSavedViewsInputSchema,
+  ListJobOutreachEventsInputSchema,
+  ListJobOutreachEventsOutputSchema,
   PipelineStatsInputSchema,
   RecordApplicationInputSchema,
+  RecordJobOutreachEventInputSchema,
   ResumeProfileRefSchema,
   SavedViewSchema,
   SearchJobListItemsInputSchema,
@@ -34,6 +37,7 @@ import {
   UpsertJobsBatchInputSchema,
   UpsertJobsBatchOutputSchema,
   ApplicationSubmissionSchema,
+  JobOutreachEventSchema,
   BeginSubmissionIntentInputSchema,
   ConfirmSubmissionIntentInputSchema,
   FailSubmissionIntentInputSchema,
@@ -51,6 +55,7 @@ import {
   type DuplicateCheckInput,
   type Job,
   type JobObservation,
+  type JobOutreachEvent,
   type ResumeProfileRef,
   type SubmissionIntent,
   type UpsertJobCandidate,
@@ -93,6 +98,20 @@ function requestHash(value: unknown): string {
   return createHash('sha256').update(stableJson(value)).digest('hex');
 }
 
+function compactStrongIdentityTitle(value: string): string {
+  return normalizeIdentityText(value).replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+function strongIdentityTitlesCompatible(existingTitle: string, incomingTitle: string): boolean {
+  const existing = compactStrongIdentityTitle(existingTitle);
+  const incoming = compactStrongIdentityTitle(incomingTitle);
+  if (!existing || !incoming) return false;
+  if (existing === incoming) return true;
+  const shorter = existing.length <= incoming.length ? existing : incoming;
+  const longer = existing.length > incoming.length ? existing : incoming;
+  return shorter.length >= 6 && longer.includes(shorter);
+}
+
 async function findCandidateDuplicate(tx: CareerStoreTransactionPort, candidate: UpsertJobCandidate) {
   const result = await tx.findDuplicate({
     companyName: candidate.companyName,
@@ -104,6 +123,15 @@ async function findCandidateDuplicate(tx: CareerStoreTransactionPort, candidate:
     throw new CareerConflictError(
       `Candidate listings resolve to multiple existing Jobs: ${result.potentialMatches.map((job) => job.id).join(', ')}`,
     );
+  }
+  if (result.duplicate && result.job && result.matchedBy === 'listing-external-id') {
+    const companyCompatible = await tx.companyOwnsName(result.job.companyId, candidate.companyName);
+    if (!companyCompatible) {
+      throw new CareerConflictError(`strong-identity-conflict:company:job=${result.job.id}`);
+    }
+    if (!strongIdentityTitlesCompatible(result.job.title, candidate.title)) {
+      throw new CareerConflictError(`strong-identity-conflict:title:job=${result.job.id}`);
+    }
   }
   return result;
 }
@@ -787,6 +815,9 @@ export function createCareerApplicationService(
           contextSnapshot: parsed.contextSnapshot,
           startedAt: parsed.startedAt,
           completedAt: null,
+          status: 'running',
+          failureCode: null,
+          failureReason: null,
           candidateCount: 0,
           insertedCount: 0,
           duplicateCount: 0,
@@ -800,11 +831,20 @@ export function createCareerApplicationService(
 
     async completeDiscoveryRun(input) {
       const parsed = CompleteDiscoveryInputSchema.parse(input);
+      if (parsed.status === 'succeeded' && (parsed.failureCode !== null || parsed.failureReason !== null)) {
+        throw new CareerConflictError(`DiscoveryRun '${parsed.runId}' succeeded completion cannot include failure evidence`);
+      }
+      if (parsed.status !== 'succeeded' && (parsed.failureCode === null || parsed.failureReason === null)) {
+        throw new CareerConflictError(`DiscoveryRun '${parsed.runId}' ${parsed.status} completion requires failureCode and failureReason`);
+      }
       return store.transaction(async (tx) => {
         const run = await tx.getDiscoveryRun(parsed.runId);
         if (!run) throw new CareerNotFoundError('DiscoveryRun', parsed.runId);
         if (run.completedAt) {
           const same = run.completedAt === parsed.completedAt &&
+            run.status === parsed.status &&
+            run.failureCode === parsed.failureCode &&
+            run.failureReason === parsed.failureReason &&
             run.candidateCount === parsed.candidateCount &&
             run.insertedCount === parsed.insertedCount &&
             run.duplicateCount === parsed.duplicateCount &&
@@ -815,6 +855,9 @@ export function createCareerApplicationService(
         return CompleteDiscoveryOutputSchema.parse(await tx.updateDiscoveryRun({
           ...run,
           completedAt: parsed.completedAt,
+          status: parsed.status,
+          failureCode: parsed.failureCode,
+          failureReason: parsed.failureReason,
           candidateCount: parsed.candidateCount,
           insertedCount: parsed.insertedCount,
           duplicateCount: parsed.duplicateCount,
@@ -826,6 +869,42 @@ export function createCareerApplicationService(
 
   const resumes: CareerApplicationPorts['resumes'] = {
     listResumeProfiles: (input = {}) => store.listResumeProfiles(ListResumesInputSchema.parse(input)),
+  };
+
+  const outreach: CareerRuntimePorts['outreach'] = {
+    list: (input = {}) => store.listOutreachEvents(ListJobOutreachEventsInputSchema.parse(input)),
+    async record(input) {
+      const parsed = RecordJobOutreachEventInputSchema.parse(input);
+      return store.transaction(async (tx) => {
+        const scope = 'career_job_outreach_record';
+        const cached = await loadReceipt(tx, scope, parsed.idempotencyKey, parsed, (value) => JobOutreachEventSchema.parse(value));
+        if (cached) return cached;
+        const job = await tx.getJob(parsed.jobId);
+        if (!job) throw new CareerNotFoundError('Job', parsed.jobId);
+        if (parsed.listingId && !job.listings.some((listing) => listing.id === parsed.listingId)) {
+          throw new CareerNotFoundError('JobListing', parsed.listingId);
+        }
+        const timestamp = now();
+        const event: JobOutreachEvent = JobOutreachEventSchema.parse({
+          id: idFactory(),
+          jobId: parsed.jobId,
+          listingId: parsed.listingId ?? null,
+          channel: parsed.channel,
+          type: parsed.type,
+          occurredAt: parsed.occurredAt,
+          actor: parsed.actor,
+          resumeProfileId: parsed.resumeProfileId ?? null,
+          message: parsed.message ?? null,
+          externalThreadUrl: parsed.externalThreadUrl ?? null,
+          metadata: parsed.metadata ?? {},
+          idempotencyKey: parsed.idempotencyKey,
+          createdAt: timestamp,
+        });
+        await tx.insertOutreachEvent(event);
+        await saveReceipt(tx, scope, parsed.idempotencyKey, parsed, event, timestamp);
+        return event;
+      });
+    },
   };
 
   const savedViews: CareerApplicationPorts['savedViews'] = {
@@ -889,5 +968,5 @@ export function createCareerApplicationService(
     },
   };
 
-  return { jobs, applications, submissionIntents, campaigns, discovery, resumes, analytics, workspace, savedViews, resumeRegistry };
+  return { jobs, applications, submissionIntents, campaigns, discovery, resumes, analytics, workspace, savedViews, resumeRegistry, outreach };
 }

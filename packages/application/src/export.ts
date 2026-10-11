@@ -6,6 +6,7 @@ import {
   type DiscoveryRun,
   type Job,
   type JobObservation,
+  type JobOutreachEvent,
   type JobSearchCampaign,
   type ResumeProfileRef,
   type SubmissionIntent,
@@ -37,7 +38,7 @@ export async function buildCareerExportSnapshot(
   career: CareerRuntimePorts,
   exportedAt: string,
 ): Promise<CareerExportSnapshot> {
-  const [companyViews, jobItems, applicationItems, campaigns, resumes, discoverySummaries, submissionIntents] = await Promise.all([
+  const [companyViews, jobItems, applicationItems, campaigns, resumes, discoverySummaries, submissionIntents, outreachEvents] = await Promise.all([
     collectPages((limit, offset) => career.workspace.listCompanies({ limit, offset })),
     collectPages((limit, offset) => career.workspace.searchJobListItems({ limit, offset })),
     collectPages((limit, offset) => career.workspace.listApplicationBoard({ limit, offset, terminal: 'include' })),
@@ -45,6 +46,7 @@ export async function buildCareerExportSnapshot(
     collectPages((limit, offset) => career.resumes.listResumeProfiles({ limit, offset })),
     collectPages((limit, offset) => career.workspace.listDiscoveryRuns({ limit, offset })),
     collectPages((limit, offset) => career.submissionIntents.list({ limit, offset })),
+    collectPages((limit, offset) => career.outreach.list({ limit, offset })),
   ]);
 
   const companies: Company[] = companyViews.map((item) => item.company).sort(byId);
@@ -68,14 +70,16 @@ export async function buildCareerExportSnapshot(
   const resumeRows: ResumeProfileRef[] = [...resumes].sort(byId);
   const discoveryRuns: DiscoveryRun[] = discoverySummaries.map((entry) => entry.run).sort(byId);
   const submissionIntentRows: SubmissionIntent[] = [...submissionIntents].sort(byId);
+  const outreachRows: JobOutreachEvent[] = [...outreachEvents].sort(byId);
 
   return CareerExportSnapshotSchema.parse({
     format: 'job-harness-career-export',
-    schemaVersion: 3,
+    schemaVersion: 5,
     exportedAt,
     companies,
     jobs: jobs.sort(byId),
     observations: observations.sort(byId),
+    outreachEvents: outreachRows,
     applications: applications.sort((left, right) => left.application.id.localeCompare(right.application.id)),
     campaigns: campaignRows,
     resumes: resumeRows,

@@ -5,9 +5,11 @@ import {
   APPLICATION_STAGES,
   CAMPAIGN_STATUSES,
   DISCOVERY_EXECUTORS,
+  DISCOVERY_RUN_STATUSES,
   EVENT_ACTORS,
   JOB_LISTING_IDENTITY_KINDS,
   JOB_LISTING_STATUSES,
+  JOB_OUTREACH_EVENT_TYPES,
   JOB_SOURCE_KINDS,
   JOB_STATES,
   SUBMISSION_INTENT_EXECUTORS,
@@ -25,9 +27,11 @@ export const JobListingStatusSchema = z.enum(JOB_LISTING_STATUSES);
 export const JobListingIdentityKindSchema = z.enum(JOB_LISTING_IDENTITY_KINDS);
 export const ApplicationStageSchema = z.enum(APPLICATION_STAGES);
 export const ApplicationEventTypeSchema = z.enum(APPLICATION_EVENT_TYPES);
+export const JobOutreachEventTypeSchema = z.enum(JOB_OUTREACH_EVENT_TYPES);
 export const ApplicationSubmissionChannelSchema = z.enum(APPLICATION_SUBMISSION_CHANNELS);
 export const CampaignStatusSchema = z.enum(CAMPAIGN_STATUSES);
 export const DiscoveryExecutorSchema = z.enum(DISCOVERY_EXECUTORS);
+export const DiscoveryRunStatusSchema = z.enum(DISCOVERY_RUN_STATUSES);
 export const JobSourceKindSchema = z.enum(JOB_SOURCE_KINDS);
 export const EventActorSchema = z.enum(EVENT_ACTORS);
 export const SubmissionIntentStatusSchema = z.enum(SUBMISSION_INTENT_STATUSES);
@@ -113,6 +117,24 @@ export const JobObservationSchema = z
   })
   .strict();
 
+export const JobOutreachEventSchema = z
+  .object({
+    id: EntityIdSchema,
+    jobId: EntityIdSchema,
+    listingId: EntityIdSchema.nullable().default(null),
+    channel: ApplicationSubmissionChannelSchema,
+    type: JobOutreachEventTypeSchema,
+    occurredAt: IsoDateTimeSchema,
+    actor: EventActorSchema,
+    resumeProfileId: EntityIdSchema.nullable().default(null),
+    message: z.string().trim().max(4000).nullable().default(null),
+    externalThreadUrl: z.url().nullable().default(null),
+    metadata: z.record(z.string(), z.unknown()).default({}),
+    idempotencyKey: IdempotencyKeySchema,
+    createdAt: IsoDateTimeSchema,
+  })
+  .strict();
+
 export const ApplicationEventSchema = z
   .object({
     id: EntityIdSchema,
@@ -169,6 +191,32 @@ export const ApplicationDetailSchema = z
   .object({ application: ApplicationSchema, job: JobSchema, timeline: z.array(ApplicationEventSchema), submissions: z.array(ApplicationSubmissionSchema).default([]) })
   .strict();
 
+export const CampaignAutomationPolicySchema = z.object({
+  collection: z.object({
+    enabled: z.boolean().default(true),
+  }).strict().default({ enabled: true }),
+  outreach: z.object({
+    enabled: z.boolean().default(true),
+    autoStartEnabled: z.boolean().default(false),
+    greetingEnabled: z.boolean().default(true),
+    recruiterInboxEnabled: z.boolean().default(true),
+    resumeFollowupEnabled: z.boolean().default(true),
+    maxExternalEffectsPerRun: z.number().int().min(0).max(500).default(20),
+  }).strict().default({ enabled: true, autoStartEnabled: false, greetingEnabled: true, recruiterInboxEnabled: true, resumeFollowupEnabled: true, maxExternalEffectsPerRun: 20 }),
+  officialSite: z.object({
+    prepareEnabled: z.boolean().default(true),
+    fillEnabled: z.boolean().default(true),
+    submitEnabled: z.boolean().default(false),
+    preferredResumeProfileId: EntityIdSchema.nullable().default(null),
+  }).strict().default({ prepareEnabled: true, fillEnabled: true, submitEnabled: false, preferredResumeProfileId: null }),
+  email: z.object({
+    draftEnabled: z.boolean().default(true),
+    sendEnabled: z.boolean().default(false),
+    preferredResumeProfileId: EntityIdSchema.nullable().default(null),
+  }).strict().default({ draftEnabled: true, sendEnabled: false, preferredResumeProfileId: null }),
+}).strict();
+export type CampaignAutomationPolicy = z.infer<typeof CampaignAutomationPolicySchema>;
+
 export const ResumeProfileRefSchema = z
   .object({
     id: EntityIdSchema,
@@ -196,6 +244,12 @@ export const JobSearchCampaignSchema = z
     exclusions: z.array(z.string().trim().min(1).max(200)).default([]),
     sources: z.array(JobSourceKindSchema).default([]),
     resumeProfileIds: z.array(EntityIdSchema).default([]),
+    automation: CampaignAutomationPolicySchema.default({
+      collection: { enabled: true },
+      outreach: { enabled: true, autoStartEnabled: false, greetingEnabled: true, recruiterInboxEnabled: true, resumeFollowupEnabled: true, maxExternalEffectsPerRun: 20 },
+      officialSite: { prepareEnabled: true, fillEnabled: true, submitEnabled: false, preferredResumeProfileId: null },
+      email: { draftEnabled: true, sendEnabled: false, preferredResumeProfileId: null },
+    }),
     status: CampaignStatusSchema,
     createdAt: IsoDateTimeSchema,
     updatedAt: IsoDateTimeSchema,
@@ -210,6 +264,9 @@ export const DiscoveryRunSchema = z
     contextSnapshot: z.record(z.string(), z.unknown()).default({}),
     startedAt: IsoDateTimeSchema,
     completedAt: NullableIsoDateTimeSchema.default(null),
+    status: DiscoveryRunStatusSchema.default('running'),
+    failureCode: z.string().trim().min(1).max(120).nullable().default(null),
+    failureReason: z.string().trim().min(1).max(1000).nullable().default(null),
     candidateCount: z.number().int().nonnegative().default(0),
     insertedCount: z.number().int().nonnegative().default(0),
     duplicateCount: z.number().int().nonnegative().default(0),
@@ -259,6 +316,7 @@ export type Company = z.infer<typeof CompanySchema>;
 export type JobListing = z.infer<typeof JobListingSchema>;
 export type Job = z.infer<typeof JobSchema>;
 export type JobObservation = z.infer<typeof JobObservationSchema>;
+export type JobOutreachEvent = z.infer<typeof JobOutreachEventSchema>;
 export type Application = z.infer<typeof ApplicationSchema>;
 export type ApplicationSubmission = z.infer<typeof ApplicationSubmissionSchema>;
 export type ApplicationEvent = z.infer<typeof ApplicationEventSchema>;

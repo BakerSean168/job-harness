@@ -42,7 +42,7 @@ Automatically recognized formal-application families:
 - HotJob -> `hotjob-ats`
 - Zhiye -> `zhiye-ats`
 
-Every automatic dispatch remains:
+Automatic dispatch remains policy-gated. With the default Campaign configuration it stays:
 
 ```text
 executionMode = fill_only
@@ -51,7 +51,7 @@ allowApplicationEntry = true
 submitAllowed = false
 ```
 
-This restores the old Copilot's practical automatic-fill coverage without silently expanding it into unattended final submission.
+Only when the Campaign explicitly sets `automation.officialSite.submitEnabled=true` **and** a compatible executor advertises `review_then_submit` may the dispatcher create that supervised mode with `submitAllowed=true`; the existing ReviewSnapshot + one-shot SubmitAuthorization boundary still applies before the final click. This preserves the old Copilot's practical automatic-fill coverage while keeping final submit as an explicit business-policy decision.
 
 ## BOSS ownership
 
@@ -69,9 +69,9 @@ The Browser Bridge 0.2.3 semantic BOSS implementation remains in-tree as a gradu
 - representative URLs stop resolving to the expected canonical adapter;
 - Browser Form Engine loses the OpenJobAutofill-derived compatibility primitives;
 - BOSS search/chat/resume DOM primitives disappear from the vendored source or semantic Browser Bridge driver;
-- BOSS resume-followup runtime loses its explicit-request / qualified-followup policy gate;
+- BOSS resume-followup runtime loses its explicit-request / explicit-resume-request policy gate;
 - the BOSS bridge regains a runtime dependency on the retired Copilot checkout;
-- automatic dispatch stops being `fill_only` / `submitAllowed=false`;
+- automatic dispatch stops defaulting to `fill_only` / `submitAllowed=false`, or gains submit authority without explicit Campaign policy;
 - third-party attribution disappears.
 
 ## BOSS dedicated compatibility browser

@@ -46,7 +46,7 @@ References:
 3. Copy the profile example to the private tunnel-client profile directory and replace only the tunnel ID. Keep `control_plane.api_key` and downstream `Authorization` as `env:`/`file:` secret references.
 4. Make the tunnel daemon depend on the Job Harness Server health, run `tunnel-client doctor`, then verify `/readyz` before configuring ChatGPT.
 5. In ChatGPT developer/custom-app settings, create the Job Harness app using the dedicated Secure MCP Tunnel and scan the tool catalog.
-6. Confirm the tool catalog contains the Career, Resume and SubmissionIntent surfaces expected by `scripts/check-chatgpt-integration.ts`.
+6. Confirm the tool catalog contains the Career, Resume, SubmissionIntent, and bounded BOSS greeting surfaces expected by `scripts/check-chatgpt-integration.ts`.
 7. Test read-only prompts first. Then test a reversible state write such as Job triage. Do not use a real recruiting-site submission as the first write test.
 8. Refresh/review the app whenever tool schemas change; do not assume an already-approved app automatically picks up a new tool contract.
 
@@ -60,10 +60,10 @@ export JOB_HARNESS_CHATGPT_MCP_TOKEN="$JOB_HARNESS_AUTH_TOKEN"
 pnpm smoke:chatgpt-mcp
 ```
 
-The smoke performs MCP discovery and only safe reads (`career_pipeline_stats`, `career_submission_intents_list`, `resume_profiles_list`). It never mutates Career state or calls an external website.
+The smoke performs MCP discovery and only safe reads (`career_pipeline_stats`, `career_submission_intents_list`, `resume_profiles_list`, `boss_greetings_pending`, `boss_runtime_status`, `recruitment_collection_runtime_status`). It never invokes `boss_runtime_start`, `boss_greeting_resolver_ready`, `boss_greeting_claim`, `boss_greeting_resolve`, `career_email_application_authorize_send`, or a collection start/stop/sync mutation, and it never crosses a recruiter-facing external-effect boundary. `boss_greeting_resolver_ready` and `boss_greeting_claim` are non-external but stateful, so the read-only smoke still avoids them.
 
 ## Current activation boundary
 
 As of 2026-09-17, the dedicated Job Harness Secure MCP Tunnel is provisioned and its isolated Oracle2 runtime is active. The daemon initializes a real MCP session against `job-harness` v0.2.0, `/readyz` is healthy, and the runtime has completed a successful OpenAI control-plane poll. The existing unrelated Oracle2 tunnel remains active and unchanged.
 
-The ChatGPT custom MCP app is now created against the dedicated Tunnel and the workspace tool scan returns **32 actions**, matching the production MCP catalog. R016 is therefore operational end to end. The real tunnel ID and runtime credentials remain private deployment state and are intentionally not committed here. Future MCP schema changes still require refreshing/reviewing the app tool catalog before relying on new write behavior.
+The ChatGPT custom MCP app uses the dedicated Tunnel. The current repository catalog contains **51 actions**. Three actions are explicitly bounded external-effect tools: `boss_runtime_start` starts/reuses one coarse Campaign-policy-bounded BOSS Site Runtime task, `boss_greeting_resolve` releases one already-waiting leased BOSS greeting, and `career_email_application_authorize_send` authorizes one exact immutable email draft for the independent Email Delivery Worker. `boss_greeting_resolver_ready` is a non-external bounded presence/priority handshake, and `boss_greeting_claim` is a non-external state write that grants only a short single-writer lease. None is an ATS final-submit primitive. The real tunnel ID and runtime credentials remain private deployment state and are intentionally not committed here. Any MCP schema change requires refreshing/reviewing the ChatGPT app tool catalog before relying on the new behavior.

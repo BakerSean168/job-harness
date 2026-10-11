@@ -67,7 +67,7 @@ export const zhCN: MessageCatalog = {
   },
   campaignsWorkspace: {
     list: { title: '求职目标', empty: '还没有求职目标。创建一个 Campaign 来固定岗位、城市、届次和简历方向。', create: '新建目标', updated: '更新于', roles: '岗位', cities: '城市', resumes: '简历方向' },
-    form: { titleNew: '新建求职目标', titleEdit: '编辑求职目标', name: '名称', targetRoles: '目标岗位', targetRolesHint: '逗号或换行分隔，至少一个', cities: '城市', graduationYears: '毕业届次', experience: '经验范围', education: '学历范围', keywords: '关键词', exclusions: '排除词', sources: '发现来源', resumes: '简历方向', status: '状态', save: '保存', saving: '正在保存…', saved: '已保存', failed: '保存失败', required: '请至少填写名称和一个目标岗位。' },
+    form: { titleNew: '新建求职目标', titleEdit: '编辑求职目标', name: '名称', targetRoles: '目标岗位', targetRolesHint: '逗号或换行分隔，至少一个', cities: '城市', graduationYears: '毕业届次', experience: '经验范围', education: '学历范围', keywords: '关键词', exclusions: '排除词', sources: '发现来源', resumes: '简历方向', automation: '自动化模块', collectionEnabled: '启用岗位收集与入库', outreach: '招聘平台沟通 / BOSS', outreachEnabled: '启用招聘平台沟通 Runtime', outreachAutoStartEnabled: '允许有任务时自动启动招聘平台 Runtime', outreachGreetingEnabled: '允许发送首次招呼', outreachRecruiterInboxEnabled: '允许自动扫描招聘者回复', outreachResumeFollowupEnabled: '允许在明确请求时自动发送已选简历', outreachMaxExternalEffectsPerRun: '单次 Runtime 最多外部动作数', officialSite: '官网 / ATS', officialPrepareEnabled: '发现合适岗位后自动准备投递意图与冻结简历', officialFillEnabled: '自动派发到浏览器执行安全填表 / 上传简历', officialSubmitEnabled: '允许进入自动提交模块', email: '招聘邮箱', emailDraftEnabled: '发现邮箱岗位后自动生成主题 / 正文并冻结简历', emailSendEnabled: '允许发送模块直接发送已冻结邮件', preferredResume: '固定简历', recommendedResume: '自动匹配最合适简历', automationHint: '收集、招聘平台沟通 Runtime、官网准备/安全填表、邮件生成与外部发送彼此独立。浏览器可以高权限执行站点内部流程，但外部业务动作由这里控制；BOSS Runtime 默认允许沟通能力但不自动启动，官网最终提交与邮件发送默认关闭。', status: '状态', save: '保存', saving: '正在保存…', saved: '已保存', failed: '保存失败', required: '请至少填写名称和一个目标岗位。' },
     status: { active: '活跃', paused: '暂停', completed: '完成', archived: '归档' },
     links: { jobs: '查看岗位', applications: '查看投递', dashboard: '查看概览' },
   },
@@ -79,9 +79,10 @@ export const zhCN: MessageCatalog = {
     note: 'Resume 已成为 Job Harness 内的一等领域；旧 Resume Registry 暂时保留为投递兼容投影。',
   },
   discoveryWorkspace: {
-    filters: { campaign: '求职目标', executor: '执行器', all: '全部', apply: '筛选', reset: '重置' },
-    list: { runs: '次发现任务', empty: '暂无发现任务。外部 ChatGPT、导入器或其他执行器运行后会出现在这里。', running: '运行中', completed: '已完成', started: '开始', campaign: '求职目标', executor: '执行器', candidates: '候选', inserted: '新增', duplicates: '重复', rejected: '拒绝' },
-    detail: { title: '发现任务详情', observations: '观察记录', affectedJobs: '受影响岗位', context: '执行上下文', completedAt: '完成时间', noCampaign: '未绑定求职目标', noAffectedJobs: '该任务没有关联岗位。', openJob: '查看岗位', close: '关闭详情', full: '打开完整详情' },
+    filters: { campaign: '求职目标', executor: '执行器', status: '状态', all: '全部', apply: '筛选', reset: '重置' },
+    list: { runs: '次发现任务', empty: '暂无发现任务。外部 ChatGPT、导入器或其他执行器运行后会出现在这里。', running: '运行中', completed: '已完成', status: '状态', started: '开始', campaign: '求职目标', executor: '执行器', candidates: '候选', inserted: '新增', duplicates: '重复', rejected: '拒绝' },
+    detail: { title: '发现任务详情', observations: '观察记录', affectedJobs: '受影响岗位', context: '执行上下文', completedAt: '完成时间', status: '执行状态', failureCode: '失败代码', failureReason: '终止原因：', noCampaign: '未绑定求职目标', noAffectedJobs: '该任务没有关联岗位。', openJob: '查看岗位', close: '关闭详情', full: '打开完整详情' },
+    statuses: { running: '运行中', succeeded: '成功', failed: '失败', aborted: '已中止' },
     executors: { 'chatgpt-web': 'ChatGPT Web', 'memoflow-ai': 'MemoFlow AI', import: '历史导入', manual: '手动', other: '其他' },
   },
   executorsWorkspace: {
@@ -107,7 +108,8 @@ export const zhCN: MessageCatalog = {
         stale_application: '活跃投递超过 7 天没有新事件',
         shortlisted_unapplied: '候选岗位已知超过 3 天仍未投递',
         closed_listing_active_application: '岗位来源已关闭，但投递仍处于活跃阶段',
-        stale_campaign_discovery: '活跃求职目标超过 3 天没有完成新的发现任务',
+        failed_discovery_run: '发现任务执行失败，需要检查失败原因',
+        stale_campaign_discovery: '活跃求职目标超过 3 天没有成功完成新的发现任务',
         missing_resume_artifact: '简历引用缺少可用 artifact',
         stale_resume_artifact: '简历 artifact 超过 30 天未更新',
       },
@@ -135,7 +137,7 @@ export const zhCN: MessageCatalog = {
       summary: '投递概览', timeline: '时间线', appliedAt: '首次投递', stageEntered: '进入当前阶段', resume: '使用简历', submissions: '提交次数', source: '主要来源', campaigns: '求职目标', latestEvent: '最近事件',
       optionalNote: '备注（可选）', notePlaceholder: '例如：HR 邮件确认、主动撤回原因…', transition: '更新阶段', reject: '标记拒绝', withdraw: '标记撤回', closePanel: '关闭详情', openFullPage: '打开完整详情', openJob: '查看岗位', submissionHistory: '提交记录', submittedAt: '提交时间', channel: '渠道', listing: '岗位来源', profile: 'Resume Profile', revision: 'Revision', artifact: 'Artifact', unknown: '历史未知',
     },
-    submissionChannels: { official: '官网', boss: 'BOSS', zhilian: '智联', liepin: '猎聘', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: '邮件', referral: '内推', manual: '手动', other: '其他' },
+    submissionChannels: { official: '官网', boss: 'BOSS', zhilian: '智联', liepin: '猎聘', job51: '51job', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: '邮件', referral: '内推', manual: '手动', other: '其他' },
   },
   jobsWorkspace: {
     add: { trigger: '+ 添加岗位', title: '添加岗位', description: '通过 Job Harness 的统一岗位写入口保存信息；系统会按 Listing 身份规则去重，不会直接写数据库。', company: '公司', role: '岗位名称', city: '城市', source: '来源', url: '岗位链接', externalId: '来源岗位 ID（可选）', jd: '岗位描述 / JD', save: '保存岗位', saving: '保存中…', saved: '已保存岗位', failed: '保存岗位失败' },
@@ -147,13 +149,13 @@ export const zhCN: MessageCatalog = {
       any: '全部', yes: '已投递', no: '未投递', apply: '筛选', reset: '重置',
     },
     table: {
-      opportunity: '岗位 / 公司', city: '城市', state: '状态', application: '投递', source: '主要来源',
+      opportunity: '岗位 / 公司', city: '城市', state: '状态', application: '投递', contact: '联系', source: '主要来源',
       resume: '简历', lastSeen: '最近发现', listings: '来源数', results: '条岗位', noResults: '没有符合当前筛选条件的岗位。',
     },
     detail: {
-      overview: '概览', listings: '发布来源', application: '投递状态', timeline: '时间线', observations: '发现记录',
+      overview: '概览', listings: '发布来源', outreach: '联系记录', application: '投递状态', timeline: '时间线', observations: '发现记录',
       firstSeen: '首次发现', lastSeen: '最近发现', description: '岗位描述', noDescription: '尚未保存岗位描述。',
-      noApplication: '尚未投递这个岗位。', appliedAt: '投递时间', currentStage: '当前阶段', resume: '使用简历', submissions: '提交次数',
+      noApplication: '尚未投递这个岗位。', noOutreach: '尚未与该岗位的招聘方建立联系。', appliedAt: '投递时间', currentStage: '当前阶段', resume: '使用简历', submissions: '提交次数',
       openOriginal: '打开原岗位', closePanel: '关闭详情', openFullPage: '打开完整详情', sourceSeen: '观察时间',
     },
     actions: { shortlist: '加入候选', ignore: '忽略', close: '标记关闭', rediscover: '重新发现', updating: '正在更新…', failed: '更新岗位状态失败。' },
@@ -162,7 +164,8 @@ export const zhCN: MessageCatalog = {
     applicationStages: { applied: '已投递', screening: '筛选中', assessment: '测评', interview: '面试', offer: 'Offer', rejected: '已拒绝', withdrawn: '已撤回' },
     listingStatuses: { active: '可用', closed: '已关闭', unknown: '未知' },
     eventTypes: { application_recorded: '首次投递', submission_recorded: '再次提交', stage_changed: '阶段变化', interview_scheduled: '安排面试', note_added: '添加备注' },
-    sourceKinds: { official: '官网', boss: 'BOSS', zhilian: '智联', liepin: '猎聘', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: '邮件', manual: '手动', other: '其他' },
+    outreachTypes: { greeting_sent: '已打招呼', recruiter_replied: '招聘方已回复', resume_sent: '已发送简历', already_contacted: '此前已联系' },
+    sourceKinds: { official: '官网', boss: 'BOSS', zhilian: '智联', liepin: '猎聘', job51: '51job', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: '邮件', manual: '手动', other: '其他' },
   },
   pages: {
     overview: { title: '概览', description: '查看当前求职目标、漏斗状态和最近变化。' },

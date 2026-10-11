@@ -105,7 +105,7 @@ const BossSendMessageCommandSchema = z.object({
   type: z.literal('boss_send_message'),
   payload: z.object({ message: z.string().trim().min(1).max(2_000) }).strict(),
 }).strict();
-const BossScanUnreadContactsCommandSchema = z.object({ type: z.literal('boss_scan_unread_contacts'), payload: z.object({ limit: z.number().int().min(1).max(100).default(30) }).strict() }).strict();
+const BossScanUnreadContactsCommandSchema = z.object({ type: z.literal('boss_scan_unread_contacts'), payload: z.object({ limit: z.number().int().min(1).max(100).default(30), includeRead: z.boolean().default(false) }).strict() }).strict();
 const BossOpenContactCommandSchema = z.object({
   type: z.literal('boss_open_contact'),
   payload: z.object({ contactRef: z.string().regex(/^\[data-job-harness-boss-contact-id="[A-Za-z0-9._:-]+"\]$/) }).strict(),
@@ -117,7 +117,11 @@ const BossPrepareResumeCommandSchema = z.object({
 }).strict();
 const BossConfirmResumeCommandSchema = z.object({
   type: z.literal('boss_confirm_resume'),
-  payload: z.object({ resumeIndex: z.number().int().min(0).max(20), expectedJobUrl: z.url() }).strict(),
+  payload: z.object({
+    resumeIndex: z.number().int().min(0).max(20),
+    expectedJobUrl: z.url(),
+    expectedResumeLabel: z.string().trim().min(1).max(500),
+  }).strict(),
 }).strict();
 
 export const BrowserExtensionDriverCommandSchema = z.discriminatedUnion('type', [

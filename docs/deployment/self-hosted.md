@@ -18,7 +18,7 @@ Browser / Tailscale Serve / reverse proxy
        /data/resume-artifacts/
 ```
 
-Neither REST/MCP nor the Resume renderer publishes a host port. The Web container is the only default host entry point and binds to `127.0.0.1:3001` unless explicitly changed. Server waits for renderer health; Web waits for Server health.
+REST/MCP and the Resume renderer stay private to the Compose network. Web is the normal host entry point and binds to `127.0.0.1:3001` unless explicitly changed. The optional BOSS Compatibility Bridge also publishes only on host loopback (default `127.0.0.1:18788`) so a private Tailnet/reverse-proxy route can reach it without exposing the bridge on LAN/public interfaces. Server waits for renderer health; the BOSS bridge waits for Server health; Web waits for Server health.
 
 ## Prerequisites
 
@@ -73,11 +73,20 @@ JOB_HARNESS_SUBMISSION_RECONCILE_BATCH_SIZE=100
 Set the interval to `0` to disable the background sweep. A startup sweep runs when reconciliation is enabled, so `persistence_pending` items survive process/container restarts and are retried without repeating the external application side effect.
 
 
+## BOSS Compatibility Bridge
+
+The Compose stack includes a `boss-bridge` service for the mature BOSS Copilot compatibility runtime. The bridge talks to `server:3000` through the private Compose network, while the Server's ChatGPT MCP adapter reaches pending/resolution endpoints at `http://boss-bridge:18788`. This avoids routing the ChatGPT control loop back out through a public/Tailnet URL.
+
+The bridge host mapping is loopback-only by default. Set `JOB_HARNESS_BOSS_BRIDGE_PUBLIC_URL` to the private HTTPS/Tailnet address used by the dedicated browser profile when applicable. For the separate 智联/猎聘/51job collect-only upstream runtime, set `JOB_HARNESS_GET_JOBS_RUNTIME_URL` on the Job Harness server to a private HTTP(S) endpoint reachable from the server (the Oracle2 deployment uses a tailnet-only Tailscale Serve endpoint on the user's Windows/WSL host). The MCP layer exposes only coarse status/start/stop/sync operations and verifies the upstream `collectOnly=true` marker before starting collection. BOSS now also exposes a coarse Site Runtime control surface: `boss_runtime_status` is read-only, `boss_runtime_pause` only stops future work, and `boss_runtime_start` can start/reuse a Campaign-policy-bounded task whose greeting/inbox/resume-followup permissions and external-effect budget are derived server-side. Runtime tasks also expire automatically (`JOB_HARNESS_BOSS_RUNTIME_TASK_TTL_MS`, one hour by default), and a signed-in browser polling from a BOSS login/security-challenge page causes the active task to pause rather than continue automation. The ChatGPT MCP surface also exposes `boss_greetings_pending` as read-only, `boss_greeting_resolver_ready` as a non-external bounded presence/priority handshake, `boss_greeting_claim` as a non-external short lease acquisition, and `boss_greeting_resolve` as a bounded greeting release that requires the active lease token. The third bounded MCP effect is `career_email_application_authorize_send`, which authorizes only one exact immutable email package for the separate Email Delivery Worker and is independently gated by Campaign `email.sendEnabled`. None of these paths bypasses ATS SubmissionIntent/final-submit controls.
+
+Oracle2 defines an optional Compose profile named `greeting-resolver`. The preferred configuration is the built-in OpenAI-compatible provider with `JOB_HARNESS_BOSS_GREETING_PROVIDER_KIND=openai-compatible`, a provider base URL, model and optional source label. Oracle2 currently targets Groq at `https://api.groq.com/openai/v1` with `qwen/qwen3.8-27b`. The API key may be supplied directly through the private environment, but production should prefer the read-only secret file mounted from `/home/ubuntu/.config/job-harness/groq-api-key` to `/run/secrets/job-harness-groq-api-key` and referenced by `JOB_HARNESS_BOSS_GREETING_PROVIDER_API_KEY_FILE`. The provider worker claims as `background`, so a request created while `boss_greeting_resolver_ready` is active waits through the configured `JOB_HARNESS_BOSS_CHATGPT_PRIORITY_MS` interactive-priority interval before Groq may claim it. If neither ChatGPT nor Groq resolves the request, the deterministic fallback remains at the original `JOB_HARNESS_BOSS_GREETING_WAIT_MS` deadline. A command provider remains available as an explicit extension mode.
+
 ## Network/security defaults
 
 - `renderer:3002` and `server:3000` are only exposed to the Compose network; do not add host `ports:` mappings for normal operation.
 - Renderer receives only self-contained Resume HTML, disables page JavaScript, blocks network requests, runs read-only except `/tmp`, and requires an internal bearer for `/render/pdf`.
 - Web defaults to `127.0.0.1`, suitable for local access or for a host-level Tailscale Serve/reverse proxy.
+- `boss-bridge:18788` is private between Compose services and is host-published only on `127.0.0.1`; expose it externally only through an intentional private HTTPS/Tailnet route.
 - `JOB_HARNESS_AUTH_TOKEN` is required by Compose because Server binds to `0.0.0.0` inside the container.
 - The same bearer is injected into Web server-side runtime only; it is not a `NEXT_PUBLIC_*` value and is not sent to browser HTML.
 - Runtime containers run as non-root users and set `no-new-privileges`; renderer additionally uses a read-only root filesystem with tmpfs for Chromium scratch state.

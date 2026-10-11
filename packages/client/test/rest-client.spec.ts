@@ -127,11 +127,12 @@ describe('Job Harness REST client', () => {
       baseUrl: 'http://job-harness/api/v1',
       fetch: async (input) => { calls.push(String(input)); return response({ items: [], total: 0 }); },
     });
-    await client.workspace.listDiscoveryRuns({ campaignId: 'campaign-1', executor: 'chatgpt-web', limit: 25, offset: 50 });
+    await client.workspace.listDiscoveryRuns({ campaignId: 'campaign-1', executor: 'chatgpt-web', status: 'failed', limit: 25, offset: 50 });
     const url = new URL(calls[0]!);
     expect(url.pathname).toBe('/api/v1/discovery');
     expect(url.searchParams.get('campaignId')).toBe('campaign-1');
     expect(url.searchParams.get('executor')).toBe('chatgpt-web');
+    expect(url.searchParams.get('status')).toBe('failed');
     expect(url.searchParams.get('limit')).toBe('25');
     expect(url.searchParams.get('offset')).toBe('50');
   });
@@ -200,6 +201,7 @@ describe('Job Harness REST client', () => {
     });
     await client.discovery.complete({
       runId: 'run-1', completedAt: '2026-09-16T08:10:00.000Z',
+      status: 'succeeded', failureCode: null, failureReason: null,
       candidateCount: 2, insertedCount: 1, duplicateCount: 1, rejectedCount: 0,
     });
 
@@ -209,7 +211,7 @@ describe('Job Harness REST client', () => {
     expect(new URL(calls[1]!.url).pathname).toBe('/api/v1/discovery');
     expect(calls[2]).toMatchObject({
       method: 'POST',
-      body: { completedAt: '2026-09-16T08:10:00.000Z', candidateCount: 2, insertedCount: 1, duplicateCount: 1, rejectedCount: 0 },
+      body: { completedAt: '2026-09-16T08:10:00.000Z', status: 'succeeded', failureCode: null, failureReason: null, candidateCount: 2, insertedCount: 1, duplicateCount: 1, rejectedCount: 0 },
     });
     expect(new URL(calls[2]!.url).pathname).toBe('/api/v1/discovery/run-1/complete');
   });

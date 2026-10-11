@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { ExternalLink, GripVertical } from 'lucide-react';
 import { ApplicationStageSchema, type ApplicationBoardItem, type ListApplicationBoardInput, type ListApplicationBoardOutput } from '@job-harness/contracts';
@@ -305,7 +305,7 @@ export function ApplicationsBoard({
       <div className="applications-board-viewport">
         {mainStages.length ? (
           <div className="applications-board-scroll">
-            <div className="applications-board-grid" style={{ gridTemplateColumns: `repeat(${mainStages.length}, minmax(215px, 1fr))` }}>
+            <div className="applications-board-grid" style={{ '--stage-count': mainStages.length } as CSSProperties}>
               {mainStages.map((stage) => renderColumn(stage))}
             </div>
           </div>
@@ -314,7 +314,7 @@ export function ApplicationsBoard({
           <section className="applications-outcomes">
             <h2>{copy.board.outcomes}</h2>
             <div className="applications-board-scroll">
-              <div className="applications-board-grid applications-board-grid-outcomes" style={{ gridTemplateColumns: `repeat(${outcomeStages.length}, minmax(215px, 1fr))` }}>
+              <div className="applications-board-grid applications-board-grid-outcomes" style={{ '--stage-count': outcomeStages.length } as CSSProperties}>
                 {outcomeStages.map((stage) => renderColumn(stage))}
               </div>
             </div>

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,10 +24,11 @@ describe('standalone Streamable HTTP MCP server', () => {
       databasePath: join(dir, 'career.db'),
       host: '127.0.0.1',
       port: 0,
+      authToken: 'test-secret',
     });
 
     const client = new Client({ name: 'job-harness-test', version: '1.0.0' });
-    const transport = new StreamableHTTPClientTransport(new URL(running.mcpUrl));
+    const transport = new StreamableHTTPClientTransport(new URL(running.mcpUrl), { requestInit: { headers: { authorization: 'Bearer test-secret' } } });
     await client.connect(transport);
     const tools = await client.listTools();
     expect(tools.tools.map((tool) => tool.name)).toContain('career_jobs_search');
@@ -35,6 +37,18 @@ describe('standalone Streamable HTTP MCP server', () => {
     expect(tools.tools.map((tool) => tool.name)).toContain('resume_profile_patch_selection');
     expect(tools.tools.map((tool) => tool.name)).toContain('career_submission_intent_prepare');
     expect(tools.tools.map((tool) => tool.name)).toContain('career_submission_intents_reconcile_pending');
+    expect(tools.tools.map((tool) => tool.name)).toContain('boss_greetings_pending');
+    expect(tools.tools.map((tool) => tool.name)).toContain('boss_greeting_resolve');
+    expect(tools.tools.map((tool) => tool.name)).toContain('boss_runtime_status');
+    expect(tools.tools.map((tool) => tool.name)).toContain('boss_runtime_start');
+    expect(tools.tools.map((tool) => tool.name)).toContain('boss_runtime_pause');
+    expect(tools.tools.map((tool) => tool.name)).toContain('career_email_application_authorize_send');
+    expect(tools.tools.find((tool) => tool.name === 'boss_greetings_pending')?.annotations?.readOnlyHint).toBe(true);
+    expect(tools.tools.find((tool) => tool.name === 'boss_greeting_resolve')?.annotations?.openWorldHint).toBe(true);
+    expect(tools.tools.find((tool) => tool.name === 'boss_runtime_status')?.annotations?.readOnlyHint).toBe(true);
+    expect(tools.tools.find((tool) => tool.name === 'boss_runtime_start')?.annotations?.openWorldHint).toBe(true);
+    expect(tools.tools.find((tool) => tool.name === 'boss_runtime_pause')?.annotations?.openWorldHint).toBe(false);
+    expect(tools.tools.find((tool) => tool.name === 'career_email_application_authorize_send')?.annotations?.openWorldHint).toBe(true);
 
     const result = await client.callTool({ name: 'career_pipeline_stats', arguments: {} });
     expect(result.isError).not.toBe(true);
@@ -65,5 +79,44 @@ describe('standalone Streamable HTTP MCP server', () => {
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
     });
     expect(response.status).toBe(401);
+
+    const runtimeResponse = await fetch(`${running.url}/runtime/recruitment-browser/v1/manifest.json`);
+    expect(runtimeResponse.status).toBe(200);
+    const manifest = await runtimeResponse.json() as {
+      schemaVersion: number;
+      bundleVersion: string;
+      supervisorVersion: string;
+      extensions: Array<{ id: string; files: Array<{ id: string; sha256: string }> }>;
+      externalRuntimes: Array<{ id: string; version: string; mode: string; sites: string[]; bootstrap: { id: string; sha256: string }; manager: { id: string; sha256: string }; overlays: Array<{ id: string; sha256: string }> }>;
+    };
+    expect(manifest.schemaVersion).toBe(1);
+    expect(manifest.bundleVersion).toMatch(/^[0-9a-f]{64}$/);
+    expect(manifest.supervisorVersion).toMatch(/^[0-9a-f]{64}$/);
+    expect(manifest.extensions.map((extension) => extension.id)).toEqual(['boss-copilot', 'browser-bridge']);
+    expect(manifest.externalRuntimes).toHaveLength(1);
+    expect(manifest.externalRuntimes[0]).toMatchObject({ id: 'vvvsrx-get-jobs', mode: 'collect-only', sites: ['zhilian', 'liepin', 'job51'] });
+    expect(manifest.externalRuntimes[0]?.version).toMatch(/^[0-9a-f]{64}$/);
+    const runtimeFile = manifest.extensions[0]?.files[0];
+    expect(runtimeFile).toBeTruthy();
+    const fileResponse = await fetch(`${running.url}/runtime/recruitment-browser/v1/files/${runtimeFile!.id}`);
+    expect(fileResponse.status).toBe(200);
+    const bytes = Buffer.from(await fileResponse.arrayBuffer());
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(runtimeFile!.sha256);
+    expect(fileResponse.headers.get('x-content-sha256')).toBe(runtimeFile!.sha256);
+
+    const bootstrapAsset = manifest.externalRuntimes[0]!.bootstrap;
+    const bootstrapResponse = await fetch(`${running.url}/runtime/recruitment-browser/v1/files/${bootstrapAsset.id}`);
+    expect(bootstrapResponse.status).toBe(200);
+    const bootstrapBytes = Buffer.from(await bootstrapResponse.arrayBuffer());
+    expect(createHash('sha256').update(bootstrapBytes).digest('hex')).toBe(bootstrapAsset.sha256);
+
+    const manager = manifest.externalRuntimes[0]!.manager;
+    const managerResponse = await fetch(`${running.url}/runtime/recruitment-browser/v1/files/${manager.id}`);
+    expect(managerResponse.status).toBe(200);
+    const managerBytes = Buffer.from(await managerResponse.arrayBuffer());
+    expect(createHash('sha256').update(managerBytes).digest('hex')).toBe(manager.sha256);
+
+    const missingRuntimeFile = await fetch(`${running.url}/runtime/recruitment-browser/v1/files/not/allowed.js`);
+    expect(missingRuntimeFile.status).toBe(404);
   });
 });

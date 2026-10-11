@@ -1,0 +1,20 @@
+--- a/app/worker/liepin_bot.py
++++ b/app/worker/liepin_bot.py
+@@ -325,10 +325,14 @@
+             except Exception:
+                 pass
+ 
+-            self._info(f"正在投递【{clean_keyword}】第【{page_num + 1}】页...")
+-            posted = await self._deliver_page_cards()
++            if os.getenv("JOB_HARNESS_GET_JOBS_COLLECT_ONLY", "0") == "1":
++                self._info(f"仅采集模式：已采集猎聘【{clean_keyword}】第【{page_num + 1}】页，不执行投递")
++                posted = 0
++            else:
++                self._info(f"正在投递【{clean_keyword}】第【{page_num + 1}】页...")
++                posted = await self._deliver_page_cards()
++                self._info(f"已投递第【{page_num + 1}】页所有的岗位...")
+             total_posted += posted
+-            self._info(f"已投递第【{page_num + 1}】页所有的岗位...")
+ 
+             # 查找下一页按钮
+             pagination_box = self.page.locator(PAGINATION_BOX)

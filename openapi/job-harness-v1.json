@@ -3882,6 +3882,7 @@
                               "boss",
                               "zhilian",
                               "liepin",
+                              "job51",
                               "moka",
                               "greenhouse",
                               "lever",
@@ -5102,6 +5103,42 @@
                                   }
                                 ]
                               },
+                              "status": {
+                                "default": "running",
+                                "type": "string",
+                                "enum": [
+                                  "running",
+                                  "succeeded",
+                                  "failed",
+                                  "aborted"
+                                ]
+                              },
+                              "failureCode": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 120
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "failureReason": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 1000
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "candidateCount": {
                                 "default": 0,
                                 "type": "integer",
@@ -5134,6 +5171,9 @@
                               "contextSnapshot",
                               "startedAt",
                               "completedAt",
+                              "status",
+                              "failureCode",
+                              "failureReason",
                               "candidateCount",
                               "insertedCount",
                               "duplicateCount",
@@ -5438,6 +5478,7 @@
                               "stale_application",
                               "shortlisted_unapplied",
                               "closed_listing_active_application",
+                              "failed_discovery_run",
                               "stale_campaign_discovery",
                               "missing_resume_artifact",
                               "stale_resume_artifact"
@@ -5480,6 +5521,18 @@
                             ]
                           },
                           "campaignId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "discoveryRunId": {
                             "anyOf": [
                               {
                                 "type": "string",
@@ -5543,6 +5596,7 @@
                           "jobId",
                           "applicationId",
                           "campaignId",
+                          "discoveryRunId",
                           "resumeProfileId",
                           "stage",
                           "sinceAt"
@@ -5621,6 +5675,7 @@
                               "boss",
                               "zhilian",
                               "liepin",
+                              "job51",
                               "moka",
                               "greenhouse",
                               "lever",
@@ -6043,6 +6098,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -6500,6 +6556,7 @@
                                       "boss",
                                       "zhilian",
                                       "liepin",
+                                      "job51",
                                       "moka",
                                       "greenhouse",
                                       "lever",
@@ -6658,6 +6715,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -6768,6 +6826,161 @@
                               }
                             ]
                           },
+                          "outreachCount": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "latestOutreach": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "jobId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "listingId": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "channel": {
+                                    "type": "string",
+                                    "enum": [
+                                      "official",
+                                      "boss",
+                                      "zhilian",
+                                      "liepin",
+                                      "job51",
+                                      "moka",
+                                      "greenhouse",
+                                      "lever",
+                                      "ashby",
+                                      "email",
+                                      "referral",
+                                      "manual",
+                                      "other"
+                                    ]
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "greeting_sent",
+                                      "recruiter_replied",
+                                      "resume_sent",
+                                      "already_contacted"
+                                    ]
+                                  },
+                                  "occurredAt": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                                  },
+                                  "actor": {
+                                    "type": "string",
+                                    "enum": [
+                                      "user",
+                                      "chatgpt-web",
+                                      "import",
+                                      "system",
+                                      "other"
+                                    ]
+                                  },
+                                  "resumeProfileId": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "message": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "maxLength": 4000
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "externalThreadUrl": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "format": "uri"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "metadata": {
+                                    "default": {},
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "additionalProperties": {}
+                                  },
+                                  "idempotencyKey": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 300
+                                  },
+                                  "createdAt": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "jobId",
+                                  "listingId",
+                                  "channel",
+                                  "type",
+                                  "occurredAt",
+                                  "actor",
+                                  "resumeProfileId",
+                                  "message",
+                                  "externalThreadUrl",
+                                  "metadata",
+                                  "idempotencyKey",
+                                  "createdAt"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "firstSeenAt": {
                             "type": "string",
                             "format": "date-time",
@@ -6792,6 +7005,8 @@
                           "sourceKinds",
                           "campaigns",
                           "resume",
+                          "outreachCount",
+                          "latestOutreach",
                           "firstSeenAt",
                           "lastSeenAt"
                         ],
@@ -6846,6 +7061,7 @@
                           "boss",
                           "zhilian",
                           "liepin",
+                          "job51",
                           "moka",
                           "greenhouse",
                           "lever",
@@ -7169,6 +7385,7 @@
                   "boss",
                   "zhilian",
                   "liepin",
+                  "job51",
                   "moka",
                   "greenhouse",
                   "lever",
@@ -7330,6 +7547,7 @@
                                       "boss",
                                       "zhilian",
                                       "liepin",
+                                      "job51",
                                       "moka",
                                       "greenhouse",
                                       "lever",
@@ -7488,6 +7706,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -7598,6 +7817,161 @@
                               }
                             ]
                           },
+                          "outreachCount": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "latestOutreach": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "jobId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "listingId": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "channel": {
+                                    "type": "string",
+                                    "enum": [
+                                      "official",
+                                      "boss",
+                                      "zhilian",
+                                      "liepin",
+                                      "job51",
+                                      "moka",
+                                      "greenhouse",
+                                      "lever",
+                                      "ashby",
+                                      "email",
+                                      "referral",
+                                      "manual",
+                                      "other"
+                                    ]
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "greeting_sent",
+                                      "recruiter_replied",
+                                      "resume_sent",
+                                      "already_contacted"
+                                    ]
+                                  },
+                                  "occurredAt": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                                  },
+                                  "actor": {
+                                    "type": "string",
+                                    "enum": [
+                                      "user",
+                                      "chatgpt-web",
+                                      "import",
+                                      "system",
+                                      "other"
+                                    ]
+                                  },
+                                  "resumeProfileId": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "message": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "maxLength": 4000
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "externalThreadUrl": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "format": "uri"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "metadata": {
+                                    "default": {},
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "additionalProperties": {}
+                                  },
+                                  "idempotencyKey": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 300
+                                  },
+                                  "createdAt": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "jobId",
+                                  "listingId",
+                                  "channel",
+                                  "type",
+                                  "occurredAt",
+                                  "actor",
+                                  "resumeProfileId",
+                                  "message",
+                                  "externalThreadUrl",
+                                  "metadata",
+                                  "idempotencyKey",
+                                  "createdAt"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "firstSeenAt": {
                             "type": "string",
                             "format": "date-time",
@@ -7622,6 +7996,8 @@
                           "sourceKinds",
                           "campaigns",
                           "resume",
+                          "outreachCount",
+                          "latestOutreach",
                           "firstSeenAt",
                           "lastSeenAt"
                         ],
@@ -7952,6 +8328,7 @@
                                   "boss",
                                   "zhilian",
                                   "liepin",
+                                  "job51",
                                   "moka",
                                   "greenhouse",
                                   "lever",
@@ -8151,6 +8528,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -8532,6 +8910,7 @@
                                           "boss",
                                           "zhilian",
                                           "liepin",
+                                          "job51",
                                           "moka",
                                           "greenhouse",
                                           "lever",
@@ -8899,6 +9278,7 @@
                                   "boss",
                                   "zhilian",
                                   "liepin",
+                                  "job51",
                                   "moka",
                                   "greenhouse",
                                   "lever",
@@ -9045,6 +9425,151 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "outreach": {
+                      "default": [],
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "jobId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "listingId": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "channel": {
+                            "type": "string",
+                            "enum": [
+                              "official",
+                              "boss",
+                              "zhilian",
+                              "liepin",
+                              "job51",
+                              "moka",
+                              "greenhouse",
+                              "lever",
+                              "ashby",
+                              "email",
+                              "referral",
+                              "manual",
+                              "other"
+                            ]
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "greeting_sent",
+                              "recruiter_replied",
+                              "resume_sent",
+                              "already_contacted"
+                            ]
+                          },
+                          "occurredAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          "actor": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "chatgpt-web",
+                              "import",
+                              "system",
+                              "other"
+                            ]
+                          },
+                          "resumeProfileId": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "message": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 4000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "externalThreadUrl": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "metadata": {
+                            "default": {},
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "idempotencyKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 300
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "jobId",
+                          "listingId",
+                          "channel",
+                          "type",
+                          "occurredAt",
+                          "actor",
+                          "resumeProfileId",
+                          "message",
+                          "externalThreadUrl",
+                          "metadata",
+                          "idempotencyKey",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -9052,7 +9577,8 @@
                     "primaryListing",
                     "campaigns",
                     "application",
-                    "observations"
+                    "observations",
+                    "outreach"
                   ],
                   "additionalProperties": false
                 }
@@ -9254,6 +9780,950 @@
                   ],
                   "additionalProperties": false
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/outreach-events": {
+      "get": {
+        "operationId": "listJobOutreachEvents",
+        "tags": [
+          "Outreach"
+        ],
+        "summary": "List durable recruiter-contact events without conflating outreach with an application submission",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "jobId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "official",
+                "boss",
+                "zhilian",
+                "liepin",
+                "job51",
+                "moka",
+                "greenhouse",
+                "lever",
+                "ashby",
+                "email",
+                "referral",
+                "manual",
+                "other"
+              ]
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "greeting_sent",
+                  "recruiter_replied",
+                  "resume_sent",
+                  "already_contacted"
+                ]
+              }
+            },
+            "style": "form",
+            "explode": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "jobId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "listingId": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "channel": {
+                            "type": "string",
+                            "enum": [
+                              "official",
+                              "boss",
+                              "zhilian",
+                              "liepin",
+                              "job51",
+                              "moka",
+                              "greenhouse",
+                              "lever",
+                              "ashby",
+                              "email",
+                              "referral",
+                              "manual",
+                              "other"
+                            ]
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "greeting_sent",
+                              "recruiter_replied",
+                              "resume_sent",
+                              "already_contacted"
+                            ]
+                          },
+                          "occurredAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          "actor": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "chatgpt-web",
+                              "import",
+                              "system",
+                              "other"
+                            ]
+                          },
+                          "resumeProfileId": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "message": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 4000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "externalThreadUrl": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "metadata": {
+                            "default": {},
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "idempotencyKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 300
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "jobId",
+                          "listingId",
+                          "channel",
+                          "type",
+                          "occurredAt",
+                          "actor",
+                          "resumeProfileId",
+                          "message",
+                          "externalThreadUrl",
+                          "metadata",
+                          "idempotencyKey",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Entity not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid lifecycle transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "recordJobOutreachEvent",
+        "tags": [
+          "Outreach"
+        ],
+        "summary": "Idempotently record a recruiter-contact event against a known Job/Listing",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "jobId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "listingId": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "official",
+                        "boss",
+                        "zhilian",
+                        "liepin",
+                        "job51",
+                        "moka",
+                        "greenhouse",
+                        "lever",
+                        "ashby",
+                        "email",
+                        "referral",
+                        "manual",
+                        "other"
+                      ]
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "greeting_sent",
+                        "recruiter_replied",
+                        "resume_sent",
+                        "already_contacted"
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    "actor": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "chatgpt-web",
+                        "import",
+                        "system",
+                        "other"
+                      ]
+                    },
+                    "resumeProfileId": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 4000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "externalThreadUrl": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "metadata": {
+                      "default": {},
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
+                    "idempotencyKey": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "jobId",
+                    "listingId",
+                    "channel",
+                    "type",
+                    "occurredAt",
+                    "actor",
+                    "resumeProfileId",
+                    "message",
+                    "externalThreadUrl",
+                    "metadata",
+                    "idempotencyKey",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Entity not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid lifecycle transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "issues": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "jobId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "listingId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "channel": {
+                    "type": "string",
+                    "enum": [
+                      "official",
+                      "boss",
+                      "zhilian",
+                      "liepin",
+                      "job51",
+                      "moka",
+                      "greenhouse",
+                      "lever",
+                      "ashby",
+                      "email",
+                      "referral",
+                      "manual",
+                      "other"
+                    ]
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "greeting_sent",
+                      "recruiter_replied",
+                      "resume_sent",
+                      "already_contacted"
+                    ]
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  },
+                  "actor": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "chatgpt-web",
+                      "import",
+                      "system",
+                      "other"
+                    ]
+                  },
+                  "resumeProfileId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "message": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 4000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "externalThreadUrl": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadata": {
+                    "default": {},
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  },
+                  "idempotencyKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "jobId",
+                  "channel",
+                  "type",
+                  "occurredAt",
+                  "actor",
+                  "metadata",
+                  "idempotencyKey"
+                ],
+                "additionalProperties": false
               }
             }
           }
@@ -9956,6 +11426,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -10453,6 +11924,7 @@
                           "boss",
                           "zhilian",
                           "liepin",
+                          "job51",
                           "moka",
                           "greenhouse",
                           "lever",
@@ -10701,6 +12173,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -11213,6 +12686,30 @@
                       }
                     ]
                   },
+                  "subject": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "body": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "idempotencyKey": {
                     "type": "string",
                     "minLength": 1,
@@ -11388,6 +12885,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -11924,6 +13422,7 @@
                             "boss",
                             "zhilian",
                             "liepin",
+                            "job51",
                             "moka",
                             "greenhouse",
                             "lever",
@@ -12573,6 +14072,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -12979,6 +14479,7 @@
                                           "boss",
                                           "zhilian",
                                           "liepin",
+                                          "job51",
                                           "moka",
                                           "greenhouse",
                                           "lever",
@@ -13291,6 +14792,7 @@
                                           "boss",
                                           "zhilian",
                                           "liepin",
+                                          "job51",
                                           "moka",
                                           "greenhouse",
                                           "lever",
@@ -13837,6 +15339,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -15201,6 +16704,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -17278,6 +18782,7 @@
                                   "boss",
                                   "zhilian",
                                   "liepin",
+                                  "job51",
                                   "moka",
                                   "greenhouse",
                                   "lever",
@@ -17530,6 +19035,7 @@
                               "boss",
                               "zhilian",
                               "liepin",
+                              "job51",
                               "moka",
                               "greenhouse",
                               "lever",
@@ -18194,6 +19700,7 @@
                                       "boss",
                                       "zhilian",
                                       "liepin",
+                                      "job51",
                                       "moka",
                                       "greenhouse",
                                       "lever",
@@ -18936,6 +20443,7 @@
                                   "boss",
                                   "zhilian",
                                   "liepin",
+                                  "job51",
                                   "moka",
                                   "greenhouse",
                                   "lever",
@@ -19248,6 +20756,7 @@
                                   "boss",
                                   "zhilian",
                                   "liepin",
+                                  "job51",
                                   "moka",
                                   "greenhouse",
                                   "lever",
@@ -19637,6 +21146,7 @@
                           "boss",
                           "zhilian",
                           "liepin",
+                          "job51",
                           "moka",
                           "greenhouse",
                           "lever",
@@ -19865,6 +21375,7 @@
                                   "boss",
                                   "zhilian",
                                   "liepin",
+                                  "job51",
                                   "moka",
                                   "greenhouse",
                                   "lever",
@@ -20064,6 +21575,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -20442,6 +21954,7 @@
                                   "boss",
                                   "zhilian",
                                   "liepin",
+                                  "job51",
                                   "moka",
                                   "greenhouse",
                                   "lever",
@@ -21043,6 +22556,7 @@
                                   "boss",
                                   "zhilian",
                                   "liepin",
+                                  "job51",
                                   "moka",
                                   "greenhouse",
                                   "lever",
@@ -21355,6 +22869,7 @@
                                   "boss",
                                   "zhilian",
                                   "liepin",
+                                  "job51",
                                   "moka",
                                   "greenhouse",
                                   "lever",
@@ -21871,6 +23386,7 @@
                                   "boss",
                                   "zhilian",
                                   "liepin",
+                                  "job51",
                                   "moka",
                                   "greenhouse",
                                   "lever",
@@ -22399,6 +23915,7 @@
                             "boss",
                             "zhilian",
                             "liepin",
+                            "job51",
                             "moka",
                             "greenhouse",
                             "lever",
@@ -22894,6 +24411,7 @@
                           "boss",
                           "zhilian",
                           "liepin",
+                          "job51",
                           "moka",
                           "greenhouse",
                           "lever",
@@ -23072,6 +24590,7 @@
                             "boss",
                             "zhilian",
                             "liepin",
+                            "job51",
                             "moka",
                             "greenhouse",
                             "lever",
@@ -23601,6 +25120,7 @@
                             "boss",
                             "zhilian",
                             "liepin",
+                            "job51",
                             "moka",
                             "greenhouse",
                             "lever",
@@ -24154,6 +25674,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -24560,6 +26081,7 @@
                                           "boss",
                                           "zhilian",
                                           "liepin",
+                                          "job51",
                                           "moka",
                                           "greenhouse",
                                           "lever",
@@ -24872,6 +26394,7 @@
                                           "boss",
                                           "zhilian",
                                           "liepin",
+                                          "job51",
                                           "moka",
                                           "greenhouse",
                                           "lever",
@@ -25317,6 +26840,7 @@
                             "boss",
                             "zhilian",
                             "liepin",
+                            "job51",
                             "moka",
                             "greenhouse",
                             "lever",
@@ -25893,6 +27417,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -26299,6 +27824,7 @@
                                           "boss",
                                           "zhilian",
                                           "liepin",
+                                          "job51",
                                           "moka",
                                           "greenhouse",
                                           "lever",
@@ -26611,6 +28137,7 @@
                                           "boss",
                                           "zhilian",
                                           "liepin",
+                                          "job51",
                                           "moka",
                                           "greenhouse",
                                           "lever",
@@ -45494,6 +47021,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -45512,6 +47040,186 @@
                               "minLength": 1,
                               "maxLength": 200
                             }
+                          },
+                          "automation": {
+                            "default": {
+                              "collection": {
+                                "enabled": true
+                              },
+                              "outreach": {
+                                "enabled": true,
+                                "autoStartEnabled": false,
+                                "greetingEnabled": true,
+                                "recruiterInboxEnabled": true,
+                                "resumeFollowupEnabled": true,
+                                "maxExternalEffectsPerRun": 20
+                              },
+                              "officialSite": {
+                                "prepareEnabled": true,
+                                "fillEnabled": true,
+                                "submitEnabled": false,
+                                "preferredResumeProfileId": null
+                              },
+                              "email": {
+                                "draftEnabled": true,
+                                "sendEnabled": false,
+                                "preferredResumeProfileId": null
+                              }
+                            },
+                            "type": "object",
+                            "properties": {
+                              "collection": {
+                                "default": {
+                                  "enabled": true
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "enabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "enabled"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "outreach": {
+                                "default": {
+                                  "enabled": true,
+                                  "autoStartEnabled": false,
+                                  "greetingEnabled": true,
+                                  "recruiterInboxEnabled": true,
+                                  "resumeFollowupEnabled": true,
+                                  "maxExternalEffectsPerRun": 20
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "enabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "autoStartEnabled": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  },
+                                  "greetingEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "recruiterInboxEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "resumeFollowupEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "maxExternalEffectsPerRun": {
+                                    "default": 20,
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 500
+                                  }
+                                },
+                                "required": [
+                                  "enabled",
+                                  "autoStartEnabled",
+                                  "greetingEnabled",
+                                  "recruiterInboxEnabled",
+                                  "resumeFollowupEnabled",
+                                  "maxExternalEffectsPerRun"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "officialSite": {
+                                "default": {
+                                  "prepareEnabled": true,
+                                  "fillEnabled": true,
+                                  "submitEnabled": false,
+                                  "preferredResumeProfileId": null
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "prepareEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "fillEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "submitEnabled": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  },
+                                  "preferredResumeProfileId": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "prepareEnabled",
+                                  "fillEnabled",
+                                  "submitEnabled",
+                                  "preferredResumeProfileId"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "email": {
+                                "default": {
+                                  "draftEnabled": true,
+                                  "sendEnabled": false,
+                                  "preferredResumeProfileId": null
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "draftEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "sendEnabled": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  },
+                                  "preferredResumeProfileId": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "draftEnabled",
+                                  "sendEnabled",
+                                  "preferredResumeProfileId"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "collection",
+                              "outreach",
+                              "officialSite",
+                              "email"
+                            ],
+                            "additionalProperties": false
                           },
                           "status": {
                             "type": "string",
@@ -45545,6 +47253,7 @@
                           "exclusions",
                           "sources",
                           "resumeProfileIds",
+                          "automation",
                           "status",
                           "createdAt",
                           "updatedAt"
@@ -45883,6 +47592,7 @@
                           "boss",
                           "zhilian",
                           "liepin",
+                          "job51",
                           "moka",
                           "greenhouse",
                           "lever",
@@ -45901,6 +47611,186 @@
                         "minLength": 1,
                         "maxLength": 200
                       }
+                    },
+                    "automation": {
+                      "default": {
+                        "collection": {
+                          "enabled": true
+                        },
+                        "outreach": {
+                          "enabled": true,
+                          "autoStartEnabled": false,
+                          "greetingEnabled": true,
+                          "recruiterInboxEnabled": true,
+                          "resumeFollowupEnabled": true,
+                          "maxExternalEffectsPerRun": 20
+                        },
+                        "officialSite": {
+                          "prepareEnabled": true,
+                          "fillEnabled": true,
+                          "submitEnabled": false,
+                          "preferredResumeProfileId": null
+                        },
+                        "email": {
+                          "draftEnabled": true,
+                          "sendEnabled": false,
+                          "preferredResumeProfileId": null
+                        }
+                      },
+                      "type": "object",
+                      "properties": {
+                        "collection": {
+                          "default": {
+                            "enabled": true
+                          },
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "default": true,
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "enabled"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "outreach": {
+                          "default": {
+                            "enabled": true,
+                            "autoStartEnabled": false,
+                            "greetingEnabled": true,
+                            "recruiterInboxEnabled": true,
+                            "resumeFollowupEnabled": true,
+                            "maxExternalEffectsPerRun": 20
+                          },
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "autoStartEnabled": {
+                              "default": false,
+                              "type": "boolean"
+                            },
+                            "greetingEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "recruiterInboxEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "resumeFollowupEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "maxExternalEffectsPerRun": {
+                              "default": 20,
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 500
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "autoStartEnabled",
+                            "greetingEnabled",
+                            "recruiterInboxEnabled",
+                            "resumeFollowupEnabled",
+                            "maxExternalEffectsPerRun"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "officialSite": {
+                          "default": {
+                            "prepareEnabled": true,
+                            "fillEnabled": true,
+                            "submitEnabled": false,
+                            "preferredResumeProfileId": null
+                          },
+                          "type": "object",
+                          "properties": {
+                            "prepareEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "fillEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "submitEnabled": {
+                              "default": false,
+                              "type": "boolean"
+                            },
+                            "preferredResumeProfileId": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "prepareEnabled",
+                            "fillEnabled",
+                            "submitEnabled",
+                            "preferredResumeProfileId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "email": {
+                          "default": {
+                            "draftEnabled": true,
+                            "sendEnabled": false,
+                            "preferredResumeProfileId": null
+                          },
+                          "type": "object",
+                          "properties": {
+                            "draftEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "sendEnabled": {
+                              "default": false,
+                              "type": "boolean"
+                            },
+                            "preferredResumeProfileId": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "draftEnabled",
+                            "sendEnabled",
+                            "preferredResumeProfileId"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "collection",
+                        "outreach",
+                        "officialSite",
+                        "email"
+                      ],
+                      "additionalProperties": false
                     },
                     "status": {
                       "type": "string",
@@ -45934,6 +47824,7 @@
                     "exclusions",
                     "sources",
                     "resumeProfileIds",
+                    "automation",
                     "status",
                     "createdAt",
                     "updatedAt"
@@ -46257,6 +48148,7 @@
                           "boss",
                           "zhilian",
                           "liepin",
+                          "job51",
                           "moka",
                           "greenhouse",
                           "lever",
@@ -46275,6 +48167,186 @@
                         "minLength": 1,
                         "maxLength": 200
                       }
+                    },
+                    "automation": {
+                      "default": {
+                        "collection": {
+                          "enabled": true
+                        },
+                        "outreach": {
+                          "enabled": true,
+                          "autoStartEnabled": false,
+                          "greetingEnabled": true,
+                          "recruiterInboxEnabled": true,
+                          "resumeFollowupEnabled": true,
+                          "maxExternalEffectsPerRun": 20
+                        },
+                        "officialSite": {
+                          "prepareEnabled": true,
+                          "fillEnabled": true,
+                          "submitEnabled": false,
+                          "preferredResumeProfileId": null
+                        },
+                        "email": {
+                          "draftEnabled": true,
+                          "sendEnabled": false,
+                          "preferredResumeProfileId": null
+                        }
+                      },
+                      "type": "object",
+                      "properties": {
+                        "collection": {
+                          "default": {
+                            "enabled": true
+                          },
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "default": true,
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "enabled"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "outreach": {
+                          "default": {
+                            "enabled": true,
+                            "autoStartEnabled": false,
+                            "greetingEnabled": true,
+                            "recruiterInboxEnabled": true,
+                            "resumeFollowupEnabled": true,
+                            "maxExternalEffectsPerRun": 20
+                          },
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "autoStartEnabled": {
+                              "default": false,
+                              "type": "boolean"
+                            },
+                            "greetingEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "recruiterInboxEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "resumeFollowupEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "maxExternalEffectsPerRun": {
+                              "default": 20,
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 500
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "autoStartEnabled",
+                            "greetingEnabled",
+                            "recruiterInboxEnabled",
+                            "resumeFollowupEnabled",
+                            "maxExternalEffectsPerRun"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "officialSite": {
+                          "default": {
+                            "prepareEnabled": true,
+                            "fillEnabled": true,
+                            "submitEnabled": false,
+                            "preferredResumeProfileId": null
+                          },
+                          "type": "object",
+                          "properties": {
+                            "prepareEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "fillEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "submitEnabled": {
+                              "default": false,
+                              "type": "boolean"
+                            },
+                            "preferredResumeProfileId": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "prepareEnabled",
+                            "fillEnabled",
+                            "submitEnabled",
+                            "preferredResumeProfileId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "email": {
+                          "default": {
+                            "draftEnabled": true,
+                            "sendEnabled": false,
+                            "preferredResumeProfileId": null
+                          },
+                          "type": "object",
+                          "properties": {
+                            "draftEnabled": {
+                              "default": true,
+                              "type": "boolean"
+                            },
+                            "sendEnabled": {
+                              "default": false,
+                              "type": "boolean"
+                            },
+                            "preferredResumeProfileId": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "draftEnabled",
+                            "sendEnabled",
+                            "preferredResumeProfileId"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "collection",
+                        "outreach",
+                        "officialSite",
+                        "email"
+                      ],
+                      "additionalProperties": false
                     },
                     "status": {
                       "type": "string",
@@ -46308,6 +48380,7 @@
                     "exclusions",
                     "sources",
                     "resumeProfileIds",
+                    "automation",
                     "status",
                     "createdAt",
                     "updatedAt"
@@ -46601,6 +48674,7 @@
                         "boss",
                         "zhilian",
                         "liepin",
+                        "job51",
                         "moka",
                         "greenhouse",
                         "lever",
@@ -46619,6 +48693,186 @@
                       "minLength": 1,
                       "maxLength": 200
                     }
+                  },
+                  "automation": {
+                    "default": {
+                      "collection": {
+                        "enabled": true
+                      },
+                      "outreach": {
+                        "enabled": true,
+                        "autoStartEnabled": false,
+                        "greetingEnabled": true,
+                        "recruiterInboxEnabled": true,
+                        "resumeFollowupEnabled": true,
+                        "maxExternalEffectsPerRun": 20
+                      },
+                      "officialSite": {
+                        "prepareEnabled": true,
+                        "fillEnabled": true,
+                        "submitEnabled": false,
+                        "preferredResumeProfileId": null
+                      },
+                      "email": {
+                        "draftEnabled": true,
+                        "sendEnabled": false,
+                        "preferredResumeProfileId": null
+                      }
+                    },
+                    "type": "object",
+                    "properties": {
+                      "collection": {
+                        "default": {
+                          "enabled": true
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": true,
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "enabled"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "outreach": {
+                        "default": {
+                          "enabled": true,
+                          "autoStartEnabled": false,
+                          "greetingEnabled": true,
+                          "recruiterInboxEnabled": true,
+                          "resumeFollowupEnabled": true,
+                          "maxExternalEffectsPerRun": 20
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "autoStartEnabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "greetingEnabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "recruiterInboxEnabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "resumeFollowupEnabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "maxExternalEffectsPerRun": {
+                            "default": 20,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 500
+                          }
+                        },
+                        "required": [
+                          "enabled",
+                          "autoStartEnabled",
+                          "greetingEnabled",
+                          "recruiterInboxEnabled",
+                          "resumeFollowupEnabled",
+                          "maxExternalEffectsPerRun"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "officialSite": {
+                        "default": {
+                          "prepareEnabled": true,
+                          "fillEnabled": true,
+                          "submitEnabled": false,
+                          "preferredResumeProfileId": null
+                        },
+                        "type": "object",
+                        "properties": {
+                          "prepareEnabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "fillEnabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "submitEnabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "preferredResumeProfileId": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "prepareEnabled",
+                          "fillEnabled",
+                          "submitEnabled",
+                          "preferredResumeProfileId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "email": {
+                        "default": {
+                          "draftEnabled": true,
+                          "sendEnabled": false,
+                          "preferredResumeProfileId": null
+                        },
+                        "type": "object",
+                        "properties": {
+                          "draftEnabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "sendEnabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "preferredResumeProfileId": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "draftEnabled",
+                          "sendEnabled",
+                          "preferredResumeProfileId"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "collection",
+                      "outreach",
+                      "officialSite",
+                      "email"
+                    ],
+                    "additionalProperties": false
                   },
                   "status": {
                     "type": "string",
@@ -46641,6 +48895,7 @@
                   "exclusions",
                   "sources",
                   "resumeProfileIds",
+                  "automation",
                   "status"
                 ],
                 "additionalProperties": false
@@ -64669,6 +66924,7 @@
                                       "boss",
                                       "zhilian",
                                       "liepin",
+                                      "job51",
                                       "moka",
                                       "greenhouse",
                                       "lever",
@@ -65092,6 +67348,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -65479,6 +67736,7 @@
                               "boss",
                               "zhilian",
                               "liepin",
+                              "job51",
                               "moka",
                               "greenhouse",
                               "lever",
@@ -65916,6 +68174,42 @@
                         }
                       ]
                     },
+                    "status": {
+                      "default": "running",
+                      "type": "string",
+                      "enum": [
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "aborted"
+                      ]
+                    },
+                    "failureCode": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "failureReason": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "candidateCount": {
                       "default": 0,
                       "type": "integer",
@@ -65948,6 +68242,9 @@
                     "contextSnapshot",
                     "startedAt",
                     "completedAt",
+                    "status",
+                    "failureCode",
+                    "failureReason",
                     "candidateCount",
                     "insertedCount",
                     "duplicateCount",
@@ -66275,6 +68572,20 @@
                 "other"
               ]
             }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "running",
+                "succeeded",
+                "failed",
+                "aborted"
+              ]
+            }
           }
         ],
         "responses": {
@@ -66347,6 +68658,42 @@
                                   }
                                 ]
                               },
+                              "status": {
+                                "default": "running",
+                                "type": "string",
+                                "enum": [
+                                  "running",
+                                  "succeeded",
+                                  "failed",
+                                  "aborted"
+                                ]
+                              },
+                              "failureCode": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 120
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "failureReason": {
+                                "default": null,
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 1000
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "candidateCount": {
                                 "default": 0,
                                 "type": "integer",
@@ -66379,6 +68726,9 @@
                               "contextSnapshot",
                               "startedAt",
                               "completedAt",
+                              "status",
+                              "failureCode",
+                              "failureReason",
                               "candidateCount",
                               "insertedCount",
                               "duplicateCount",
@@ -66733,6 +69083,42 @@
                         }
                       ]
                     },
+                    "status": {
+                      "default": "running",
+                      "type": "string",
+                      "enum": [
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "aborted"
+                      ]
+                    },
+                    "failureCode": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "failureReason": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "candidateCount": {
                       "default": 0,
                       "type": "integer",
@@ -66765,6 +69151,9 @@
                     "contextSnapshot",
                     "startedAt",
                     "completedAt",
+                    "status",
+                    "failureCode",
+                    "failureReason",
                     "candidateCount",
                     "insertedCount",
                     "duplicateCount",
@@ -66986,6 +69375,41 @@
                     "format": "date-time",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
                   },
+                  "status": {
+                    "default": "succeeded",
+                    "type": "string",
+                    "enum": [
+                      "succeeded",
+                      "failed",
+                      "aborted"
+                    ]
+                  },
+                  "failureCode": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "failureReason": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "candidateCount": {
                     "type": "integer",
                     "minimum": 0,
@@ -67009,6 +69433,9 @@
                 },
                 "required": [
                   "completedAt",
+                  "status",
+                  "failureCode",
+                  "failureReason",
                   "candidateCount",
                   "insertedCount",
                   "duplicateCount",
@@ -67110,6 +69537,42 @@
                             }
                           ]
                         },
+                        "status": {
+                          "default": "running",
+                          "type": "string",
+                          "enum": [
+                            "running",
+                            "succeeded",
+                            "failed",
+                            "aborted"
+                          ]
+                        },
+                        "failureCode": {
+                          "default": null,
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "failureReason": {
+                          "default": null,
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1000
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "candidateCount": {
                           "default": 0,
                           "type": "integer",
@@ -67142,6 +69605,9 @@
                         "contextSnapshot",
                         "startedAt",
                         "completedAt",
+                        "status",
+                        "failureCode",
+                        "failureReason",
                         "candidateCount",
                         "insertedCount",
                         "duplicateCount",
@@ -67307,6 +69773,7 @@
                                       "boss",
                                       "zhilian",
                                       "liepin",
+                                      "job51",
                                       "moka",
                                       "greenhouse",
                                       "lever",
@@ -67465,6 +69932,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -67575,6 +70043,161 @@
                               }
                             ]
                           },
+                          "outreachCount": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "latestOutreach": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "jobId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "listingId": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "channel": {
+                                    "type": "string",
+                                    "enum": [
+                                      "official",
+                                      "boss",
+                                      "zhilian",
+                                      "liepin",
+                                      "job51",
+                                      "moka",
+                                      "greenhouse",
+                                      "lever",
+                                      "ashby",
+                                      "email",
+                                      "referral",
+                                      "manual",
+                                      "other"
+                                    ]
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "greeting_sent",
+                                      "recruiter_replied",
+                                      "resume_sent",
+                                      "already_contacted"
+                                    ]
+                                  },
+                                  "occurredAt": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                                  },
+                                  "actor": {
+                                    "type": "string",
+                                    "enum": [
+                                      "user",
+                                      "chatgpt-web",
+                                      "import",
+                                      "system",
+                                      "other"
+                                    ]
+                                  },
+                                  "resumeProfileId": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "message": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "maxLength": 4000
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "externalThreadUrl": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "format": "uri"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "metadata": {
+                                    "default": {},
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "additionalProperties": {}
+                                  },
+                                  "idempotencyKey": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 300
+                                  },
+                                  "createdAt": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "jobId",
+                                  "listingId",
+                                  "channel",
+                                  "type",
+                                  "occurredAt",
+                                  "actor",
+                                  "resumeProfileId",
+                                  "message",
+                                  "externalThreadUrl",
+                                  "metadata",
+                                  "idempotencyKey",
+                                  "createdAt"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "firstSeenAt": {
                             "type": "string",
                             "format": "date-time",
@@ -67599,6 +70222,8 @@
                           "sourceKinds",
                           "campaigns",
                           "resume",
+                          "outreachCount",
+                          "latestOutreach",
                           "firstSeenAt",
                           "lastSeenAt"
                         ],
@@ -67849,7 +70474,7 @@
                     },
                     "schemaVersion": {
                       "type": "number",
-                      "const": 3
+                      "const": 5
                     },
                     "exportedAt": {
                       "type": "string",
@@ -67979,6 +70604,7 @@
                                     "boss",
                                     "zhilian",
                                     "liepin",
+                                    "job51",
                                     "moka",
                                     "greenhouse",
                                     "lever",
@@ -68215,6 +70841,150 @@
                         "additionalProperties": false
                       }
                     },
+                    "outreachEvents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "jobId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "listingId": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "channel": {
+                            "type": "string",
+                            "enum": [
+                              "official",
+                              "boss",
+                              "zhilian",
+                              "liepin",
+                              "job51",
+                              "moka",
+                              "greenhouse",
+                              "lever",
+                              "ashby",
+                              "email",
+                              "referral",
+                              "manual",
+                              "other"
+                            ]
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "greeting_sent",
+                              "recruiter_replied",
+                              "resume_sent",
+                              "already_contacted"
+                            ]
+                          },
+                          "occurredAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          "actor": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "chatgpt-web",
+                              "import",
+                              "system",
+                              "other"
+                            ]
+                          },
+                          "resumeProfileId": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "message": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 4000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "externalThreadUrl": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "metadata": {
+                            "default": {},
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "idempotencyKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 300
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "jobId",
+                          "listingId",
+                          "channel",
+                          "type",
+                          "occurredAt",
+                          "actor",
+                          "resumeProfileId",
+                          "message",
+                          "externalThreadUrl",
+                          "metadata",
+                          "idempotencyKey",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "applications": {
                       "type": "array",
                       "items": {
@@ -68419,6 +71189,7 @@
                                         "boss",
                                         "zhilian",
                                         "liepin",
+                                        "job51",
                                         "moka",
                                         "greenhouse",
                                         "lever",
@@ -68620,6 +71391,7 @@
                                 "boss",
                                 "zhilian",
                                 "liepin",
+                                "job51",
                                 "moka",
                                 "greenhouse",
                                 "lever",
@@ -68638,6 +71410,186 @@
                               "minLength": 1,
                               "maxLength": 200
                             }
+                          },
+                          "automation": {
+                            "default": {
+                              "collection": {
+                                "enabled": true
+                              },
+                              "outreach": {
+                                "enabled": true,
+                                "autoStartEnabled": false,
+                                "greetingEnabled": true,
+                                "recruiterInboxEnabled": true,
+                                "resumeFollowupEnabled": true,
+                                "maxExternalEffectsPerRun": 20
+                              },
+                              "officialSite": {
+                                "prepareEnabled": true,
+                                "fillEnabled": true,
+                                "submitEnabled": false,
+                                "preferredResumeProfileId": null
+                              },
+                              "email": {
+                                "draftEnabled": true,
+                                "sendEnabled": false,
+                                "preferredResumeProfileId": null
+                              }
+                            },
+                            "type": "object",
+                            "properties": {
+                              "collection": {
+                                "default": {
+                                  "enabled": true
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "enabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "enabled"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "outreach": {
+                                "default": {
+                                  "enabled": true,
+                                  "autoStartEnabled": false,
+                                  "greetingEnabled": true,
+                                  "recruiterInboxEnabled": true,
+                                  "resumeFollowupEnabled": true,
+                                  "maxExternalEffectsPerRun": 20
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "enabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "autoStartEnabled": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  },
+                                  "greetingEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "recruiterInboxEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "resumeFollowupEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "maxExternalEffectsPerRun": {
+                                    "default": 20,
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 500
+                                  }
+                                },
+                                "required": [
+                                  "enabled",
+                                  "autoStartEnabled",
+                                  "greetingEnabled",
+                                  "recruiterInboxEnabled",
+                                  "resumeFollowupEnabled",
+                                  "maxExternalEffectsPerRun"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "officialSite": {
+                                "default": {
+                                  "prepareEnabled": true,
+                                  "fillEnabled": true,
+                                  "submitEnabled": false,
+                                  "preferredResumeProfileId": null
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "prepareEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "fillEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "submitEnabled": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  },
+                                  "preferredResumeProfileId": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "prepareEnabled",
+                                  "fillEnabled",
+                                  "submitEnabled",
+                                  "preferredResumeProfileId"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "email": {
+                                "default": {
+                                  "draftEnabled": true,
+                                  "sendEnabled": false,
+                                  "preferredResumeProfileId": null
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "draftEnabled": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "sendEnabled": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  },
+                                  "preferredResumeProfileId": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "draftEnabled",
+                                  "sendEnabled",
+                                  "preferredResumeProfileId"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "collection",
+                              "outreach",
+                              "officialSite",
+                              "email"
+                            ],
+                            "additionalProperties": false
                           },
                           "status": {
                             "type": "string",
@@ -68671,6 +71623,7 @@
                           "exclusions",
                           "sources",
                           "resumeProfileIds",
+                          "automation",
                           "status",
                           "createdAt",
                           "updatedAt"
@@ -68845,6 +71798,42 @@
                               }
                             ]
                           },
+                          "status": {
+                            "default": "running",
+                            "type": "string",
+                            "enum": [
+                              "running",
+                              "succeeded",
+                              "failed",
+                              "aborted"
+                            ]
+                          },
+                          "failureCode": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 120
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "failureReason": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "candidateCount": {
                             "default": 0,
                             "type": "integer",
@@ -68877,6 +71866,9 @@
                           "contextSnapshot",
                           "startedAt",
                           "completedAt",
+                          "status",
+                          "failureCode",
+                          "failureReason",
                           "candidateCount",
                           "insertedCount",
                           "duplicateCount",
@@ -68923,6 +71915,7 @@
                                   "boss",
                                   "zhilian",
                                   "liepin",
+                                  "job51",
                                   "moka",
                                   "greenhouse",
                                   "lever",
@@ -69192,6 +72185,7 @@
                     "companies",
                     "jobs",
                     "observations",
+                    "outreachEvents",
                     "applications",
                     "campaigns",
                     "resumes",

@@ -29,8 +29,8 @@
         greetTimeout: 12000, // 打招呼页回执超时时间
         preloadScrollPixels: 180, // 岗位预加载：每轮下滑像素
         preloadScrollWaitMs: 450, // 岗位预加载：每轮等待毫秒数
-        preloadStableRoundsLimit: 24, // 岗位预加载：连续多少轮无增长后结束
-        preloadMaxRounds: 300, // 岗位预加载：最多滑动多少轮
+        preloadStableRoundsLimit: 8, // 岗位预加载：连续多少轮无增长后结束
+        preloadMaxRounds: 30, // 岗位预加载：最多滑动多少轮
         preloadActivateCardEvery: 0, // 预加载时每隔多少轮尝试轻点一次左侧岗位卡片，0 表示关闭
         preloadActivateCardWaitMs: 250, // 轻点岗位卡片后的额外等待时间
     };
@@ -52,6 +52,8 @@
                 JOBNAME: 'h1', // 职位名称
                 SALARY: '.salary', // 职位薪资
                 DETAIL: '.job-sec-text', // 职位详情
+                COMPANY: '.sider-company .company-info', // 公司信息
+                CITY: '.text-desc.text-city', // 职位城市
                 CHATURL: 'redirect-url', // 聊天链接
             },
             CHAT: {
@@ -149,26 +151,7 @@
             el.dispatchEvent(new Event('input', { bubbles: true }));
         },
         asyncSleep(ms) {
-            return new Promise((resolve) => {
-                // 创建一个 Blob 对象，包含 Web Worker 的代码
-                const workerCode = `self.addEventListener('message', function(e) {
-                    const delay = e.data;
-                    setTimeout(function() {
-                        self.postMessage('done');
-                    }, delay);
-                });`;
-
-                const blob = new Blob([workerCode], { type: 'application/javascript' });
-                const workerUrl = URL.createObjectURL(blob);
-
-                const worker = new Worker(workerUrl);
-                worker.onmessage = function () {
-                    resolve();
-                    worker.terminate(); // 使用后终止worker
-                    URL.revokeObjectURL(workerUrl); // 释放对象URL
-                };
-                worker.postMessage(ms);
-            });
+            return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
         },
         getTimestamp(key) {
             return Number(localStorage.getItem(key));
@@ -512,16 +495,47 @@
         }
 
         /**
+         * 获取 Job Harness 粗粒度 Site Runtime 控制状态。
+         * 站点内部仍由成熟 Copilot 状态机执行，不把 DOM click/fill 暴露给控制面。
+         */
+        getRuntimeControl() {
+            const params = new URLSearchParams({
+                pageUrl: String(location.href || '').slice(0, 2000),
+                pageTitle: String(document.title || '').slice(0, 500),
+            });
+            return new Promise((resolve, reject) => this.__http(`/runtime-control?${params.toString()}`).then(resolve).catch(reject));
+        }
+
+        /**
          * 获取职位匹配度
          * @param {string} title 职位标题
          * @param {string} salary 薪资范围
          * @param {string} detail 职位描述
          */
-        getJobScore(title, salary, detail) {
-            const data = `# 职位名称\n${title}\n\n# 薪资范围\n${salary}\n\n# 职位描述\n${detail}`;
+        getJobScore(title, salary, detail, context = {}) {
+            const data = this.__jobPayload(title, salary, detail, context);
             return new Promise((resolve, reject) => {
                 this.__http('/get-job-score', 'POST', JSON.stringify(data)).then(resolve).catch(reject);
             });
+        }
+
+        observeJob(title, salary, detail, context = {}) {
+            const data = this.__jobPayload(title, salary, detail, context);
+            return new Promise((resolve, reject) => {
+                this.__http('/observe-job', 'POST', JSON.stringify(data)).then(resolve).catch(reject);
+            });
+        }
+
+        __jobPayload(title, salary, detail, context = {}) {
+            return {
+                job: `# 职位名称\n${title}\n\n# 薪资范围\n${salary}\n\n# 职位描述\n${detail}`,
+                title,
+                salary,
+                company: context.company || '',
+                city: context.city || '',
+                jobUrl: context.jobUrl || '',
+                screeningSessionId: context.screeningSessionId || '',
+            };
         }
 
         /**
@@ -687,6 +701,18 @@
         remove() {
             this.ctn.remove();
         }
+
+        isPaused() {
+            return this.__pause;
+        }
+
+        start() {
+            if (this.__pause) this.runBtn.click();
+        }
+
+        pause() {
+            if (!this.__pause) this.runBtn.click();
+        }
     }
 
     // boss 直聘
@@ -746,6 +772,10 @@
             let currentTagIdx = -1;
             const screeningSessionId = `boss-screen-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
             const processedJobHrefs = new Set();
+            let activeRuntimeTaskId = null;
+            let runtimePolicy = null;
+            let configuredGreetingThreshold = OPTIONS.thread;
+            let lastRuntimeControlKey = '';
 
             // 日志启动暂停事件
             const logger = new Logger(() => {
@@ -796,6 +826,12 @@
                 try {
                     const input = await tools.endlessFind(SELECTORS.ZHIPIN.SEARCH.SEARCHINPUT);
                     const btn = await tools.endlessFind(SELECTORS.ZHIPIN.SEARCH.SEARCHBTN);
+                    const currentQuery = new URL(location.href).searchParams.get('query') || '';
+                    if (currentQuery === kw) {
+                        if (String(input.value || '').trim() !== kw) tools.inputText(input, kw);
+                        logger.add(`当前已是搜索关键词：${kw}，复用现有结果页`);
+                        return;
+                    }
                     tools.inputText(input, kw);
                     btn.click();
                 } catch (e) {
@@ -933,11 +969,32 @@
 
             const logAction = async (payload) => {
                 try {
-                    await api.logAction(payload);
+                    await api.logAction(activeRuntimeTaskId ? { ...payload, runtimeTaskId: activeRuntimeTaskId } : payload);
                 } catch (e) {
                     console.log('logAction failed', e);
                 }
             };
+
+            const applyRuntimeControl = async () => {
+                const control = await api.getRuntimeControl().catch(() => null);
+                if (!control || !control.taskId) return;
+                activeRuntimeTaskId = control.taskId;
+                runtimePolicy = control.policy || null;
+                OPTIONS.thread = runtimePolicy && runtimePolicy.greeting === false ? 101 : configuredGreetingThreshold;
+                const key = `${control.taskId}:${control.desiredState}`;
+                if (key === lastRuntimeControlKey) return;
+                lastRuntimeControlKey = key;
+                if (control.desiredState === 'running') {
+                    await logAction({ action: 'runtime_task_started', scene: 'search', reason: 'job-harness-control' });
+                    logger.start();
+                } else {
+                    logger.pause();
+                    await logAction({ action: 'runtime_task_paused', scene: 'search', reason: 'job-harness-control' });
+                }
+            };
+            const runtimeControlTimer = setInterval(() => void applyRuntimeControl(), 2000);
+            window.addEventListener('beforeunload', () => clearInterval(runtimeControlTimer), { once: true });
+            void applyRuntimeControl();
 
             // 获取职位信息
             const getJobInfo = async (href) => {
@@ -992,6 +1049,8 @@
                             {
                                 introduce: pendingGreetDecision?.introduce || this.introduce,
                                 resumeIndex: pendingGreetDecision?.resumeIndex ?? OPTIONS.resumeIndex,
+                                jobId: pendingGreetDecision?.jobId || null,
+                                listingId: pendingGreetDecision?.listingId || null,
                             },
                             data.requestId,
                             data.responseType
@@ -1008,6 +1067,8 @@
                             action: 'greet_sent',
                             scene: 'search',
                             title: finalTitle,
+                            jobId: finalDecision?.jobId || null,
+                            listingId: finalDecision?.listingId || null,
                             resumeIndex: finalDecision?.resumeIndex ?? OPTIONS.resumeIndex,
                         });
                     }
@@ -1018,6 +1079,8 @@
                             action: 'greet_failed',
                             scene: 'search',
                             title: finalTitle,
+                            jobId: finalDecision?.jobId || null,
+                            listingId: finalDecision?.listingId || null,
                             resumeIndex: finalDecision?.resumeIndex ?? OPTIONS.resumeIndex,
                         });
                     }
@@ -1089,12 +1152,22 @@
                     const jobInfo = await getJobInfo(href);
                     if (jobInfo.skip) {
                         logger.add(`职位跳过: ${jobInfo.skipReason}`);
+                        const observed = await api.observeJob(jobInfo.title || '未知岗位', jobInfo.salary || '', jobInfo.detail || jobInfo.skipReason, {
+                            company: jobInfo.company,
+                            city: jobInfo.city,
+                            jobUrl: href || jobInfo.jobUrl,
+                            screeningSessionId,
+                        }).catch(() => ({}));
                         await logAction({
                             action: 'job_skip',
                             scene: 'search',
                             title: jobInfo.title || null,
+                            company: jobInfo.company || null,
+                            city: jobInfo.city || null,
+                            jobUrl: href || jobInfo.jobUrl || null,
+                            jobId: observed.jobId || null,
+                            listingId: observed.listingId || null,
                             salary: jobInfo.salary || null,
-                            detail: jobInfo.detail || null,
                             reason: jobInfo.skipReason,
                         });
                         return loop();
@@ -1103,24 +1176,44 @@
                     // 如果聊过，下一个
                     if (jobInfo.talked) {
                         logger.add(`职位 [${jobInfo.title}] 已经聊过，下一个`);
+                        const observed = await api.observeJob(jobInfo.title, jobInfo.salary, jobInfo.detail, {
+                            company: jobInfo.company,
+                            city: jobInfo.city,
+                            jobUrl: href || jobInfo.jobUrl,
+                            screeningSessionId,
+                        });
                         await logAction({
                             action: 'job_already_talked',
                             scene: 'search',
                             title: jobInfo.title,
+                            company: jobInfo.company || null,
+                            city: jobInfo.city || null,
+                            jobUrl: href || jobInfo.jobUrl || null,
+                            jobId: observed.jobId || null,
+                            listingId: observed.listingId || null,
                             salary: jobInfo.salary,
                         });
                         return loop();
                     }
                     // 否则发送消息计算匹配度
                     logger.add(`开始计算职位 [${jobInfo.title}] 的匹配度`);
-                    const decision = await api.getJobScore(jobInfo.title, jobInfo.salary, jobInfo.detail);
+                    const decision = await api.getJobScore(jobInfo.title, jobInfo.salary, jobInfo.detail, {
+                        company: jobInfo.company,
+                        city: jobInfo.city,
+                        jobUrl: href || jobInfo.jobUrl,
+                        screeningSessionId,
+                    });
                     logger.add(`匹配度: ${decision.score} | 简历索引: ${decision.resumeIndex}`);
                     await logAction({
                         action: 'job_decision_consumed',
                         scene: 'search',
                         screeningSessionId,
                         jobUrl: href,
+                        jobId: decision.jobId || null,
+                        listingId: decision.listingId || null,
                         title: jobInfo.title,
+                        company: jobInfo.company || null,
+                        city: jobInfo.city || null,
                         salary: jobInfo.salary,
                         score: decision.score,
                         threshold: OPTIONS.thread,
@@ -1138,6 +1231,8 @@
                             action: 'greet_queued',
                             scene: 'search',
                             title: jobInfo.title,
+                            jobId: decision.jobId || null,
+                            listingId: decision.listingId || null,
                             salary: jobInfo.salary,
                             resumeIndex: decision.resumeIndex,
                             score: decision.score,
@@ -1148,6 +1243,8 @@
                                 action: 'chat_open_requested',
                                 scene: 'search',
                                 title: jobInfo.title,
+                                jobId: decision.jobId || null,
+                                listingId: decision.listingId || null,
                                 chatUrl: jobInfo.chatUrl,
                                 resumeIndex: decision.resumeIndex,
                             });
@@ -1158,6 +1255,8 @@
                                 action: 'greet_queue_failed',
                                 scene: 'search',
                                 title: jobInfo.title,
+                                jobId: decision.jobId || null,
+                                listingId: decision.listingId || null,
                                 resumeIndex: decision.resumeIndex,
                                 addUrl: jobInfo.addUrl,
                                 chatUrl: jobInfo.chatUrl,
@@ -1269,6 +1368,8 @@
                         OPTIONS.preloadMaxRounds = Math.min(Number(OPTIONS.preloadMaxRounds || JAC_SCREENING_PRELOAD_MAX_ROUNDS), JAC_SCREENING_PRELOAD_MAX_ROUNDS);
                         OPTIONS.preloadStableRoundsLimit = Math.min(Number(OPTIONS.preloadStableRoundsLimit || JAC_SCREENING_PRELOAD_STABLE_ROUNDS), JAC_SCREENING_PRELOAD_STABLE_ROUNDS);
                     }
+                    configuredGreetingThreshold = OPTIONS.thread;
+                    if (runtimePolicy && runtimePolicy.greeting === false) OPTIONS.thread = 101;
                     logger.add('获取前端配置成功');
                 }
                 if (clientConfig && Array.isArray(clientConfig.tags) && clientConfig.tags.length) {
@@ -1317,6 +1418,12 @@
                 const title = nameBox.querySelector(SELECTORS.ZHIPIN.DETAIL.JOBNAME).innerText;
                 const salary = nameBox.querySelector(SELECTORS.ZHIPIN.DETAIL.SALARY).innerText;
                 const detail = document.querySelector(SELECTORS.ZHIPIN.DETAIL.DETAIL).innerText;
+                const companyBox = document.querySelector(SELECTORS.ZHIPIN.DETAIL.COMPANY);
+                const company = companyBox
+                    ? Array.from(companyBox.querySelectorAll('a')).map(el => el.innerText.trim()).find(Boolean) || companyBox.innerText.trim().split('\n')[0]
+                    : '';
+                const city = document.querySelector(SELECTORS.ZHIPIN.DETAIL.CITY)?.innerText?.trim() || '';
+                const jobUrl = location.href;
                 const actionText = chatBtn ? chatBtn.innerText.trim() : '';
                 const chatUrl = chatBtn && chatBtn.getAttribute(SELECTORS.ZHIPIN.DETAIL.CHATURL);
                 const addUrl = chatBtn && chatBtn.dataset.url;
@@ -1338,6 +1445,9 @@
                     title,
                     salary,
                     detail,
+                    company,
+                    city,
+                    jobUrl,
                     actionText,
                     chatUrl,
                     addUrl,
@@ -1384,6 +1494,18 @@
 
         // 聊天页
         async __chat() {
+            // Chat greeting and recruiter-followup paths share the same Job Harness
+            // telemetry client. Keep it at __chat scope so the one-shot sayHi path
+            // can acknowledge a successful send instead of throwing after the click.
+            const api = new Api();
+            const logAction = async (payload) => {
+                try {
+                    await api.logAction(payload);
+                } catch (e) {
+                    console.log('logAction failed', e);
+                }
+            };
+
             // 注册广播
             const startBroadcast = (target = this.targets.chat) => {
                 this.__broadcast(target);
@@ -1433,6 +1555,8 @@
                     await logAction({
                         action: 'greet_message_sent',
                         scene: 'chat_greet',
+                        jobId: greetDecision.jobId || null,
+                        listingId: greetDecision.listingId || null,
                         resumeIndex: greetDecision.resumeIndex ?? OPTIONS.resumeIndex,
                     });
                     this.broadcast.send(this.targets.search, this.bcTypes.SAY_HI, { success: true }).then(() => {
@@ -1604,15 +1728,6 @@
 
             // 聊天
             const chat = async () => {
-                // api
-                const api = new Api();
-                const logAction = async (payload) => {
-                    try {
-                        await api.logAction(payload);
-                    } catch (e) {
-                        console.log('logAction failed', e);
-                    }
-                };
                 // 开始广播
                 startBroadcast(this.targets.chat);
                 // 获取默认自我介绍（兜底）
@@ -1676,12 +1791,21 @@
                                 const jobInfo = await this.broadcast.receive(this.targets.detail, this.bcTypes.GET_JOB_INFO);
                                 // 获取职位匹配度
                                 status(`开始计算职位 [${jobInfo.title}] 的匹配度`);
-                                const decision = await api.getJobScore(jobInfo.title, jobInfo.salary, jobInfo.detail);
+                                const decision = await api.getJobScore(jobInfo.title, jobInfo.salary, jobInfo.detail, {
+                                    company: jobInfo.company || company,
+                                    city: jobInfo.city,
+                                    jobUrl: jobInfo.jobUrl,
+                                });
                                 status(`匹配度: ${decision.score} | 简历索引: ${decision.resumeIndex}`);
                                 await logAction({
                                     action: 'job_decision_consumed',
                                     scene: 'chat',
+                                    jobUrl: jobInfo.jobUrl,
+                                    jobId: decision.jobId || null,
+                                    listingId: decision.listingId || null,
                                     title: jobInfo.title,
+                                    company: jobInfo.company || company,
+                                    city: jobInfo.city || null,
                                     salary: jobInfo.salary,
                                     score: decision.score,
                                     resumeIndex: decision.resumeIndex,
@@ -1695,6 +1819,8 @@
                                             action: 'chat_greet_sent',
                                             scene: 'chat',
                                             title: jobInfo.title,
+                                            jobId: decision.jobId || null,
+                                            listingId: decision.listingId || null,
                                             resumeIndex: decision.resumeIndex,
                                         });
                                         status(`打招呼成功`);
@@ -1716,9 +1842,11 @@
                                         action: 'chat_rejected_below_threshold',
                                         scene: 'chat',
                                         title: jobInfo.title,
+                                        jobId: decision.jobId || null,
+                                        listingId: decision.listingId || null,
                                         score: decision.score,
-                                        threshold: OPTIONS.thread,
-                                        resumeIndex: decision.resumeIndex,
+                                    threshold: OPTIONS.thread,
+                                    resumeIndex: decision.resumeIndex,
                                     });
                                     await sendMsg('不好意思，不太合适哈，祝早日找到合适的人选。')
                                     continue;
@@ -1732,13 +1860,34 @@
                                 chatInfo.jobEl.click();
                                 status(`正在获取职位详情（用于确定简历）`);
                                 const jobInfo = await this.broadcast.receive(this.targets.detail, this.bcTypes.GET_JOB_INFO);
-                                const decision = await api.getJobScore(jobInfo.title, jobInfo.salary, jobInfo.detail);
+                                const decision = await api.getJobScore(jobInfo.title, jobInfo.salary, jobInfo.detail, {
+                                    company: jobInfo.company || company,
+                                    city: jobInfo.city,
+                                    jobUrl: jobInfo.jobUrl,
+                                });
+                                await logAction({
+                                    action: 'recruiter_replied',
+                                    scene: 'chat',
+                                    jobUrl: jobInfo.jobUrl,
+                                    jobId: decision.jobId || null,
+                                    listingId: decision.listingId || null,
+                                    title: jobInfo.title,
+                                    company: jobInfo.company || company,
+                                    city: jobInfo.city || null,
+                                    salary: jobInfo.salary,
+                                    resumeIndex: decision.resumeIndex,
+                                });
                                 status(`检测到新消息，直接发送简历（简历索引 ${decision.resumeIndex}）`);
                                 const resumeResult = await sendResume(decision.resumeIndex);
                                 await logAction({
                                     action: 'resume_sent',
                                     scene: 'chat',
+                                    jobUrl: jobInfo.jobUrl,
+                                    jobId: decision.jobId || null,
+                                    listingId: decision.listingId || null,
                                     title: jobInfo.title,
+                                    company: jobInfo.company || company,
+                                    city: jobInfo.city || null,
                                     salary: jobInfo.salary,
                                     requestedResumeIndex: decision.resumeIndex,
                                     selectedResumeIndex: resumeResult?.selectedResumeIndex ?? decision.resumeIndex,
@@ -1782,6 +1931,25 @@
                     sayHi();
                 }
                 else if (isChat && !JAC_HARD_ONLY_GREET) {
+                    const runtimeControl = await api.getRuntimeControl().catch(() => null);
+                    const inboxBlockReason = runtimeControl && runtimeControl.taskId
+                        ? runtimeControl.desiredState !== 'running'
+                            ? 'runtime-task-paused'
+                            : runtimeControl.policy && runtimeControl.policy.recruiterInbox === false
+                                ? 'runtime-recruiter-inbox-disabled'
+                                : null
+                        : null;
+                    if (runtimeControl && runtimeControl.taskId && inboxBlockReason) {
+                        await logAction({
+                            action: 'runtime_inbox_scan_skipped',
+                            scene: 'chat',
+                            runtimeTaskId: runtimeControl.taskId,
+                            reason: inboxBlockReason,
+                        });
+                        await this.broadcast.send(this.targets.search, this.bcTypes.RUN, true);
+                        this.broadcast.destroy();
+                        return;
+                    }
                     // 日志
                     logger = new Logger();
                     logger.runBtn.remove();

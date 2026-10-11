@@ -71,14 +71,14 @@
 .applications-board-grid {
   min-width: 1160px;
   display: grid;
-  grid-template-columns: repeat(5, minmax(215px, 1fr));
+  grid-template-columns: repeat(var(--stage-count, 5), minmax(215px, 1fr));
   gap: 10px;
   align-items: stretch;
   height: 100%;
 }
 .applications-board-grid-outcomes {
   min-width: 480px;
-  grid-template-columns: repeat(2, minmax(215px, 1fr));
+  grid-template-columns: repeat(var(--stage-count, 2), minmax(215px, 1fr));
 }
 .application-lane {
   min-height: 220px;
@@ -264,10 +264,10 @@
   .applications-board-grid {
     width: max-content;
     min-width: 0;
-    grid-template-columns: repeat(5, minmax(280px, 82vw));
+    grid-template-columns: repeat(var(--stage-count, 5), minmax(280px, 82vw));
     gap: 8px;
   }
-  .applications-board-grid-outcomes { grid-template-columns: repeat(2, minmax(280px, 82vw)); }
+  .applications-board-grid-outcomes { grid-template-columns: repeat(var(--stage-count, 2), minmax(280px, 82vw)); }
   .application-lane { scroll-snap-align: start; }
   .application-transition-row { align-items: stretch; flex-direction: column; }
   .application-transition-row .action-button { width: 100%; }

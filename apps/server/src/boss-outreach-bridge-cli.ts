@@ -5,6 +5,7 @@ import { createJobHarnessRestClient } from '@job-harness/client';
 import { createBossOutreachBridge } from './boss-outreach-bridge';
 import { BossDiscoveryCoordinator } from './boss-discovery';
 import { patchBossResumeFollowupUserscript } from './boss-resume-followup';
+import { BossRuntimeControlStore } from './boss-runtime-control';
 
 const host = process.env.JOB_HARNESS_BOSS_BRIDGE_HOST?.trim() || '127.0.0.1';
 const port = Number(process.env.JOB_HARNESS_BOSS_BRIDGE_PORT || 18788);
@@ -33,14 +34,25 @@ try {
 } catch (error) {
   console.warn(`BOSS resume follow-up userscript is unavailable: ${error instanceof Error ? error.message : String(error)}`);
 }
+const runtimeControl = new BossRuntimeControlStore(
+  process.env.JOB_HARNESS_BOSS_RUNTIME_STATE?.trim() || join(homedir(), '.local', 'share', 'job-harness', 'data', 'boss-runtime-control.json'),
+);
+await runtimeControl.recover();
 const server = createBossOutreachBridge({
   client,
   publicBaseUrl: baseUrl,
   logPath: process.env.JOB_HARNESS_BOSS_OUTREACH_LOG?.trim() || join(homedir(), '.local', 'share', 'job-harness', 'data', 'boss-outreach-events.jsonl'),
   baseDelayMs: Number(process.env.JOB_HARNESS_BOSS_SCORE_DELAY_MS ?? 2500),
   delayJitterMs: Number(process.env.JOB_HARNESS_BOSS_SCORE_DELAY_JITTER_MS ?? 400),
+  greetingWaitMs: Number(process.env.JOB_HARNESS_BOSS_GREETING_WAIT_MS ?? 35_000),
+  interactiveResolverPriorityMs: Number(process.env.JOB_HARNESS_BOSS_CHATGPT_PRIORITY_MS ?? 10_000),
+  greetingThreshold: Number(process.env.JOB_HARNESS_BOSS_GREETING_THRESHOLD ?? 58),
+  campaignId,
   discovery,
   resumeFollowupUserscript,
+  runtimeControl,
+  runtimeTaskTtlMs: Number(process.env.JOB_HARNESS_BOSS_RUNTIME_TASK_TTL_MS ?? 3_600_000),
+  controlToken: token,
 });
 
 server.listen(port, host, () => {

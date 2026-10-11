@@ -6,6 +6,7 @@
   "scripts": {
     "start": "tsx src/cli.ts",
     "followup": "tsx src/followup-cli.ts",
+    "resume:inspect": "tsx src/resume-inspect-cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -23,7 +23,7 @@ export function DiscoveryRunContent({
           <span className="detail-company">{campaign?.name ?? copy.detail.noCampaign}</span>
           <h2>{copy.executors[run.executor]}</h2>
           <div className="detail-badges">
-            <span className="detail-meta-chip">{run.completedAt ? copy.list.completed : copy.list.running}</span>
+            <span className="detail-meta-chip" data-state={run.status}>{copy.statuses[run.status]}</span>
             <span className="detail-meta-chip">{copy.list.started} {formatDateTime(locale, run.startedAt)}</span>
           </div>
         </div>
@@ -38,7 +38,10 @@ export function DiscoveryRunContent({
           <div><dt>{copy.list.rejected}</dt><dd>{run.rejectedCount}</dd></div>
           <div><dt>{copy.detail.observations}</dt><dd>{detail.observationCount}</dd></div>
           <div><dt>{copy.detail.completedAt}</dt><dd>{run.completedAt ? formatDateTime(locale, run.completedAt) : '—'}</dd></div>
+          <div><dt>{copy.detail.status}</dt><dd>{copy.statuses[run.status]}</dd></div>
+          <div><dt>{copy.detail.failureCode}</dt><dd>{run.failureCode ?? '—'}</dd></div>
         </dl>
+        {run.failureReason ? <p className="management-callout" data-severity={run.status === 'failed' ? 'warning' : 'info'}><strong>{copy.detail.failureReason}</strong> {run.failureReason}</p> : null}
       </section>
 
       <section className="detail-section">

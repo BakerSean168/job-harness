@@ -38,6 +38,8 @@ export interface ServerRuntimeConfig {
   readonly submissionStaleAfterMs: number;
   readonly submissionMaxAutomaticRetries: number;
   readonly submissionReconcileBatchSize: number;
+  readonly bossGreetingBridgeUrl: string;
+  readonly getJobsRuntimeUrl: string | null;
 }
 
 export function readServerRuntimeConfig(env: NodeJS.ProcessEnv = process.env): ServerRuntimeConfig {
@@ -62,5 +64,7 @@ export function readServerRuntimeConfig(env: NodeJS.ProcessEnv = process.env): S
     submissionStaleAfterMs: nonNegativeInt(env, 'JOB_HARNESS_SUBMISSION_STALE_AFTER_MS', 7_200_000),
     submissionMaxAutomaticRetries: nonNegativeInt(env, 'JOB_HARNESS_SUBMISSION_MAX_AUTOMATIC_RETRIES', 8),
     submissionReconcileBatchSize: positiveInt(env, 'JOB_HARNESS_SUBMISSION_RECONCILE_BATCH_SIZE', 100),
+    bossGreetingBridgeUrl: optionalHttpUrl(env.JOB_HARNESS_BOSS_GREETING_BRIDGE_URL) ?? 'http://127.0.0.1:18788',
+    getJobsRuntimeUrl: optionalHttpUrl(env.JOB_HARNESS_GET_JOBS_RUNTIME_URL),
   };
 }

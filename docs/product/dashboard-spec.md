@@ -134,6 +134,6 @@ The first operational implementation keeps these rules explicit:
 - weekly aggregation currently uses UTC calendar boundaries;
 - historical Shortlisted counts are returned as unavailable rather than inferred from current Job state/updated timestamps;
 - source performance groups by associated JobListing.sourceKind. A multi-source Opportunity may appear in multiple rows, and the view does not claim which channel actually received the application;
-- failed DiscoveryRun attention remains deferred because DiscoveryRun does not yet own a success/failure outcome field.
+- failed DiscoveryRuns are surfaced as warning attention items linked directly to the run; stale Campaign discovery considers only `succeeded` DiscoveryRuns, so a failed run does not falsely reset freshness.
 
 These are deterministic product rules, not LLM recommendations.

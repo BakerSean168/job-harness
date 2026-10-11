@@ -245,7 +245,31 @@ describe('REST v1 facade', () => {
 
     const detail = await json(`/discovery/${runId}`);
     expect(detail.response.status).toBe(200);
-    expect(detail.body.run).toMatchObject({ id: runId, executor: 'memoflow-ai', completedAt: '2026-09-16T12:10:00.000Z' });
+    expect(detail.body.run).toMatchObject({ id: runId, executor: 'memoflow-ai', completedAt: '2026-09-16T12:10:00.000Z', status: 'succeeded' });
+
+    const failedBegin = await json('/discovery', {
+      method: 'POST',
+      body: JSON.stringify({ ...beginInput, startedAt: '2026-09-16T12:20:00.000Z', idempotencyKey: 'host-discovery-failed' }),
+    });
+    expect(failedBegin.response.status).toBe(201);
+    const failedRunId = String(failedBegin.body.id);
+    const failedCompletion = await json(`/discovery/${failedRunId}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({
+        completedAt: '2026-09-16T12:21:00.000Z',
+        status: 'failed',
+        failureCode: 'provider_error',
+        failureReason: 'synthetic provider failure',
+        candidateCount: 0, insertedCount: 0, duplicateCount: 0, rejectedCount: 1,
+      }),
+    });
+    expect(failedCompletion.response.status).toBe(200);
+    expect(failedCompletion.body).toMatchObject({ id: failedRunId, status: 'failed', failureCode: 'provider_error', failureReason: 'synthetic provider failure' });
+
+    const failedRuns = await json('/discovery?status=failed&limit=20&offset=0');
+    expect(failedRuns.response.status).toBe(200);
+    expect(failedRuns.body).toMatchObject({ total: 1 });
+    expect(failedRuns.body.items[0].run).toMatchObject({ id: failedRunId, status: 'failed', failureCode: 'provider_error' });
 
     const invalid = await json('/discovery', {
       method: 'POST',

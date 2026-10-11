@@ -69,7 +69,13 @@ describe('MV3 BOSS semantic driver', () => {
     await withBossPage('/web/geek/chat', html, async (page) => {
       const contacts = await bossCommand(page, 'boss_scan_unread_contacts', { limit: 10 }) as Array<Record<string, unknown>>;
       expect(contacts).toHaveLength(1);
-      expect(contacts[0]).toMatchObject({ recruiter: '李女士', company: '四化信息科技' });
+      expect(contacts[0]).toMatchObject({ recruiter: '李女士', company: '四化信息科技', unread: true });
+      const recentContacts = await bossCommand(page, 'boss_scan_unread_contacts', { limit: 10, includeRead: true }) as Array<Record<string, unknown>>;
+      expect(recentContacts).toHaveLength(2);
+      expect(recentContacts).toEqual(expect.arrayContaining([
+        expect.objectContaining({ recruiter: '李女士', unread: true }),
+        expect.objectContaining({ recruiter: '王先生', unread: false }),
+      ]));
       const snapshot = await bossCommand(page, 'boss_open_contact', { contactRef: contacts[0]!.contactRef }) as Record<string, unknown>;
       expect(snapshot).toMatchObject({ latestRole: 'user', needResume: 1, resumeSended: false, jobUrl: 'https://www.zhipin.com/job_detail/abc.html' });
       const message = '我是四川农业大学的应届生，看到这个岗位比较匹配，希望进一步沟通。';
@@ -84,9 +90,18 @@ describe('MV3 BOSS semantic driver', () => {
       const prepared = await bossCommand(page, 'boss_prepare_resume', { expectedJobUrl: 'https://www.zhipin.com/job_detail/abc.html' }) as Record<string, unknown>;
       expect(prepared).toMatchObject({ status: 'ready', mode: 'resume_list' });
       expect(prepared.resumes).toEqual(expect.arrayContaining([expect.objectContaining({ resumeIndex: 1, label: '前端开发工程师简历' })]));
-      expect(await bossCommand(page, 'boss_confirm_resume', { resumeIndex: 1, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc.html' }))
+      expect(await bossCommand(page, 'boss_confirm_resume', { resumeIndex: 1, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc.html', expectedResumeLabel: '前端开发工程师' }))
         .toEqual({ sent: true, reason: null, selectedResumeIndex: 1, mode: 'resume_list' });
       expect((await bossCommand(page, 'boss_chat_snapshot') as Record<string, unknown>).resumeSended).toBe(true);
+    });
+  });
+
+  it('fails closed when the prepared resume index no longer matches the authorized label', async () => {
+    const html = '<!doctype html><div class="chat-message"></div><a ka="geek_chat_job_detail" href="/job_detail/abc.html">前端开发工程师</a><button class="toolbar-btn tooltip tooltip-top" aria-label="发送简历">简历</button><div class="resume-list" style="display:none"><ul><li>卢楼豪-全栈开发工程师.pdf</li><li>卢楼豪-前端开发工程师.pdf</li></ul></div><button class="btn-confirm" style="display:none">发送</button><script>const button=document.querySelector(".toolbar-btn");const list=document.querySelector(".resume-list");const confirm=document.querySelector(".btn-confirm");button.addEventListener("click",()=>{list.style.display="block";confirm.style.display="block";});</script>';
+    await withBossPage('/web/geek/chat', html, async (page) => {
+      await bossCommand(page, 'boss_prepare_resume', { expectedJobUrl: 'https://www.zhipin.com/job_detail/abc.html' });
+      await expect(bossCommand(page, 'boss_confirm_resume', { resumeIndex: 0, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc.html', expectedResumeLabel: '前端开发工程师' }))
+        .rejects.toThrow(/no longer matches the authorized Resume Profile label/);
     });
   });
 
@@ -94,8 +109,8 @@ describe('MV3 BOSS semantic driver', () => {
     const html = '<!doctype html><div class="chat-message"></div><a ka="geek_chat_job_detail" href="/job_detail/abc.html">前端开发工程师</a><button class="toolbar-btn tooltip tooltip-top" aria-label="发送简历">简历</button><div class="panel-resume" style="display:none"><button class="btn-sure-v2">确定发送</button></div><script>document.querySelector(".toolbar-btn").addEventListener("click",()=>document.querySelector(".panel-resume").style.display="block");</script>';
     await withBossPage('/web/geek/chat', html, async (page) => {
       await bossCommand(page, 'boss_prepare_resume', { expectedJobUrl: 'https://www.zhipin.com/job_detail/abc.html' });
-      await expect(bossCommand(page, 'boss_confirm_resume', { resumeIndex: 1, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc.html' }))
-        .rejects.toThrow(/cannot prove the requested non-default resume selection/);
+      await expect(bossCommand(page, 'boss_confirm_resume', { resumeIndex: 1, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc.html', expectedResumeLabel: '前端开发工程师' }))
+        .rejects.toThrow(/cannot prove the requested Resume Profile label/);
     });
   });
 });

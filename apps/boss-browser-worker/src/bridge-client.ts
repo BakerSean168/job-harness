@@ -13,10 +13,18 @@ export interface BossResumeFollowupPolicyInput {
 
 export interface BossResumeFollowupPolicyDecision {
   readonly need: boolean;
-  readonly reason: 'already-sent' | 'latest-not-recruiter' | 'explicit-request' | 'qualified-followup' | 'below-threshold';
+  readonly intent: 'explicit-resume-request' | 'question' | 'interview' | 'rejection' | 'positive' | 'unknown' | 'none';
+  readonly reason: 'already-sent' | 'latest-not-recruiter' | 'explicit-request' | 'recruiter-question' | 'interview-invite' | 'recruiter-rejection' | 'positive-reply-review' | 'unknown-reply-review';
+}
+
+export interface BossFollowupContextDecision extends BossBrowserScoreDecision {
+  readonly jobId: string | null;
+  readonly listingId: string | null;
+  readonly resumeBindingSource: 'greeting-history' | 'current-ranking';
 }
 
 export interface BossBridgeClient extends BossBrowserBridgePort {
+  resolveFollowupContext(profileId: string, input: { job: string; company?: string | null; city?: string | null; jobUrl: string }): Promise<BossFollowupContextDecision>;
   authorizeResumeFollowup(profileId: string, input: BossResumeFollowupPolicyInput): Promise<BossResumeFollowupPolicyDecision>;
   logAction(profileId: string, input: Record<string, unknown>): Promise<void>;
 }
@@ -62,6 +70,12 @@ export function createBossBridgeClient(baseUrl: string): BossBridgeClient {
     },
     async logDecision(profileId, input) {
       await logAction(profileId, input);
+    },
+    async resolveFollowupContext(profileId, input) {
+      return await json('/p/' + encodeURIComponent(profileId) + '/get-followup-context', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }) as BossFollowupContextDecision;
     },
     async authorizeResumeFollowup(profileId, input) {
       return await json('/p/' + encodeURIComponent(profileId) + '/is-need-resume', {

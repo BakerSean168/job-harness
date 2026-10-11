@@ -71,7 +71,7 @@ export interface MessageCatalog {
   };
   campaignsWorkspace: {
     list: { title: string; empty: string; create: string; updated: string; roles: string; cities: string; resumes: string; };
-    form: { titleNew: string; titleEdit: string; name: string; targetRoles: string; targetRolesHint: string; cities: string; graduationYears: string; experience: string; education: string; keywords: string; exclusions: string; sources: string; resumes: string; status: string; save: string; saving: string; saved: string; failed: string; required: string; };
+    form: { titleNew: string; titleEdit: string; name: string; targetRoles: string; targetRolesHint: string; cities: string; graduationYears: string; experience: string; education: string; keywords: string; exclusions: string; sources: string; resumes: string; automation: string; collectionEnabled: string; outreach: string; outreachEnabled: string; outreachAutoStartEnabled: string; outreachGreetingEnabled: string; outreachRecruiterInboxEnabled: string; outreachResumeFollowupEnabled: string; outreachMaxExternalEffectsPerRun: string; officialSite: string; officialPrepareEnabled: string; officialFillEnabled: string; officialSubmitEnabled: string; email: string; emailDraftEnabled: string; emailSendEnabled: string; preferredResume: string; recommendedResume: string; automationHint: string; status: string; save: string; saving: string; saved: string; failed: string; required: string; };
     status: Record<'active' | 'paused' | 'completed' | 'archived', string>;
     links: { jobs: string; applications: string; dashboard: string; };
   };
@@ -83,9 +83,10 @@ export interface MessageCatalog {
     note: string;
   };
   discoveryWorkspace: {
-    filters: { campaign: string; executor: string; all: string; apply: string; reset: string; };
-    list: { runs: string; empty: string; running: string; completed: string; started: string; campaign: string; executor: string; candidates: string; inserted: string; duplicates: string; rejected: string; };
-    detail: { title: string; observations: string; affectedJobs: string; context: string; completedAt: string; noCampaign: string; noAffectedJobs: string; openJob: string; close: string; full: string; };
+    filters: { campaign: string; executor: string; status: string; all: string; apply: string; reset: string; };
+    list: { runs: string; empty: string; running: string; completed: string; status: string; started: string; campaign: string; executor: string; candidates: string; inserted: string; duplicates: string; rejected: string; };
+    detail: { title: string; observations: string; affectedJobs: string; context: string; completedAt: string; status: string; failureCode: string; failureReason: string; noCampaign: string; noAffectedJobs: string; openJob: string; close: string; full: string; };
+    statuses: Record<'running' | 'succeeded' | 'failed' | 'aborted', string>;
     executors: Record<'chatgpt-web' | 'memoflow-ai' | 'import' | 'manual' | 'other', string>;
   };
   executorsWorkspace: {
@@ -107,7 +108,7 @@ export interface MessageCatalog {
     attention: {
       title: string; empty: string; since: string;
       severity: Record<'info' | 'warning' | 'critical', string>;
-      kinds: Record<'stale_application' | 'shortlisted_unapplied' | 'closed_listing_active_application' | 'stale_campaign_discovery' | 'missing_resume_artifact' | 'stale_resume_artifact', string>;
+      kinds: Record<'stale_application' | 'shortlisted_unapplied' | 'closed_listing_active_application' | 'failed_discovery_run' | 'stale_campaign_discovery' | 'missing_resume_artifact' | 'stale_resume_artifact', string>;
     };
     weekly: { title: string; jobsObserved: string; opportunitiesInserted: string; shortlisted: string; applicationsRecorded: string; stageChanges: string; interviewsScheduled: string; unavailable: string; utcNote: string; };
     recent: { title: string; empty: string; candidates: string; inserted: string; duplicates: string; rejected: string; started: string; };
@@ -133,7 +134,7 @@ export interface MessageCatalog {
       optionalNote: string; notePlaceholder: string; transition: string; reject: string; withdraw: string; closePanel: string; openFullPage: string; openJob: string;
       submissionHistory: string; submittedAt: string; channel: string; listing: string; profile: string; revision: string; artifact: string; unknown: string;
     };
-    submissionChannels: Record<'official' | 'boss' | 'zhilian' | 'liepin' | 'moka' | 'greenhouse' | 'lever' | 'ashby' | 'email' | 'referral' | 'manual' | 'other', string>;
+    submissionChannels: Record<'official' | 'boss' | 'zhilian' | 'liepin' | 'job51' | 'moka' | 'greenhouse' | 'lever' | 'ashby' | 'email' | 'referral' | 'manual' | 'other', string>;
   };
   jobsWorkspace: {
     add: { trigger: string; title: string; description: string; company: string; role: string; city: string; source: string; url: string; externalId: string; jd: string; save: string; saving: string; saved: string; failed: string; };
@@ -159,6 +160,7 @@ export interface MessageCatalog {
       city: string;
       state: string;
       application: string;
+      contact: string;
       source: string;
       resume: string;
       lastSeen: string;
@@ -169,6 +171,7 @@ export interface MessageCatalog {
     detail: {
       overview: string;
       listings: string;
+      outreach: string;
       application: string;
       timeline: string;
       observations: string;
@@ -177,6 +180,7 @@ export interface MessageCatalog {
       description: string;
       noDescription: string;
       noApplication: string;
+      noOutreach: string;
       appliedAt: string;
       currentStage: string;
       resume: string;
@@ -203,6 +207,7 @@ export interface MessageCatalog {
     applicationStages: Record<'applied' | 'screening' | 'assessment' | 'interview' | 'offer' | 'rejected' | 'withdrawn', string>;
     listingStatuses: Record<'active' | 'closed' | 'unknown', string>;
     eventTypes: Record<'application_recorded' | 'submission_recorded' | 'stage_changed' | 'interview_scheduled' | 'note_added', string>;
-    sourceKinds: Record<'official' | 'boss' | 'zhilian' | 'liepin' | 'moka' | 'greenhouse' | 'lever' | 'ashby' | 'email' | 'manual' | 'other', string>;
+    outreachTypes: Record<'greeting_sent' | 'recruiter_replied' | 'resume_sent' | 'already_contacted', string>;
+    sourceKinds: Record<'official' | 'boss' | 'zhilian' | 'liepin' | 'job51' | 'moka' | 'greenhouse' | 'lever' | 'ashby' | 'email' | 'manual' | 'other', string>;
   };
 }

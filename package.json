@@ -13,7 +13,7 @@
     "e2e:headed": "pnpm build:web && playwright test --headed",
     "typecheck": "tsc -b && pnpm --filter @job-harness/web typecheck",
     "test": "vitest run",
-    "check": "pnpm check:manifest && pnpm check:boundaries && pnpm check:browser-extension-bridge && pnpm check:legacy-copilot-parity && pnpm check:boss-copilot-compat && pnpm check:chatgpt-integration && pnpm typecheck && pnpm check:openapi && pnpm test && pnpm build:web",
+    "check": "pnpm check:manifest && pnpm check:boundaries && pnpm check:browser-extension-bridge && pnpm check:legacy-copilot-parity && pnpm check:boss-copilot-compat && pnpm check:recruitment-browser-runtime && pnpm check:chatgpt-integration && pnpm typecheck && pnpm check:openapi && pnpm test && pnpm build:web",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "server": "pnpm --filter @job-harness/server start",
     "import:legacy": "pnpm --filter @job-harness/server import:legacy",
@@ -34,7 +34,15 @@
     "check:legacy-copilot-parity": "tsx scripts/check-legacy-copilot-parity.ts",
     "build:boss-copilot-compat": "tsx scripts/build-boss-copilot-compat.ts",
     "check:boss-copilot-compat": "pnpm build:boss-copilot-compat && node --check integrations/boss-copilot/extension/boss-copilot.js && node --check integrations/boss-copilot/extension/runtime-marker.js && node --check integrations/boss-copilot/extension/gm-request-shim.js && node --check integrations/boss-copilot/extension/background.js && node -e \"JSON.parse(require('fs').readFileSync('integrations/boss-copilot/extension/manifest.json','utf8'))\"",
-    "sync:browser-form-engine": "node scripts/sync-browser-form-engine.mjs"
+    "check:recruitment-browser-runtime": "tsx scripts/check-recruitment-browser-runtime.ts",
+    "sync:browser-form-engine": "node scripts/sync-browser-form-engine.mjs",
+    "upstream:check": "node scripts/upstream-registry.mjs check",
+    "upstream:report": "node scripts/upstream-registry.mjs report",
+    "upstream:diff": "node scripts/upstream-registry.mjs diff",
+    "upstream:sync": "node scripts/upstream-registry.mjs sync",
+    "upstream:test": "node scripts/upstream-registry.mjs test",
+    "repair:get-jobs-namespace": "tsx scripts/repair-get-jobs-runtime-namespace.ts",
+    "rollback:discovery-run": "tsx scripts/rollback-discovery-run-from-backup.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",

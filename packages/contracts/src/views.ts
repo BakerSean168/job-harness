@@ -10,10 +10,12 @@ import {
   CompanySchema,
   DiscoveryExecutorSchema,
   DiscoveryRunSchema,
+  DiscoveryRunStatusSchema,
   EntityIdSchema,
   IsoDateTimeSchema,
   JobListingSchema,
   JobObservationSchema,
+  JobOutreachEventSchema,
   JobSchema,
   JobSearchCampaignSchema,
   JobSourceKindSchema,
@@ -79,6 +81,8 @@ export const JobListItemSchema = z.object({
   sourceKinds: z.array(JobSourceKindSchema),
   campaigns: z.array(CampaignRefSchema),
   resume: ResumeUsageProfileSchema.nullable(),
+  outreachCount: z.number().int().nonnegative().default(0),
+  latestOutreach: JobOutreachEventSchema.nullable().default(null),
   firstSeenAt: IsoDateTimeSchema,
   lastSeenAt: IsoDateTimeSchema,
 }).strict();
@@ -118,6 +122,7 @@ export const JobDetailSchema = z.object({
   campaigns: z.array(CampaignRefSchema),
   application: JobApplicationViewSchema.nullable(),
   observations: z.array(JobObservationViewSchema),
+  outreach: z.array(JobOutreachEventSchema).default([]),
 }).strict();
 
 export const GetJobDetailInputSchema = z.object({ jobId: EntityIdSchema }).strict();
@@ -208,6 +213,7 @@ export const DiscoveryRunSummarySchema = z.object({
 export const ListDiscoveryRunsInputSchema = PageSchema.extend({
   campaignId: EntityIdSchema.optional(),
   executor: DiscoveryExecutorSchema.optional(),
+  status: DiscoveryRunStatusSchema.optional(),
 });
 export const ListDiscoveryRunsOutputSchema = z.object({
   items: z.array(DiscoveryRunSummarySchema),
@@ -270,6 +276,7 @@ export const DashboardAttentionKindSchema = z.enum([
   'stale_application',
   'shortlisted_unapplied',
   'closed_listing_active_application',
+  'failed_discovery_run',
   'stale_campaign_discovery',
   'missing_resume_artifact',
   'stale_resume_artifact',
@@ -283,6 +290,7 @@ export const DashboardAttentionItemSchema = z.object({
   jobId: EntityIdSchema.nullable(),
   applicationId: EntityIdSchema.nullable(),
   campaignId: EntityIdSchema.nullable(),
+  discoveryRunId: EntityIdSchema.nullable(),
   resumeProfileId: EntityIdSchema.nullable(),
   stage: ApplicationStageSchema.nullable(),
   sinceAt: NullableIsoDateTimeSchema,

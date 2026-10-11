@@ -43,6 +43,10 @@ import {
   ListDiscoveryRunsOutputSchema,
   ListResumeUsageOutputSchema,
   ListSavedViewsOutputSchema,
+  JobOutreachEventSchema,
+  ListJobOutreachEventsInputSchema,
+  ListJobOutreachEventsOutputSchema,
+  RecordJobOutreachEventInputSchema,
   PipelineStatsOutputSchema,
   RestErrorEnvelopeSchema,
   SavedViewSchema,
@@ -71,6 +75,10 @@ import {
   type ListResumeUsageOutput,
   type ListSavedViewsInput,
   type ListSavedViewsOutput,
+  type ListJobOutreachEventsInput,
+  type ListJobOutreachEventsOutput,
+  type RecordJobOutreachEventInput,
+  type JobOutreachEvent,
   type PipelineStatsInput,
   type PipelineStatsOutput,
   type RecordApplicationInput,
@@ -351,6 +359,7 @@ function discoveryQuery(input: ListDiscoveryRunsInput): string {
   append(query, 'offset', input.offset);
   append(query, 'campaignId', input.campaignId);
   append(query, 'executor', input.executor);
+  append(query, 'status', input.status);
   return query.toString();
 }
 
@@ -655,6 +664,23 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
         return SiteResumeBindingSchema.parse(await request(`/site-resume-bindings/${encodeURIComponent(bindingId)}/revoke`, { method: 'POST', body: JSON.stringify(parsed) }));
       },
     },
+    outreach: {
+      async list(input: ListJobOutreachEventsInput = {}): Promise<ListJobOutreachEventsOutput> {
+        const parsed = ListJobOutreachEventsInputSchema.parse(input);
+        const query = new URLSearchParams();
+        append(query, 'limit', parsed.limit);
+        append(query, 'offset', parsed.offset);
+        append(query, 'jobId', parsed.jobId);
+        append(query, 'channel', parsed.channel);
+        appendMany(query, 'types', parsed.types);
+        const suffix = query.toString();
+        return ListJobOutreachEventsOutputSchema.parse(await request(`/outreach-events${suffix ? `?${suffix}` : ''}`));
+      },
+      async record(input: RecordJobOutreachEventInput): Promise<JobOutreachEvent> {
+        const parsed = RecordJobOutreachEventInputSchema.parse(input);
+        return JobOutreachEventSchema.parse(await request('/outreach-events', { method: 'POST', body: JSON.stringify(parsed) }));
+      },
+    },
     applications: {
       async record(input: RecordApplicationInput) {
         return RecordApplicationOutputSchema.parse(await request('/applications', {
@@ -865,6 +891,9 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
           method: 'POST',
           body: JSON.stringify({
             completedAt: input.completedAt,
+            status: input.status,
+            failureCode: input.failureCode,
+            failureReason: input.failureReason,
             candidateCount: input.candidateCount,
             insertedCount: input.insertedCount,
             duplicateCount: input.duplicateCount,

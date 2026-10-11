@@ -9,6 +9,7 @@
     "zod": "^4.1.8",
     "@job-harness/application": "workspace:*",
     "@job-harness/resume-application": "workspace:*",
-    "@job-harness/resume-contracts": "workspace:*"
+    "@job-harness/resume-contracts": "workspace:*",
+    "@job-harness/recruitment-runtime-contracts": "workspace:*"
   }
 }

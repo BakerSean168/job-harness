@@ -85,6 +85,8 @@ test('390px mobile workspace keeps body contained and primary navigation usable'
   expect(Math.abs(navBox!.y + navBox!.height - 844)).toBeLessThanOrEqual(2);
 
   const jobsScroller = page.locator('.jobs-table-scroll');
+  await expect(jobsScroller).toBeVisible();
+  await expect(page.getByRole('link', { name: 'E2E Agent Engineer' }).first()).toBeVisible();
   const jobsScrollMetrics = await jobsScroller.evaluate((node) => ({
     clientWidth: node.clientWidth,
     scrollWidth: node.scrollWidth,

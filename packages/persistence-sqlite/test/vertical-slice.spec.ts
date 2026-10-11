@@ -141,6 +141,66 @@ describe('SQLite standalone vertical slice', () => {
     });
     expect(duplicateBatch.items[0]).toMatchObject({ status: 'duplicate', jobId: firstBatch.items[0]!.jobId });
 
+    const crossCompanyIdentity = await career.jobs.upsertJobsBatch({
+      jobs: [{
+        companyName: 'Wrong Company',
+        title: 'AI Agent Engineer',
+        city: 'Hangzhou',
+        listings: [{
+          sourceKind: 'official',
+          url: 'https://jobs.example.com/roles/agent-1',
+          externalNamespace: 'official',
+          externalId: 'agent-1',
+          identityKind: 'external-id',
+          status: 'active',
+        }],
+        observedAt: t1,
+        discoveryRunId: run.id,
+      }],
+    });
+    expect(crossCompanyIdentity.items[0]).toMatchObject({ status: 'rejected', jobId: null });
+    expect(crossCompanyIdentity.items[0]!.reason).toContain('strong-identity-conflict:company');
+
+    const crossTitleIdentity = await career.jobs.upsertJobsBatch({
+      jobs: [{
+        companyName: 'Acme AI',
+        title: 'Finance Director',
+        city: 'Hangzhou',
+        listings: [{
+          sourceKind: 'official',
+          url: 'https://jobs.example.com/roles/agent-1',
+          externalNamespace: 'official',
+          externalId: 'agent-1',
+          identityKind: 'external-id',
+          status: 'active',
+        }],
+        observedAt: t1,
+        discoveryRunId: run.id,
+      }],
+    });
+    expect(crossTitleIdentity.items[0]).toMatchObject({ status: 'rejected', jobId: null });
+    expect(crossTitleIdentity.items[0]!.reason).toContain('strong-identity-conflict:title');
+
+    const compatibleTitleVariant = await career.jobs.upsertJobsBatch({
+      jobs: [{
+        companyName: 'Acme AI',
+        title: 'AI Agent Engineer - Hangzhou',
+        city: 'Hangzhou',
+        listings: [{
+          sourceKind: 'official',
+          url: 'https://jobs.example.com/roles/agent-1',
+          externalNamespace: 'official',
+          externalId: 'agent-1',
+          identityKind: 'external-id',
+          status: 'active',
+        }],
+        observedAt: t1,
+        discoveryRunId: run.id,
+      }],
+    });
+    expect(compatibleTitleVariant.items[0]).toMatchObject({ status: 'duplicate', jobId: firstBatch.items[0]!.jobId });
+    expect((await career.jobs.getJob(firstBatch.items[0]!.jobId!))?.companyName).toBe('Acme AI');
+
     // A generic company careers page is a source, not a canonical job identity.
     const sharedListing = await career.jobs.upsertJobsBatch({
       jobs: [{
@@ -256,7 +316,7 @@ describe('SQLite standalone vertical slice', () => {
       duplicateCount: 1,
       rejectedCount: 0,
     });
-    expect(completed.completedAt).toBe(t3);
+    expect(completed).toMatchObject({ completedAt: t3, status: 'succeeded', failureCode: null, failureReason: null });
 
     const context = await career.analytics.getCareerContext({ campaignId: campaign.id });
     expect(context.campaign?.id).toBe(campaign.id);

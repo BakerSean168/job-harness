@@ -32,8 +32,14 @@ function bridge(policyNeed = true) {
     async score() {
       return { score: 71, introduce: 'hello', resumeIndex: 1, profileId: 'ai-frontend', profileLabel: '前端开发工程师', decision: 'review' };
     },
-    async authorizeResumeFollowup() {
-      return policyNeed ? { need: true, reason: 'explicit-request' } : { need: false, reason: 'below-threshold' };
+    async resolveFollowupContext() {
+      return { score: 71, introduce: 'hello', resumeIndex: 1, profileId: 'ai-frontend', profileLabel: '前端开发工程师', decision: 'review', jobId: 'job-1', listingId: 'listing-1', resumeBindingSource: 'greeting-history' };
+    },
+    async authorizeResumeFollowup(_profileId, input) {
+      if (input.resumeSended) return { need: false, intent: 'explicit-resume-request', reason: 'already-sent' };
+      return policyNeed
+        ? { need: true, intent: 'explicit-resume-request', reason: 'explicit-request' }
+        : { need: false, intent: 'question', reason: 'recruiter-question' };
     },
     async logAction(_profileId, input) { logs.push(input); },
   };
@@ -58,13 +64,14 @@ describe('BOSS resume follow-up runtime', () => {
       },
       profileId: 'ai-agent-app',
       threshold: 58,
+      sendEnabled: true,
       logger: { log() {}, warn() {}, error() {} },
     });
 
     expect(result).toMatchObject({ inspected: 1, policyAuthorized: 1, resumesSent: 1, skipped: 0 });
     expect(sent).toEqual([expect.objectContaining({
       jobUrl: 'https://www.zhipin.com/job_detail/abc.html',
-      resumeIndex: 1,
+      resumeLabel: '前端开发工程师',
       score: 71,
       threshold: 58,
       authorizationReason: 'explicit-request',
@@ -102,7 +109,35 @@ describe('BOSS resume follow-up runtime', () => {
 
     expect(sends).toBe(0);
     expect(result).toMatchObject({ inspected: 3, policyAuthorized: 0, resumesSent: 0, skipped: 3 });
-    expect(result.items.map((item) => item.reason)).toEqual(['latest-not-recruiter', 'already-sent', 'below-threshold']);
+    expect(result.items.map((item) => item.reason)).toEqual(['latest-not-recruiter', 'already-sent', 'recruiter-question']);
+  });
+
+  it('can observe and persist an explicit resume request while external resume sending stays disabled', async () => {
+    const b = bridge(true);
+    let sends = 0;
+    const result = await runBossResumeFollowup({
+      bridge: b.bridge,
+      outreach: {
+        async inspectUnreadChats() { return [conversation()]; },
+        async inspectJobDetail() {
+          return { url: 'https://www.zhipin.com/job_detail/abc.html', title: '前端开发工程师', salary: '9-13K', detail: 'Vue3 React TypeScript', company: '四化信息科技', city: '深圳', talked: true };
+        },
+        async sendResumeFollowup() {
+          sends += 1;
+          return { status: 'sent', selectedResumeIndex: 1, mode: 'resume_list' };
+        },
+      },
+      profileId: 'ai-agent-app',
+      sendEnabled: false,
+      logger: { log() {}, warn() {}, error() {} },
+    });
+    expect(sends).toBe(0);
+    expect(result).toMatchObject({ inspected: 1, policyAuthorized: 1, resumesSent: 0, skipped: 1 });
+    expect(result.items[0]).toMatchObject({ status: 'send-disabled', reason: 'send-disabled' });
+    expect(b.logs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ action: 'recruiter_replied', intent: 'explicit-resume-request' }),
+      expect.objectContaining({ action: 'resume_followup_send_disabled', reason: 'explicit-request' }),
+    ]));
   });
 
   it('fails closed when the semantic resume sender cannot prove the selected resume', async () => {
@@ -119,6 +154,7 @@ describe('BOSS resume follow-up runtime', () => {
         },
       },
       profileId: 'ai-agent-app',
+      sendEnabled: true,
       logger: { log() {}, warn() {}, error() {} },
     });
     expect(result).toMatchObject({ policyAuthorized: 1, resumesSent: 0, skipped: 1 });

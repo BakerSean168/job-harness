@@ -47,6 +47,37 @@ export type BossResumeSendResult =
   | { readonly status: 'sent'; readonly selectedResumeIndex: number; readonly mode: string }
   | { readonly status: 'already_sent' | 'conversation_mismatch' | 'requested_resume_unavailable' | 'resume_selection_unprovable' | 'send_unverified'; readonly reason?: string | null };
 
+export interface BossResumeManagementAction {
+  readonly actionRef: string;
+  readonly text: string;
+  readonly href: string | null;
+  readonly tag: string;
+  readonly role: string | null;
+  readonly disabled: boolean;
+}
+
+export interface BossResumeManagementControl {
+  readonly controlRef: string;
+  readonly kind: string;
+  readonly label: string;
+  readonly name: string | null;
+  readonly accept: string | null;
+  readonly sectionLabel: string | null;
+  readonly semanticHints: readonly string[];
+}
+
+export interface BossResumeManagementSnapshot {
+  readonly runId: string;
+  readonly sessionRef: string;
+  readonly targetUrl: string;
+  readonly currentUrl: string;
+  readonly title: string;
+  readonly bodySignals: readonly string[];
+  readonly actions: readonly BossResumeManagementAction[];
+  readonly controls: readonly BossResumeManagementControl[];
+  readonly screenshotBase64?: string;
+}
+
 interface BossOutreachExtensionClientOptions {
   readonly apiUrl: string;
   readonly authToken: string;
@@ -136,13 +167,38 @@ export class BossOutreachExtensionClient {
     return { status: 'send_unverified', chatUrl, observedMessage: observed, reason: 'BOSS did not expose the exact sent greeting after the click' };
   }
 
-  async inspectUnreadChats(limit = 30): Promise<readonly BossInspectedConversation[]> {
+  async inspectResumeManagement(targetUrl = 'https://www.zhipin.com/web/geek/recommend', options: { screenshot?: boolean } = {}): Promise<BossResumeManagementSnapshot> {
+    const run = await this.createRun(targetUrl, 'boss-resume-sync', null);
+    const sessionRef = await this.acquire(run, targetUrl, false);
+    await this.invoke(run.id, sessionRef, { type: 'wait', payload: { milliseconds: 800 } });
+    const currentUrl = requiredString(await this.invoke(run.id, sessionRef, { type: 'current_url', payload: {} }), 'resume management URL');
+    const title = nullableString(await this.invoke(run.id, sessionRef, { type: 'title', payload: {} })) ?? '';
+    const bodyText = nullableString(await this.invoke(run.id, sessionRef, { type: 'body_text', payload: { limit: 50_000 } })) ?? '';
+    const rawActions = await this.invoke(run.id, sessionRef, { type: 'scan_actions', payload: {} });
+    const rawControls = await this.invoke(run.id, sessionRef, { type: 'scan_controls', payload: {} });
+    const screenshotBase64 = options.screenshot
+      ? requiredString(await this.invoke(run.id, sessionRef, { type: 'screenshot', payload: {} }), 'resume management screenshot')
+      : undefined;
+    return {
+      runId: run.id,
+      sessionRef,
+      targetUrl: run.targetUrl,
+      currentUrl,
+      title,
+      bodySignals: resumeManagementSignals(bodyText),
+      actions: parseResumeManagementActions(rawActions),
+      controls: parseResumeManagementControls(rawControls),
+      ...(screenshotBase64 ? { screenshotBase64 } : {}),
+    };
+  }
+
+  async inspectUnreadChats(limit = 30, includeRead = false): Promise<readonly BossInspectedConversation[]> {
     const target = 'https://www.zhipin.com/web/geek/chat';
     const run = await this.createRun(target, 'boss-chat-inspect', null);
     const sessionRef = await this.acquire(run, target, true);
     const raw = await this.invoke(run.id, sessionRef, {
       type: 'boss_scan_unread_contacts',
-      payload: { limit: Math.max(1, Math.min(100, Math.trunc(limit))) },
+      payload: { limit: Math.max(1, Math.min(100, Math.trunc(limit))), includeRead },
     });
     if (!Array.isArray(raw)) throw new Error('boss_scan_unread_contacts returned non-array');
     const contacts = raw.map(parseUnreadContact);
@@ -159,7 +215,7 @@ export class BossOutreachExtensionClient {
 
   async sendResumeFollowup(input: {
     jobUrl: string;
-    resumeIndex: number;
+    resumeLabel: string;
     score: number;
     threshold: number;
     authorizationReason: 'explicit-request' | 'qualified-followup';
@@ -168,7 +224,7 @@ export class BossOutreachExtensionClient {
     const run = await this.createRun(target, 'boss-outreach', {
       operation: 'resume-followup',
       jobUrl: input.jobUrl,
-      expectedResumeIndex: input.resumeIndex,
+      expectedResumeLabel: input.resumeLabel,
       score: input.score,
       threshold: input.threshold,
       authorizationReason: input.authorizationReason,
@@ -186,27 +242,26 @@ export class BossOutreachExtensionClient {
     }), 'boss_prepare_resume');
     if (prepared.status === 'already_sent') return { status: 'already_sent' };
     const mode = nullableString(prepared.mode);
-    if (mode === 'small_dialog' && input.resumeIndex !== 0) {
-      return { status: 'resume_selection_unprovable', reason: 'BOSS small resume dialog does not expose a verifiable non-default resume choice' };
+    if (mode === 'small_dialog') {
+      return { status: 'resume_selection_unprovable', reason: 'BOSS small resume dialog does not expose a verifiable Resume Profile label' };
     }
-    if (mode === 'resume_list') {
-      const resumes = Array.isArray(prepared.resumes) ? prepared.resumes : [];
-      const available = resumes.some((item) => objectOrNull(item)?.resumeIndex === input.resumeIndex);
-      if (!available) return { status: 'requested_resume_unavailable', reason: 'Requested Resume Profile index is absent from the BOSS chooser' };
-    }
+    const resumes = Array.isArray(prepared.resumes) ? prepared.resumes : [];
+    const matched = uniqueResumeMatch(resumes, input.resumeLabel);
+    if (matched.status === 'missing') return { status: 'requested_resume_unavailable', reason: `Requested Resume Profile '${input.resumeLabel}' is absent from the BOSS chooser` };
+    if (matched.status === 'ambiguous') return { status: 'resume_selection_unprovable', reason: `BOSS chooser has multiple resumes matching '${input.resumeLabel}'` };
 
     const confirmed = objectResult(await this.invoke(run.id, sessionRef, {
       type: 'boss_confirm_resume',
-      payload: { resumeIndex: input.resumeIndex, expectedJobUrl: input.jobUrl },
+      payload: { resumeIndex: matched.resumeIndex, expectedJobUrl: input.jobUrl, expectedResumeLabel: input.resumeLabel },
     }), 'boss_confirm_resume');
-    if (confirmed.sent === true && confirmed.selectedResumeIndex === input.resumeIndex) {
-      return { status: 'sent', selectedResumeIndex: input.resumeIndex, mode: nullableString(confirmed.mode) ?? 'unknown' };
+    if (confirmed.sent === true && confirmed.selectedResumeIndex === matched.resumeIndex) {
+      return { status: 'sent', selectedResumeIndex: matched.resumeIndex, mode: nullableString(confirmed.mode) ?? 'unknown' };
     }
     if (confirmed.reason === 'already_sent') return { status: 'already_sent' };
     return { status: 'send_unverified', reason: 'BOSS did not expose the expected resume-sent marker after confirmation' };
   }
 
-  private async createRun(targetUrl: string, mode: 'boss-discovery' | 'boss-chat-inspect' | 'boss-outreach', bossOutreachIntent: unknown): Promise<ValidationRun> {
+  private async createRun(targetUrl: string, mode: 'boss-resume-sync' | 'boss-discovery' | 'boss-chat-inspect' | 'boss-outreach', bossOutreachIntent: unknown): Promise<ValidationRun> {
     const response = await this.request('/internal/browser-bridge/v1/validation-runs', {
       method: 'POST',
       body: JSON.stringify({
@@ -276,6 +331,93 @@ async function parseResponse<T>(response: Response, action: string): Promise<T> 
     throw error;
   }
   return parsed as T;
+}
+
+function uniqueResumeMatch(value: unknown[], expectedLabel: string):
+  | { status: 'matched'; resumeIndex: number }
+  | { status: 'missing' }
+  | { status: 'ambiguous' } {
+  const expected = normalizeResumeLabel(expectedLabel);
+  const matches = value.flatMap((item) => {
+    const row = objectOrNull(item);
+    const label = nullableString(row?.label);
+    const resumeIndex = row?.resumeIndex;
+    if (!label || !Number.isInteger(resumeIndex)) return [];
+    const normalized = normalizeResumeLabel(label);
+    return normalized.includes(expected) || expected.includes(normalized)
+      ? [{ resumeIndex: Number(resumeIndex) }]
+      : [];
+  });
+  if (!matches.length) return { status: 'missing' };
+  if (matches.length !== 1) return { status: 'ambiguous' };
+  return { status: 'matched', resumeIndex: matches[0]!.resumeIndex };
+}
+
+function normalizeResumeLabel(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\.pdf\b/gi, '')
+    .replace(/简历/g, '')
+    .replace(/[\s·•,，.。;；:_\-—–/\\()（）\[\]【】]+/g, '')
+    .trim();
+}
+
+function parseResumeManagementActions(value: unknown): BossResumeManagementAction[] {
+  if (!Array.isArray(value)) throw new Error('BOSS resume management action scan returned non-array');
+  return value.flatMap((item) => {
+    const row = objectOrNull(item);
+    if (!row) return [];
+    const actionRef = nullableString(row.actionRef);
+    const text = nullableString(row.text) ?? '';
+    const href = nullableString(row.href);
+    const searchable = `${text} ${href ?? ''}`;
+    if (!actionRef || !/(简历|附件|上传|导入|删除|更新|替换|resume|cv)/i.test(searchable)) return [];
+    return [{
+      actionRef,
+      text: redactContact(text),
+      href,
+      tag: nullableString(row.tag) ?? 'other',
+      role: nullableString(row.role),
+      disabled: row.disabled === true || row.ariaDisabled === true,
+    }];
+  }).slice(0, 100);
+}
+
+function parseResumeManagementControls(value: unknown): BossResumeManagementControl[] {
+  if (!Array.isArray(value)) throw new Error('BOSS resume management control scan returned non-array');
+  return value.flatMap((item) => {
+    const row = objectOrNull(item);
+    if (!row) return [];
+    const controlRef = nullableString(row.controlRef);
+    const kind = nullableString(row.kind) ?? '';
+    const label = nullableString(row.label) ?? '';
+    const name = nullableString(row.name);
+    const accept = nullableString(row.accept);
+    const sectionLabel = nullableString(row.sectionLabel);
+    const semanticHints = Array.isArray(row.semanticHints) ? row.semanticHints.map((hint) => nullableString(hint)).filter((hint): hint is string => Boolean(hint)) : [];
+    const searchable = [kind, label, name, accept, sectionLabel, ...semanticHints].filter(Boolean).join(' ');
+    if (!controlRef || (kind !== 'file' && !/(简历|附件|上传|resume|cv|pdf|doc)/i.test(searchable))) return [];
+    return [{ controlRef, kind, label: redactContact(label), name, accept, sectionLabel: sectionLabel ? redactContact(sectionLabel) : null, semanticHints }];
+  }).slice(0, 100);
+}
+
+function resumeManagementSignals(bodyText: string): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of bodyText.split(/\r?\n/)) {
+    const line = redactContact(raw.replace(/\s+/g, ' ').trim()).slice(0, 500);
+    if (!line || !/(简历|附件|上传|导入|删除|更新|替换|重新上传|PDF|Word|resume|cv)/i.test(line) || seen.has(line)) continue;
+    seen.add(line);
+    result.push(line);
+    if (result.length >= 80) break;
+  }
+  return result;
+}
+
+function redactContact(value: string): string {
+  return value
+    .replace(/\b1\d{10}\b/g, '[phone]')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]');
 }
 
 function parseUnreadContact(value: unknown): BossUnreadContact {

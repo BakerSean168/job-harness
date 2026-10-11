@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { JobSearchCampaign, UpsertJobsBatchInput } from '@job-harness/contracts';
 import { BossDiscoveryCoordinator, BossDiscoveryReportSchema, parseBossDiscoveryDecision, renderBossDiscoveryReporter } from '../src/boss-discovery';
 
@@ -47,7 +47,7 @@ describe('BOSS Discovery coordinator', () => {
     dir = await mkdtemp(join(tmpdir(), 'jh-boss-discovery-'));
     const h = harness();
     const coordinator = new BossDiscoveryCoordinator({ client: h.client, campaignId: campaign.id, stateLogPath: join(dir, 'state.jsonl'), now: () => '2026-09-18T08:00:02.000Z' });
-    expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: false });
+    expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: false, jobId: 'job-1' });
     expect(await coordinator.decision(decision)).toEqual({ correlated: false });
     await coordinator.completeAll();
 
@@ -71,7 +71,7 @@ describe('BOSS Discovery coordinator', () => {
     const h = harness();
     const coordinator = new BossDiscoveryCoordinator({ client: h.client, campaignId: campaign.id, stateLogPath: join(dir, 'state.jsonl') });
     expect(await coordinator.decision(decision)).toEqual({ correlated: false });
-    expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: true });
+    expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: true, jobId: 'job-1' });
     await coordinator.completeAll();
     expect(h.upserts).toHaveLength(1);
   });
@@ -80,12 +80,34 @@ describe('BOSS Discovery coordinator', () => {
     dir = await mkdtemp(join(tmpdir(), 'jh-boss-discovery-standalone-'));
     const h = harness();
     const coordinator = new BossDiscoveryCoordinator({ client: h.client, campaignId: campaign.id, stateLogPath: join(dir, 'state.jsonl') });
-    expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: false });
+    expect(await coordinator.report(report)).toEqual({ accepted: true, correlated: false, jobId: 'job-1' });
     await coordinator.completeAll();
     expect(h.began).toHaveLength(1);
     expect(h.began[0]).toMatchObject({ contextSnapshot: { screeningSessionId: 'boss-browser-daily-20260918' } });
     expect(h.upserts).toHaveLength(1);
     expect(h.upserts[0]!.jobs[0]!.listings[0]!.metadataSnapshot).toMatchObject({ score: null, recommendedProfileId: null });
+  });
+
+  it('reconciles the recovery log when the canonical DiscoveryRun already completed before the local completion append', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jh-boss-discovery-reconcile-'));
+    const h = harness();
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const coordinator = new BossDiscoveryCoordinator({
+      client: h.client,
+      campaignId: campaign.id,
+      stateLogPath: join(dir, 'state.jsonl'),
+      now: () => '2026-09-18T08:00:02.000Z',
+      idleCompleteMs: 1_000_000_000,
+      logger,
+    });
+    await coordinator.report(report);
+    h.client.discovery.complete = async () => {
+      throw Object.assign(new Error("DiscoveryRun 'run-1' is already completed with different counts"), { status: 409 });
+    };
+
+    await expect(coordinator.completeAll()).resolves.toBeUndefined();
+    expect(await readFile(join(dir, 'state.jsonl'), 'utf8')).toContain('"type":"reconciled"');
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("already-completed run 'run-1'"));
   });
 
   it('rejects non-BOSS URLs and renders a read-only userscript with no click/send primitives', () => {

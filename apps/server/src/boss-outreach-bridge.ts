@@ -1,15 +1,43 @@
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, appendFile, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { rankResumeProfilesForJob, type ResumeJobMatch } from '@job-harness/resume-application';
 import type { ApplicantProfileContext } from '@job-harness/applicant-contracts';
-import type { ListResumeProfilesOutput } from '@job-harness/resume-contracts';
+import type {
+  JobDetail,
+  JobOutreachEvent,
+  JobSearchCampaign,
+  ListJobOutreachEventsInput,
+  ListJobOutreachEventsOutput,
+  RecordJobOutreachEventInput,
+  UpsertJobsBatchInput,
+  UpsertJobsBatchOutput,
+} from '@job-harness/contracts';
+import type { ListResumeProfilesOutput, ResumeProfileContext } from '@job-harness/resume-contracts';
+import { RecruitmentRuntimeHealthSchema } from '@job-harness/recruitment-runtime-contracts';
 import { BossDiscoveryReportSchema, parseBossDiscoveryDecision, renderBossDiscoveryReporter, type BossDiscoveryCoordinator } from './boss-discovery';
 import { BossResumeFollowupRequestSchema, decideBossResumeFollowup } from './boss-resume-followup';
+import { buildDeterministicOutreachGreeting, buildOutreachGreetingGuidance, normalizeOutreachGreetingMessage } from './outreach-message-policy';
+import { BOSS_COMPAT_RUNTIME_DESCRIPTOR, countBossRuntimeExternalEffects, projectBossRuntimeEvents } from './boss-site-runtime';
+import { BossRuntimeControlStore } from './boss-runtime-control';
 
 export interface BossOutreachBridgeClient {
   readonly applicant: { getProfile(): Promise<ApplicantProfileContext> };
-  readonly resume: { listProfiles(): Promise<ListResumeProfilesOutput> };
+  readonly resume: {
+    listProfiles(): Promise<ListResumeProfilesOutput>;
+    getProfileContext?(profileId: string): Promise<ResumeProfileContext | null>;
+  };
+  readonly campaigns?: { get(campaignId: string): Promise<JobSearchCampaign | null> };
+  readonly jobs?: {
+    upsertJobsBatch(input: UpsertJobsBatchInput): Promise<UpsertJobsBatchOutput>;
+    checkDuplicate?(input: { companyName: string; title: string; city?: string | null; listings: UpsertJobsBatchInput['jobs'][number]['listings'] }): Promise<{ duplicate: boolean; job: JobDetail['job'] | null }>;
+  };
+  readonly workspace?: { getJobDetail(jobId: string): Promise<JobDetail | null> };
+  readonly outreach?: {
+    record(input: RecordJobOutreachEventInput): Promise<JobOutreachEvent>;
+    list?(input: ListJobOutreachEventsInput): Promise<ListJobOutreachEventsOutput>;
+  };
 }
 
 export interface BossOutreachBridgeOptions {
@@ -21,12 +49,24 @@ export interface BossOutreachBridgeOptions {
   readonly random?: () => number;
   readonly discovery?: BossDiscoveryCoordinator | null;
   readonly resumeFollowupUserscript?: string | null;
+  readonly greetingWaitMs?: number;
+  readonly interactiveResolverPriorityMs?: number;
+  readonly greetingThreshold?: number;
+  readonly campaignId?: string | null;
+  readonly runtimeControl?: BossRuntimeControlStore | null;
+  readonly runtimeTaskTtlMs?: number;
+  readonly controlToken?: string | null;
 }
 
 export interface ParsedBossJob {
   readonly title: string;
   readonly salary: string;
   readonly description: string;
+  readonly company: string | null;
+  readonly city: string | null;
+  readonly jobUrl: string | null;
+  readonly externalId: string | null;
+  readonly screeningSessionId: string | null;
 }
 
 export interface BossJobDecision {
@@ -37,20 +77,78 @@ export interface BossJobDecision {
   readonly profileLabel: string;
   readonly decision: ResumeJobMatch['decision'];
   readonly signals: readonly string[];
+  readonly greetingRequestId?: string | null;
+  readonly greetingGenerationSource?: string | null;
+  readonly greetingResolutionReason?: string | null;
+  readonly policyBlocked?: boolean;
+  readonly policyReason?: string | null;
+  readonly jobId?: string | null;
+  readonly listingId?: string | null;
+}
+
+export interface BossGreetingRequest {
+  readonly id: string;
+  readonly createdAt: string;
+  readonly expiresAt: string;
+  readonly requestedProfileId: string;
+  readonly job: ParsedBossJob;
+  readonly match: {
+    readonly score: number;
+    readonly profileId: string;
+    readonly profileLabel: string;
+    readonly resumeIndex: number;
+    readonly decision: BossJobDecision['decision'];
+    readonly signals: readonly string[];
+  };
+  readonly candidate: Record<string, unknown>;
+  readonly guidance: readonly string[];
+}
+
+function canonicalBossJobUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    const url = new URL(value, 'https://www.zhipin.com');
+    if (!['www.zhipin.com', 'zhipin.com'].includes(url.hostname.toLowerCase()) || !/^\/job_detail\//i.test(url.pathname)) return null;
+    url.hash = '';
+    for (const key of [...url.searchParams.keys()]) if (key !== 'ka') url.searchParams.delete(key);
+    return url.toString();
+  } catch { return null; }
+}
+
+function bossExternalJobId(jobUrl: string | null): string | null {
+  if (!jobUrl) return null;
+  const match = /^\/job_detail\/([^/?#]+?)(?:\.html)?$/i.exec(new URL(jobUrl).pathname);
+  return match?.[1]?.trim().slice(0, 300) || null;
 }
 
 export function parseLegacyBossJobPayload(raw: unknown): ParsedBossJob {
+  const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
   const text = typeof raw === 'string'
     ? raw
-    : raw && typeof raw === 'object' && 'job' in raw
-      ? String((raw as { job?: unknown }).job ?? '')
-      : raw && typeof raw === 'object' && 'text' in raw
-        ? String((raw as { text?: unknown }).text ?? '')
+    : source && 'job' in source
+      ? String(source.job ?? '')
+      : source && 'text' in source
+        ? String(source.text ?? '')
         : String(raw ?? '');
-  const title = text.match(/#\s*职位名称\s*\n([^\n]+)/)?.[1]?.trim() ?? '';
-  const salary = text.match(/#\s*薪资范围\s*\n([^\n]+)/)?.[1]?.trim() ?? '';
-  const description = text.match(/#\s*职位描述\s*\n([\s\S]*)$/)?.[1]?.trim() ?? text;
-  return { title: title.slice(0, 240), salary: salary.slice(0, 120), description: description.slice(0, 50_000) };
+  const title = text.match(/#\s*职位名称\s*\n([^\n]+)/)?.[1]?.trim() ?? (typeof source?.title === 'string' ? source.title.trim() : '');
+  const salary = text.match(/#\s*薪资范围\s*\n([^\n]+)/)?.[1]?.trim() ?? (typeof source?.salary === 'string' ? source.salary.trim() : '');
+  const description = text.match(/#\s*职位描述\s*\n([\s\S]*)$/)?.[1]?.trim() ?? (typeof source?.description === 'string' ? source.description.trim() : text);
+  const jobUrl = canonicalBossJobUrl(source?.jobUrl);
+  const company = typeof source?.company === 'string' ? source.company.replace(/\s+/g, ' ').trim().slice(0, 300) || null : null;
+  const city = typeof source?.city === 'string' ? source.city.replace(/\s+/g, ' ').trim().slice(0, 200) || null : null;
+  const screeningSessionId = typeof source?.screeningSessionId === 'string' && /^[A-Za-z0-9._:-]{1,200}$/.test(source.screeningSessionId.trim())
+    ? source.screeningSessionId.trim()
+    : null;
+  return {
+    title: title.slice(0, 240),
+    salary: salary.slice(0, 120),
+    description: description.slice(0, 50_000),
+    company,
+    city,
+    jobUrl,
+    externalId: bossExternalJobId(jobUrl),
+    screeningSessionId,
+  };
 }
 
 export function bossResumeIndex(profileId: string): number {
@@ -59,38 +157,95 @@ export function bossResumeIndex(profileId: string): number {
   return 0;
 }
 
+async function bossResumeProfileLabel(client: BossOutreachBridgeClient, profileId: string, fallback: string): Promise<string> {
+  const profiles = await client.resume.listProfiles();
+  const profile = profiles.items.find((item) => item.id === profileId);
+  if (!profile) return fallback;
+  return profile.name[profile.locale] ?? profile.name['zh-CN'] ?? profile.name.en ?? fallback;
+}
+
 function compactSignal(value: string): string {
   return value.replace(/\s+/g, ' ').trim().slice(0, 80);
 }
 
-export function buildBossGreeting(applicant: ApplicantProfileContext['profile'], match: ResumeJobMatch): string {
-  const education = applicant.education[0];
-  const identity = [education?.school, education?.major].filter(Boolean).join(' · ');
-  const signals = [
-    ...match.matches.specialization,
-    ...match.matches.titleStrong,
-    ...match.matches.detailStrong,
-    ...match.matches.detailSupport,
-  ]
-    .map((item) => compactSignal(item.keyword))
-    .filter(Boolean)
-    .filter((item, index, all) => all.indexOf(item) === index)
-    .slice(0, 3);
-  const introduction = identity ? `我是${identity}方向的${applicant.displayName}` : `我是${applicant.displayName}`;
-  const role = match.targetRole || match.profileName;
-  const evidence = signals.length ? `，相关实践覆盖 ${signals.join('、')}` : '';
-  return `${introduction}，目前主要关注${role}${evidence}。看到这个岗位方向比较匹配，希望有机会进一步沟通，谢谢。`;
+function compactText(value: string | null | undefined, max = 600): string | null {
+  const normalized = value?.replace(/\s+/g, ' ').trim();
+  return normalized ? normalized.slice(0, max) : null;
+}
+
+function buildGreetingCandidateContext(
+  applicant: ApplicantProfileContext['profile'],
+  resume: ResumeProfileContext | null,
+  decision: BossJobDecision,
+): Record<string, unknown> {
+  const resolved = resume?.resolved;
+  return {
+    displayName: applicant.displayName,
+    education: applicant.education.slice(0, 2).map((item) => ({
+      school: item.school,
+      major: item.major,
+      degree: item.degree,
+      endMonth: item.endMonth,
+    })),
+    targetRole: resolved?.positioning ?? decision.profileLabel,
+    matchedSignals: decision.signals,
+    skills: resolved?.skills.slice(0, 8).map((item) => ({
+      label: item.label,
+      content: compactText(item.content, 500),
+      keywords: item.keywords.slice(0, 12),
+    })) ?? [],
+    projects: resolved?.projects.slice(0, 4).map((item) => ({
+      name: item.name,
+      role: item.role,
+      description: compactText(item.description, 500),
+      stack: compactText(item.stack, 240),
+      highlights: item.highlights.slice(0, 4).map((highlight) => compactText(highlight.detail, 360)).filter(Boolean),
+    })) ?? [],
+    workExperiences: resolved?.workExperiences.slice(0, 3).map((item) => ({
+      company: item.company,
+      role: item.role,
+      bullets: item.bullets.slice(0, 4).map((bullet) => compactText(bullet.content, 360)).filter(Boolean),
+    })) ?? [],
+    summaries: resolved?.summaries.slice(0, 3).map((item) => compactText(item.detail, 500)).filter(Boolean) ?? [],
+  };
+}
+
+function inferMinimumExperienceYears(text: string): number | null {
+  const values: number[] = [];
+  const patterns = [
+    /(?:至少|不少于)\s*(\d{1,2})\s*年/gi,
+    /(\d{1,2})\s*年\s*(?:以上|及以上|及其以上)/gi,
+    /(\d{1,2})\s*[-~～至—–]\s*\d{1,2}\s*年(?:[^。；;\n]{0,24})?(?:经验|开发|研发|工作)/gi,
+    /(\d{1,2})\s*年(?:[^。；;\n]{0,24})?(?:工作|开发|研发)?经验/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const years = Number(match[1]);
+      if (Number.isFinite(years) && years >= 0 && years <= 50) values.push(years);
+    }
+  }
+  return values.length ? Math.max(...values) : null;
+}
+
+function blocksEarlyCareerOutreach(campaign: JobSearchCampaign | null, job: ParsedBossJob): { blocked: boolean; minimumYears: number | null } {
+  const minimumYears = inferMinimumExperienceYears(job.description);
+  if (minimumYears === null) return { blocked: false, minimumYears };
+  const earlyCareer = Boolean(
+    campaign?.graduationYears.length
+    && campaign.experience.some((value) => /(?:应届|实习|在校|无经验|经验不限|1年以内)/.test(value)),
+  );
+  return { blocked: earlyCareer && minimumYears >= 3, minimumYears };
 }
 
 export async function decideBossJob(client: BossOutreachBridgeClient, raw: unknown): Promise<BossJobDecision> {
   const job = parseLegacyBossJobPayload(raw);
-  const [profiles, applicant] = await Promise.all([client.resume.listProfiles(), client.applicant.getProfile()]);
+  const profiles = await client.resume.listProfiles();
   const ranked = rankResumeProfilesForJob({ title: job.title, description: job.description }, profiles.items);
   const selected = ranked[0];
   if (!selected) throw new Error('Job Harness has no active Resume Profile for BOSS outreach');
   return {
     score: selected.score,
-    introduce: buildBossGreeting(applicant.profile, selected),
+    introduce: '',
     resumeIndex: bossResumeIndex(selected.profileId),
     profileId: selected.profileId,
     profileLabel: selected.profileName,
@@ -100,7 +255,7 @@ export async function decideBossJob(client: BossOutreachBridgeClient, raw: unkno
       ...selected.matches.titleStrong,
       ...selected.matches.detailStrong,
       ...selected.matches.detailSupport,
-    ].map((item) => item.keyword).filter((value, index, all) => all.indexOf(value) === index).slice(0, 8),
+    ].map((item) => compactSignal(item.keyword)).filter(Boolean).filter((value, index, all) => all.indexOf(value) === index).slice(0, 8),
   };
 }
 
@@ -145,11 +300,11 @@ async function readJsonBody(req: IncomingMessage, limit = 128 * 1024): Promise<u
 function safeActionPayload(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { value: String(value ?? '').slice(0, 2000) };
   const source = value as Record<string, unknown>;
-  const allow = ['action','scene','screeningSessionId','jobUrl','title','company','salary','score','threshold','screeningPassed','resumeIndex','requestedResumeIndex','selectedResumeIndex','sendMode','reason','chatUrl','addUrl'];
+  const allow = ['action','scene','runtimeTaskId','screeningSessionId','jobUrl','jobId','listingId','title','company','city','salary','score','threshold','screeningPassed','resumeIndex','requestedResumeIndex','selectedResumeIndex','sendMode','reason','intent','resumeBindingSource','profileId','message','chatUrl','addUrl'];
   const result: Record<string, unknown> = {};
   for (const key of allow) {
     const item = source[key];
-    if (typeof item === 'string') result[key] = item.slice(0, key === 'jobUrl' || key === 'chatUrl' || key === 'addUrl' ? 2000 : 1000);
+    if (typeof item === 'string') result[key] = item.slice(0, key === 'message' ? 4000 : key === 'jobUrl' || key === 'chatUrl' || key === 'addUrl' ? 2000 : 1000);
     else if (typeof item === 'number' && Number.isFinite(item)) result[key] = item;
     else if (typeof item === 'boolean') result[key] = item;
   }
@@ -169,6 +324,35 @@ async function readEvents(path: string): Promise<Record<string, unknown>[]> {
       catch { return []; }
     });
   } catch { return []; }
+}
+
+type BossGreetingResolution =
+  | { readonly action: 'send'; readonly message: string; readonly source: string }
+  | { readonly action: 'skip'; readonly reason: string; readonly source: string };
+
+type BossGreetingResolverClass = 'interactive' | 'background';
+
+interface BossGreetingLease {
+  readonly token: string;
+  readonly owner: string;
+  readonly resolverClass: BossGreetingResolverClass;
+  readonly claimedAt: string;
+  readonly expiresAt: string;
+}
+
+interface BossInteractiveResolverReadiness {
+  readonly owner: string;
+  readonly readyAt: string;
+  readonly readyUntil: string;
+}
+
+interface PendingBossGreeting {
+  readonly request: BossGreetingRequest;
+  readonly wait: Promise<BossGreetingResolution | null>;
+  readonly resolve: (resolution: BossGreetingResolution) => void;
+  readonly timer: ReturnType<typeof setTimeout>;
+  readonly interactivePriorityUntil: string | null;
+  lease: BossGreetingLease | null;
 }
 
 function screeningSummary(rows: readonly Record<string, unknown>[]) {
@@ -202,7 +386,328 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
   const baseDelayMs = Math.max(0, options.baseDelayMs ?? 2500);
   const delayJitterMs = Math.max(0, options.delayJitterMs ?? 400);
   const random = options.random ?? Math.random;
+  const greetingThreshold = Math.max(0, Math.min(100, options.greetingThreshold ?? 58));
+  const greetingWaitMs = Math.max(1_000, Math.min(9 * 60_000, options.greetingWaitMs ?? 35_000));
+  const interactiveResolverPriorityMs = Math.max(1_000, Math.min(30_000, options.interactiveResolverPriorityMs ?? 10_000));
   const recentDecisions = new Map<string, BossJobDecision>();
+  const recentDecisionsByJobId = new Map<string, BossJobDecision>();
+  const pendingGreetings = new Map<string, PendingBossGreeting>();
+  const runtimeControl = options.runtimeControl ?? new BossRuntimeControlStore();
+  const runtimeTaskTtlMs = Math.max(5 * 60_000, Math.min(4 * 60 * 60_000, options.runtimeTaskTtlMs ?? 60 * 60_000));
+  const controlToken = options.controlToken?.trim() || null;
+  let interactiveResolverReadiness: BossInteractiveResolverReadiness | null = null;
+  let lastRuntimePollAt: string | null = null;
+  let lastRuntimePageUrl: string | null = null;
+  let lastRuntimePageTitle: string | null = null;
+  const isRuntimeControlAuthorized = (req: IncomingMessage): boolean => {
+    if (!controlToken) return false;
+    const authorization = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
+    return authorization === `Bearer ${controlToken}`;
+  };
+  const getCampaign = (): Promise<JobSearchCampaign | null> => {
+    if (!options.campaignId || !options.client.campaigns) return Promise.resolve(null);
+    return options.client.campaigns.get(options.campaignId).catch(() => null);
+  };
+  const currentInteractiveResolverReadiness = (nowMs = Date.now()): BossInteractiveResolverReadiness | null => {
+    if (!interactiveResolverReadiness) return null;
+    if (Date.parse(interactiveResolverReadiness.readyUntil) <= nowMs) {
+      interactiveResolverReadiness = null;
+      return null;
+    }
+    return interactiveResolverReadiness;
+  };
+  const ensureRuntimeTaskNotExpired = async () => {
+    const snapshot = runtimeControl.current();
+    const expiresAt = snapshot.task?.expiresAt ? Date.parse(snapshot.task.expiresAt) : Number.NaN;
+    if (snapshot.task && snapshot.lifecycleState !== 'expired' && Number.isFinite(expiresAt) && Date.now() >= expiresAt) {
+      const runtimeTaskId = snapshot.task.id;
+      const expired = await runtimeControl.expire(runtimeTaskId, 'runtime-task-expired');
+      await appendEvent(options.logPath, {
+        loggedAt: expired.updatedAt,
+        action: 'runtime_task_expired',
+        runtimeTaskId,
+        reason: 'runtime-task-expired',
+      });
+      return expired;
+    }
+    return snapshot;
+  };
+  const getRuntimeExecutionState = async () => {
+    const snapshot = await ensureRuntimeTaskNotExpired();
+    if (!snapshot.task) return null;
+    const rows = await readEvents(options.logPath);
+    const usedExternalEffects = countBossRuntimeExternalEffects(rows, snapshot.task.id);
+    return {
+      task: snapshot.task,
+      desiredState: snapshot.desiredState,
+      lifecycleState: snapshot.lifecycleState,
+      usedExternalEffects,
+      remainingExternalEffects: Math.max(0, snapshot.task.policy.maxExternalEffects - usedExternalEffects),
+    };
+  };
+
+  const runtimeExternalEffectBlockReason = (
+    state: Awaited<ReturnType<typeof getRuntimeExecutionState>>,
+    capability: 'greeting' | 'resumeFollowup',
+  ): string | null => {
+    if (!state) return null;
+    if (state.lifecycleState === 'expired') return 'runtime-task-expired';
+    if (state.desiredState !== 'running') return 'runtime-task-paused';
+    if (!state.task.policy[capability]) return capability === 'greeting' ? 'runtime-greeting-disabled' : 'runtime-resume-followup-disabled';
+    if (state.remainingExternalEffects <= 0) return 'runtime-external-effect-budget-exhausted';
+    return null;
+  };
+
+  const runtimePageState = (): 'ready' | 'login-required' | 'challenge' => {
+    const pageSignal = `${lastRuntimePageUrl ?? ''} ${lastRuntimePageTitle ?? ''}`.toLowerCase();
+    if (/captcha|challenge|security|safe-check|安全验证|人机验证|验证码/.test(pageSignal)) return 'challenge';
+    if (/\/login|\/user\/|登录|注册登录/.test(pageSignal)) return 'login-required';
+    return 'ready';
+  };
+
+  const getRuntimeHealth = async () => {
+    const snapshot = await ensureRuntimeTaskNotExpired();
+    const checkedAt = new Date().toISOString();
+    const lastPollMs = lastRuntimePollAt ? Date.parse(lastRuntimePollAt) : Number.NaN;
+    // Chromium may heavily throttle background-tab timers. Treat up to 90s between
+    // content-script control polls as connected, while the Windows Supervisor
+    // independently self-heals genuinely stale runtimes.
+    const browserConnected = Number.isFinite(lastPollMs) && Date.now() - lastPollMs <= 90_000;
+    const pageState = runtimePageState();
+    const state = !browserConnected
+      ? 'offline'
+      : pageState !== 'ready'
+        ? pageState
+        : snapshot.task && snapshot.lifecycleState === 'paused'
+          ? 'paused'
+          : 'ready';
+    return RecruitmentRuntimeHealthSchema.parse({
+      runtimeId: BOSS_COMPAT_RUNTIME_DESCRIPTOR.runtimeId,
+      site: 'boss',
+      state,
+      browserConnected,
+      activeTaskId: snapshot.task && snapshot.lifecycleState !== 'expired' ? snapshot.task.id : null,
+      lastEventAt: lastRuntimePollAt,
+      detail: browserConnected
+        ? `${lastRuntimePageUrl ?? 'unknown-page'}${lastRuntimePageTitle ? ` | ${lastRuntimePageTitle}` : ''}`.slice(0, 1000)
+        : 'runtime-control-poll-stale-or-missing',
+      checkedAt,
+    });
+  };
+
+  const persistBossJob = async (job: ParsedBossJob, decision: BossJobDecision): Promise<{ jobId: string; listingId: string | null } | null> => {
+    if (!job.title || !job.company || !job.jobUrl || !job.description) return null;
+    const observedAt = new Date().toISOString();
+    let jobId: string | null = null;
+    if (options.discovery) {
+      if (job.screeningSessionId) {
+        await options.discovery.decision({
+          screeningSessionId: job.screeningSessionId,
+          jobUrl: job.jobUrl,
+          title: job.title,
+          salary: job.salary || null,
+          score: decision.score,
+          threshold: greetingThreshold,
+          screeningPassed: decision.score >= greetingThreshold,
+          recommendedProfileId: decision.profileId,
+          recommendedProfileLabel: decision.profileLabel,
+          observedAt,
+        });
+      }
+      const report = await options.discovery.report({
+        jobUrl: job.jobUrl,
+        title: job.title,
+        companyName: job.company,
+        city: job.city,
+        salary: job.salary || null,
+        description: job.description,
+        observedAt,
+        ...(job.screeningSessionId ? { discoverySessionId: job.screeningSessionId } : {}),
+      });
+      jobId = report.jobId;
+    }
+    if (!jobId && options.client.jobs) {
+      const result = await options.client.jobs.upsertJobsBatch({ jobs: [{
+        companyName: job.company,
+        title: job.title,
+        ...(job.city ? { city: job.city } : {}),
+        description: job.description,
+        observedAt,
+        listings: [{
+          sourceKind: 'boss',
+          label: 'BOSS直聘',
+          url: job.jobUrl,
+          ...(job.externalId ? { externalNamespace: 'boss', externalId: job.externalId, identityKind: 'external-id' as const } : { identityKind: 'url' as const }),
+          status: 'active',
+          metadataSnapshot: { source: 'boss-copilot-compat', salary: job.salary || null },
+        }],
+      }] });
+      jobId = result.items[0]?.jobId ?? null;
+    }
+    if (!jobId) return null;
+    const detail = options.client.workspace ? await options.client.workspace.getJobDetail(jobId) : null;
+    const listing = detail?.job.listings.find((item) => item.sourceKind === 'boss' && (job.externalId ? item.externalId === job.externalId : item.url === job.jobUrl))
+      ?? detail?.job.listings.find((item) => item.sourceKind === 'boss')
+      ?? null;
+    return { jobId, listingId: listing?.id ?? null };
+  };
+
+  const rememberDecision = (job: ParsedBossJob, decision: BossJobDecision): void => {
+    recentDecisions.set(job.title, decision);
+    if (decision.jobId) recentDecisionsByJobId.set(decision.jobId, decision);
+  };
+
+  const persistOutreachAction = async (body: Record<string, unknown>, decision: BossJobDecision | null): Promise<void> => {
+    if (!options.client.outreach) return;
+    const action = typeof body.action === 'string' ? body.action : '';
+    const type = action === 'greet_sent' || action === 'chat_greet_sent' ? 'greeting_sent'
+      : action === 'recruiter_replied' ? 'recruiter_replied'
+        : action === 'resume_sent' ? 'resume_sent'
+          : action === 'job_already_talked' ? 'already_contacted'
+            : null;
+    if (!type) return;
+    const jobId = typeof body.jobId === 'string' ? body.jobId : decision?.jobId ?? null;
+    if (!jobId) return;
+    const listingId = typeof body.listingId === 'string' ? body.listingId : decision?.listingId ?? null;
+    const thread = typeof body.chatUrl === 'string' ? canonicalBossJobUrl(body.chatUrl) ?? (() => {
+      try { return new URL(body.chatUrl as string, 'https://www.zhipin.com').toString(); } catch { return null; }
+    })() : null;
+    const resumeIndex = typeof body.resumeIndex === 'number' ? body.resumeIndex : decision?.resumeIndex ?? null;
+    await options.client.outreach.record({
+      jobId,
+      listingId,
+      channel: 'boss',
+      type,
+      occurredAt: new Date().toISOString(),
+      actor: 'system',
+      resumeProfileId: decision?.profileId ?? null,
+      message: type === 'greeting_sent'
+        ? decision?.introduce ?? null
+        : type === 'recruiter_replied' && typeof body.message === 'string'
+          ? body.message
+          : null,
+      externalThreadUrl: thread,
+      metadata: {
+        source: 'boss-copilot-compat',
+        scene: typeof body.scene === 'string' ? body.scene : null,
+        resumeIndex,
+        score: decision?.score ?? null,
+        intent: typeof body.intent === 'string' ? body.intent : null,
+        reason: typeof body.reason === 'string' ? body.reason : null,
+        resumeBindingSource: typeof body.resumeBindingSource === 'string' ? body.resumeBindingSource : null,
+        runtimeTaskId: typeof body.runtimeTaskId === 'string' ? body.runtimeTaskId : null,
+        greetingRequestId: decision?.greetingRequestId ?? null,
+        greetingGenerationSource: decision?.greetingGenerationSource ?? null,
+        greetingResolutionReason: decision?.greetingResolutionReason ?? null,
+      },
+      idempotencyKey: type === 'recruiter_replied'
+        ? `boss-outreach:${jobId}:${type}:${createHash('sha256').update(String(body.message ?? '')).digest('hex').slice(0, 20)}`
+        : `boss-outreach:${jobId}:${type}`,
+    });
+  };
+
+  const createPendingGreeting = async (
+    requestedProfileId: string,
+    job: ParsedBossJob,
+    decision: BossJobDecision,
+    applicant: ApplicantProfileContext['profile'],
+  ): Promise<PendingBossGreeting> => {
+    const id = randomUUID();
+    const createdAt = new Date();
+    const expiresAt = new Date(createdAt.getTime() + greetingWaitMs);
+    const interactiveResolver = currentInteractiveResolverReadiness(createdAt.getTime());
+    const interactivePriorityUntil = interactiveResolver
+      ? new Date(Math.min(expiresAt.getTime(), createdAt.getTime() + interactiveResolverPriorityMs)).toISOString()
+      : null;
+    const resume = options.client.resume.getProfileContext
+      ? await options.client.resume.getProfileContext(decision.profileId)
+      : null;
+    const request: BossGreetingRequest = {
+      id,
+      createdAt: createdAt.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      requestedProfileId,
+      job,
+      match: {
+        score: decision.score,
+        profileId: decision.profileId,
+        profileLabel: decision.profileLabel,
+        resumeIndex: decision.resumeIndex,
+        decision: decision.decision,
+        signals: decision.signals,
+      },
+      candidate: buildGreetingCandidateContext(applicant, resume, decision),
+      guidance: buildOutreachGreetingGuidance({ profileId: decision.profileId, profileLabel: decision.profileLabel, jobTitle: job.title }),
+    };
+
+    let resolveWait!: (resolution: BossGreetingResolution | null) => void;
+    const wait = new Promise<BossGreetingResolution | null>((resolve) => { resolveWait = resolve; });
+    const timer = setTimeout(() => {
+      void (async () => {
+        const expiredLease = pendingGreetings.get(id)?.lease ?? null;
+        pendingGreetings.delete(id);
+        const runtimeState = await getRuntimeExecutionState();
+        const policyReason = runtimeExternalEffectBlockReason(runtimeState, 'greeting');
+        if (runtimeState && policyReason) {
+          await appendEvent(options.logPath, {
+            loggedAt: new Date().toISOString(),
+            action: 'greeting_assist_timeout_policy_skip',
+            runtimeTaskId: runtimeState.task.id,
+            greetingRequestId: id,
+            requestedProfileId,
+            title: job.title,
+            salary: job.salary,
+            score: decision.score,
+            resumeIndex: decision.resumeIndex,
+            reason: policyReason,
+          }).catch(() => undefined);
+          resolveWait({ action: 'skip', reason: policyReason, source: 'job-harness-policy' });
+          return;
+        }
+        const message = buildDeterministicOutreachGreeting({
+          profileId: decision.profileId,
+          profileLabel: decision.profileLabel,
+          jobTitle: job.title,
+          signals: decision.signals,
+        });
+        await appendEvent(options.logPath, {
+          loggedAt: new Date().toISOString(),
+          action: 'greeting_assist_timeout_fallback',
+          runtimeTaskId: runtimeState?.task.id ?? null,
+          greetingRequestId: id,
+          requestedProfileId,
+          title: job.title,
+          salary: job.salary,
+          score: decision.score,
+          resumeIndex: decision.resumeIndex,
+          recommendedProfileId: decision.profileId,
+          recommendedProfileLabel: decision.profileLabel,
+          fallbackMessage: message,
+          claimedBy: expiredLease?.owner ?? null,
+        }).catch(() => undefined);
+        resolveWait({ action: 'send', message, source: 'job-harness-fallback' });
+      })();
+    }, greetingWaitMs);
+    const pending: PendingBossGreeting = { request, wait, resolve: resolveWait, timer, interactivePriorityUntil, lease: null };
+    pendingGreetings.set(id, pending);
+    await appendEvent(options.logPath, {
+      loggedAt: createdAt.toISOString(),
+      action: 'greeting_requested',
+      runtimeTaskId: runtimeControl.current().task?.id ?? null,
+      greetingRequestId: id,
+      requestedProfileId,
+      title: job.title,
+      salary: job.salary,
+      score: decision.score,
+      resumeIndex: decision.resumeIndex,
+      recommendedProfileId: decision.profileId,
+      recommendedProfileLabel: decision.profileLabel,
+      preferredResolver: interactiveResolver ? 'chatgpt-web' : 'background',
+      interactiveResolverOwner: interactiveResolver?.owner ?? null,
+      interactivePriorityUntil,
+    });
+    return pending;
+  };
 
   return createServer(async (req, res) => {
     try {
@@ -219,6 +724,12 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           reporterUrl: `${options.publicBaseUrl.replace(/\/+$/, '')}/boss-discovery-reporter.user.js`,
           resumeFollowup: Boolean(options.resumeFollowupUserscript),
           resumeFollowupUrl: options.resumeFollowupUserscript ? `${options.publicBaseUrl.replace(/\/+$/, '')}/boss-resume-followup.user.js` : null,
+          greetingMode: 'chatgpt-assisted-with-safe-fallback',
+          greetingWaitMs,
+          greetingFallback: 'job-harness-deterministic',
+          interactiveResolverPriorityMs,
+          interactiveResolver: currentInteractiveResolverReadiness(),
+          pendingGreetings: pendingGreetings.size,
           profiles: profiles.items.map((p) => ({ id: p.id, name: p.name })),
           applicantProfileVersion: applicant.profile.version,
         });
@@ -238,26 +749,317 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
       if (req.method === 'GET' && url.pathname === '/api/screening-summary') {
         return sendJson(res, 200, screeningSummary(await readEvents(options.logPath)));
       }
+      if (req.method === 'GET' && url.pathname === '/api/runtime/descriptor') {
+        return sendJson(res, 200, BOSS_COMPAT_RUNTIME_DESCRIPTOR);
+      }
+      if (req.method === 'GET' && url.pathname === '/api/runtime/control') {
+        return sendJson(res, 200, await ensureRuntimeTaskNotExpired());
+      }
+      if (req.method === 'GET' && url.pathname === '/api/runtime/health') {
+        return sendJson(res, 200, await getRuntimeHealth());
+      }
+      if (req.method === 'GET' && url.pathname === '/api/runtime/events') {
+        const limitRaw = Number(url.searchParams.get('limit') ?? '100');
+        const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(500, Math.trunc(limitRaw))) : 100;
+        const after = url.searchParams.get('after');
+        const events = projectBossRuntimeEvents(await readEvents(options.logPath), { after, limit });
+        return sendJson(res, 200, { runtimeId: BOSS_COMPAT_RUNTIME_DESCRIPTOR.runtimeId, total: events.length, items: events });
+      }
+      if (req.method === 'POST' && url.pathname === '/api/runtime/tasks/start') {
+        if (!isRuntimeControlAuthorized(req)) return sendJson(res, 401, { error: 'runtime_control_unauthorized' });
+        const campaign = await getCampaign();
+        if (!campaign || campaign.status !== 'active') return sendJson(res, 409, { error: 'runtime_campaign_unavailable' });
+        const outreach = campaign.automation.outreach;
+        if (!campaign.automation.collection.enabled) return sendJson(res, 409, { error: 'runtime_collection_disabled' });
+        if (!outreach.enabled) return sendJson(res, 409, { error: 'runtime_outreach_disabled' });
+        const body = await readJsonBody(req);
+        const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+        const mode = record.mode === 'manual' ? 'manual' : 'automatic';
+        if (mode === 'automatic' && !outreach.autoStartEnabled) return sendJson(res, 409, { error: 'runtime_auto_start_disabled' });
+        const idempotencyKey = typeof record.idempotencyKey === 'string' ? record.idempotencyKey.trim().slice(0, 300) : '';
+        if (!idempotencyKey) return sendJson(res, 400, { error: 'runtime_idempotency_key_required' });
+        const nowDate = new Date();
+        const now = nowDate.toISOString();
+        await ensureRuntimeTaskNotExpired();
+        const snapshot = await runtimeControl.start({
+          runtimeId: BOSS_COMPAT_RUNTIME_DESCRIPTOR.runtimeId,
+          site: 'boss',
+          kind: 'campaign-discovery',
+          campaignId: campaign.id,
+          jobId: null,
+          listingId: null,
+          resumeProfileId: null,
+          resumeArtifactId: null,
+          targetUrl: 'https://www.zhipin.com/web/geek/job',
+          policy: {
+            collect: campaign.automation.collection.enabled,
+            greeting: outreach.greetingEnabled,
+            recruiterInbox: outreach.recruiterInboxEnabled,
+            resumeFollowup: outreach.resumeFollowupEnabled,
+            formFill: false,
+            resumeUpload: false,
+            finalSubmit: false,
+            maxExternalEffects: outreach.maxExternalEffectsPerRun,
+          },
+          createdAt: now,
+          expiresAt: new Date(nowDate.getTime() + runtimeTaskTtlMs).toISOString(),
+          idempotencyKey,
+        });
+        await appendEvent(options.logPath, {
+          loggedAt: now,
+          action: 'runtime_task_accepted',
+          runtimeTaskId: snapshot.task?.id ?? null,
+          campaignId: campaign.id,
+          mode,
+          maxExternalEffects: snapshot.task?.policy.maxExternalEffects ?? 0,
+          expiresAt: snapshot.task?.expiresAt ?? null,
+        });
+        return sendJson(res, 200, snapshot);
+      }
+      const runtimePauseMatch = /^\/api\/runtime\/tasks\/([A-Za-z0-9._:-]+)\/pause$/.exec(url.pathname);
+      if (req.method === 'POST' && runtimePauseMatch) {
+        if (!isRuntimeControlAuthorized(req)) return sendJson(res, 401, { error: 'runtime_control_unauthorized' });
+        const body = await readJsonBody(req);
+        const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+        const reason = typeof record.reason === 'string' ? record.reason.trim().slice(0, 500) : 'operator-pause';
+        try {
+          const snapshot = await runtimeControl.pause(runtimePauseMatch[1]!, reason);
+          await appendEvent(options.logPath, { loggedAt: new Date().toISOString(), action: 'runtime_task_pause_requested', runtimeTaskId: runtimePauseMatch[1], reason });
+          return sendJson(res, 200, snapshot);
+        } catch (error) {
+          return sendJson(res, 404, { error: 'runtime_task_not_active', message: error instanceof Error ? error.message : String(error) });
+        }
+      }
+      if (req.method === 'POST' && url.pathname === '/api/greetings/resolver-ready') {
+        if (controlToken && !isRuntimeControlAuthorized(req)) return sendJson(res, 401, { error: 'greeting_resolver_ready_unauthorized' });
+        const body = await readJsonBody(req);
+        const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+        const owner = typeof record.owner === 'string' ? record.owner.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
+        if (owner.length < 3) return sendJson(res, 400, { error: 'invalid_greeting_resolver_owner' });
+        const readyMsRaw = Number(record.readyMs ?? 180_000);
+        const readyMs = Number.isFinite(readyMsRaw) ? Math.max(15_000, Math.min(10 * 60_000, Math.trunc(readyMsRaw))) : 180_000;
+        const readyAtDate = new Date();
+        interactiveResolverReadiness = {
+          owner,
+          readyAt: readyAtDate.toISOString(),
+          readyUntil: new Date(readyAtDate.getTime() + readyMs).toISOString(),
+        };
+        await appendEvent(options.logPath, {
+          loggedAt: interactiveResolverReadiness.readyAt,
+          action: 'greeting_interactive_resolver_ready',
+          runtimeTaskId: runtimeControl.current().task?.id ?? null,
+          owner,
+          readyUntil: interactiveResolverReadiness.readyUntil,
+          interactivePriorityMs: interactiveResolverPriorityMs,
+        });
+        return sendJson(res, 200, {
+          ok: true,
+          mode: 'interactive-priority',
+          resolver: interactiveResolverReadiness,
+          interactivePriorityMs: interactiveResolverPriorityMs,
+        });
+      }
+      if (req.method === 'GET' && url.pathname === '/api/greetings/pending') {
+        const items = [...pendingGreetings.values()]
+          .map((item) => item.request)
+          .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+        return sendJson(res, 200, { ok: true, mode: 'chatgpt-assisted', total: items.length, items });
+      }
+      if (req.method === 'POST' && url.pathname === '/api/greetings/claim') {
+        if (controlToken && !isRuntimeControlAuthorized(req)) return sendJson(res, 401, { error: 'greeting_claim_unauthorized' });
+        const body = await readJsonBody(req);
+        const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+        const owner = typeof record.owner === 'string' ? record.owner.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
+        if (owner.length < 3) return sendJson(res, 400, { error: 'invalid_greeting_claim_owner' });
+        const resolverClass: BossGreetingResolverClass = record.resolverClass === 'background' ? 'background' : 'interactive';
+        const leaseMsRaw = Number(record.leaseMs ?? 20_000);
+        const leaseMs = Number.isFinite(leaseMsRaw) ? Math.max(5_000, Math.min(30_000, Math.trunc(leaseMsRaw))) : 20_000;
+        const nowMs = Date.now();
+        const now = new Date(nowMs).toISOString();
+        const candidates = [...pendingGreetings.values()].sort((left, right) => left.request.createdAt.localeCompare(right.request.createdAt));
+        let claimed: PendingBossGreeting | null = null;
+        for (const pending of candidates) {
+          if (pending.lease && new Date(pending.lease.expiresAt).getTime() <= nowMs) pending.lease = null;
+          const requestExpiresAtMs = new Date(pending.request.expiresAt).getTime();
+          const interactivePriorityUntilMs = pending.interactivePriorityUntil ? Date.parse(pending.interactivePriorityUntil) : Number.NaN;
+          if (pending.lease || requestExpiresAtMs - nowMs < 1_000) continue;
+          if (resolverClass === 'background' && Number.isFinite(interactivePriorityUntilMs) && nowMs < interactivePriorityUntilMs) continue;
+          const leaseExpiresAt = new Date(Math.min(requestExpiresAtMs, nowMs + leaseMs)).toISOString();
+          pending.lease = { token: randomUUID(), owner, resolverClass, claimedAt: now, expiresAt: leaseExpiresAt };
+          claimed = pending;
+          break;
+        }
+        if (!claimed || !claimed.lease) return sendJson(res, 200, { ok: true, mode: 'leased-chatgpt-assisted', claim: null });
+        await appendEvent(options.logPath, {
+          loggedAt: now,
+          action: 'greeting_claimed',
+          runtimeTaskId: runtimeControl.current().task?.id ?? null,
+          greetingRequestId: claimed.request.id,
+          requestedProfileId: claimed.request.requestedProfileId,
+          title: claimed.request.job.title,
+          salary: claimed.request.job.salary,
+          owner: claimed.lease.owner,
+          resolverClass: claimed.lease.resolverClass,
+          interactivePriorityUntil: claimed.interactivePriorityUntil,
+          leaseExpiresAt: claimed.lease.expiresAt,
+        });
+        return sendJson(res, 200, {
+          ok: true,
+          mode: 'leased-chatgpt-assisted',
+          claim: {
+            request: claimed.request,
+            leaseToken: claimed.lease.token,
+            owner: claimed.lease.owner,
+            resolverClass: claimed.lease.resolverClass,
+            claimedAt: claimed.lease.claimedAt,
+            leaseExpiresAt: claimed.lease.expiresAt,
+          },
+        });
+      }
+      const greetingReleaseMatch = /^\/api\/greetings\/([A-Za-z0-9-]+)\/release$/.exec(url.pathname);
+      if (req.method === 'POST' && greetingReleaseMatch) {
+        const id = greetingReleaseMatch[1]!;
+        const pending = pendingGreetings.get(id);
+        if (!pending) return sendJson(res, 404, { error: 'greeting_request_not_found', id });
+        const body = await readJsonBody(req);
+        const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+        const leaseToken = typeof record.leaseToken === 'string' ? record.leaseToken.trim() : '';
+        const lease = pending.lease;
+        if (!lease || !leaseToken || leaseToken !== lease.token) return sendJson(res, 409, { error: 'greeting_lease_mismatch', id });
+        const reason = typeof record.reason === 'string' ? record.reason.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240) : 'resolver-release';
+        pending.lease = null;
+        await appendEvent(options.logPath, {
+          loggedAt: new Date().toISOString(),
+          action: 'greeting_lease_released',
+          runtimeTaskId: runtimeControl.current().task?.id ?? null,
+          greetingRequestId: id,
+          requestedProfileId: pending.request.requestedProfileId,
+          title: pending.request.job.title,
+          owner: lease.owner,
+          reason,
+        });
+        return sendJson(res, 200, { ok: true, id, released: true });
+      }
+      const greetingResolveMatch = /^\/api\/greetings\/([A-Za-z0-9-]+)\/resolve$/.exec(url.pathname);
+      if (req.method === 'POST' && greetingResolveMatch) {
+        const id = greetingResolveMatch[1]!;
+        const pending = pendingGreetings.get(id);
+        if (!pending) return sendJson(res, 404, { error: 'greeting_request_not_found', id });
+        const body = await readJsonBody(req);
+        const record = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+        const leaseToken = typeof record.leaseToken === 'string' ? record.leaseToken.trim() : '';
+        const lease = pending.lease;
+        if (!lease || new Date(lease.expiresAt).getTime() <= Date.now()) return sendJson(res, 409, { error: 'greeting_lease_required_or_expired', id });
+        if (!leaseToken || leaseToken !== lease.token) return sendJson(res, 409, { error: 'greeting_lease_mismatch', id });
+        const source = body && typeof body === 'object' && !Array.isArray(body) && typeof (body as { source?: unknown }).source === 'string'
+          ? String((body as { source: string }).source).trim().slice(0, 80)
+          : 'chatgpt-web';
+        const requestedAction = body && typeof body === 'object' && !Array.isArray(body) && (body as { action?: unknown }).action === 'skip'
+          ? 'skip'
+          : 'send';
+        if (requestedAction === 'send') {
+          const runtimeState = await getRuntimeExecutionState();
+          const policyReason = runtimeExternalEffectBlockReason(runtimeState, 'greeting');
+          if (runtimeState && policyReason) {
+            const resolution: BossGreetingResolution = { action: 'skip', reason: policyReason, source: 'job-harness-policy' };
+            clearTimeout(pending.timer);
+            pendingGreetings.delete(id);
+            await appendEvent(options.logPath, {
+              loggedAt: new Date().toISOString(),
+              action: 'greeting_skipped',
+              runtimeTaskId: runtimeState.task.id,
+              greetingRequestId: id,
+              requestedProfileId: pending.request.requestedProfileId,
+              title: pending.request.job.title,
+              salary: pending.request.job.salary,
+              score: pending.request.match.score,
+              resumeIndex: pending.request.match.resumeIndex,
+              source: resolution.source,
+              claimedBy: lease.owner,
+              reason: policyReason,
+            });
+            pending.resolve(resolution);
+            return sendJson(res, 200, { ok: true, id, action: 'skip', source: resolution.source, reason: policyReason });
+          }
+        }
+        let resolution: BossGreetingResolution;
+        if (requestedAction === 'skip') {
+          const reasonRaw = body && typeof body === 'object' && !Array.isArray(body) ? (body as { reason?: unknown }).reason : null;
+          const reason = typeof reasonRaw === 'string' ? reasonRaw.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240) : '';
+          if (reason.length < 3) return sendJson(res, 400, { error: 'invalid_skip_reason', message: 'Skip reason must be at least 3 characters.' });
+          resolution = { action: 'skip', reason, source };
+        } else {
+          const message = normalizeOutreachGreetingMessage(
+            body && typeof body === 'object' && !Array.isArray(body) ? (body as { message?: unknown }).message : null,
+          );
+          if (!message) return sendJson(res, 400, { error: 'invalid_greeting', message: 'Greeting must be a single 12-320 character message.' });
+          resolution = { action: 'send', message, source };
+        }
+        clearTimeout(pending.timer);
+        pendingGreetings.delete(id);
+        await appendEvent(options.logPath, {
+          loggedAt: new Date().toISOString(),
+          action: resolution.action === 'send' ? 'greeting_resolved' : 'greeting_skipped',
+          runtimeTaskId: runtimeControl.current().task?.id ?? null,
+          greetingRequestId: id,
+          requestedProfileId: pending.request.requestedProfileId,
+          title: pending.request.job.title,
+          salary: pending.request.job.salary,
+          score: pending.request.match.score,
+          resumeIndex: pending.request.match.resumeIndex,
+          source,
+          claimedBy: lease.owner,
+          ...(resolution.action === 'skip' ? { reason: resolution.reason } : {}),
+        });
+        pending.resolve(resolution);
+        return sendJson(res, 200, { ok: true, id, action: resolution.action, source });
+      }
 
-      const match = /^\/p\/([A-Za-z0-9._-]+)\/(client-config|tags|get-introduce|get-job-score|log-action|reply|is-need-resume|is-need-works)$/.exec(url.pathname);
+      const match = /^\/p\/([A-Za-z0-9._-]+)\/(client-config|runtime-control|tags|get-introduce|observe-job|get-job-score|get-followup-context|log-action|reply|is-need-resume|is-need-works)$/.exec(url.pathname);
       if (!match) return sendJson(res, 404, { error: 'not_found' });
       const requestedProfileId = match[1]!;
       const action = match[2]!;
       const [profiles, applicant] = await Promise.all([options.client.resume.listProfiles(), options.client.applicant.getProfile()]);
       const requested = profiles.items.find((profile) => profile.id === requestedProfileId) ?? profiles.items[0] ?? null;
       if (!requested) return sendJson(res, 503, { error: 'no_resume_profiles' });
-      const fallbackMatch = rankResumeProfilesForJob({ title: requested.targetRole['zh-CN'] ?? requested.targetRole.en ?? requested.id, description: '' }, [requested])[0]!;
-      const fallbackGreeting = buildBossGreeting(applicant.profile, fallbackMatch);
+
+      if (req.method === 'GET' && action === 'runtime-control') {
+        lastRuntimePollAt = new Date().toISOString();
+        const pageUrl = url.searchParams.get('pageUrl');
+        const pageTitle = url.searchParams.get('pageTitle');
+        lastRuntimePageUrl = pageUrl ? pageUrl.slice(0, 2000) : lastRuntimePageUrl;
+        lastRuntimePageTitle = pageTitle ? pageTitle.slice(0, 500) : lastRuntimePageTitle;
+        let snapshot = await ensureRuntimeTaskNotExpired();
+        const pageState = runtimePageState();
+        if (snapshot.task && snapshot.lifecycleState === 'running' && pageState !== 'ready') {
+          const runtimeTaskId = snapshot.task.id;
+          snapshot = await runtimeControl.pause(runtimeTaskId, `runtime-${pageState}`);
+          await appendEvent(options.logPath, {
+            loggedAt: new Date().toISOString(),
+            action: 'runtime_task_pause_requested',
+            runtimeTaskId,
+            reason: `runtime-${pageState}`,
+          });
+        }
+        const taskActive = Boolean(snapshot.task && snapshot.lifecycleState !== 'expired');
+        return sendJson(res, 200, {
+          runtimeId: BOSS_COMPAT_RUNTIME_DESCRIPTOR.runtimeId,
+          taskId: taskActive ? snapshot.task!.id : null,
+          desiredState: taskActive ? snapshot.desiredState : 'paused',
+          updatedAt: snapshot.updatedAt,
+          policy: taskActive ? snapshot.task!.policy : null,
+        });
+      }
 
       if (req.method === 'GET' && action === 'client-config') {
         return sendJson(res, 200, {
-          introduce: fallbackGreeting,
-          character: '简洁 直接 礼貌',
+          introduce: '',
+          character: '由 ChatGPT 根据当前 JD 和真实简历上下文临时生成',
           tags: applicant.profile.targetRoles.slice(0, 10),
           frontend: {
             serverHost: `${options.publicBaseUrl.replace(/\/+$/, '')}/p/${requestedProfileId}`,
             resumeIndex: bossResumeIndex(requestedProfileId),
-            thread: 58,
+            thread: greetingThreshold,
             timestampTimeout: 3000,
             onlyGreet: false,
             resumeFollowup: true,
@@ -268,47 +1070,261 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
             greetTimeout: 12000,
             preloadScrollPixels: 180,
             preloadScrollWaitMs: 450,
-            preloadStableRoundsLimit: 24,
-            preloadMaxRounds: 300,
+            // The legacy Copilot used a very deep preload sweep. On the current
+            // BOSS infinite list this can spend close to a minute scrolling before
+            // the first score. Keep production bounded to the canary-proven window:
+            // enough time for lazy cards to settle without delaying outreach.
+            preloadStableRoundsLimit: 8,
+            preloadMaxRounds: 30,
             preloadActivateCardEvery: 0,
             preloadActivateCardWaitMs: 250,
           },
         });
       }
       if (req.method === 'GET' && action === 'tags') return sendJson(res, 200, { tags: applicant.profile.targetRoles.slice(0, 10) });
-      if (req.method === 'GET' && action === 'get-introduce') return sendJson(res, 200, { introduce: fallbackGreeting });
+      if (req.method === 'GET' && action === 'get-introduce') return sendJson(res, 200, { introduce: '' });
+
+      if (req.method === 'POST' && action === 'observe-job') {
+        const raw = await readJsonBody(req);
+        const job = parseLegacyBossJobPayload(raw);
+        const scored = await decideBossJob(options.client, raw);
+        const persisted = await persistBossJob(job, scored);
+        await appendEvent(options.logPath, {
+          loggedAt: new Date().toISOString(),
+          action: 'job_observed',
+          requestedProfileId,
+          title: job.title,
+          company: job.company,
+          city: job.city,
+          jobUrl: job.jobUrl,
+          jobId: persisted?.jobId ?? null,
+          listingId: persisted?.listingId ?? null,
+        });
+        return sendJson(res, 200, {
+          success: true,
+          jobId: persisted?.jobId ?? null,
+          listingId: persisted?.listingId ?? null,
+          profileId: scored.profileId,
+          resumeIndex: scored.resumeIndex,
+        });
+      }
+
+      if (req.method === 'POST' && action === 'get-followup-context') {
+        const raw = await readJsonBody(req);
+        const job = parseLegacyBossJobPayload(raw);
+        const scoredBase = await decideBossJob(options.client, raw);
+        const persisted = await persistBossJob(job, scoredBase);
+        let decision: BossJobDecision = persisted ? { ...scoredBase, ...persisted } : scoredBase;
+        let resumeBindingSource: 'greeting-history' | 'current-ranking' = 'current-ranking';
+        if (persisted?.jobId && options.client.outreach?.list) {
+          const history = await options.client.outreach.list({
+            jobId: persisted.jobId,
+            channel: 'boss',
+            types: ['greeting_sent'],
+            limit: 20,
+            offset: 0,
+          });
+          const greeting = history.items.find((item) => item.resumeProfileId);
+          if (greeting?.resumeProfileId) {
+            const historicalScore = typeof greeting.metadata.score === 'number' && Number.isFinite(greeting.metadata.score)
+              ? Math.max(0, Math.min(100, greeting.metadata.score))
+              : decision.score;
+            const historicalProfileLabel = decision.profileId === greeting.resumeProfileId
+              ? decision.profileLabel
+              : await bossResumeProfileLabel(options.client, greeting.resumeProfileId, greeting.resumeProfileId);
+            decision = {
+              ...decision,
+              score: historicalScore,
+              profileId: greeting.resumeProfileId,
+              profileLabel: historicalProfileLabel,
+              resumeIndex: bossResumeIndex(greeting.resumeProfileId),
+            };
+            resumeBindingSource = 'greeting-history';
+          }
+        }
+        rememberDecision(job, decision);
+        await appendEvent(options.logPath, {
+          loggedAt: new Date().toISOString(),
+          action: 'followup_context_resolved',
+          requestedProfileId,
+          title: job.title,
+          company: job.company,
+          city: job.city,
+          jobUrl: job.jobUrl,
+          jobId: decision.jobId ?? null,
+          listingId: decision.listingId ?? null,
+          score: decision.score,
+          profileId: decision.profileId,
+          resumeIndex: decision.resumeIndex,
+          resumeBindingSource,
+        });
+        return sendJson(res, 200, { ...decision, resumeBindingSource });
+      }
 
       if (req.method === 'POST' && action === 'get-job-score') {
         const raw = await readJsonBody(req);
         const job = parseLegacyBossJobPayload(raw);
-        const decision = await decideBossJob(options.client, raw);
-        recentDecisions.set(job.title, decision);
+        const scoredBase = await decideBossJob(options.client, raw);
+        const persisted = await persistBossJob(job, scoredBase);
+        const scored: BossJobDecision = persisted ? { ...scoredBase, ...persisted } : scoredBase;
+        const hardRequirement = blocksEarlyCareerOutreach(await getCampaign(), job);
         const jitter = delayJitterMs ? Math.round((random() * 2 - 1) * delayJitterMs) : 0;
         const delay = Math.max(0, baseDelayMs + jitter);
-        await appendEvent(options.logPath, { loggedAt: new Date().toISOString(), action: 'job_scored', requestedProfileId, title: job.title, salary: job.salary, ...decision, delayMs: delay });
+        await appendEvent(options.logPath, {
+          loggedAt: new Date().toISOString(),
+          action: 'job_scored',
+          requestedProfileId,
+          title: job.title,
+          salary: job.salary,
+          score: scored.score,
+          resumeIndex: scored.resumeIndex,
+          profileId: scored.profileId,
+          profileLabel: scored.profileLabel,
+          decision: scored.decision,
+          signals: scored.signals,
+          jobId: scored.jobId ?? null,
+          listingId: scored.listingId ?? null,
+          company: job.company,
+          city: job.city,
+          jobUrl: job.jobUrl,
+          policyBlocked: hardRequirement.blocked,
+          minimumExperienceYears: hardRequirement.minimumYears,
+          delayMs: delay,
+        });
         if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+
+        if (hardRequirement.blocked) {
+          const decision: BossJobDecision = {
+            ...scored,
+            score: Math.min(scored.score, Math.max(0, greetingThreshold - 1)),
+            decision: 'low-match',
+            policyBlocked: true,
+            policyReason: `explicit-minimum-experience-${hardRequirement.minimumYears}-years`,
+          };
+          rememberDecision(job, decision);
+          await appendEvent(options.logPath, {
+            loggedAt: new Date().toISOString(),
+            action: 'job_hard_requirement_blocked',
+            requestedProfileId,
+            title: job.title,
+            salary: job.salary,
+            originalScore: scored.score,
+            returnedScore: decision.score,
+            minimumExperienceYears: hardRequirement.minimumYears,
+            policyReason: decision.policyReason,
+          });
+          return sendJson(res, 200, decision);
+        }
+
+        const runtimeState = await getRuntimeExecutionState();
+        const policyReason = runtimeExternalEffectBlockReason(runtimeState, 'greeting');
+        if (runtimeState && policyReason) {
+          const decision: BossJobDecision = {
+            ...scored,
+            score: Math.min(scored.score, Math.max(0, greetingThreshold - 1)),
+            decision: 'low-match',
+            policyBlocked: true,
+            policyReason,
+          };
+          rememberDecision(job, decision);
+          await appendEvent(options.logPath, {
+            loggedAt: new Date().toISOString(),
+            action: 'runtime_policy_blocked',
+            runtimeTaskId: runtimeState.task.id,
+            title: job.title,
+            jobId: decision.jobId ?? null,
+            listingId: decision.listingId ?? null,
+            reason: policyReason,
+            usedExternalEffects: runtimeState.usedExternalEffects,
+            maxExternalEffects: runtimeState.task.policy.maxExternalEffects,
+          });
+          return sendJson(res, 200, decision);
+        }
+
+        let decision = scored;
+        if (scored.score >= greetingThreshold) {
+          const pending = await createPendingGreeting(requestedProfileId, job, scored, applicant.profile);
+          const resolution = await pending.wait;
+          if (!resolution) throw new Error('BOSS greeting resolution unexpectedly missing after fallback');
+          if (resolution.action === 'skip') {
+            decision = {
+              ...scored,
+              score: Math.min(scored.score, Math.max(0, greetingThreshold - 1)),
+              decision: 'low-match',
+              greetingRequestId: pending.request.id,
+              policyBlocked: true,
+              greetingGenerationSource: resolution.source,
+              greetingResolutionReason: resolution.reason,
+              policyReason: `${resolution.source === 'job-harness-policy' ? 'runtime-skip' : 'chatgpt-skip'}:${resolution.reason}`,
+            };
+          } else {
+            decision = {
+              ...scored,
+              introduce: resolution.message,
+              greetingRequestId: pending.request.id,
+              greetingGenerationSource: resolution.source,
+              greetingResolutionReason: null,
+            };
+          }
+        }
+        rememberDecision(job, decision);
         return sendJson(res, 200, decision);
       }
 
       if (req.method === 'POST' && action === 'log-action') {
         const body = safeActionPayload(await readJsonBody(req));
+        const activeRuntime = runtimeControl.current();
+        if (!body.runtimeTaskId && activeRuntime.task && activeRuntime.desiredState === 'running') body.runtimeTaskId = activeRuntime.task.id;
         const title = typeof body.title === 'string' ? body.title : '';
-        const decision = title ? recentDecisions.get(title) : null;
+        const bodyJobId = typeof body.jobId === 'string' ? body.jobId : '';
+        const decision = (bodyJobId ? recentDecisionsByJobId.get(bodyJobId) : null) ?? (title ? recentDecisions.get(title) : null) ?? null;
         const discoveryDecision = parseBossDiscoveryDecision(body, decision ? { profileId: decision.profileId, profileLabel: decision.profileLabel } : null);
-        if (discoveryDecision && options.discovery) {
+        if (discoveryDecision && options.discovery && !bodyJobId) {
           await options.discovery.decision(discoveryDecision);
         }
+        const loggedAt = new Date().toISOString();
         await appendEvent(options.logPath, {
-          loggedAt: new Date().toISOString(),
+          loggedAt,
           requestedProfileId,
           ...(decision ? { recommendedProfileId: decision.profileId, recommendedProfileLabel: decision.profileLabel } : {}),
           ...body,
         });
+        try {
+          await persistOutreachAction(body, decision);
+        } catch (error) {
+          await appendEvent(options.logPath, {
+            loggedAt: new Date().toISOString(),
+            action: 'outreach_persistence_failed',
+            requestedProfileId,
+            jobId: bodyJobId || decision?.jobId || null,
+            sourceAction: body.action ?? null,
+            reason: error instanceof Error ? error.message.slice(0, 1000) : String(error).slice(0, 1000),
+          });
+          return sendJson(res, 503, { success: false, error: 'outreach_persistence_failed' });
+        }
         return sendJson(res, 200, { success: true });
       }
 
       if (req.method === 'POST' && action === 'is-need-resume') {
         const input = BossResumeFollowupRequestSchema.parse(await readJsonBody(req));
+        const runtimeState = await getRuntimeExecutionState();
+        const reason = runtimeExternalEffectBlockReason(runtimeState, 'resumeFollowup');
+        if (runtimeState && reason) {
+          await appendEvent(options.logPath, {
+            loggedAt: new Date().toISOString(),
+            action: 'resume_followup_denied',
+            runtimeTaskId: runtimeState.task.id,
+            requestedProfileId,
+            title: input.title,
+            company: input.company ?? null,
+            salary: input.salary ?? null,
+            score: input.score,
+            resumeIndex: input.resumeIndex,
+            reason,
+            intent: 'none',
+          });
+          return sendJson(res, 200, { need: false, intent: 'none', reason });
+        }
         const decision = decideBossResumeFollowup(input, 58);
         await appendEvent(options.logPath, {
           loggedAt: new Date().toISOString(),
@@ -320,6 +1336,7 @@ export function createBossOutreachBridge(options: BossOutreachBridgeOptions): Se
           score: input.score,
           resumeIndex: input.resumeIndex,
           reason: decision.reason,
+          intent: decision.intent,
         });
         return sendJson(res, 200, decision);
       }

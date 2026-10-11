@@ -20,6 +20,10 @@ import type {
   ListCampaignsOutput,
   ListCompaniesInput,
   ListCompaniesOutput,
+  ListJobOutreachEventsInput,
+  ListJobOutreachEventsOutput,
+  RecordJobOutreachEventInput,
+  JobOutreachEvent,
   ListResumesInput,
   ListResumesOutput,
   ListSavedViewsInput,
@@ -110,6 +114,11 @@ export interface CareerResumeReadPort {
   listResumeProfiles(input?: ListResumesInput): Promise<ListResumesOutput>;
 }
 
+export interface CareerOutreachPort {
+  record(input: RecordJobOutreachEventInput): Promise<JobOutreachEvent>;
+  list(input?: ListJobOutreachEventsInput): Promise<ListJobOutreachEventsOutput>;
+}
+
 export interface CareerSavedViewPort {
   listSavedViews(input?: ListSavedViewsInput): Promise<ListSavedViewsOutput>;
   upsertSavedView(input: UpsertSavedViewInput): Promise<SavedView>;
@@ -154,4 +163,5 @@ export interface CareerResumeRegistryPort {
 
 export type CareerRuntimePorts = CareerApplicationPorts & {
   readonly resumeRegistry: CareerResumeRegistryPort;
+  readonly outreach: CareerOutreachPort;
 };

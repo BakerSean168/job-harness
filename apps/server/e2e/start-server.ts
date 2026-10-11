@@ -1,7 +1,9 @@
 import { mkdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { createCareerApplicationService } from '@job-harness/application';
-import { SqliteCareerStore } from '@job-harness/persistence-sqlite';
+import { createApplicantApplicationService } from '@job-harness/applicant-application';
+import { ApplicantProfileSchema, ApplicationAnswerSetSchema } from '@job-harness/applicant-contracts';
+import { SqliteCareerStore, SqliteApplicantStore } from '@job-harness/persistence-sqlite';
 import { startJobHarnessServer } from '../src';
 
 const databasePath = resolve(process.env.JOB_HARNESS_E2E_DB ?? '../../.tmp/e2e/career.db');
@@ -102,6 +104,28 @@ try {
   });
 } finally {
   seedStore.close();
+}
+
+// The Settings route depends on the first-class Applicant defaults. Legacy
+// resume registry fixtures do not seed ResumeLibrary, so bootstrap them here
+// through the real Applicant service instead of bypassing its revision model.
+const applicantStore = new SqliteApplicantStore(databasePath);
+try {
+  await createApplicantApplicationService(applicantStore, { now: () => now }).ensureDefaults({
+    profile: ApplicantProfileSchema.parse({
+      id: 'e2e-applicant', version: 1, displayName: 'E2E Candidate',
+      phone: null, email: 'e2e@example.com', location: 'Hangzhou',
+      website: null, github: null, education: [], targetRoles: ['AI Agent Engineer'],
+      targetCities: ['Hangzhou'], availableFrom: null, notes: null,
+      createdAt: now, updatedAt: now,
+    }),
+    answerSet: ApplicationAnswerSetSchema.parse({
+      id: 'e2e-answer-set', version: 1, name: 'E2E Answers',
+      entries: [], createdAt: now, updatedAt: now,
+    }),
+  });
+} finally {
+  applicantStore.close();
 }
 
 const running = await startJobHarnessServer({ databasePath, host, port, authToken });

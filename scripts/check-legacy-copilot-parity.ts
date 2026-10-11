@@ -84,6 +84,9 @@ async function main(): Promise<void> {
     'STARTCHAT',
     'RESUMESEND',
     'sendResume',
+    'getRuntimeControl',
+    'runtimeTaskId',
+    'runtime_inbox_scan_skipped',
     'JAC_HARD_ONLY_GREET',
   ]) {
     if (!bossSource.includes(marker)) throw new Error(`Vendored BOSS compatibility source lost marker '${marker}'`);
@@ -95,7 +98,7 @@ async function main(): Promise<void> {
   for (const marker of ['boss_detail_snapshot', 'boss_prepare_chat', 'boss_send_message', 'boss_scan_unread_contacts', 'boss_chat_snapshot', 'boss_prepare_resume', 'boss_confirm_resume']) {
     if (!bossSemanticDriver.includes(marker)) throw new Error(`BOSS semantic Browser Bridge driver lost marker '${marker}'`);
   }
-  for (const marker of ['authorizeResumeFollowup', 'sendResumeFollowup', 'latestRole', 'resumeSended', 'explicit-request', 'qualified-followup']) {
+  for (const marker of ['authorizeResumeFollowup', 'sendResumeFollowup', 'latestRole', 'resumeSended', 'explicit-request', 'explicit-resume-request']) {
     if (!bossFollowupRuntime.includes(marker)) throw new Error(`BOSS resume-followup parity lost policy marker '${marker}'`);
   }
   for (const marker of ['Job Harness BOSS Copilot Compatibility Runtime', 'background.js', 'gm-request-shim.js', 'boss-copilot.js', 'https://www.zhipin.com/*']) {
@@ -104,10 +107,10 @@ async function main(): Promise<void> {
   if (!compatShim.includes('JH_BOSS_COMPAT_HTTP') || !compatShim.includes('GM_xmlhttpRequest') || !compatBackground.includes('oracle.taile92a8e.ts.net') || !compatBackground.includes('10444')) {
     throw new Error('BOSS Copilot compatibility extension lost its bounded extension-origin bridge transport');
   }
-  for (const marker of ['SEARCHBTN', 'STARTCHAT', 'RESUMESEND', 'sendResume', 'fetch(details.url', 'const JAC_HARD_ONLY_GREET = false;']) {
+  for (const marker of ['SEARCHBTN', 'STARTCHAT', 'RESUMESEND', 'sendResume', 'fetch(details.url', 'getRuntimeControl', 'runtimeTaskId', 'runtime_inbox_scan_skipped', 'const JAC_HARD_ONLY_GREET = false;']) {
     if (!compatRuntime.includes(marker)) throw new Error(`BOSS Copilot compatibility runtime lost proven marker '${marker}'`);
   }
-  for (const marker of ['JobHarness\\BossCopilot', '--remote-debugging-port', '--load-extension', "[ValidateSet('auto','edge','chrome')]"]) {
+  for (const marker of ['JobHarness\\BossCopilot', '--remote-debugging-port', '--load-extension', "[ValidateSet('auto','edge','chrome')]", 'SkipRuntimeSync', 'boss-resume-followup.user.js', 'Move-Item -Force']) {
     if (!compatLauncher.includes(marker)) throw new Error(`BOSS Copilot dedicated-browser launcher lost marker '${marker}'`);
   }
   for (const marker of ['navigator.clipboard.writeText', 'ApplicantProfileContext', 'ApplicationAnswerSetContext', 'copyVisible']) {
@@ -120,8 +123,12 @@ async function main(): Promise<void> {
   if (!bossCli.includes('/home/ubuntu/projects/job-harness/integrations/boss/legacy-copilot.user.js')) {
     throw new Error('BOSS bridge does not use the Job Harness-owned compatibility source by default');
   }
-  if (!dispatcher.includes('classifyObservedApplySite') || !dispatcher.includes("executionMode: 'fill_only'") || !dispatcher.includes('submitAllowed: false')) {
-    throw new Error('Legacy ATS automatic dispatch must stay centralized, fill-only and non-submitting');
+  if (!dispatcher.includes('classifyObservedApplySite')
+    || !dispatcher.includes('automation.submitEnabled')
+    || !dispatcher.includes("? 'review_then_submit'")
+    || !dispatcher.includes(": 'fill_only'")
+    || !dispatcher.includes("submitAllowed: executionMode === 'review_then_submit'")) {
+    throw new Error('Legacy ATS automatic dispatch must stay centralized and gate submit authority on explicit Campaign automation policy');
   }
   if (!notice.includes('OpenJobAutofill') || !notice.includes('czc-good-job')) {
     throw new Error('Third-party attribution is incomplete');

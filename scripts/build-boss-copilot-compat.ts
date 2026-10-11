@@ -4,8 +4,12 @@ import { patchBossResumeFollowupUserscript } from '../apps/server/src/boss-resum
 
 async function main(): Promise<void> {
   const root = process.cwd();
-  const sourcePath = resolve(root, 'integrations/boss/legacy-copilot.user.js');
-  const outputPath = resolve(root, 'integrations/boss-copilot/extension/boss-copilot.js');
+  const sourcePath = process.env.JOB_HARNESS_BOSS_COPILOT_SOURCE
+    ? resolve(process.env.JOB_HARNESS_BOSS_COPILOT_SOURCE)
+    : resolve(root, 'integrations/boss/legacy-copilot.user.js');
+  const outputPath = process.env.JOB_HARNESS_BOSS_COPILOT_OUTPUT
+    ? resolve(process.env.JOB_HARNESS_BOSS_COPILOT_OUTPUT)
+    : resolve(root, 'integrations/boss-copilot/extension/boss-copilot.js');
   const publicUrl = 'https://oracle.taile92a8e.ts.net:10444/boss-resume-followup.user.js';
 
   const source = await readFile(sourcePath, 'utf8');

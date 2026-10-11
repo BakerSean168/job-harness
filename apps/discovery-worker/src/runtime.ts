@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { JobSearchCampaign, UpsertJobCandidate } from '@job-harness/contracts';
+import type { CompleteDiscoveryInput, JobSearchCampaign, UpsertJobCandidate } from '@job-harness/contracts';
 
 export interface DiscoveryProviderResult {
   readonly candidates: readonly UpsertJobCandidate[];
@@ -19,7 +19,7 @@ export interface DiscoveryWorkerClientPort {
   readonly campaigns: { get(campaignId: string): Promise<JobSearchCampaign | null> };
   readonly discovery: {
     begin(input: { campaignId: string; executor: 'other'; contextSnapshot: Record<string, unknown>; startedAt: string; idempotencyKey: string }): Promise<{ id: string }>;
-    complete(input: { runId: string; completedAt: string; candidateCount: number; insertedCount: number; duplicateCount: number; rejectedCount: number }): Promise<unknown>;
+    complete(input: CompleteDiscoveryInput): Promise<unknown>;
   };
   readonly jobs: {
     upsertJobsBatch(input: { jobs: UpsertJobCandidate[] }): Promise<{ items: Array<{ index: number; status: 'inserted' | 'updated' | 'duplicate' | 'rejected'; jobId: string | null; reason: string | null }> }>;
@@ -86,6 +86,9 @@ export class DiscoveryWorker {
     let rejectedCount = 0;
     let queryCount = 0;
     let failedQueryCount = 0;
+    let completionStatus: 'succeeded' | 'failed' = 'succeeded';
+    let failureCode: string | null = null;
+    let failureReason: string | null = null;
     const qualificationJobIds = new Set<string>();
     try {
       const result = await this.options.provider.discover(campaign);
@@ -106,13 +109,20 @@ export class DiscoveryWorker {
       }
       this.logger.info('Discovery provider completed', JSON.stringify({ provider: this.options.provider.id, runId: run.id, candidateCount, insertedCount, duplicateCount, rejectedCount, queryCount, failedQueryCount }));
     } catch (error) {
-      this.logger.error('Discovery provider failed', error instanceof Error ? error.message : String(error));
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error('Discovery provider failed', message);
       rejectedCount += 1;
+      completionStatus = 'failed';
+      failureCode = 'provider_error';
+      failureReason = message.replace(/\s+/g, ' ').trim().slice(0, 1000) || 'Discovery provider failed';
       throw error;
     } finally {
       await this.options.client.discovery.complete({
         runId: run.id,
         completedAt: this.now(),
+        status: completionStatus,
+        failureCode,
+        failureReason,
         candidateCount,
         insertedCount,
         duplicateCount,

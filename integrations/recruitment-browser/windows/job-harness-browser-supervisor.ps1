@@ -1,0 +1,451 @@
+param(
+  [string]$RuntimeBaseUrl = 'https://oracle.taile92a8e.ts.net:20901/runtime/recruitment-browser/v1',
+  [ValidateSet('auto','edge','chrome')]
+  [string]$Browser = 'auto',
+  [int]$RemoteDebuggingPort = 9222,
+  [int]$PollSeconds = 60,
+  [string]$ProfilePath = '',
+  [string]$BossRuntimeHealthUrl = 'https://oracle.taile92a8e.ts.net:10444/api/runtime/health',
+  [int]$BossRuntimeSelfHealCooldownSeconds = 900,
+  [switch]$Once,
+  [switch]$ResetProfile,
+  [switch]$NoLaunch
+)
+
+$ErrorActionPreference = 'Stop'
+$root = Join-Path $env:LOCALAPPDATA 'JobHarness\RecruitmentBrowser'
+$runtimeRoot = Join-Path $root 'Runtime'
+$bundleRoot = Join-Path $runtimeRoot 'bundles'
+$currentRoot = Join-Path $runtimeRoot 'current'
+$legacyProfile = Join-Path $env:LOCALAPPDATA 'JobHarness\BossCopilot\Profile'
+$defaultProfile = Join-Path $root 'Profile'
+$profile = if ($ProfilePath) { $ProfilePath } elseif (Test-Path $legacyProfile) { $legacyProfile } else { $defaultProfile }
+$statePath = Join-Path $root 'supervisor-state.json'
+$bossRuntimeOfflineStreak = 0
+$bossRuntimeLastTaskId = ''
+$bossRuntimeLastSelfHealTaskId = ''
+$bossRuntimeRecoveredAfterSelfHeal = $true
+$bossRuntimeLastSelfHealAt = [DateTime]::MinValue
+
+function Get-DedicatedBrowserProcesses {
+  $escapedProfile = [Regex]::Escape($profile)
+  return @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+    Where-Object {
+      $_.Name -match '^(msedge|chrome)\.exe$' -and
+      $_.CommandLine -and
+      $_.CommandLine -match $escapedProfile
+    })
+}
+
+function Stop-JobHarnessBrowser {
+  $processes = Get-DedicatedBrowserProcesses
+  foreach ($process in $processes) {
+    try { Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop } catch {}
+  }
+  if ($processes.Count -gt 0) {
+    Start-Sleep -Milliseconds 600
+  }
+}
+
+New-Item -ItemType Directory -Force -Path $root, $runtimeRoot, $bundleRoot, $profile | Out-Null
+
+if ($ResetProfile -and (Test-Path $profile)) {
+  Stop-JobHarnessBrowser
+  Remove-Item -Recurse -Force $profile
+  New-Item -ItemType Directory -Force -Path $profile | Out-Null
+}
+
+function Write-SupervisorState([hashtable]$Patch) {
+  $state = @{}
+  if (Test-Path $statePath) {
+    try {
+      $existing = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
+      if ($existing) {
+        foreach ($property in $existing.PSObject.Properties) { $state[$property.Name] = $property.Value }
+      }
+    } catch {}
+  }
+  foreach ($key in $Patch.Keys) { $state[$key] = $Patch[$key] }
+  $state['updatedAt'] = [DateTime]::UtcNow.ToString('o')
+  $temp = "$statePath.tmp"
+  $state | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $temp -Encoding UTF8
+  Move-Item -Force -LiteralPath $temp -Destination $statePath
+}
+
+if (Test-Path $statePath) {
+  try {
+    $existingState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
+    if ($existingState.lastSelfHealTaskId) {
+      $bossRuntimeLastSelfHealTaskId = [string]$existingState.lastSelfHealTaskId
+    }
+    if ($null -ne $existingState.bossRuntimeRecoveredAfterSelfHeal) {
+      $bossRuntimeRecoveredAfterSelfHeal = [bool]$existingState.bossRuntimeRecoveredAfterSelfHeal
+    }
+    if ($existingState.lastSelfHealAt) {
+      $parsedSelfHealAt = [DateTime]::MinValue
+      if ([DateTime]::TryParse([string]$existingState.lastSelfHealAt, [ref]$parsedSelfHealAt)) {
+        $bossRuntimeLastSelfHealAt = $parsedSelfHealAt.ToUniversalTime()
+      }
+    }
+  } catch {}
+}
+
+function Get-AppPath([string]$Exe) {
+  foreach ($key in @(
+    "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\$Exe",
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\$Exe"
+  )) {
+    $item = Get-ItemProperty $key -ErrorAction SilentlyContinue
+    if ($item -and $item.'(default)') { return $item.'(default)' }
+  }
+  return $null
+}
+
+function Find-Browser([string]$Name) {
+  $candidates = if ($Name -eq 'edge') {
+    @(
+      (Get-AppPath 'msedge.exe'),
+      "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+      "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+      "$env:LOCALAPPDATA\Microsoft\Edge\Application\msedge.exe"
+    )
+  } else {
+    @(
+      (Get-AppPath 'chrome.exe'),
+      $(if ($env:SCOOP) { Join-Path $env:SCOOP 'apps\googlechrome\current\chrome.exe' }),
+      "$env:USERPROFILE\scoop\apps\googlechrome\current\chrome.exe",
+      "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+      "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+      "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+    )
+  }
+  return $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+}
+
+function Resolve-Browser {
+  if ($Browser -eq 'edge') {
+    $exe = Find-Browser 'edge'
+    if (-not $exe) { throw 'Microsoft Edge was not found.' }
+    return @{ Name = 'edge'; Exe = $exe }
+  }
+  if ($Browser -eq 'chrome') {
+    $exe = Find-Browser 'chrome'
+    if (-not $exe) { throw 'Google Chrome was not found.' }
+    return @{ Name = 'chrome'; Exe = $exe }
+  }
+  $edge = Find-Browser 'edge'
+  if ($edge) { return @{ Name = 'edge'; Exe = $edge } }
+  $chrome = Find-Browser 'chrome'
+  if ($chrome) { return @{ Name = 'chrome'; Exe = $chrome } }
+  throw 'No supported Edge/Chrome installation was found.'
+}
+
+function Get-FileSha256([string]$Path) {
+  return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+}
+
+function Ensure-SupervisorCurrent($Manifest) {
+  if (-not $PSCommandPath -or -not $Manifest.supervisor -or -not $Manifest.supervisor.sha256) { return }
+  $actual = Get-FileSha256 $PSCommandPath
+  $expected = ([string]$Manifest.supervisor.sha256).ToLowerInvariant()
+  if ($actual -eq $expected) { return }
+
+  $bootstrap = Join-Path $root 'Bootstrap\start-recruitment-browser.ps1'
+  if (-not (Test-Path $bootstrap)) {
+    Write-Warning "A newer Recruitment Browser Supervisor is available, but the bootstrap launcher is not installed."
+    return
+  }
+
+  $arguments = @(
+    '-NoProfile',
+    '-ExecutionPolicy', 'Bypass',
+    '-File', ('"' + $bootstrap + '"'),
+    '-RuntimeBaseUrl', ('"' + $RuntimeBaseUrl + '"')
+  )
+  if ($Once) { $arguments += '-Once' }
+  if ($NoLaunch) { $arguments += '-NoLaunch' }
+  Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments | Out-Null
+  Write-SupervisorState @{ supervisorStatus = 'updating'; availableSupervisorSha256 = $expected }
+  exit 0
+}
+
+function Get-BossRuntimeServerHealth {
+  if (-not $BossRuntimeHealthUrl) { return $null }
+  try {
+    return Invoke-RestMethod -Uri $BossRuntimeHealthUrl -Method Get -TimeoutSec 8
+  } catch {
+    return $null
+  }
+}
+
+function Get-BossRuntimeServerControl {
+  if (-not $BossRuntimeHealthUrl) { return $null }
+  $controlUrl = $BossRuntimeHealthUrl -replace '/health$', '/control'
+  try {
+    return Invoke-RestMethod -Uri $controlUrl -Method Get -TimeoutSec 8
+  } catch {
+    return $null
+  }
+}
+
+function Get-RecruitmentSiteHealth {
+  $result = @{ boss = @{ state = 'unknown'; url = $null; title = $null } }
+  try {
+    $targets = Invoke-RestMethod -Uri "http://127.0.0.1:$RemoteDebuggingPort/json" -Method Get -TimeoutSec 4
+    $boss = $null
+    foreach ($target in $targets) {
+      if ($target.type -eq 'page' -and ([string]$target.url) -match 'zhipin\.com') {
+        $boss = $target
+        break
+      }
+    }
+    if (-not $boss) { return $result }
+    $url = [string]$boss.url
+    $title = [string]$boss.title
+    $state = if ($url -match '/web/user|/user/' -or $title -match '注册登录|登录') {
+      'login_required'
+    } elseif ($url -match 'verify|captcha|challenge|security' -or $title -match '安全验证|验证') {
+      'challenge'
+    } else {
+      'ready'
+    }
+    $result['boss'] = @{ state = $state; url = $url; title = $title }
+    return $result
+  } catch {
+    return $result
+  }
+}
+
+function Download-VerifiedFile([string]$BaseUrl, [object]$File, [string]$DestinationRoot) {
+  $destination = Join-Path $DestinationRoot ($File.installPath -replace '/', '\')
+  $parent = Split-Path -Parent $destination
+  New-Item -ItemType Directory -Force -Path $parent | Out-Null
+  $temp = "$destination.download"
+  $url = "$BaseUrl/files/$($File.id)"
+  Invoke-WebRequest -Uri $url -OutFile $temp -UseBasicParsing -TimeoutSec 45
+  $actual = Get-FileSha256 $temp
+  $expected = [string]$File.sha256
+  if ($actual -ne $expected.ToLowerInvariant()) {
+    Remove-Item -Force -LiteralPath $temp -ErrorAction SilentlyContinue
+    throw "SHA-256 mismatch for $($File.id): $actual != $expected"
+  }
+  Move-Item -Force -LiteralPath $temp -Destination $destination
+}
+
+function Read-CurrentBundleVersion {
+  $manifestPath = Join-Path $currentRoot 'runtime-manifest.json'
+  if (-not (Test-Path $manifestPath)) { return '' }
+  try {
+    return [string]((Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json).bundleVersion)
+  } catch {
+    return ''
+  }
+}
+
+function Sync-RuntimeBundle {
+  $manifestUrl = "$RuntimeBaseUrl/manifest.json"
+  $manifest = Invoke-RestMethod -Uri $manifestUrl -Method Get -TimeoutSec 30
+  if ([int]$manifest.schemaVersion -ne 1 -or -not $manifest.bundleVersion) {
+    throw 'Runtime channel returned an unsupported manifest.'
+  }
+  Ensure-SupervisorCurrent $manifest
+
+  $version = [string]$manifest.bundleVersion
+  $bundle = Join-Path $bundleRoot $version
+  $readyMarker = Join-Path $bundle 'runtime-manifest.json'
+
+  if (-not (Test-Path $readyMarker)) {
+    $staging = "$bundle.staging"
+    Remove-Item -Recurse -Force $staging -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $staging | Out-Null
+    try {
+      foreach ($extension in @($manifest.extensions)) {
+        foreach ($file in @($extension.files)) {
+          Download-VerifiedFile $RuntimeBaseUrl $file $staging
+        }
+      }
+      $manifest | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $staging 'runtime-manifest.json') -Encoding UTF8
+      Move-Item -LiteralPath $staging -Destination $bundle
+    } catch {
+      Remove-Item -Recurse -Force $staging -ErrorAction SilentlyContinue
+      throw
+    }
+  }
+
+  $currentVersion = Read-CurrentBundleVersion
+  if ($currentVersion -ne $version) {
+    $previousLabel = if ($currentVersion) { $currentVersion.Substring(0, [Math]::Min(12, $currentVersion.Length)) } else { 'none' }
+    Write-Host "Promoting Recruitment Browser runtime $($version.Substring(0, 12)) (previous $previousLabel)"
+    Stop-JobHarnessBrowser
+    $previous = Join-Path $runtimeRoot 'previous'
+    Remove-Item -Recurse -Force $previous -ErrorAction SilentlyContinue
+    if (Test-Path $currentRoot) {
+      Move-Item -LiteralPath $currentRoot -Destination $previous
+    }
+    Copy-Item -Recurse -Force -LiteralPath $bundle -Destination $currentRoot
+  }
+
+  Write-SupervisorState @{
+    runtimeBaseUrl = $RuntimeBaseUrl
+    bundleVersion = $version
+    supervisorVersion = [string]$manifest.supervisorVersion
+    runtimeStatus = 'ready'
+  }
+  return $manifest
+}
+
+function Start-JobHarnessBrowser($Manifest) {
+  if ($NoLaunch) { return }
+  if ((Get-DedicatedBrowserProcesses).Count -gt 0) { return }
+
+  $resolved = Resolve-Browser
+  $extensionDirs = @()
+  foreach ($extension in @($Manifest.extensions)) {
+    $extensionDir = Join-Path $currentRoot ([string]$extension.installDirectory -replace '/', '\')
+    if (-not (Test-Path (Join-Path $extensionDir 'manifest.json'))) {
+      throw "Runtime extension is incomplete: $extensionDir"
+    }
+    $extensionDirs += $extensionDir
+  }
+  if ($extensionDirs.Count -eq 0) { throw 'Runtime manifest contains no extensions.' }
+
+  $extensionsArgument = ($extensionDirs -join ',')
+  $startUrls = @($Manifest.extensions | ForEach-Object { @($_.startUrls) } | Where-Object { $_ } | Select-Object -Unique)
+  if ($startUrls.Count -eq 0) { $startUrls = @('about:blank') }
+
+  $arguments = @(
+    '--remote-debugging-address=127.0.0.1',
+    "--remote-debugging-port=$RemoteDebuggingPort",
+    "--user-data-dir=$profile",
+    "--disable-extensions-except=$extensionsArgument",
+    "--load-extension=$extensionsArgument",
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--new-window'
+  ) + $startUrls
+
+  $process = Start-Process -FilePath $resolved.Exe -ArgumentList $arguments -PassThru
+  Write-SupervisorState @{
+    browser = $resolved.Name
+    browserExecutable = $resolved.Exe
+    browserPid = $process.Id
+    browserStatus = 'running'
+    profile = $profile
+    remoteDebuggingPort = $RemoteDebuggingPort
+  }
+  Write-Host "Job Harness Recruitment Browser started: $($resolved.Name), PID $($process.Id)"
+}
+
+function Run-SupervisorIteration {
+  try {
+    $manifest = Sync-RuntimeBundle
+    Start-JobHarnessBrowser $manifest
+    if (-not $NoLaunch -and (Get-DedicatedBrowserProcesses).Count -eq 0) {
+      throw 'Dedicated browser did not remain running after launch.'
+    }
+    if (-not $NoLaunch) { Start-Sleep -Milliseconds 600 }
+
+    $siteHealth = Get-RecruitmentSiteHealth
+    $bossRuntimeHealth = Get-BossRuntimeServerHealth
+    $bossRuntimeControl = Get-BossRuntimeServerControl
+    $selfHealAction = $null
+    $selfHealSuppressedReason = $null
+    $bossTaskRunning = $bossRuntimeControl -and $bossRuntimeControl.task -and [string]$bossRuntimeControl.desiredState -eq 'running'
+    $bossTaskId = if ($bossTaskRunning) { [string]$bossRuntimeControl.task.id } else { '' }
+
+    if ($bossTaskId -and $bossTaskId -ne $script:bossRuntimeLastTaskId) {
+      $script:bossRuntimeLastTaskId = $bossTaskId
+      $script:bossRuntimeOfflineStreak = 0
+      if ($bossTaskId -ne $script:bossRuntimeLastSelfHealTaskId) {
+        $script:bossRuntimeRecoveredAfterSelfHeal = $true
+      }
+    }
+
+    if ($bossTaskRunning -and $bossRuntimeHealth -and [string]$bossRuntimeHealth.state -eq 'ready') {
+      if ($bossTaskId -and $bossTaskId -eq $script:bossRuntimeLastSelfHealTaskId) {
+        $script:bossRuntimeRecoveredAfterSelfHeal = $true
+      }
+    }
+
+    if ($bossTaskRunning -and $bossRuntimeHealth -and [string]$bossRuntimeHealth.state -eq 'offline' -and $siteHealth.boss.state -eq 'ready') {
+      $script:bossRuntimeOfflineStreak += 1
+    } else {
+      $script:bossRuntimeOfflineStreak = 0
+    }
+
+    $cooldownSeconds = [Math]::Max(60, $BossRuntimeSelfHealCooldownSeconds)
+    $secondsSinceLastSelfHeal = if ($script:bossRuntimeLastSelfHealAt -eq [DateTime]::MinValue) {
+      [double]::PositiveInfinity
+    } else {
+      ([DateTime]::UtcNow - $script:bossRuntimeLastSelfHealAt).TotalSeconds
+    }
+    $sameTaskAwaitingRecovery = $bossTaskId -and $bossTaskId -eq $script:bossRuntimeLastSelfHealTaskId -and -not $script:bossRuntimeRecoveredAfterSelfHeal
+    $withinSelfHealCooldown = $secondsSinceLastSelfHeal -lt $cooldownSeconds
+
+    if (-not $NoLaunch -and $script:bossRuntimeOfflineStreak -ge 3 -and -not $sameTaskAwaitingRecovery -and -not $withinSelfHealCooldown) {
+      Write-Warning 'BOSS page is open but the Site Runtime heartbeat is stale; restarting the dedicated browser once and waiting for a real heartbeat recovery before another restart.'
+      Stop-JobHarnessBrowser
+      Start-Sleep -Seconds 2
+      Start-JobHarnessBrowser $manifest
+      $script:bossRuntimeOfflineStreak = 0
+      $script:bossRuntimeLastSelfHealTaskId = $bossTaskId
+      $script:bossRuntimeRecoveredAfterSelfHeal = $false
+      $script:bossRuntimeLastSelfHealAt = [DateTime]::UtcNow
+      $selfHealAction = 'restart-dedicated-browser-for-stale-boss-runtime'
+      Start-Sleep -Seconds 3
+      $siteHealth = Get-RecruitmentSiteHealth
+      $bossRuntimeHealth = Get-BossRuntimeServerHealth
+      $bossRuntimeControl = Get-BossRuntimeServerControl
+      if ($bossRuntimeHealth -and [string]$bossRuntimeHealth.state -eq 'ready') {
+        $script:bossRuntimeRecoveredAfterSelfHeal = $true
+      }
+    } elseif ($script:bossRuntimeOfflineStreak -ge 3) {
+      if ($sameTaskAwaitingRecovery) {
+        $selfHealSuppressedReason = 'awaiting-runtime-heartbeat-recovery'
+      } elseif ($withinSelfHealCooldown) {
+        $selfHealSuppressedReason = 'self-heal-cooldown'
+      } elseif ($NoLaunch) {
+        $selfHealSuppressedReason = 'no-launch-mode'
+      }
+    }
+
+    $statePatch = @{
+      supervisorStatus = 'healthy'
+      siteHealth = $siteHealth
+      bossRuntimeHealth = $bossRuntimeHealth
+      bossRuntimeControl = $bossRuntimeControl
+      bossRuntimeOfflineStreak = $script:bossRuntimeOfflineStreak
+      bossRuntimeLastTaskId = $script:bossRuntimeLastTaskId
+      lastSelfHealTaskId = $script:bossRuntimeLastSelfHealTaskId
+      bossRuntimeRecoveredAfterSelfHeal = $script:bossRuntimeRecoveredAfterSelfHeal
+      selfHealSuppressedReason = $selfHealSuppressedReason
+      lastError = $null
+    }
+    if ($selfHealAction) {
+      $statePatch['lastSelfHealAction'] = $selfHealAction
+      $statePatch['lastSelfHealAt'] = $script:bossRuntimeLastSelfHealAt.ToString('o')
+    }
+    Write-SupervisorState $statePatch
+  } catch {
+    Write-SupervisorState @{ supervisorStatus = 'error'; lastError = $_.Exception.Message }
+    throw
+  }
+}
+
+Write-Host 'Job Harness Recruitment Browser Supervisor'
+Write-Host "Root: $root"
+Write-Host "Runtime channel: $RuntimeBaseUrl"
+
+if ($Once) {
+  Run-SupervisorIteration
+  exit 0
+}
+
+while ($true) {
+  try {
+    Run-SupervisorIteration
+  } catch {
+    Write-Warning $_.Exception.Message
+  }
+  Start-Sleep -Seconds ([Math]::Max(10, $PollSeconds))
+}

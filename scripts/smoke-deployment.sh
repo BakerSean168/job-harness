@@ -11,6 +11,9 @@ export JOB_HARNESS_AUTH_TOKEN=${JOB_HARNESS_SMOKE_TOKEN:-deployment-smoke-token}
 export JOB_HARNESS_DATA_DIR=${JOB_HARNESS_SMOKE_DATA_DIR:-$(mktemp -d /tmp/job-harness-deployment-smoke.XXXXXX)}
 export JOB_HARNESS_WEB_BIND=127.0.0.1
 export JOB_HARNESS_WEB_PORT=${JOB_HARNESS_SMOKE_PORT:-3198}
+# The normal production Compose owns 127.0.0.1:18788. Keep the isolated smoke
+# project on a separate loopback publish so both stacks can coexist safely.
+export JOB_HARNESS_BOSS_BRIDGE_PORT=${JOB_HARNESS_SMOKE_BOSS_BRIDGE_PORT:-3199}
 export JOB_HARNESS_WEB_PASSWORD=
 export JOB_HARNESS_WEB_SESSION_SECRET=
 export JOB_HARNESS_WEB_COOKIE_SECURE=false

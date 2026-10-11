@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { CareerApplicationPorts } from '@job-harness/application';
 import type { ResumeArtifactRuntimePorts, ResumeRuntimePorts } from '@job-harness/resume-application';
 import {
@@ -65,6 +66,9 @@ import {
   type ConfirmEmailApplicationSendInput,
   type ConfirmEmailApplicationSendOutput,
   type FailEmailApplicationSendInput,
+  type AuthorizeEmailApplicationSendInput,
+  type EmailSendAuthorization,
+  EmailSendAuthorizationSchema,
   type SubmissionIntent,
 } from '@job-harness/contracts';
 import {
@@ -84,6 +88,28 @@ import {
   EmailApplicationBeginToolInputSchema,
   EmailApplicationConfirmToolInputSchema,
   EmailApplicationFailToolInputSchema,
+  EmailApplicationAuthorizeSendToolInputSchema,
+  BossGreetingsPendingToolInputSchema,
+  BossGreetingsPendingToolOutputSchema,
+  BossGreetingResolverReadyToolInputSchema,
+  BossGreetingResolverReadyToolOutputSchema,
+  BossGreetingClaimToolInputSchema,
+  BossGreetingClaimToolOutputSchema,
+  BossGreetingResolveToolInputSchema,
+  BossGreetingResolveToolOutputSchema,
+  BossRuntimeStatusToolInputSchema,
+  BossRuntimeStatusToolOutputSchema,
+  BossRuntimeStartToolInputSchema,
+  BossRuntimeStartToolOutputSchema,
+  BossRuntimePauseToolInputSchema,
+  BossRuntimePauseToolOutputSchema,
+  RecruitmentCollectionRuntimeStatusToolInputSchema,
+  RecruitmentCollectionRuntimeStatusToolOutputSchema,
+  RecruitmentCollectionRuntimeStartToolInputSchema,
+  RecruitmentCollectionRuntimeActionToolOutputSchema,
+  RecruitmentCollectionRuntimeStopToolInputSchema,
+  RecruitmentCollectionRuntimeSyncToolInputSchema,
+  RecruitmentCollectionRuntimeSyncToolOutputSchema,
 } from './tool-contracts';
 import {
   ListResumeProfilesInputSchema,
@@ -106,6 +132,27 @@ export interface EmailApplicationMcpPort {
   beginSend(packageId: string, input: BeginEmailApplicationSendInput): Promise<SubmissionIntent>;
   confirm(packageId: string, input: ConfirmEmailApplicationSendInput): Promise<ConfirmEmailApplicationSendOutput>;
   fail(packageId: string, input: FailEmailApplicationSendInput): Promise<EmailApplicationPackageDetail>;
+  authorizeSend(packageId: string, input: AuthorizeEmailApplicationSendInput): Promise<EmailSendAuthorization>;
+}
+
+export interface BossGreetingMcpPort {
+  listPending(input: z.input<typeof BossGreetingsPendingToolInputSchema>): Promise<z.output<typeof BossGreetingsPendingToolOutputSchema>>;
+  ready(input: z.input<typeof BossGreetingResolverReadyToolInputSchema>): Promise<z.output<typeof BossGreetingResolverReadyToolOutputSchema>>;
+  claim(input: z.input<typeof BossGreetingClaimToolInputSchema>): Promise<z.output<typeof BossGreetingClaimToolOutputSchema>>;
+  resolve(input: z.input<typeof BossGreetingResolveToolInputSchema>): Promise<z.output<typeof BossGreetingResolveToolOutputSchema>>;
+}
+
+export interface BossRuntimeMcpPort {
+  status(input: z.input<typeof BossRuntimeStatusToolInputSchema>): Promise<z.output<typeof BossRuntimeStatusToolOutputSchema>>;
+  start(input: z.input<typeof BossRuntimeStartToolInputSchema>): Promise<z.output<typeof BossRuntimeStartToolOutputSchema>>;
+  pause(input: z.input<typeof BossRuntimePauseToolInputSchema>): Promise<z.output<typeof BossRuntimePauseToolOutputSchema>>;
+}
+
+export interface RecruitmentCollectionRuntimeMcpPort {
+  status(input: z.input<typeof RecruitmentCollectionRuntimeStatusToolInputSchema>): Promise<z.output<typeof RecruitmentCollectionRuntimeStatusToolOutputSchema>>;
+  start(input: z.input<typeof RecruitmentCollectionRuntimeStartToolInputSchema>): Promise<z.output<typeof RecruitmentCollectionRuntimeActionToolOutputSchema>>;
+  stop(input: z.input<typeof RecruitmentCollectionRuntimeStopToolInputSchema>): Promise<z.output<typeof RecruitmentCollectionRuntimeActionToolOutputSchema>>;
+  sync(input: z.input<typeof RecruitmentCollectionRuntimeSyncToolInputSchema>): Promise<z.output<typeof RecruitmentCollectionRuntimeSyncToolOutputSchema>>;
 }
 
 export class UnknownCareerMcpToolError extends Error {
@@ -129,6 +176,9 @@ export class CareerMcpRuntime {
     private readonly resumeArtifacts?: ResumeArtifactRuntimePorts,
     private readonly jobResume?: JobResumeMcpPort,
     private readonly emailApplication?: EmailApplicationMcpPort,
+    private readonly bossGreeting?: BossGreetingMcpPort,
+    private readonly bossRuntime?: BossRuntimeMcpPort,
+    private readonly recruitmentCollectionRuntime?: RecruitmentCollectionRuntimeMcpPort,
   ) {}
 
   listTools() {
@@ -136,6 +186,9 @@ export class CareerMcpRuntime {
     return JOB_HARNESS_MCP_TOOLS.filter((tool) => {
       if (!this.jobResume && (tool.name === 'career_job_resume_recommend' || tool.name === 'career_submission_intent_prepare_recommended')) return false;
       if (!this.emailApplication && tool.name.startsWith('career_email_application_')) return false;
+      if (!this.bossGreeting && tool.name.startsWith('boss_greeting')) return false;
+      if (!this.bossRuntime && tool.name.startsWith('boss_runtime_')) return false;
+      if (!this.recruitmentCollectionRuntime && tool.name.startsWith('recruitment_collection_runtime_')) return false;
       return true;
     });
   }
@@ -281,6 +334,12 @@ export class CareerMcpRuntime {
         const input = EmailApplicationGetToolInputSchema.parse(rawInput);
         return EmailApplicationPackageDetailSchema.parse(await this.emailApplication.get(input.packageId));
       }
+      case 'career_email_application_authorize_send': {
+        if (!this.emailApplication) throw new Error('Email application capability is not configured');
+        const input = EmailApplicationAuthorizeSendToolInputSchema.parse(rawInput);
+        const { packageId, ...authorizationInput } = input;
+        return EmailSendAuthorizationSchema.parse(await this.emailApplication.authorizeSend(packageId, authorizationInput));
+      }
       case 'career_email_application_begin_send': {
         if (!this.emailApplication) throw new Error('Email application capability is not configured');
         const input = EmailApplicationBeginToolInputSchema.parse(rawInput);
@@ -298,6 +357,61 @@ export class CareerMcpRuntime {
         const input = EmailApplicationFailToolInputSchema.parse(rawInput);
         const { packageId, ...failInput } = input;
         return EmailApplicationPackageDetailSchema.parse(await this.emailApplication.fail(packageId, failInput));
+      }
+      case 'boss_greetings_pending': {
+        if (!this.bossGreeting) throw new Error('BOSS greeting capability is not configured');
+        const input = BossGreetingsPendingToolInputSchema.parse(rawInput);
+        return BossGreetingsPendingToolOutputSchema.parse(await this.bossGreeting.listPending(input));
+      }
+      case 'boss_greeting_resolver_ready': {
+        if (!this.bossGreeting) throw new Error('BOSS greeting capability is not configured');
+        const input = BossGreetingResolverReadyToolInputSchema.parse(rawInput);
+        return BossGreetingResolverReadyToolOutputSchema.parse(await this.bossGreeting.ready(input));
+      }
+      case 'boss_greeting_claim': {
+        if (!this.bossGreeting) throw new Error('BOSS greeting capability is not configured');
+        const input = BossGreetingClaimToolInputSchema.parse(rawInput);
+        return BossGreetingClaimToolOutputSchema.parse(await this.bossGreeting.claim(input));
+      }
+      case 'boss_greeting_resolve': {
+        if (!this.bossGreeting) throw new Error('BOSS greeting capability is not configured');
+        const input = BossGreetingResolveToolInputSchema.parse(rawInput);
+        return BossGreetingResolveToolOutputSchema.parse(await this.bossGreeting.resolve(input));
+      }
+      case 'boss_runtime_status': {
+        if (!this.bossRuntime) throw new Error('BOSS Site Runtime capability is not configured');
+        const input = BossRuntimeStatusToolInputSchema.parse(rawInput);
+        return BossRuntimeStatusToolOutputSchema.parse(await this.bossRuntime.status(input));
+      }
+      case 'boss_runtime_start': {
+        if (!this.bossRuntime) throw new Error('BOSS Site Runtime capability is not configured');
+        const input = BossRuntimeStartToolInputSchema.parse(rawInput);
+        return BossRuntimeStartToolOutputSchema.parse(await this.bossRuntime.start(input));
+      }
+      case 'boss_runtime_pause': {
+        if (!this.bossRuntime) throw new Error('BOSS Site Runtime capability is not configured');
+        const input = BossRuntimePauseToolInputSchema.parse(rawInput);
+        return BossRuntimePauseToolOutputSchema.parse(await this.bossRuntime.pause(input));
+      }
+      case 'recruitment_collection_runtime_status': {
+        if (!this.recruitmentCollectionRuntime) throw new Error('Recruitment Collection Runtime capability is not configured');
+        const input = RecruitmentCollectionRuntimeStatusToolInputSchema.parse(rawInput);
+        return RecruitmentCollectionRuntimeStatusToolOutputSchema.parse(await this.recruitmentCollectionRuntime.status(input));
+      }
+      case 'recruitment_collection_runtime_start': {
+        if (!this.recruitmentCollectionRuntime) throw new Error('Recruitment Collection Runtime capability is not configured');
+        const input = RecruitmentCollectionRuntimeStartToolInputSchema.parse(rawInput);
+        return RecruitmentCollectionRuntimeActionToolOutputSchema.parse(await this.recruitmentCollectionRuntime.start(input));
+      }
+      case 'recruitment_collection_runtime_stop': {
+        if (!this.recruitmentCollectionRuntime) throw new Error('Recruitment Collection Runtime capability is not configured');
+        const input = RecruitmentCollectionRuntimeStopToolInputSchema.parse(rawInput);
+        return RecruitmentCollectionRuntimeActionToolOutputSchema.parse(await this.recruitmentCollectionRuntime.stop(input));
+      }
+      case 'recruitment_collection_runtime_sync': {
+        if (!this.recruitmentCollectionRuntime) throw new Error('Recruitment Collection Runtime capability is not configured');
+        const input = RecruitmentCollectionRuntimeSyncToolInputSchema.parse(rawInput);
+        return RecruitmentCollectionRuntimeSyncToolOutputSchema.parse(await this.recruitmentCollectionRuntime.sync(input));
       }
       case 'resume_profiles_list':
         return ListResumeProfilesOutputSchema.parse(
@@ -370,6 +484,6 @@ export function createCareerMcpRuntime(ports: CareerApplicationPorts): CareerMcp
   return new CareerMcpRuntime(ports);
 }
 
-export function createJobHarnessMcpRuntime(ports: CareerApplicationPorts, resume: ResumeRuntimePorts, resumeArtifacts: ResumeArtifactRuntimePorts, jobResume?: JobResumeMcpPort, emailApplication?: EmailApplicationMcpPort): CareerMcpRuntime {
-  return new CareerMcpRuntime(ports, resume, resumeArtifacts, jobResume, emailApplication);
+export function createJobHarnessMcpRuntime(ports: CareerApplicationPorts, resume: ResumeRuntimePorts, resumeArtifacts: ResumeArtifactRuntimePorts, jobResume?: JobResumeMcpPort, emailApplication?: EmailApplicationMcpPort, bossGreeting?: BossGreetingMcpPort, bossRuntime?: BossRuntimeMcpPort, recruitmentCollectionRuntime?: RecruitmentCollectionRuntimeMcpPort): CareerMcpRuntime {
+  return new CareerMcpRuntime(ports, resume, resumeArtifacts, jobResume, emailApplication, bossGreeting, bossRuntime, recruitmentCollectionRuntime);
 }

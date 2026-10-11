@@ -67,7 +67,7 @@ export const en: MessageCatalog = {
   },
   campaignsWorkspace: {
     list: { title: 'Campaigns', empty: 'No campaigns yet. Create one to pin target roles, cities, graduation years, and resume lanes.', create: 'New campaign', updated: 'Updated', roles: 'Roles', cities: 'Cities', resumes: 'Resume lanes' },
-    form: { titleNew: 'New campaign', titleEdit: 'Edit campaign', name: 'Name', targetRoles: 'Target roles', targetRolesHint: 'Comma or newline separated; at least one', cities: 'Cities', graduationYears: 'Graduation years', experience: 'Experience', education: 'Education', keywords: 'Keywords', exclusions: 'Exclusions', sources: 'Discovery sources', resumes: 'Resume lanes', status: 'Status', save: 'Save', saving: 'Saving…', saved: 'Saved', failed: 'Could not save campaign', required: 'Enter a name and at least one target role.' },
+    form: { titleNew: 'New campaign', titleEdit: 'Edit campaign', name: 'Name', targetRoles: 'Target roles', targetRolesHint: 'Comma or newline separated; at least one', cities: 'Cities', graduationYears: 'Graduation years', experience: 'Experience', education: 'Education', keywords: 'Keywords', exclusions: 'Exclusions', sources: 'Discovery sources', resumes: 'Resume lanes', automation: 'Automation modules', collectionEnabled: 'Collect and persist discovered jobs', outreach: 'Recruiting-platform outreach / BOSS', outreachEnabled: 'Enable the recruiting-platform Site Runtime', outreachAutoStartEnabled: 'Allow the Site Runtime to auto-start when a task is assigned', outreachGreetingEnabled: 'Allow first-contact greetings', outreachRecruiterInboxEnabled: 'Allow automatic recruiter-inbox scanning', outreachResumeFollowupEnabled: 'Allow sending the selected resume after an explicit recruiter request', outreachMaxExternalEffectsPerRun: 'Maximum external effects per Runtime run', officialSite: 'Official site / ATS', officialPrepareEnabled: 'Prepare a submission intent and freeze a resume for suitable jobs', officialFillEnabled: 'Auto-dispatch safe browser form fill and resume upload', officialSubmitEnabled: 'Allow the automatic submit module', email: 'Recruiting email', emailDraftEnabled: 'Generate subject/body and freeze a resume for email jobs', emailSendEnabled: 'Allow the delivery module to send frozen emails', preferredResume: 'Fixed resume', recommendedResume: 'Auto-select the best matching resume', automationHint: 'Collection, recruiting-platform Site Runtime, official-site preparation/safe fill, email drafting, and external sending are independent. The dedicated browser may have broad site-local capabilities while business effects stay configurable here; BOSS outreach capabilities default on but auto-start defaults off, and final ATS submit/email send default off.', status: 'Status', save: 'Save', saving: 'Saving…', saved: 'Saved', failed: 'Could not save campaign', required: 'Enter a name and at least one target role.' },
     status: { active: 'Active', paused: 'Paused', completed: 'Completed', archived: 'Archived' },
     links: { jobs: 'View jobs', applications: 'View applications', dashboard: 'View overview' },
   },
@@ -79,9 +79,10 @@ export const en: MessageCatalog = {
     note: 'Resume is now a first-class Job Harness domain. The legacy Resume Registry remains temporarily as an application compatibility projection.',
   },
   discoveryWorkspace: {
-    filters: { campaign: 'Campaign', executor: 'Executor', all: 'All', apply: 'Filter', reset: 'Reset' },
-    list: { runs: 'discovery runs', empty: 'No discovery runs yet. External ChatGPT, importers, and other executors will appear here.', running: 'Running', completed: 'Completed', started: 'Started', campaign: 'Campaign', executor: 'Executor', candidates: 'Candidates', inserted: 'New', duplicates: 'Duplicates', rejected: 'Rejected' },
-    detail: { title: 'Discovery run detail', observations: 'Observations', affectedJobs: 'Affected jobs', context: 'Execution context', completedAt: 'Completed at', noCampaign: 'No campaign', noAffectedJobs: 'This run has no related jobs.', openJob: 'View job', close: 'Close detail', full: 'Open full detail' },
+    filters: { campaign: 'Campaign', executor: 'Executor', status: 'Status', all: 'All', apply: 'Filter', reset: 'Reset' },
+    list: { runs: 'discovery runs', empty: 'No discovery runs yet. External ChatGPT, importers, and other executors will appear here.', running: 'Running', completed: 'Completed', status: 'Status', started: 'Started', campaign: 'Campaign', executor: 'Executor', candidates: 'Candidates', inserted: 'New', duplicates: 'Duplicates', rejected: 'Rejected' },
+    detail: { title: 'Discovery run detail', observations: 'Observations', affectedJobs: 'Affected jobs', context: 'Execution context', completedAt: 'Completed at', status: 'Execution status', failureCode: 'Failure code', failureReason: 'Termination reason:', noCampaign: 'No campaign', noAffectedJobs: 'This run has no related jobs.', openJob: 'View job', close: 'Close detail', full: 'Open full detail' },
+    statuses: { running: 'Running', succeeded: 'Succeeded', failed: 'Failed', aborted: 'Aborted' },
     executors: { 'chatgpt-web': 'ChatGPT Web', 'memoflow-ai': 'MemoFlow AI', import: 'Import', manual: 'Manual', other: 'Other' },
   },
   executorsWorkspace: {
@@ -107,7 +108,8 @@ export const en: MessageCatalog = {
         stale_application: 'Active application has had no new event for more than 7 days',
         shortlisted_unapplied: 'Shortlisted opportunity has been known for more than 3 days without an application',
         closed_listing_active_application: 'A listing is closed while the application pipeline is still active',
-        stale_campaign_discovery: 'Active campaign has had no completed discovery run for more than 3 days',
+        failed_discovery_run: 'A discovery run failed and needs review',
+        stale_campaign_discovery: 'Active campaign has had no successful discovery run for more than 3 days',
         missing_resume_artifact: 'Resume reference has no usable artifact',
         stale_resume_artifact: 'Resume artifact has not been updated for more than 30 days',
       },
@@ -135,7 +137,7 @@ export const en: MessageCatalog = {
       summary: 'Application summary', timeline: 'Timeline', appliedAt: 'First applied', stageEntered: 'Entered current stage', resume: 'Resume used', submissions: 'Submissions', source: 'Primary source', campaigns: 'Campaigns', latestEvent: 'Latest event',
       optionalNote: 'Note (optional)', notePlaceholder: 'Example: recruiter email confirmation, reason for withdrawal…', transition: 'Update stage', reject: 'Mark rejected', withdraw: 'Mark withdrawn', closePanel: 'Close detail', openFullPage: 'Open full detail', openJob: 'View job', submissionHistory: 'Submission history', submittedAt: 'Submitted at', channel: 'Channel', listing: 'Listing', profile: 'Resume Profile', revision: 'Revision', artifact: 'Artifact', unknown: 'Historically unknown',
     },
-    submissionChannels: { official: 'Official', boss: 'BOSS', zhilian: 'Zhilian', liepin: 'Liepin', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: 'Email', referral: 'Referral', manual: 'Manual', other: 'Other' },
+    submissionChannels: { official: 'Official', boss: 'BOSS', zhilian: 'Zhilian', liepin: 'Liepin', job51: '51job', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: 'Email', referral: 'Referral', manual: 'Manual', other: 'Other' },
   },
   jobsWorkspace: {
     add: { trigger: '+ Add job', title: 'Add job', description: 'Store the opportunity through the canonical Job Harness write path. Listing identity rules handle deduplication; the UI never writes the database directly.', company: 'Company', role: 'Role', city: 'City', source: 'Source', url: 'Listing URL', externalId: 'Source job ID (optional)', jd: 'Job description / JD', save: 'Save job', saving: 'Saving…', saved: 'Job saved', failed: 'Could not save job' },
@@ -147,13 +149,13 @@ export const en: MessageCatalog = {
       any: 'Any', yes: 'Applied', no: 'Not applied', apply: 'Filter', reset: 'Reset',
     },
     table: {
-      opportunity: 'Role / Company', city: 'City', state: 'State', application: 'Application', source: 'Primary source',
+      opportunity: 'Role / Company', city: 'City', state: 'State', application: 'Application', contact: 'Contact', source: 'Primary source',
       resume: 'Resume', lastSeen: 'Last seen', listings: 'Listings', results: 'jobs', noResults: 'No opportunities match the current filters.',
     },
     detail: {
-      overview: 'Overview', listings: 'Listings', application: 'Application', timeline: 'Timeline', observations: 'Observations',
+      overview: 'Overview', listings: 'Listings', outreach: 'Recruiter contact', application: 'Application', timeline: 'Timeline', observations: 'Observations',
       firstSeen: 'First seen', lastSeen: 'Last seen', description: 'Description', noDescription: 'No job description is stored yet.',
-      noApplication: 'This opportunity has not been applied to yet.', appliedAt: 'Applied at', currentStage: 'Current stage', resume: 'Resume', submissions: 'Submissions',
+      noApplication: 'This opportunity has not been applied to yet.', noOutreach: 'No recruiter contact has been recorded for this opportunity.', appliedAt: 'Applied at', currentStage: 'Current stage', resume: 'Resume', submissions: 'Submissions',
       openOriginal: 'Open original', closePanel: 'Close detail', openFullPage: 'Open full detail', sourceSeen: 'Observed at',
     },
     actions: { shortlist: 'Shortlist', ignore: 'Ignore', close: 'Mark closed', rediscover: 'Rediscover', updating: 'Updating…', failed: 'Could not update job state.' },
@@ -162,7 +164,8 @@ export const en: MessageCatalog = {
     applicationStages: { applied: 'Applied', screening: 'Screening', assessment: 'Assessment', interview: 'Interview', offer: 'Offer', rejected: 'Rejected', withdrawn: 'Withdrawn' },
     listingStatuses: { active: 'Active', closed: 'Closed', unknown: 'Unknown' },
     eventTypes: { application_recorded: 'Application recorded', submission_recorded: 'Additional submission', stage_changed: 'Stage changed', interview_scheduled: 'Interview scheduled', note_added: 'Note added' },
-    sourceKinds: { official: 'Official', boss: 'BOSS', zhilian: 'Zhilian', liepin: 'Liepin', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: 'Email', manual: 'Manual', other: 'Other' },
+    outreachTypes: { greeting_sent: 'Greeting sent', recruiter_replied: 'Recruiter replied', resume_sent: 'Resume sent', already_contacted: 'Previously contacted' },
+    sourceKinds: { official: 'Official', boss: 'BOSS', zhilian: 'Zhilian', liepin: 'Liepin', job51: '51job', moka: 'Moka', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', email: 'Email', manual: 'Manual', other: 'Other' },
   },
   pages: {
     overview: { title: 'Overview', description: 'See active search targets, funnel state, and recent changes.' },

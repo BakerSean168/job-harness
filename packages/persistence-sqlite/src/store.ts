@@ -20,6 +20,7 @@ import type {
   JobListing,
   JobListingCandidate,
   JobObservation,
+  JobOutreachEvent,
   JobDetail,
   JobListItem,
   JobSearchCampaign,
@@ -41,6 +42,8 @@ import type {
   PipelineStatsOutput,
   ListSavedViewsInput,
   ListSavedViewsOutput,
+  ListJobOutreachEventsInput,
+  ListJobOutreachEventsOutput,
   ResumeProfileRef,
   ResumeUsageProfile,
   ResumeRevisionUsageSummary,
@@ -74,12 +77,14 @@ import {
   JobListItemSchema,
   JobListingSchema,
   JobObservationSchema,
+  JobOutreachEventSchema,
   JobSchema,
   JobSearchCampaignSchema,
   ListApplicationBoardOutputSchema,
   ListCompaniesOutputSchema,
   ListDiscoveryRunsOutputSchema,
   ListResumeUsageOutputSchema,
+  ListJobOutreachEventsOutputSchema,
   ResumeProfileRefSchema,
   ResumeUsageProfileSchema,
   ResumeRevisionUsageSummarySchema,
@@ -170,6 +175,24 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       lastSeenAt: row.last_seen_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+    });
+  }
+
+  private outreachEventFromRow(row: Row): JobOutreachEvent {
+    return JobOutreachEventSchema.parse({
+      id: row.id,
+      jobId: row.job_id,
+      listingId: row.listing_id,
+      channel: row.channel,
+      type: row.type,
+      occurredAt: row.occurred_at,
+      actor: row.actor,
+      resumeProfileId: row.resume_profile_id,
+      message: row.message,
+      externalThreadUrl: row.external_thread_url,
+      metadata: json(row.metadata_json),
+      idempotencyKey: row.idempotency_key,
+      createdAt: row.created_at,
     });
   }
 
@@ -266,6 +289,18 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       campaignsByJobId.set(jobId, list);
     }
 
+    const outreachByJobId = new Map<string, { count: number; latest: JobOutreachEvent | null }>();
+    const outreachRows = this.db.prepare(`
+      SELECT e.* FROM job_outreach_events e
+      WHERE e.job_id IN (${placeholders})
+      ORDER BY e.job_id, e.occurred_at DESC, e.id DESC
+    `).all(...jobIds) as Row[];
+    for (const row of outreachRows) {
+      const event = this.outreachEventFromRow(row);
+      const current = outreachByJobId.get(event.jobId) ?? { count: 0, latest: null };
+      outreachByJobId.set(event.jobId, { count: current.count + 1, latest: current.latest ?? event });
+    }
+
     return jobs.map((job) => {
       const application = applicationByJobId.get(job.id) ?? null;
       const effectiveResumeId = application
@@ -291,6 +326,8 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
         sourceKinds: [...new Set(job.listings.map((listing) => listing.sourceKind))].sort(),
         campaigns: campaignsByJobId.get(job.id) ?? [],
         resume,
+        outreachCount: outreachByJobId.get(job.id)?.count ?? 0,
+        latestOutreach: outreachByJobId.get(job.id)?.latest ?? null,
         firstSeenAt: job.firstSeenAt,
         lastSeenAt: job.lastSeenAt,
       });
@@ -418,6 +455,24 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       potentialMatches: rows.map((row) => this.jobFromRow(row)),
       identityConflict: false,
     };
+  }
+
+  async listOutreachEvents(input: ListJobOutreachEventsInput): Promise<ListJobOutreachEventsOutput> {
+    const where: string[] = [];
+    const params: Array<string | number> = [];
+    if (input.jobId) { where.push('job_id = ?'); params.push(input.jobId); }
+    if (input.channel) { where.push('channel = ?'); params.push(input.channel); }
+    if (input.types?.length) {
+      where.push(`type IN (${input.types.map(() => '?').join(',')})`);
+      params.push(...input.types);
+    }
+    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM job_outreach_events ${clause}`).get(...params) as Row).n);
+    const rows = this.db.prepare(`
+      SELECT * FROM job_outreach_events ${clause}
+      ORDER BY occurred_at DESC, id DESC LIMIT ? OFFSET ?
+    `).all(...params, input.limit ?? 50, input.offset ?? 0) as Row[];
+    return ListJobOutreachEventsOutputSchema.parse({ items: rows.map((row) => this.outreachEventFromRow(row)), total });
   }
 
   async listApplications(input: ListApplicationsInput): Promise<ListApplicationsOutput> {
@@ -588,7 +643,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       id: row.id, name: row.name,
       targetRoles: json(row.target_roles_json), cities: json(row.cities_json), graduationYears: json(row.graduation_years_json),
       experience: json(row.experience_json), education: json(row.education_json ?? '[]'), keywords: json(row.keywords_json), exclusions: json(row.exclusions_json),
-      sources: json(row.sources_json), resumeProfileIds: json(row.resume_profile_ids_json), status: row.status,
+      sources: json(row.sources_json), resumeProfileIds: json(row.resume_profile_ids_json), automation: json(row.automation_json ?? '{}'), status: row.status,
       createdAt: row.created_at, updatedAt: row.updated_at,
     });
   }
@@ -682,7 +737,21 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
   }
 
   private discoveryFromRow(row: Row): DiscoveryRun {
-    return DiscoveryRunSchema.parse({ id: row.id, campaignId: row.campaign_id, executor: row.executor, contextSnapshot: json(row.context_snapshot_json), startedAt: row.started_at, completedAt: row.completed_at, candidateCount: Number(row.candidate_count), insertedCount: Number(row.inserted_count), duplicateCount: Number(row.duplicate_count), rejectedCount: Number(row.rejected_count) });
+    return DiscoveryRunSchema.parse({
+      id: row.id,
+      campaignId: row.campaign_id,
+      executor: row.executor,
+      contextSnapshot: json(row.context_snapshot_json),
+      startedAt: row.started_at,
+      completedAt: row.completed_at,
+      status: row.status ?? (row.completed_at == null ? 'running' : 'succeeded'),
+      failureCode: row.failure_code ?? null,
+      failureReason: row.failure_reason ?? null,
+      candidateCount: Number(row.candidate_count),
+      insertedCount: Number(row.inserted_count),
+      duplicateCount: Number(row.duplicate_count),
+      rejectedCount: Number(row.rejected_count),
+    });
   }
 
   async getDiscoveryRun(runId: string): Promise<DiscoveryRun | null> {
@@ -807,6 +876,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
         submissionCount: applicationDetail.submissions.length,
       } : null,
       observations,
+      outreach: (await this.listOutreachEvents({ jobId, limit: 200, offset: 0 })).items,
     });
   }
 
@@ -1056,6 +1126,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     const params: Array<string | number> = [];
     if (input.campaignId) { where.push('d.campaign_id = ?'); params.push(input.campaignId); }
     if (input.executor) { where.push('d.executor = ?'); params.push(input.executor); }
+    if (input.status) { where.push('d.status = ?'); params.push(input.status); }
     const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM discovery_runs d ${clause}`).get(...params) as Row).n);
     const rows = this.db.prepare(`SELECT d.* FROM discovery_runs d ${clause} ORDER BY d.started_at DESC, d.id DESC LIMIT ? OFFSET ?`).all(
@@ -1148,7 +1219,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       id: `stale_application:${String(row.application_id)}`,
       kind: 'stale_application', severity: 'warning',
       label: `${String(row.company_name)} · ${String(row.job_title)}`,
-      jobId: String(row.job_id), applicationId: String(row.application_id), campaignId: input.campaignId ?? null, resumeProfileId: null,
+      jobId: String(row.job_id), applicationId: String(row.application_id), campaignId: input.campaignId ?? null, discoveryRunId: null, resumeProfileId: null,
       stage: row.current_stage as ApplicationStage, sinceAt: String(row.since_at),
     });
 
@@ -1166,7 +1237,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       id: `shortlisted_unapplied:${String(row.job_id)}`,
       kind: 'shortlisted_unapplied', severity: 'warning',
       label: `${String(row.company_name)} · ${String(row.job_title)}`,
-      jobId: String(row.job_id), applicationId: null, campaignId: input.campaignId ?? null, resumeProfileId: null, stage: null, sinceAt: String(row.since_at),
+      jobId: String(row.job_id), applicationId: null, campaignId: input.campaignId ?? null, discoveryRunId: null, resumeProfileId: null, stage: null, sinceAt: String(row.since_at),
     });
 
     const closedListingRows = this.db.prepare(`
@@ -1185,14 +1256,41 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       id: `closed_listing_active_application:${String(row.application_id)}`,
       kind: 'closed_listing_active_application', severity: 'critical',
       label: `${String(row.company_name)} · ${String(row.job_title)}`,
-      jobId: String(row.job_id), applicationId: String(row.application_id), campaignId: input.campaignId ?? null, resumeProfileId: null,
+      jobId: String(row.job_id), applicationId: String(row.application_id), campaignId: input.campaignId ?? null, discoveryRunId: null, resumeProfileId: null,
       stage: row.current_stage as ApplicationStage, sinceAt: row.since_at == null ? null : String(row.since_at),
+    });
+
+    const failedDiscoveryRows = input.campaignId
+      ? this.db.prepare(`
+          SELECT d.id AS discovery_run_id, d.campaign_id, c.name AS campaign_name, d.failure_code, d.completed_at
+          FROM discovery_runs d LEFT JOIN campaigns c ON c.id = d.campaign_id
+          WHERE d.status = 'failed' AND d.campaign_id = ?
+          ORDER BY d.completed_at DESC, d.started_at DESC, d.id DESC LIMIT ?
+        `).all(input.campaignId, attentionLimit) as Row[]
+      : this.db.prepare(`
+          SELECT d.id AS discovery_run_id, d.campaign_id, c.name AS campaign_name, d.failure_code, d.completed_at
+          FROM discovery_runs d LEFT JOIN campaigns c ON c.id = d.campaign_id
+          WHERE d.status = 'failed'
+          ORDER BY d.completed_at DESC, d.started_at DESC, d.id DESC LIMIT ?
+        `).all(attentionLimit) as Row[];
+    for (const row of failedDiscoveryRows) attention.push({
+      id: `failed_discovery_run:${String(row.discovery_run_id)}`,
+      kind: 'failed_discovery_run',
+      severity: 'warning',
+      label: `${row.campaign_name == null ? 'DiscoveryRun' : String(row.campaign_name)} · ${row.failure_code == null ? 'failed' : String(row.failure_code)}`,
+      jobId: null,
+      applicationId: null,
+      campaignId: row.campaign_id == null ? null : String(row.campaign_id),
+      discoveryRunId: String(row.discovery_run_id),
+      resumeProfileId: null,
+      stage: null,
+      sinceAt: row.completed_at == null ? null : String(row.completed_at),
     });
 
     const campaignWhere = input.campaignId ? "c.status = 'active' AND c.id = ?" : "c.status = 'active'";
     const staleCampaignRows = this.db.prepare(`
       SELECT c.id AS campaign_id, c.name AS campaign_name, c.created_at AS created_at, MAX(d.completed_at) AS last_completed_at
-      FROM campaigns c LEFT JOIN discovery_runs d ON d.campaign_id = c.id AND d.completed_at IS NOT NULL
+      FROM campaigns c LEFT JOIN discovery_runs d ON d.campaign_id = c.id AND d.status = 'succeeded' AND d.completed_at IS NOT NULL
       WHERE ${campaignWhere}
       GROUP BY c.id, c.name, c.created_at
       HAVING last_completed_at IS NULL OR last_completed_at < ?
@@ -1201,7 +1299,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     `).all(...(input.campaignId ? [input.campaignId] : []), daysAgo(3), attentionLimit) as Row[];
     for (const row of staleCampaignRows) attention.push({
       id: `stale_campaign_discovery:${String(row.campaign_id)}`, kind: 'stale_campaign_discovery', severity: 'info',
-      label: String(row.campaign_name), jobId: null, applicationId: null, campaignId: String(row.campaign_id), resumeProfileId: null, stage: null,
+      label: String(row.campaign_name), jobId: null, applicationId: null, campaignId: String(row.campaign_id), discoveryRunId: null, resumeProfileId: null, stage: null,
       sinceAt: String(row.last_completed_at ?? row.created_at),
     });
 
@@ -1213,12 +1311,12 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       if (!resume.artifactUri) {
         attention.push({
           id: `missing_resume_artifact:${resume.id}`, kind: 'missing_resume_artifact', severity: 'warning', label: resume.name,
-          jobId: null, applicationId: null, campaignId: input.campaignId ?? null, resumeProfileId: resume.id, stage: null, sinceAt: resume.updatedAt,
+          jobId: null, applicationId: null, campaignId: input.campaignId ?? null, discoveryRunId: null, resumeProfileId: resume.id, stage: null, sinceAt: resume.updatedAt,
         });
       } else if (resume.updatedAt < daysAgo(30)) {
         attention.push({
           id: `stale_resume_artifact:${resume.id}`, kind: 'stale_resume_artifact', severity: 'info', label: resume.name,
-          jobId: null, applicationId: null, campaignId: input.campaignId ?? null, resumeProfileId: resume.id, stage: null, sinceAt: resume.updatedAt,
+          jobId: null, applicationId: null, campaignId: input.campaignId ?? null, discoveryRunId: null, resumeProfileId: resume.id, stage: null, sinceAt: resume.updatedAt,
         });
       }
     }
@@ -1400,6 +1498,26 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     return this.companyById(id)!;
   }
 
+  async companyOwnsName(companyId: string, name: string): Promise<boolean> {
+    const normalized = normalizeIdentityText(name);
+    if (!normalized) return false;
+    const rows = this.db.prepare(`
+      SELECT c.normalized_name AS normalized_name, ca.normalized_alias AS normalized_alias
+      FROM companies c
+      LEFT JOIN company_aliases ca ON ca.company_id = c.id
+      WHERE c.id = ?
+    `).all(companyId) as Row[];
+    const compact = (value: string) => value.replace(/[\s/\\()（）【】\[\]·,，.。:：;；_\-]/g, '');
+    const incoming = compact(normalized);
+    return rows.some((row) => [row.normalized_name, row.normalized_alias].some((value) => {
+      if (value == null) return false;
+      const existing = compact(String(value));
+      if (!existing || !incoming) return false;
+      if (existing === incoming) return true;
+      return Math.min(existing.length, incoming.length) >= 4 && (existing.includes(incoming) || incoming.includes(existing));
+    }));
+  }
+
   async addCompanyAlias(companyId: string, alias: string, now: string): Promise<Company> {
     const company = this.companyById(companyId);
     if (!company) throw new Error(`Company '${companyId}' not found`);
@@ -1573,6 +1691,26 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     );
   }
 
+  async insertOutreachEvent(event: JobOutreachEvent): Promise<void> {
+    this.db.prepare(`INSERT INTO job_outreach_events(
+      id,job_id,listing_id,channel,type,occurred_at,actor,resume_profile_id,message,external_thread_url,metadata_json,idempotency_key,created_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      event.id,
+      event.jobId,
+      event.listingId,
+      event.channel,
+      event.type,
+      event.occurredAt,
+      event.actor,
+      event.resumeProfileId,
+      event.message,
+      event.externalThreadUrl,
+      JSON.stringify(event.metadata),
+      event.idempotencyKey,
+      event.createdAt,
+    );
+  }
+
   async updateJobState(jobId: string, state: JobState, now: string): Promise<Job> {
     this.db.prepare('UPDATE jobs SET state=?, updated_at=? WHERE id=?').run(state, now, jobId);
     const job = await this.getJob(jobId);
@@ -1660,19 +1798,24 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
   }
 
   async upsertCampaign(campaign: JobSearchCampaign): Promise<JobSearchCampaign> {
-    this.db.prepare(`INSERT INTO campaigns(id,name,target_roles_json,cities_json,graduation_years_json,experience_json,education_json,keywords_json,exclusions_json,sources_json,resume_profile_ids_json,status,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,target_roles_json=excluded.target_roles_json,cities_json=excluded.cities_json,graduation_years_json=excluded.graduation_years_json,experience_json=excluded.experience_json,education_json=excluded.education_json,keywords_json=excluded.keywords_json,exclusions_json=excluded.exclusions_json,sources_json=excluded.sources_json,resume_profile_ids_json=excluded.resume_profile_ids_json,status=excluded.status,updated_at=excluded.updated_at`).run(
-      campaign.id, campaign.name, JSON.stringify(campaign.targetRoles), JSON.stringify(campaign.cities), JSON.stringify(campaign.graduationYears), JSON.stringify(campaign.experience), JSON.stringify(campaign.education), JSON.stringify(campaign.keywords), JSON.stringify(campaign.exclusions), JSON.stringify(campaign.sources), JSON.stringify(campaign.resumeProfileIds), campaign.status, campaign.createdAt, campaign.updatedAt,
+    this.db.prepare(`INSERT INTO campaigns(id,name,target_roles_json,cities_json,graduation_years_json,experience_json,education_json,keywords_json,exclusions_json,sources_json,resume_profile_ids_json,automation_json,status,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,target_roles_json=excluded.target_roles_json,cities_json=excluded.cities_json,graduation_years_json=excluded.graduation_years_json,experience_json=excluded.experience_json,education_json=excluded.education_json,keywords_json=excluded.keywords_json,exclusions_json=excluded.exclusions_json,sources_json=excluded.sources_json,resume_profile_ids_json=excluded.resume_profile_ids_json,automation_json=excluded.automation_json,status=excluded.status,updated_at=excluded.updated_at`).run(
+      campaign.id, campaign.name, JSON.stringify(campaign.targetRoles), JSON.stringify(campaign.cities), JSON.stringify(campaign.graduationYears), JSON.stringify(campaign.experience), JSON.stringify(campaign.education), JSON.stringify(campaign.keywords), JSON.stringify(campaign.exclusions), JSON.stringify(campaign.sources), JSON.stringify(campaign.resumeProfileIds), JSON.stringify(campaign.automation), campaign.status, campaign.createdAt, campaign.updatedAt,
     );
     return (await this.getCampaign(campaign.id))!;
   }
 
   async insertDiscoveryRun(run: DiscoveryRun): Promise<void> {
-    this.db.prepare('INSERT INTO discovery_runs(id,campaign_id,executor,context_snapshot_json,started_at,completed_at,candidate_count,inserted_count,duplicate_count,rejected_count) VALUES(?,?,?,?,?,?,?,?,?,?)').run(run.id, run.campaignId, run.executor, JSON.stringify(run.contextSnapshot), run.startedAt, run.completedAt, run.candidateCount, run.insertedCount, run.duplicateCount, run.rejectedCount);
+    this.db.prepare('INSERT INTO discovery_runs(id,campaign_id,executor,context_snapshot_json,started_at,completed_at,status,failure_code,failure_reason,candidate_count,inserted_count,duplicate_count,rejected_count) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').run(
+      run.id, run.campaignId, run.executor, JSON.stringify(run.contextSnapshot), run.startedAt, run.completedAt,
+      run.status, run.failureCode, run.failureReason, run.candidateCount, run.insertedCount, run.duplicateCount, run.rejectedCount,
+    );
   }
 
   async updateDiscoveryRun(run: DiscoveryRun): Promise<DiscoveryRun> {
-    this.db.prepare('UPDATE discovery_runs SET completed_at=?,candidate_count=?,inserted_count=?,duplicate_count=?,rejected_count=? WHERE id=?').run(run.completedAt, run.candidateCount, run.insertedCount, run.duplicateCount, run.rejectedCount, run.id);
+    this.db.prepare('UPDATE discovery_runs SET completed_at=?,status=?,failure_code=?,failure_reason=?,candidate_count=?,inserted_count=?,duplicate_count=?,rejected_count=? WHERE id=?').run(
+      run.completedAt, run.status, run.failureCode, run.failureReason, run.candidateCount, run.insertedCount, run.duplicateCount, run.rejectedCount, run.id,
+    );
     return (await this.getDiscoveryRun(run.id))!;
   }
 
@@ -1702,6 +1845,7 @@ export class SqliteCareerStore implements CareerStorePort {
   searchJobs(input: SearchJobsInput) { return this.readSession().searchJobs(input); }
   getJob(jobId: string) { return this.readSession().getJob(jobId); }
   findDuplicate(input: DuplicateCheckInput) { return this.readSession().findDuplicate(input); }
+  listOutreachEvents(input: ListJobOutreachEventsInput) { return this.readSession().listOutreachEvents(input); }
   listApplications(input: ListApplicationsInput) { return this.readSession().listApplications(input); }
   getApplication(applicationId: string) { return this.readSession().getApplication(applicationId); }
   getSubmissionIntent(intentId: string) { return this.readSession().getSubmissionIntent(intentId); }

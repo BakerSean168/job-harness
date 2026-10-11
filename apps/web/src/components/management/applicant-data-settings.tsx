@@ -12,11 +12,8 @@ import {
   type ApplicationAnswerSetContext,
 } from '@job-harness/applicant-contracts';
 import type { MessageCatalog } from '@/i18n';
-import {
-  initialApplicantSettingsActionState,
-  saveApplicantProfileAction,
-  saveApplicationAnswerSetAction,
-} from '@/app/settings/actions';
+import { saveApplicantProfileAction, saveApplicationAnswerSetAction } from '@/app/settings/actions';
+import { initialApplicantSettingsActionState } from '@/app/settings/action-state';
 
 const split = (value: string) => [...new Set(value.split(/[\n,，;；]+/).map((item) => item.trim()).filter(Boolean))];
 const displayValue = (value: ApplicationAnswerEntry['value']) => Array.isArray(value) ? value.join(', ') : String(value);

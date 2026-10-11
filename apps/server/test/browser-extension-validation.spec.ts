@@ -147,14 +147,107 @@ describe('browser-extension validation scope', () => {
     await answerOne(bridge, target);
     await answerOne(bridge, [{ contactRef: '[data-job-harness-boss-contact-id="jhc-0"]', recruiter: '李女士' }]);
     await expect(scanPromise).resolves.toMatchObject({ run: { writeCount: 0 } });
+    await expect(registry.invoke(run.id, {
+      sessionRef: 'chrome-tab:inspect', command: { type: 'boss_scan_unread_contacts', payload: { limit: 20, includeRead: true } }, timeoutMs: 5_000,
+    })).rejects.toMatchObject({ code: 'VALIDATION_CLIENT_UPGRADE_REQUIRED' });
 
     await expect(registry.invoke(run.id, {
       sessionRef: 'chrome-tab:inspect', command: { type: 'boss_send_message', payload: { message: 'denied' } }, timeoutMs: 5_000,
     })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
     await expect(registry.invoke(run.id, {
       sessionRef: 'chrome-tab:inspect',
-      command: { type: 'boss_confirm_resume', payload: { resumeIndex: 1, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc123.html' } },
+      command: { type: 'boss_confirm_resume', payload: { resumeIndex: 1, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc123.html', expectedResumeLabel: '前端开发工程师' } },
       timeoutMs: 5_000,
+    })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
+    bridge.close();
+  });
+
+  it('allows explicit BOSS read-history backfill only on Browser Bridge 0.2.4+', async () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge, '0.2.4');
+    const registry = new BrowserExtensionValidationRegistry(bridge, { allowedOrigin: 'https://job-harness.test:20900' });
+    const target = 'https://www.zhipin.com/web/geek/chat';
+    const run = registry.create({ agentId: 'windows-chrome-primary', targetUrl: target, mode: 'boss-chat-inspect' });
+    const acquirePromise = registry.invoke(run.id, {
+      sessionRef: null,
+      command: { type: 'session_acquire', payload: { preferredUrl: target, reuseLiveSession: true, requireLiveSession: false } },
+      timeoutMs: 5_000,
+    });
+    await answerOne(bridge, { sessionRef: 'chrome-tab:inspect', currentUrl: target });
+    await acquirePromise;
+
+    const scanPromise = registry.invoke(run.id, {
+      sessionRef: 'chrome-tab:inspect', command: { type: 'boss_scan_unread_contacts', payload: { limit: 20, includeRead: true } }, timeoutMs: 5_000,
+    });
+    await answerOne(bridge, target);
+    await answerOne(bridge, [{ contactRef: '[data-job-harness-boss-contact-id="jhc-0"]', recruiter: '李女士', unread: false }]);
+    await expect(scanPromise).resolves.toMatchObject({ run: { writeCount: 0 } });
+    bridge.close();
+  });
+
+  it('bounds BOSS resume sync to resume-management surfaces and keeps upload off the personal-center page', async () => {
+    const bridge = new BrowserExtensionBridge();
+    register(bridge, '0.2.4');
+    const registry = new BrowserExtensionValidationRegistry(bridge, { allowedOrigin: 'https://job-harness.test:20900' });
+
+    expect(() => registry.create({
+      agentId: 'windows-chrome-primary', targetUrl: 'https://www.zhipin.com/web/geek/chat', mode: 'boss-resume-sync',
+    })).toThrow(/personal-center or attachment-resume import page/);
+
+    const inspectTarget = 'https://www.zhipin.com/web/geek/recommend?ka=header-resume';
+    const inspectRun = registry.create({ agentId: 'windows-chrome-primary', targetUrl: inspectTarget, mode: 'boss-resume-sync' });
+    expect(inspectRun).toMatchObject({ mode: 'boss-resume-sync', targetUrl: 'https://www.zhipin.com/web/geek/recommend', writeCount: 0 });
+
+    const inspectAcquire = registry.invoke(inspectRun.id, {
+      sessionRef: null,
+      command: { type: 'session_acquire', payload: { preferredUrl: inspectTarget, reuseLiveSession: false, requireLiveSession: false } },
+      timeoutMs: 5_000,
+    });
+    await answerOne(bridge, { sessionRef: 'chrome-tab:boss-resume-inspect', currentUrl: 'https://www.zhipin.com/web/geek/recommend' });
+    await expect(inspectAcquire).resolves.toMatchObject({ run: { sessionRef: 'chrome-tab:boss-resume-inspect', writeCount: 0 } });
+
+    const scan = registry.invoke(inspectRun.id, {
+      sessionRef: 'chrome-tab:boss-resume-inspect', command: { type: 'scan_actions', payload: {} }, timeoutMs: 5_000,
+    });
+    await answerOne(bridge, 'https://www.zhipin.com/web/geek/recommend');
+    await answerOne(bridge, [{ actionRef: '[data-job-harness-action-id="jha-resume"]', text: '简历', href: 'https://www.zhipin.com/web/user/resume-parse' }]);
+    await expect(scan).resolves.toMatchObject({ run: { writeCount: 0 } });
+
+    await expect(registry.invoke(inspectRun.id, {
+      sessionRef: 'chrome-tab:boss-resume-inspect',
+      command: { type: 'upload', payload: { selector: '[data-job-harness-field-id="jh-resume"]', file: { name: 'front.pdf', mimeType: 'application/pdf', bytesBase64: 'AA==' } } },
+      timeoutMs: 5_000,
+    })).rejects.toMatchObject({ code: 'VALIDATION_UPLOAD_DENIED' });
+
+    const uploadTarget = 'https://www.zhipin.com/web/user/resume-parse';
+    const uploadRun = registry.create({ agentId: 'windows-chrome-primary', targetUrl: uploadTarget, mode: 'boss-resume-sync' });
+    const uploadAcquire = registry.invoke(uploadRun.id, {
+      sessionRef: null,
+      command: { type: 'session_acquire', payload: { preferredUrl: uploadTarget, reuseLiveSession: false, requireLiveSession: false } },
+      timeoutMs: 5_000,
+    });
+    await answerOne(bridge, { sessionRef: 'chrome-tab:boss-resume-upload', currentUrl: uploadTarget });
+    await uploadAcquire;
+
+    const upload = registry.invoke(uploadRun.id, {
+      sessionRef: 'chrome-tab:boss-resume-upload',
+      command: { type: 'upload', payload: { selector: '[data-job-harness-field-id="jh-resume"]', file: { name: 'front.pdf', mimeType: 'application/pdf', bytesBase64: 'AA==' } } },
+      timeoutMs: 5_000,
+    });
+    await answerOne(bridge, uploadTarget);
+    const uploadCommand = await answerOne(bridge, null);
+    expect(uploadCommand.command).toMatchObject({ type: 'upload', payload: { file: { name: 'front.pdf', mimeType: 'application/pdf' } } });
+    await expect(upload).resolves.toMatchObject({ run: { writeCount: 1 } });
+
+    const screenshot = registry.invoke(uploadRun.id, {
+      sessionRef: 'chrome-tab:boss-resume-upload', command: { type: 'screenshot', payload: {} }, timeoutMs: 5_000,
+    });
+    await answerOne(bridge, uploadTarget);
+    await answerOne(bridge, 'cG5n');
+    await expect(screenshot).resolves.toMatchObject({ result: 'cG5n', run: { writeCount: 1 } });
+
+    await expect(registry.invoke(uploadRun.id, {
+      sessionRef: 'chrome-tab:boss-resume-upload', command: { type: 'click', payload: { selector: 'button', expectedText: '发送' } }, timeoutMs: 5_000,
     })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
     bridge.close();
   });
@@ -226,9 +319,9 @@ describe('browser-extension validation scope', () => {
     bridge.close();
   });
 
-  it('binds BOSS resume follow-up to the policy-authorized resume index and forbids chat messages', async () => {
+  it('binds BOSS resume follow-up to the policy-authorized resume label and forbids chat messages', async () => {
     const bridge = new BrowserExtensionBridge();
-    register(bridge, '0.2.3');
+    register(bridge, '0.2.5');
     const registry = new BrowserExtensionValidationRegistry(bridge, { allowedOrigin: 'https://job-harness.test:20900' });
     const target = 'https://www.zhipin.com/web/geek/chat';
     const run = registry.create({
@@ -236,7 +329,7 @@ describe('browser-extension validation scope', () => {
       targetUrl: target,
       mode: 'boss-outreach',
       bossOutreachIntent: {
-        operation: 'resume-followup', jobUrl: 'https://www.zhipin.com/job_detail/abc123.html', expectedResumeIndex: 1, score: 71, threshold: 58, authorizationReason: 'qualified-followup',
+        operation: 'resume-followup', jobUrl: 'https://www.zhipin.com/job_detail/abc123.html', expectedResumeLabel: '前端开发工程师', score: 71, threshold: 58, authorizationReason: 'qualified-followup',
       },
     });
     const acquirePromise = registry.invoke(run.id, {
@@ -249,7 +342,7 @@ describe('browser-extension validation scope', () => {
       sessionRef: 'chrome-tab:chat', command: { type: 'boss_send_message', payload: { message: '不允许自动聊天' } }, timeoutMs: 5_000,
     })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
     await expect(registry.invoke(run.id, {
-      sessionRef: 'chrome-tab:chat', command: { type: 'boss_confirm_resume', payload: { resumeIndex: 1, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc123.html' } }, timeoutMs: 5_000,
+      sessionRef: 'chrome-tab:chat', command: { type: 'boss_confirm_resume', payload: { resumeIndex: 1, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc123.html', expectedResumeLabel: '前端开发工程师' } }, timeoutMs: 5_000,
     })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
 
     const preparePromise = registry.invoke(run.id, {
@@ -260,19 +353,19 @@ describe('browser-extension validation scope', () => {
     await expect(preparePromise).resolves.toMatchObject({ run: { writeCount: 0 } });
 
     await expect(registry.invoke(run.id, {
-      sessionRef: 'chrome-tab:chat', command: { type: 'boss_confirm_resume', payload: { resumeIndex: 0, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc123.html' } }, timeoutMs: 5_000,
+      sessionRef: 'chrome-tab:chat', command: { type: 'boss_confirm_resume', payload: { resumeIndex: 0, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc123.html', expectedResumeLabel: '全栈开发工程师' } }, timeoutMs: 5_000,
     })).rejects.toMatchObject({ code: 'VALIDATION_COMMAND_DENIED' });
 
     const confirmPromise = registry.invoke(run.id, {
-      sessionRef: 'chrome-tab:chat', command: { type: 'boss_confirm_resume', payload: { resumeIndex: 1, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc123.html' } }, timeoutMs: 5_000,
+      sessionRef: 'chrome-tab:chat', command: { type: 'boss_confirm_resume', payload: { resumeIndex: 0, expectedJobUrl: 'https://www.zhipin.com/job_detail/abc123.html', expectedResumeLabel: '前端开发工程师' } }, timeoutMs: 5_000,
     });
     await answerOne(bridge, target);
-    await answerOne(bridge, { sent: true, selectedResumeIndex: 1, mode: 'resume_list' });
+    await answerOne(bridge, { sent: true, selectedResumeIndex: 0, mode: 'resume_list' });
     await expect(confirmPromise).resolves.toMatchObject({ run: { writeCount: 1 } });
     bridge.close();
   });
 
-  it('requires Browser Bridge 0.2.3 and a passing bounded intent before BOSS outreach is created', () => {
+  it('requires Browser Bridge 0.2.3 for greetings and 0.2.5 for label-verified resume follow-up', () => {
     const bridge = new BrowserExtensionBridge();
     register(bridge, '0.2.2');
     const registry = new BrowserExtensionValidationRegistry(bridge, { allowedOrigin: 'https://job-harness.test:20900' });
@@ -284,12 +377,16 @@ describe('browser-extension validation scope', () => {
     bridge.close();
 
     const current = new BrowserExtensionBridge();
-    register(current, '0.2.3');
+    register(current, '0.2.4');
     const currentRegistry = new BrowserExtensionValidationRegistry(current, { allowedOrigin: 'https://job-harness.test:20900' });
     expect(() => currentRegistry.create({
       agentId: 'windows-chrome-primary', targetUrl: jobUrl, mode: 'boss-outreach',
       bossOutreachIntent: { operation: 'greet', jobUrl, expectedMessage: 'hello', score: 53, threshold: 58, resumeIndex: 1 },
     })).toThrow(/score >= threshold/);
+    expect(() => currentRegistry.create({
+      agentId: 'windows-chrome-primary', targetUrl: 'https://www.zhipin.com/web/geek/chat', mode: 'boss-outreach',
+      bossOutreachIntent: { operation: 'resume-followup', jobUrl, expectedResumeLabel: '前端开发工程师', score: 71, threshold: 58, authorizationReason: 'explicit-request' },
+    })).toThrow(/Browser Bridge >= 0.2.5/);
     current.close();
   });
 

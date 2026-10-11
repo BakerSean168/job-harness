@@ -1,0 +1,40 @@
+--- a/app/worker/job51_bot.py
++++ b/app/worker/job51_bot.py
+@@ -179,9 +179,9 @@
+             logger.warning("前程无忧未登录，终止投递")
+             return
+ 
+-        # 4. Pre-check daily limit before starting delivery
++        # 4. Pre-check daily limit before starting delivery. Collection-only mode does not consume delivery quota.
+         await asyncio.sleep(1)
+-        if await self._detect_daily_limit():
++        if os.getenv("JOB_HARNESS_GET_JOBS_COLLECT_ONLY", "0") != "1" and await self._detect_daily_limit():
+             self.is_limit = True
+             self._info("检测到今日投递已达上限，任务终止")
+             logger.warning("51job 日投递上限已触发，终止投递")
+@@ -269,13 +269,18 @@
+                 self._info("该关键词暂无职位，提前结束")
+                 break
+ 
+-            # Check daily limit before delivering this page
+-            if await self._detect_daily_limit():
+-                self.is_limit = True
+-                self._info("检测到今日投递已达上限，停止投递")
+-                return posted
+-
+-            page_posted = await self._deliver_current_page()
++            if os.getenv("JOB_HARNESS_GET_JOBS_COLLECT_ONLY", "0") == "1":
++                # Search responses are already intercepted and persisted by _on_search_response.
++                await asyncio.sleep(1)
++                self._info(f"仅采集模式：已采集【{keyword}】第【{page_num}】页，不执行投递")
++                page_posted = 0
++            else:
++                # Check daily limit before delivering this page
++                if await self._detect_daily_limit():
++                    self.is_limit = True
++                    self._info("检测到今日投递已达上限，停止投递")
++                    return posted
++                page_posted = await self._deliver_current_page()
+             posted += page_posted
+             if self.is_limit:
+                 break

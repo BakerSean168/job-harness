@@ -68,7 +68,7 @@ interface SessionState {
 }
 
 interface PersistedSessionEvent {
-  type: 'started' | 'candidate' | 'completed';
+  type: 'started' | 'candidate' | 'completed' | 'reconciled';
   sessionId: string;
   generation: number;
   runId: string;
@@ -106,6 +106,12 @@ function safeSessionId(value: unknown): string | null {
 function decisionUrl(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   try { return canonicalJobUrl(value); } catch { return null; }
+}
+
+function isAlreadyCompletedConflict(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const status = Number((error as Error & { status?: unknown }).status ?? 0);
+  return status === 409 && /already completed/i.test(error.message);
 }
 
 export function parseBossDiscoveryDecision(
@@ -150,6 +156,7 @@ export class BossDiscoveryCoordinator {
   private readonly logger: Pick<Console, 'info' | 'warn' | 'error'>;
   private readonly reports = new Map<string, BossDiscoveryReport>();
   private readonly decisions = new Map<string, BossDiscoveryDecision>();
+  private readonly jobIds = new Map<string, string>();
   private readonly sessions = new Map<string, SessionState>();
   private campaignValidated = false;
 
@@ -185,7 +192,7 @@ export class BossDiscoveryCoordinator {
           duplicateCount: event.duplicateCount ?? 0,
           rejectedCount: event.rejectedCount ?? 0,
           seenUrls: new Set(event.jobUrl ? [event.jobUrl] : []),
-          completed: event.type === 'completed',
+          completed: event.type === 'completed' || event.type === 'reconciled',
           timer: null,
           completing: null,
         });
@@ -196,7 +203,7 @@ export class BossDiscoveryCoordinator {
         current.duplicateCount = event.duplicateCount ?? current.duplicateCount;
         current.rejectedCount = event.rejectedCount ?? current.rejectedCount;
         if (event.jobUrl) current.seenUrls.add(event.jobUrl);
-        if (event.type === 'completed') current.completed = true;
+        if (event.type === 'completed' || event.type === 'reconciled') current.completed = true;
       }
     }
     for (const [sessionId, state] of states) {
@@ -205,7 +212,7 @@ export class BossDiscoveryCoordinator {
     }
   }
 
-  async report(raw: unknown): Promise<{ accepted: true; correlated: boolean }> {
+  async report(raw: unknown): Promise<{ accepted: true; correlated: boolean; jobId: string | null }> {
     const report = BossDiscoveryReportSchema.parse(raw);
     const canonical = canonicalJobUrl(report.jobUrl);
     const normalized = BossDiscoveryReportSchema.parse({ ...report, jobUrl: canonical, observedAt: report.observedAt ?? this.now() });
@@ -213,12 +220,12 @@ export class BossDiscoveryCoordinator {
     this.trimCache(this.reports);
     const decision = this.decisions.get(canonical);
     if (decision) {
-      await this.ingest(normalized, decision);
-      return { accepted: true, correlated: true };
+      const result = await this.ingest(normalized, decision);
+      return { accepted: true, correlated: true, jobId: result?.jobId ?? this.jobIds.get(canonical) ?? null };
     }
     const observedAt = normalized.observedAt ?? this.now();
     const day = observedAt.slice(0, 10).replace(/-/g, '');
-    await this.ingest(normalized, {
+    const result = await this.ingest(normalized, {
       screeningSessionId: normalized.discoverySessionId ?? `boss-browser-daily-${day}`,
       jobUrl: normalized.jobUrl,
       title: normalized.title,
@@ -230,7 +237,7 @@ export class BossDiscoveryCoordinator {
       recommendedProfileLabel: null,
       observedAt,
     });
-    return { accepted: true, correlated: false };
+    return { accepted: true, correlated: false, jobId: result?.jobId ?? this.jobIds.get(canonical) ?? null };
   }
 
   async decision(decision: BossDiscoveryDecision): Promise<{ correlated: boolean }> {
@@ -284,9 +291,9 @@ export class BossDiscoveryCoordinator {
     return state;
   }
 
-  private async ingest(report: BossDiscoveryReport, decision: BossDiscoveryDecision): Promise<void> {
+  private async ingest(report: BossDiscoveryReport, decision: BossDiscoveryDecision): Promise<UpsertJobsBatchOutput['items'][number] | null> {
     const state = await this.ensureSession(decision.screeningSessionId, decision.observedAt ?? report.observedAt ?? this.now());
-    if (state.seenUrls.has(report.jobUrl)) return;
+    if (state.seenUrls.has(report.jobUrl)) return null;
     const externalId = externalJobId(report.jobUrl);
     const candidate: UpsertJobsBatchInput['jobs'][number] = {
       companyName: report.companyName,
@@ -315,6 +322,10 @@ export class BossDiscoveryCoordinator {
     };
     const result = (await this.client.jobs.upsertJobsBatch({ jobs: [candidate] })).items[0];
     if (!result) throw new Error('BOSS discovery upsert returned no item');
+    if (result.jobId) {
+      this.jobIds.set(report.jobUrl, result.jobId);
+      this.trimCache(this.jobIds);
+    }
     state.seenUrls.add(report.jobUrl);
     state.lastAt = this.now();
     state.candidateCount += 1;
@@ -325,11 +336,12 @@ export class BossDiscoveryCoordinator {
     this.scheduleCompletion(state);
     this.reports.delete(report.jobUrl);
     this.decisions.delete(report.jobUrl);
+    return result;
   }
 
   private scheduleCompletion(state: SessionState): void {
     if (state.timer) clearTimeout(state.timer);
-    const elapsed = Math.max(0, Date.now() - Date.parse(state.lastAt));
+    const elapsed = Math.max(0, Date.parse(this.now()) - Date.parse(state.lastAt));
     const delay = Math.max(1, this.idleCompleteMs - elapsed);
     state.timer = setTimeout(() => {
       void this.complete(state).catch((error) => this.logger.error('BOSS discovery session completion failed', error));
@@ -347,14 +359,26 @@ export class BossDiscoveryCoordinator {
   private async completeOnce(state: SessionState): Promise<void> {
     if (state.timer) { clearTimeout(state.timer); state.timer = null; }
     const completedAt = this.now();
-    await this.client.discovery.complete({
-      runId: state.runId,
-      completedAt,
-      candidateCount: state.candidateCount,
-      insertedCount: state.insertedCount,
-      duplicateCount: state.duplicateCount,
-      rejectedCount: state.rejectedCount,
-    });
+    try {
+      await this.client.discovery.complete({
+        runId: state.runId,
+        completedAt,
+        candidateCount: state.candidateCount,
+        insertedCount: state.insertedCount,
+        duplicateCount: state.duplicateCount,
+        rejectedCount: state.rejectedCount,
+      });
+    } catch (error) {
+      if (!isAlreadyCompletedConflict(error)) throw error;
+      // The canonical DiscoveryRun already crossed the completion boundary, but an
+      // earlier process may have crashed before appending the local completion event.
+      // Reconcile the append-only recovery log instead of retrying the completed run forever.
+      state.lastAt = completedAt;
+      await this.persist(state, 'reconciled');
+      state.completed = true;
+      this.logger.warn(`BOSS discovery session '${state.sessionId}' reconciled to already-completed run '${state.runId}'`);
+      return;
+    }
     state.lastAt = completedAt;
     await this.persist(state, 'completed');
     state.completed = true;

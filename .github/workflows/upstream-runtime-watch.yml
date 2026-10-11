@@ -1,0 +1,47 @@
+name: Upstream Runtime Watch
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 1 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Verify pinned upstreams
+        run: pnpm upstream:check
+
+      - name: Generate upgrade candidate report
+        run: pnpm upstream:report --output-dir .tmp/upstream-watch-report
+
+      - name: Characterize current upstream HEAD candidates
+        run: |
+          pnpm upstream:test czc-good-job
+          pnpm upstream:test openjobautofill
+          pnpm upstream:test vvvsrx-get-jobs
+
+      - name: Upload upgrade candidate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recruitment-runtime-upstream-watch
+          path: .tmp/upstream-watch-report
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Detect newer upstream revisions
+        run: pnpm upstream:check --strict-updates

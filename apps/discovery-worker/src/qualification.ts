@@ -52,6 +52,7 @@ export interface DiscoveryQualificationResult {
   readonly skippedRoleMismatch: number;
   readonly skippedApplicantRequirement: number;
   readonly skippedNonExecutable: number;
+  readonly skippedPreparationDisabled: number;
   readonly skippedChannel: number;
   readonly skippedTitleOnlyPrepare: number;
   readonly skippedAutoPrepareRoleMismatch: number;
@@ -105,6 +106,7 @@ export class DiscoveryQualificationProcessor {
     let skippedRoleMismatch = 0;
     let skippedApplicantRequirement = 0;
     let skippedNonExecutable = 0;
+    let skippedPreparationDisabled = 0;
     let skippedChannel = 0;
     let skippedTitleOnlyPrepare = 0;
     let skippedAutoPrepareRoleMismatch = 0;
@@ -156,21 +158,28 @@ export class DiscoveryQualificationProcessor {
         }
 
         if (!top.executable) { skippedNonExecutable += 1; continue; }
+        const officialPolicy = campaign.automation?.officialSite ?? { prepareEnabled: true, fillEnabled: true, submitEnabled: false, preferredResumeProfileId: null };
+        if (!officialPolicy.prepareEnabled) { skippedPreparationDisabled += 1; continue; }
         if (!(jobDetail.job.description?.trim())) { skippedTitleOnlyPrepare += 1; continue; }
         if (!titleEligibleForAutomaticPreparation(jobDetail.job.title)) { skippedAutoPrepareRoleMismatch += 1; continue; }
         const listing = jobDetail.primaryListing ?? item.primaryListing;
         if (!isFormalHttpListing(listing)) { skippedChannel += 1; continue; }
         const intents = await this.client.submissionIntents.list({ jobId: item.jobId, limit: 1, offset: 0 });
         if (intents.total > 0) { existingIntents += 1; continue; }
+        const configuredProfileId = officialPolicy.preferredResumeProfileId;
+        const selectedProfile = configuredProfileId
+          ? recommendations.items.find((candidate) => candidate.profileId === configuredProfileId) ?? null
+          : top;
+        if (!selectedProfile) throw new Error(`Campaign preferred Resume Profile '${configuredProfileId}' is not active for Job '${item.jobId}'`);
         preparable += 1;
-        if (preparableSamples.length < 20) preparableSamples.push({ jobId: item.jobId, title: jobDetail.job.title, url: listing.url!, profileId: top.profileId, score: top.score });
+        if (preparableSamples.length < 20) preparableSamples.push({ jobId: item.jobId, title: jobDetail.job.title, url: listing.url!, profileId: selectedProfile.profileId, score: selectedProfile.score });
         if (!this.autoPrepare || this.dryRun) continue;
         await this.client.jobs.prepareRecommendedSubmission(item.jobId, {
           listingId: listing.id,
-          preferredProfileId: top.profileId,
+          preferredProfileId: selectedProfile.profileId,
           executor: 'browser-extension',
-          idempotencyKey: `qualification:${item.jobId}:${top.profileId}:prepare`,
-          note: `Auto-prepared after DiscoveryRun ${runId}; deterministic match ${top.score}/100 (${top.decision}).`,
+          idempotencyKey: `qualification:${item.jobId}:${selectedProfile.profileId}:prepare`,
+          note: `Auto-prepared after DiscoveryRun ${runId}; qualification match ${top.score}/100 (${top.decision}); selected Resume ${selectedProfile.profileId} (${selectedProfile.score}/100).`,
         });
         prepared += 1;
       } catch (error) {
@@ -193,6 +202,7 @@ export class DiscoveryQualificationProcessor {
       skippedRoleMismatch,
       skippedApplicantRequirement,
       skippedNonExecutable,
+      skippedPreparationDisabled,
       skippedChannel,
       skippedTitleOnlyPrepare,
       skippedAutoPrepareRoleMismatch,

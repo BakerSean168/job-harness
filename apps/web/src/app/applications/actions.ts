@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { ApplicationStageSchema, ApplicationSubmissionChannelSchema, IsoDateTimeSchema, ListApplicationBoardInputSchema, type ListApplicationBoardOutput } from '@job-harness/contracts';
 import { JobHarnessRestError } from '@job-harness/client';
 import { getJobHarnessClient } from '../../lib/job-harness-client';
+import type { RecordApplicationActionState } from './action-state';
 
 export interface ApplicationTransitionActionResult {
   ok: boolean;
@@ -66,20 +67,6 @@ export async function loadApplicationLaneAction(input: unknown): Promise<Applica
   }
 }
 
-
-export interface RecordApplicationActionState {
-  ok: boolean;
-  applicationId: string | null;
-  code: string | null;
-  message: string | null;
-}
-
-export const initialRecordApplicationActionState: RecordApplicationActionState = {
-  ok: false,
-  applicationId: null,
-  code: null,
-  message: null,
-};
 
 function formString(formData: FormData, key: string): string {
   const value = formData.get(key);

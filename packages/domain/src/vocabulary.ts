@@ -27,12 +27,21 @@ export const APPLICATION_EVENT_TYPES = [
 ] as const;
 export type ApplicationEventType = (typeof APPLICATION_EVENT_TYPES)[number];
 
+export const JOB_OUTREACH_EVENT_TYPES = [
+  'greeting_sent',
+  'recruiter_replied',
+  'resume_sent',
+  'already_contacted',
+] as const;
+export type JobOutreachEventType = (typeof JOB_OUTREACH_EVENT_TYPES)[number];
+
 
 export const APPLICATION_SUBMISSION_CHANNELS = [
   'official',
   'boss',
   'zhilian',
   'liepin',
+  'job51',
   'moka',
   'greenhouse',
   'lever',
@@ -56,11 +65,15 @@ export const DISCOVERY_EXECUTORS = [
 ] as const;
 export type DiscoveryExecutor = (typeof DISCOVERY_EXECUTORS)[number];
 
+export const DISCOVERY_RUN_STATUSES = ['running', 'succeeded', 'failed', 'aborted'] as const;
+export type DiscoveryRunStatus = (typeof DISCOVERY_RUN_STATUSES)[number];
+
 export const JOB_SOURCE_KINDS = [
   'official',
   'boss',
   'zhilian',
   'liepin',
+  'job51',
   'moka',
   'greenhouse',
   'lever',

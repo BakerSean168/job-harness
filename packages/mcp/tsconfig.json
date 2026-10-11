@@ -16,6 +16,9 @@
       "path": "../application"
     },
     {
+      "path": "../recruitment-runtime-contracts"
+    },
+    {
       "path": "../resume-contracts"
     },
     {

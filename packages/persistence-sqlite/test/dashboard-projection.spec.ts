@@ -60,6 +60,18 @@ describe('dashboard operational projection', () => {
       await career.jobs.setJobState({ jobId: recentJobId, state: 'shortlisted', idempotencyKey: 'shortlist-recent' });
       const recentApplication = await career.applications.recordApplication({ jobId: recentJobId, appliedAt: clock, resumeProfileId: 'resume-current', idempotencyKey: 'apply-recent', actor: 'user' });
       await career.discovery.completeDiscoveryRun({ runId: recentRun.id, completedAt: clock, candidateCount: 1, insertedCount: 1, duplicateCount: 0, rejectedCount: 0 });
+      const failedRun = await career.discovery.beginDiscoveryRun({ campaignId: 'campaign-recent', executor: 'other', contextSnapshot: { provider: 'fixture' }, startedAt: '2026-09-15T09:30:00.000Z', idempotencyKey: 'failed-run' });
+      await career.discovery.completeDiscoveryRun({
+        runId: failedRun.id,
+        completedAt: '2026-09-15T09:31:00.000Z',
+        status: 'failed',
+        failureCode: 'provider_error',
+        failureReason: 'fixture provider unavailable',
+        candidateCount: 0,
+        insertedCount: 0,
+        duplicateCount: 0,
+        rejectedCount: 1,
+      });
 
       clock = '2026-09-16T10:00:00.000Z';
       await career.applications.transitionApplication({ applicationId: recentApplication.application.id, toStage: 'screening', occurredAt: clock, idempotencyKey: 'screen-recent', actor: 'user' });
@@ -70,12 +82,16 @@ describe('dashboard operational projection', () => {
         'stale_application',
         'shortlisted_unapplied',
         'closed_listing_active_application',
+        'failed_discovery_run',
         'stale_campaign_discovery',
         'missing_resume_artifact',
         'stale_resume_artifact',
       ]));
       expect(dashboard.attention.find((item) => item.kind === 'closed_listing_active_application')).toMatchObject({ severity: 'critical', jobId: staleAppJobId });
       expect(dashboard.attention.find((item) => item.kind === 'stale_application')).toMatchObject({ stage: 'applied' });
+      expect(dashboard.attention.find((item) => item.kind === 'failed_discovery_run')).toMatchObject({
+        severity: 'warning', discoveryRunId: failedRun.id, campaignId: 'campaign-recent',
+      });
 
       expect(dashboard.weeklyActivity).toHaveLength(7);
       expect(dashboard.weeklyActivity.map((point) => point.shortlisted)).toEqual(Array(7).fill(null));

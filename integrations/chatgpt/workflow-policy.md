@@ -12,6 +12,47 @@ This is the normative orchestration policy for a ChatGPT/custom-MCP client. It i
 6. Never repeat a recruiting-site side effect merely because the subsequent Job Harness call failed. Recover from the durable intent first.
 7. `needs_manual_review` means “unknown/needs verification”, not success and not failure.
 8. Keep discovery and storage incremental. Upsert candidates in bounded batches instead of retaining an entire search session only in conversation state.
+9. Only three MCP tools may deliberately cross a bounded external-effect boundary: `boss_runtime_start` starts/reuses one Campaign-policy-bounded coarse BOSS Site Runtime task, `boss_greeting_resolve(action=send)` releases one already-waiting BOSS greeting, and `career_email_application_authorize_send` authorizes one exact immutable email draft for the independent delivery worker. None is permission to submit an ATS application or perform arbitrary browser actions.
+
+## Campaign automation modules
+
+Every automated discovery/application run must load the Campaign and obey `campaign.automation` before starting downstream work. The modules are deliberately independent:
+
+```text
+collection.enabled
+  -> discover + dedupe + persist Job/Listing/Observation
+
+outreach.enabled
+  -> allows the coarse recruiting-platform Site Runtime
+outreach.autoStartEnabled
+  -> allows `boss_runtime_start(mode=automatic)`; false does not block an explicit/manual operator start
+outreach.greetingEnabled / recruiterInboxEnabled / resumeFollowupEnabled
+  -> become immutable policy on the active Runtime task
+outreach.maxExternalEffectsPerRun
+  -> bounds recruiter-facing effects performed under that Runtime task
+
+officialSite.prepareEnabled
+  -> choose configured Resume or deterministic recommendation
+  -> career_submission_intent_prepare_recommended
+
+officialSite.fillEnabled
+  -> allows the separate planned-intent dispatcher to queue safe fill/upload work
+
+officialSite.submitEnabled
+  -> when a capable executor exists, dispatcher may use review_then_submit with submitAllowed=true
+  -> the existing one-time ReviewSnapshot/submit-authorization boundary is still mandatory before any final click
+
+email.draftEnabled
+  -> choose configured Resume or deterministic recommendation
+  -> generate JD-specific subject/body from true Resume facts
+  -> career_email_application_prepare(subject, body, ...)
+
+email.sendEnabled
+  -> career_email_application_authorize_send(exact draftHash, short TTL)
+  -> independent Email Delivery Worker performs the provider send when configured/running
+```
+
+Safe defaults are collection=true, outreach enabled=true, outreach auto-start=false, greeting/inbox/explicit resume-followup=true with a bounded per-run external-effect budget, official prepare=true, official safe fill=true, official final submit=false, email draft=true, email send=false. A preferred Resume Profile ID pins the selected Resume for that channel; null means use deterministic recommendation. Never turn on a later module implicitly because an earlier module is enabled.
 
 ## Discovery workflow
 
@@ -31,6 +72,32 @@ Rules:
 - Store source URL/external identity when available so Job/Listing dedupe stays deterministic.
 - A DiscoveryRun should be completed with truthful candidate/inserted/duplicate/rejected counts even when the conversation later changes topic.
 
+## Upstream collect-only Site Runtime workflow
+
+For 智联、猎聘 and 51job, use the `vvvsrx/get_jobs` upstream-derived Runtime as a coarse collect-only Site Runtime instead of rebuilding selectors in Job Harness:
+
+```text
+recruitment_collection_runtime_status(site)
+  -> if login-required: stop and request human login
+  -> recruitment_collection_runtime_start(site, campaignId, optional city)
+       Job Harness validates campaign.automation.collection.enabled
+       Job Harness derives search keywords and validates the city
+       Runtime must prove collectOnly=true
+  -> upstream worker collects/persists observed job rows without delivery clicks
+  -> recruitment_collection_runtime_stop(site) after the bounded run
+  -> recruitment_collection_runtime_sync(site, discoveryRunId)
+       canonical Job Harness Job/Listing upsert
+```
+
+Rules:
+
+- `recruitment_collection_runtime_start` is not recruiter-facing authority. The server refuses upstream-default mode and the deployed overlay suppresses delivery clicks.
+- Never use a generic browser driver to duplicate a mature upstream collector while this Runtime is healthy.
+- The upstream runtime cache is not a business source of truth. Sync into Job Harness and use canonical dedupe there.
+- An upstream `delivered` flag is imported as metadata only and never establishes an Application or ApplicationSubmission.
+- Only cities declared by the active Campaign may be selected. Search keywords are server-derived from Campaign target roles rather than supplied freely by the ChatGPT caller.
+- `login-required` is a human gate. Do not automate around QR login, CAPTCHA, visit verification, or account-security challenges.
+
 ## Resume authoring workflow
 
 ```text
@@ -49,9 +116,86 @@ Rules:
 - A published Revision is immutable evidence. Never rewrite it to represent a later submission.
 - When preparing an application, bind the exact Revision/Artifact whenever available.
 
+## BOSS Site Runtime workflow
+
+BOSS browser automation is a coarse upstream-backed Site Runtime, not a sequence of MCP/Bridge DOM commands. Read its state first:
+
+```text
+boss_runtime_status
+  -> inspect browser/runtime health, active task and recent normalized events
+  -> when the current ChatGPT session will generate greetings, boss_greeting_resolver_ready(owner, readySeconds)
+  -> if an active task is already running, reuse it
+  -> otherwise boss_runtime_start(mode=automatic|manual, stable idempotencyKey)
+  -> runtime executes the mature upstream-derived search/detail/chat/resume state machine
+  -> boss_runtime_status exposes normalized task/events
+  -> boss_runtime_pause(taskId, reason) when the bounded run should stop
+```
+
+Rules:
+
+- `boss_runtime_status` and `boss_runtime_pause` do not create recruiter-facing effects.
+- `boss_runtime_start` is a bounded external-side-effect tool because a running Site Runtime may perform Campaign-authorized recruiter-facing work. It does not grant arbitrary browser control, ATS submit authority, or permission beyond the Campaign snapshot.
+- `mode=automatic` is rejected unless `campaign.automation.outreach.autoStartEnabled=true`. Use `mode=manual` only when the user explicitly asked to start/continue BOSS outreach in the current interaction.
+- The bridge derives greeting/inbox/resume-followup permissions and the external-effect budget from the active Campaign; callers do not supply or widen these permissions.
+- The dedicated browser may have broad DOM/tab/upload capabilities internally, but Job Harness controls it at business-task granularity.
+- Runtime tasks are time-bounded (one hour by default) in addition to the Campaign external-effect budget. The bridge automatically pauses an active task when the actual BOSS page reports login/security challenge state or when the task expires; do not attempt to bypass platform verification.
+
+## BOSS greeting workflow
+
+When a BOSS Site Runtime task is running and the current ChatGPT session is expected to generate greetings, announce readiness before or immediately after starting the bounded runtime:
+
+```text
+boss_greeting_resolver_ready(owner=chatgpt-web-mcp, readySeconds ~= 180)
+  -> new greeting requests briefly prefer ChatGPT Web
+  -> boss_greetings_pending(limit <= 10)
+  -> boss_greeting_claim(owner, leaseSeconds <= 30)
+  -> inspect the claimed request's JD, match data and true candidate context
+  -> boss_greeting_resolve(leaseToken, action=send, message=...) OR boss_greeting_resolve(leaseToken, action=skip, reason=...)
+  -> claim the next request while the active run still has work
+```
+
+Rules:
+
+- `boss_greetings_pending` is read-only and sends nothing.
+- `boss_greeting_resolver_ready` is a bounded presence/priority handshake and sends nothing. Renew it during a long interactive batch rather than assuming the browser conversation is permanently online.
+- A request created while ChatGPT readiness is active reserves only a short interactive-priority interval (10 seconds in the Oracle2 deployment). During that interval the background model worker cannot claim the request. Afterward the background Groq resolver may claim it automatically.
+- `boss_greeting_claim` only acquires a short single-writer lease; it sends nothing. Resolve only the request returned by your lease and never reuse a lease token for another request.
+- For `send`, write only a natural 1-3 sentence greeting grounded in the provided Resume facts and current JD. Do not invent experience, years, employers, awards or proficiency.
+- Use `skip` when the JD has an explicit hard requirement the candidate does not meet, or when the core role does not match the supplied evidence.
+- `boss_greeting_resolve(action=send)` is a bounded external side effect: it requires the active lease token and releases the already-waiting Compatibility Runtime, which sends exactly that greeting to the current BOSS recruiter. Do not call it outside an explicit BOSS-outreach task.
+- A lease never extends the overall greeting deadline. The resolver order is: ready ChatGPT Web first, configured background provider (Groq/Qwen on Oracle2) after the interactive priority interval, then deterministic Job Harness fallback at the original 35-second deadline.
+- Do not spin indefinitely. Process a bounded batch during the active ChatGPT run; if no claim is available, the background resolver may be handling it, so continue only within the active bounded run.
+- A BOSS greeting is recruiter contact, not a completed job application. Durable outreach evidence and Application/Submission state remain separate.
+
+## Recruiting-email workflow
+
+For a discovered Job whose verified public source contains a recruiting mailbox, first persist the Job/Listing normally. If `campaign.automation.email.draftEnabled` is false, stop after collection. If enabled:
+
+```text
+career_job_resume_recommend
+  -> choose campaign.automation.email.preferredResumeProfileId when non-null, otherwise the recommended Profile
+  -> write a truthful JD-specific subject/body
+  -> career_email_application_prepare(jobId, recipient, preferredProfileId, subject, body, idempotencyKey)
+```
+
+`career_email_application_prepare` freezes recipient, generated copy, exact Resume Revision/PDF Artifact and `draftHash`; it does **not** send email. Do not claim an Application exists at this stage.
+
+If `campaign.automation.email.sendEnabled` is false, stop with the durable draft package. If true, and only after re-reading the exact package/draft hash, call:
+
+```text
+career_email_application_authorize_send(
+  packageId,
+  draftHash,
+  expiresInSeconds <= 300,
+  idempotencyKey
+)
+```
+
+This authorization is a bounded external effect because a configured Email Delivery Worker may immediately claim it and send the exact frozen email. The server independently rejects authorization when no active associated Campaign enables email sending. Never authorize a different draft, silently regenerate copy after authorization, or treat an authorization as proof of send. Provider Message-ID + durable confirmation remain the success boundary.
+
 ## External application workflow
 
-The MCP app itself **does not click the recruiting site**. A separate user/browser executor performs that side effect.
+Except for bounded BOSS greeting release and bounded email-send authorization, the MCP app itself **does not click or submit on recruiting sites**. Official-site preparation freezes a SubmissionIntent/Resume; the separate dispatcher/browser executor performs safe fill/upload, and final submit remains behind its own authorization boundary.
 
 Before any external action:
 
