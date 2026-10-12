@@ -1,0 +1,44 @@
+--- a/app/services/job51_service.py
++++ b/app/services/job51_service.py
+@@ -1,3 +1,4 @@
++from datetime import datetime, timezone
+ from sqlalchemy import select, func
+ from sqlalchemy.ext.asyncio import AsyncSession
+ from app.models import Job51Data
+@@ -18,6 +19,23 @@ class Job51Service:
+         await self.session.refresh(job)
+         return job
+ 
++    async def observe_job(self, data: dict) -> Job51Data:
++        """Insert or refresh a cached row and stamp the latest real collection observation."""
++        job_id = data.get("job_id")
++        result = await self.session.execute(select(Job51Data).where(Job51Data.job_id == job_id))
++        job = result.scalar_one_or_none()
++        if job is None:
++            job = Job51Data(**data)
++            self.session.add(job)
++        else:
++            for key, value in data.items():
++                if key not in {"id", "created_at", "updated_at", "delivered"} and hasattr(job, key):
++                    setattr(job, key, value)
++            job.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
++        await self.session.commit()
++        await self.session.refresh(job)
++        return job
++
+     async def mark_delivered(self, job_id: str) -> bool:
+         result = await self.session.execute(select(Job51Data).where(Job51Data.job_id == job_id))
+         job = result.scalar_one_or_none()
+@@ -40,8 +58,10 @@ class Job51Service:
+             "pending": total - delivered,
+         }
+ 
+-    async def get_job_list(self, limit: int = 100, offset: int = 0, status: str = None):
+-        query = select(Job51Data).order_by(Job51Data.created_at.desc()).limit(limit).offset(offset)
++    async def get_job_list(self, limit: int = 100, offset: int = 0, status: str = None, observed_since: datetime = None):
++        query = select(Job51Data).order_by(Job51Data.updated_at.desc()).limit(limit).offset(offset)
++        if observed_since is not None:
++            query = query.where(Job51Data.updated_at >= observed_since)
+         if status == "delivered":
+             query = query.where(Job51Data.delivered == 1)
+         elif status == "pending":

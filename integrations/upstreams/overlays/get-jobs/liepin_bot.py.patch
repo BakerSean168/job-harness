@@ -1,6 +1,20 @@
 --- a/app/worker/liepin_bot.py
 +++ b/app/worker/liepin_bot.py
-@@ -325,10 +325,14 @@
+@@ -264,10 +264,9 @@ class LiepinBot:
+                     job_id = job.get("job_id")
+                     if not job_id:
+                         continue
+-                    if not await service.exists_job(job_id):
+-                        data = {k: v for k, v in job.items()}
+-                        data["delivered"] = 0
+-                        await service.insert_job(data)
++                    data = {k: v for k, v in job.items()}
++                    data["delivered"] = 0
++                    await service.observe_job(data)
+         except Exception as e:
+             logger.warning("批量保存猎聘岗位数据失败：%s", e)
+ 
+@@ -325,10 +324,14 @@ class LiepinBot:
              except Exception:
                  pass
  

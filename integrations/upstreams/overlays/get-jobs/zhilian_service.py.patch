@@ -1,0 +1,44 @@
+--- a/app/services/zhilian_service.py
++++ b/app/services/zhilian_service.py
+@@ -1,3 +1,4 @@
++from datetime import datetime, timezone
+ from sqlalchemy import select, func
+ from sqlalchemy.ext.asyncio import AsyncSession
+ from app.models import ZhilianData
+@@ -18,6 +19,23 @@ class ZhilianService:
+         await self.session.refresh(job)
+         return job
+ 
++    async def observe_job(self, data: dict) -> ZhilianData:
++        """Insert or refresh a cached row and stamp the latest real collection observation."""
++        job_id = data.get("job_id")
++        result = await self.session.execute(select(ZhilianData).where(ZhilianData.job_id == job_id))
++        job = result.scalar_one_or_none()
++        if job is None:
++            job = ZhilianData(**data)
++            self.session.add(job)
++        else:
++            for key, value in data.items():
++                if key not in {"id", "created_at", "updated_at", "delivered"} and hasattr(job, key):
++                    setattr(job, key, value)
++            job.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
++        await self.session.commit()
++        await self.session.refresh(job)
++        return job
++
+     async def mark_delivered(self, job_id: str) -> bool:
+         result = await self.session.execute(select(ZhilianData).where(ZhilianData.job_id == job_id))
+         job = result.scalar_one_or_none()
+@@ -38,8 +56,10 @@ class ZhilianService:
+             "pending": total - delivered,
+         }
+ 
+-    async def get_job_list(self, limit: int = 100, offset: int = 0, status: str = None):
+-        query = select(ZhilianData).order_by(ZhilianData.created_at.desc()).limit(limit).offset(offset)
++    async def get_job_list(self, limit: int = 100, offset: int = 0, status: str = None, observed_since: datetime = None):
++        query = select(ZhilianData).order_by(ZhilianData.updated_at.desc()).limit(limit).offset(offset)
++        if observed_since is not None:
++            query = query.where(ZhilianData.updated_at >= observed_since)
+         if status == "delivered":
+             query = query.where(ZhilianData.delivered == 1)
+         elif status == "pending":
