@@ -1,6 +1,6 @@
 --- a/app/schemas.py
 +++ b/app/schemas.py
-@@ -134,8 +134,19 @@
+@@ -134,10 +134,22 @@ class LiepinDataResponse(BaseModel):
      id: int
      job_id: Optional[str] = None
      job_title: Optional[str] = None
@@ -20,8 +20,11 @@
 +    hr_title: Optional[str] = None
      delivered: Optional[int] = None
      created_at: Optional[datetime] = None
++    updated_at: Optional[datetime] = None
  
-@@ -167,8 +178,13 @@
+     class Config:
+         from_attributes = True
+@@ -167,8 +179,13 @@ class ZhilianDataResponse(BaseModel):
      id: int
      job_id: Optional[str] = None
      job_title: Optional[str] = None
@@ -36,7 +39,7 @@
      delivered: Optional[int] = None
      created_at: Optional[datetime] = None
  
-@@ -209,8 +225,19 @@
+@@ -209,10 +226,22 @@ class Job51DataResponse(BaseModel):
      id: int
      job_id: Optional[str] = None
      job_title: Optional[str] = None
@@ -56,4 +59,7 @@
 +    hr_title: Optional[str] = None
      delivered: Optional[int] = None
      created_at: Optional[datetime] = None
++    updated_at: Optional[datetime] = None
  
+     class Config:
+         from_attributes = True

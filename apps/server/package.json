@@ -10,7 +10,8 @@
     "smoke:chatgpt-mcp": "tsx scripts/chatgpt-mcp-smoke.ts",
     "import:legacy-ledger": "tsx src/import-legacy-ledger.ts",
     "boss:bridge": "tsx src/boss-outreach-bridge-cli.ts",
-    "get-jobs:runtime": "tsx scripts/get-jobs-runtime-cli.ts"
+    "get-jobs:runtime": "tsx scripts/get-jobs-runtime-cli.ts",
+    "canary:collection-runtime": "tsx scripts/recruitment-collection-canary.ts"
   },
   "dependencies": {
     "@job-harness/application": "workspace:*",

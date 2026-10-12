@@ -1,6 +1,6 @@
 --- a/app/worker/zhilian_bot.py
 +++ b/app/worker/zhilian_bot.py
-@@ -171,18 +171,20 @@
+@@ -171,18 +171,20 @@ class ZhilianBot:
          city_code = db_config.city_code or self.config.get("city_code", "")
          salary = db_config.salary or self.config.get("salary", "")
  
@@ -26,7 +26,7 @@
  
      async def _submit_keyword(self, keyword, city_code, salary, task_state):
          from app.worker.zhilian_locators import (
-@@ -228,6 +230,30 @@
+@@ -228,6 +230,30 @@ class ZhilianBot:
              logger.warning("等待职位列表超时")
              return 0
  
@@ -57,7 +57,7 @@
          posted = 0
          page_num = 1
  
-@@ -236,7 +262,7 @@
+@@ -236,7 +262,7 @@ class ZhilianBot:
                  self._info("收到停止指令，结束分页循环")
                  return posted
  
@@ -66,7 +66,7 @@
  
              # 等待职位列表
              try:
-@@ -270,9 +296,55 @@
+@@ -270,9 +296,55 @@ class ZhilianBot:
              else:
                  break
  
@@ -123,7 +123,7 @@
      async def _deliver_current_page(self) -> int:
          from app.worker.zhilian_locators import (
              JOB_CARDS, APPLY_BUTTON, ALREADY_APPLIED_MARKER,
-@@ -283,6 +355,7 @@
+@@ -283,6 +355,7 @@ class ZhilianBot:
          job_cards = self.page.locator(JOB_CARDS)
          count = await job_cards.count()
          posted = 0
@@ -131,7 +131,7 @@
  
          # 先采集所有职位信息
          jobs_data = []
-@@ -290,16 +363,26 @@
+@@ -290,16 +363,26 @@ class ZhilianBot:
              card = job_cards.nth(i)
              try:
                  job_title = await self._safe_get_text(card, JOB_TITLE)
@@ -165,7 +165,17 @@
                  job_id = self._extract_job_id(job_link, job_title, company_name)
                  if not job_id:
                      logger.warning("无法提取 job_id，链接: %s", job_link)
-@@ -335,6 +418,10 @@
+@@ -328,13 +411,16 @@ class ZhilianBot:
+                 async with self.db_session_factory() as session:
+                     from app.services.zhilian_service import ZhilianService
+                     service = ZhilianService(session)
+-                    if not await service.exists_job(job_id):
+-                        data = {k: v for k, v in job.items() if k != "index"}
+-                        await service.insert_job(data)
+-                        logger.warning("保存职位成功: %s", job_id)
++                    data = {k: v for k, v in job.items() if k != "index"}
++                    await service.observe_job(data)
++                    logger.warning("刷新职位观察: %s", job_id)
              except Exception as e:
                  logger.warning("保存岗位数据失败 %s: %s", job_id, e)
  
@@ -176,7 +186,7 @@
          # 投递
          for job in jobs_data:
              from app.worker.task_state import task_state
-@@ -468,6 +555,9 @@
+@@ -468,6 +554,9 @@ class ZhilianBot:
      def _extract_job_id(self, link: Optional[str], job_title: str = "", company_name: str = "") -> Optional[str]:
          if link:
              try:

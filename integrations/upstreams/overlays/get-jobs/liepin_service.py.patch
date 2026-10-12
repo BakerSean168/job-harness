@@ -1,0 +1,49 @@
+--- a/app/services/liepin_service.py
++++ b/app/services/liepin_service.py
+@@ -1,3 +1,4 @@
++from datetime import datetime, timezone
+ from sqlalchemy import select, func
+ from sqlalchemy.ext.asyncio import AsyncSession
+ from app.models import LiepinData
+@@ -18,6 +19,23 @@ class LiepinService:
+         await self.session.refresh(job)
+         return job
+ 
++    async def observe_job(self, data: dict) -> LiepinData:
++        """Insert or refresh a cached row and stamp the latest real collection observation."""
++        job_id = data.get("job_id")
++        result = await self.session.execute(select(LiepinData).where(LiepinData.job_id == job_id))
++        job = result.scalar_one_or_none()
++        if job is None:
++            job = LiepinData(**data)
++            self.session.add(job)
++        else:
++            for key, value in data.items():
++                if key not in {"id", "created_at", "updated_at", "delivered"} and hasattr(job, key):
++                    setattr(job, key, value)
++            job.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
++        await self.session.commit()
++        await self.session.refresh(job)
++        return job
++
+     async def mark_delivered(self, job_id: str) -> bool:
+         result = await self.session.execute(select(LiepinData).where(LiepinData.job_id == job_id))
+         job = result.scalar_one_or_none()
+@@ -40,13 +58,15 @@ class LiepinService:
+             "pending": total_val - delivered_val,
+         }
+ 
+-    async def get_job_list(self, limit: int = 100, offset: int = 0, status: str = None):
++    async def get_job_list(self, limit: int = 100, offset: int = 0, status: str = None, observed_since: datetime = None):
+         query = (
+             select(LiepinData)
+-            .order_by(LiepinData.created_at.desc())
++            .order_by(LiepinData.updated_at.desc())
+             .limit(limit)
+             .offset(offset)
+         )
++        if observed_since is not None:
++            query = query.where(LiepinData.updated_at >= observed_since)
+         if status == "delivered":
+             query = query.where(LiepinData.delivered == 1)
+         elif status == "pending":
