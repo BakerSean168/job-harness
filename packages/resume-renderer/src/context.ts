@@ -20,6 +20,24 @@ export function formatResumePeriod(period: ResolvedResume['education'][number]['
   return `${base}${separator}${period.note}`;
 }
 
+/**
+ * Resume project links are external URLs. Legacy data put "GitHub:" in the
+ * URL field, which URL() otherwise treats as a custom github: protocol.
+ * Accept only absolute HTTP(S) links, and never emit an unsafe href.
+ */
+export function safeProjectLinkHref(input: string): string | null {
+  const legacy = input.trim().replace(/^GitHub:\s*(?=https?:\/\/)/i, '');
+  try {
+    const parsed = new URL(legacy);
+    if ((parsed.protocol !== 'https:' && parsed.protocol !== 'http:') || !parsed.hostname || parsed.username || parsed.password) {
+      return null;
+    }
+    return parsed.href;
+  } catch {
+    return null;
+  }
+}
+
 export interface ResumeTemplateContextOptions {
   readonly title?: string;
   readonly description?: string;
@@ -65,8 +83,19 @@ export function toResumeTemplateContext(resume: ResolvedResume, options: ResumeT
       name: item.name,
       role: item.role,
       location: item.location,
-      date: formatResumePeriod(item.period, resume.locale),
+      date: formatResumePeriod(
+        resume.templateId === 'compact-project-links-v2'
+          ? { ...item.period, note: null }
+          : item.period,
+        resume.locale,
+      ),
       link: item.links[0]?.url ?? null,
+      links: item.links.flatMap((link) => {
+        const href = safeProjectLinkHref(link.url);
+        if (!href) return [];
+        const label = link.label ?? (new URL(href).hostname === 'github.com' ? 'GitHub' : (lang === 'zh' ? '项目展示' : 'Showcase'));
+        return [{ href, label }];
+      }),
       description: item.description,
       stack: item.stack,
       highlights: item.highlights.map((highlight) => ({ label: highlight.label ?? '', detail: highlight.detail })),

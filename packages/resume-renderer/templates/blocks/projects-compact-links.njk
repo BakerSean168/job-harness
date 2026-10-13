@@ -1,0 +1,38 @@
+{# Frontend v2.3 compact layout. Legacy templates remain unchanged. #}
+<section class="resume-section projects-section">
+  <div class="section-title"><span></span><h2>{{ '项目经历' if lang == 'zh' else 'Projects' }}</h2></div>
+  {% for project in projects %}
+  <article class="project-item">
+    <div class="line between keep-together">
+      <h3>{{ project.name }}</h3>
+      {% if project.date %}<span>{{ project.date }}</span>{% endif %}
+    </div>
+    {% if project.role or project.links | length %}
+    <div class="line between keep-together">
+      {% if project.role %}<p>{{ project.role }}</p>{% endif %}
+      {% if project.links | length %}
+      <span class="project-links">
+        {% for link in project.links %}
+        {% if not loop.first %}<span aria-hidden="true"> · </span>{% endif %}
+        <a href="{{ link.href }}" target="_blank" rel="noopener noreferrer" style="text-decoration: underline; text-underline-offset: 2px;">{{ link.label }}</a>
+        {% endfor %}
+      </span>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if project.description %}
+    <p class="project-summary text-justify keep-together"><strong>{{ '项目简介：' if lang == 'zh' else 'Description: ' }}</strong>{{ project.description }}</p>
+    {% endif %}
+    {% if project.stack %}
+    <p class="tech text-justify keep-together"><strong>{{ '技术栈：' if lang == 'zh' else 'Tech Stack: ' }}</strong>{{ project.stack }}</p>
+    {% endif %}
+    {% if project.highlights | length %}
+    <div class="compact text-justify" style="margin-top: 3px;">
+      {% for h in project.highlights %}
+      <p><strong>{{ h.label }}</strong>{{ ' ' if lang == 'en' }}{{ h.detail | safe }}</p>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>
