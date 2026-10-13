@@ -44,7 +44,12 @@ export interface RenderResumeHtmlOptions extends ResumeTemplateContextOptions {}
 
 export function renderResumeHtml(input: ResolvedResume, options: RenderResumeHtmlOptions = {}): string {
   const resume = ResolvedResumeSchema.parse(input);
-  return createEnvironment().render('resume.njk', toResumeTemplateContext(resume, options));
+  // Use a separate template instead of editing the frozen legacy resume layout.
+  // Historical immutable Revisions continue to use resume.njk.
+  const template = resume.templateId === 'compact-project-links-v2'
+    ? 'resume-compact-links.njk'
+    : 'resume.njk';
+  return createEnvironment().render(template, toResumeTemplateContext(resume, options));
 }
 
 
