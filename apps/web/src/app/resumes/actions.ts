@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import type { PublishResumeRevisionOutput, ResumeLibrary, ResumeProfile, ResumeProfileContext } from '@job-harness/resume-contracts';
+import { resumeAttachmentFileName, type PublishResumeRevisionOutput, type ResumeLibrary, type ResumeProfile, type ResumeProfileContext } from '@job-harness/resume-contracts';
 import { JobHarnessRestError } from '@job-harness/client';
 import { getJobHarnessClient, syncResumeArtifactToRecruitingSite } from '../../lib/job-harness-client';
 
@@ -48,7 +48,6 @@ export async function syncResumeRevisionToSiteAction(input: {
   revisionId: string;
   agentId: string;
   siteFamily: 'liepin';
-  fileName: string;
 }): Promise<ResumeSaveResult<ResumeSiteSyncValue>> {
   try {
     const client = getJobHarnessClient();
@@ -60,7 +59,7 @@ export async function syncResumeRevisionToSiteAction(input: {
       agentId: input.agentId,
       targetUrl,
       artifactId: materialized.artifact.id,
-      fileName: input.fileName.endsWith('.pdf') ? input.fileName : `${input.fileName}.pdf`,
+      fileName: resumeAttachmentFileName(detail.revision.resolvedDocumentSnapshot.output.pdfName ?? detail.revision.resolvedDocumentSnapshot.output.documentTitle),
     });
     return synced.state === 'uploaded'
       ? { ok: true, value: { state: 'uploaded', revisionId: input.revisionId, artifactId: synced.artifactId, artifactSha256: synced.artifactSha256, runId: synced.runId, currentUrl: synced.currentUrl, title: synced.title, stateSignals: synced.stateSignals } }

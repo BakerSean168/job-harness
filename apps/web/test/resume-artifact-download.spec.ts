@@ -64,7 +64,7 @@ describe('Web Resume artifact download proxy', () => {
     const response = await POST(request);
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('text/html');
-    expect(response.headers.get('content-disposition')).toContain('Agent%20Resume-v1.html');
+    expect(response.headers.get('content-disposition')).toContain('Agent%20Resume.html');
     const html = await response.text();
     expect(html).toContain('测试用户');
     expect(html).not.toContain('download-secret');

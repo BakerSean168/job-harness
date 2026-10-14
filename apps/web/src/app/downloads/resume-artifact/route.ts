@@ -1,11 +1,7 @@
 import { NextRequest } from 'next/server';
+import { resumeFileBaseName } from '@job-harness/resume-contracts';
 import { isSameOriginRequest } from '../../../auth/request';
 import { fetchJobHarnessResumeArtifact, getJobHarnessClient } from '../../../lib/job-harness-client';
-
-function safeBaseName(value: string): string {
-  const cleaned = value.normalize('NFKC').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '-').replace(/\s+/g, ' ').trim();
-  return cleaned.slice(0, 120) || 'resume';
-}
 
 export async function POST(request: NextRequest) {
   if (!isSameOriginRequest(request)) return Response.json({ error: 'invalid_origin' }, { status: 403 });
@@ -24,8 +20,8 @@ export async function POST(request: NextRequest) {
     if (!detail) return Response.json({ error: 'revision_not_found' }, { status: 404 });
     const upstream = await fetchJobHarnessResumeArtifact(materialized.artifact.id);
     if (!upstream.ok) return Response.json({ error: 'artifact_download_failed', status: upstream.status }, { status: upstream.status });
-    const base = safeBaseName(detail.revision.resolvedDocumentSnapshot.output.pdfName ?? detail.revision.resolvedDocumentSnapshot.output.documentTitle);
-    const filename = `${base}-v${detail.revision.revisionNumber}.${kind}`;
+    const base = resumeFileBaseName(detail.revision.resolvedDocumentSnapshot.output.pdfName ?? detail.revision.resolvedDocumentSnapshot.output.documentTitle);
+    const filename = `${base}.${kind}`;
     return new Response(upstream.body, {
       status: 200,
       headers: {

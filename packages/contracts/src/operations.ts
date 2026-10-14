@@ -434,7 +434,11 @@ export const GetCampaignOutputSchema = JobSearchCampaignSchema.nullable();
 export const UpsertCampaignInputSchema = JobSearchCampaignSchema.omit({ createdAt: true, updatedAt: true });
 export const UpsertCampaignOutputSchema = JobSearchCampaignSchema;
 
-export const ListResumesInputSchema = PageSchema.extend({});
+// Current catalog by default. Legacy registry can be requested explicitly for
+// lossless Career v5 exports and historical audit (not application selection).
+export const ListResumesInputSchema = PageSchema.extend({
+  includeLegacy: z.boolean().optional(),
+});
 export const ListResumesOutputSchema = z
   .object({ items: z.array(ResumeProfileRefSchema), total: z.number().int().nonnegative() })
   .strict();

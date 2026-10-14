@@ -30,6 +30,7 @@ A mutable Profile describes how to assemble a resume. A Revision freezes the exa
 
 ## Documents
 
+- **`2026-10-14-canonical-public-identity.md` — four canonical current resumes without public version suffixes; immutable history, legacy registry compatibility, frozen attachment filenames, and verification gates.**
 - **`2026-10-14-fullstack-agent-v4-1.md` — three role-specific 2026-graduate single-page resumes: Full-Stack, AI Agent Application, and AI Full-Stack; official PDFs, evidence audit and additive DB release acceptance.**
 - **`2026-10-14-frontend-v4-1.md` — frontend V4.1, an additive one-page resume combining the proven V2.x template/skills with source-audited AI/human forms, GPU picking and resumable SSE.**
 - **`2026-10-14-v2x-canonical-foundation.md` — current Resume 2.x one-page presentation, evidence, links, authoring and delivery acceptance standard; the `ai-frontend-v2-3` profile is the verified reference implementation.**

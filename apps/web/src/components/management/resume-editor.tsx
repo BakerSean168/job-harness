@@ -328,9 +328,7 @@ export function ResumeEditor({ initialContext, initialHtml, initialRevisions, re
     setSiteSyncMessage(null);
     setSyncingRevisionId(revision.id);
     startTransition(async () => {
-      const fallbackName = `${pickLocalized(profile.name, locale)}-v${revision.revisionNumber}.pdf`;
-      const fileName = revision.resolvedDocumentSnapshot.output.pdfName || fallbackName;
-      const result = await syncResumeRevisionToSiteAction({ profileId: profile.id, revisionId: revision.id, agentId: syncAgentId, siteFamily: 'liepin', fileName });
+      const result = await syncResumeRevisionToSiteAction({ profileId: profile.id, revisionId: revision.id, agentId: syncAgentId, siteFamily: 'liepin' });
       if (!result.ok) setSiteSyncMessage(`${copy.siteSyncFailed}: ${result.message}`);
       else if (result.value.state === 'uploaded') setSiteSyncMessage(`${copy.siteSyncSuccess} · ${result.value.artifactSha256.slice(0, 12)} · ${result.value.title || result.value.currentUrl}`);
       else if (result.value.state === 'profile_onboarding_required') {

@@ -89,7 +89,7 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
                   <Link key={profile.id} href={href} data-selected={profile.id === selected.id ? 'true' : undefined}>
                     <strong>{localized(profile.name, profile.locale)}</strong>
                     <span>{localized(profile.targetRole, profile.locale)}</span>
-                    <small>v{profile.version} · {itemUsage?.applications ?? 0} {copy.table.applications}</small>
+                    <small>{itemUsage?.applications ?? 0} {copy.table.applications}</small>
                   </Link>
                 );
               })}

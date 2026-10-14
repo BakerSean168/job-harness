@@ -43,7 +43,7 @@ export async function buildCareerExportSnapshot(
     collectPages((limit, offset) => career.workspace.searchJobListItems({ limit, offset })),
     collectPages((limit, offset) => career.workspace.listApplicationBoard({ limit, offset, terminal: 'include' })),
     collectPages((limit, offset) => career.campaigns.listCampaigns({ limit, offset })),
-    collectPages((limit, offset) => career.resumes.listResumeProfiles({ limit, offset })),
+    collectPages((limit, offset) => career.resumes.listResumeProfiles({ limit, offset, includeLegacy: true })),
     collectPages((limit, offset) => career.workspace.listDiscoveryRuns({ limit, offset })),
     collectPages((limit, offset) => career.submissionIntents.list({ limit, offset })),
     collectPages((limit, offset) => career.outreach.list({ limit, offset })),
