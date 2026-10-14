@@ -30,6 +30,54 @@ async function seed(databasePath: string) {
 }
 
 describe('Resume REST v1', () => {
+  it('accepts bounded large Resume drafts only on authenticated preview/library routes', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'job-harness-resume-large-preview-'));
+    const databasePath = join(dir, 'career.db');
+    await seed(databasePath);
+    running = await startJobHarnessServer({ databasePath, host: '127.0.0.1', port: 0, authToken: 'secret' });
+    const headers = { authorization: 'Bearer secret', 'content-type': 'application/json' };
+    const contextResponse = await fetch(`${running.apiUrl}/resume/profiles/agent`, { headers });
+    const context = await contextResponse.json();
+    expect(contextResponse.status).toBe(200);
+    // Whitespace is valid JSON and simulates the v4 Library growth without
+    // fabricating 40K-character resume claims. It crosses Express' 100KB default.
+    const payload = JSON.stringify({ library: context.library, profile: context.profile });
+    const largePreview = payload + ' '.repeat(125_000);
+    const res = await fetch(`${running.apiUrl}/resume/preview`, {
+      method: 'POST', headers, body: largePreview,
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).resolved.profileId).toBe('agent');
+
+    const unauthenticated = await fetch(`${running.apiUrl}/resume/preview`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: largePreview,
+    });
+    expect(unauthenticated.status).toBe(401);
+
+    const bounded = await fetch(`${running.apiUrl}/resume/preview`, {
+      method: 'POST', headers, body: payload + ' '.repeat(600_000),
+    });
+    expect(bounded.status).toBe(413);
+
+    // Existing REST endpoints must NOT inherit the larger parser.
+    const ordinary = await fetch(`${running.apiUrl}/resume/profiles/agent`, {
+      method: 'PUT', headers, body: JSON.stringify({ expectedVersion: 1, profile: context.profile }) + ' '.repeat(125_000),
+    });
+    expect(ordinary.status).toBe(413);
+
+    const librarySave = await fetch(`${running.apiUrl}/resume/libraries/primary`, {
+      method: 'PUT', headers, body: JSON.stringify({ expectedVersion: 1, library: context.library }) + ' '.repeat(125_000),
+    });
+    expect(librarySave.status).toBe(200);
+    expect((await librarySave.json()).version).toBe(2);
+
+    const pdfRoute = await fetch(`${running.apiUrl}/resume/preview/pdf`, {
+      method: 'POST', headers, body: largePreview,
+    });
+    // PDF is unavailable in this isolated server fixture, but request parsing succeeded.
+    expect(pdfRoute.status).toBe(503);
+  });
+
   it('lists, resolves and previews persisted Resume Profiles behind the bearer boundary', async () => {
     dir = await mkdtemp(join(tmpdir(), 'job-harness-resume-api-'));
     const databasePath = join(dir, 'career.db');

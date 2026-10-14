@@ -241,6 +241,24 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     if (authToken && authorization === `Bearer ${authToken}`) { largeBridgeJson(req, res, next); return; }
     res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Bearer token is required' } });
   });
+  // Saved ResumeLibrary documents grow as new role-specific presentations and
+  // highlights are added. The draft preview and shared-library save transport
+  // legitimately carries a full Library + Profile (already >100KB in v4).
+  // Keep the default 100KB limit for every OTHER route. These three routes
+  // receive a separate bounded parser only after REST Bearer authentication.
+  const resumeDraftJson = express.json({ limit: '512kb' });
+  app.use((req, res, next) => {
+    const isPreview = req.method === 'POST'
+      && (req.path === `${API_PREFIX}/resume/preview` || req.path === `${API_PREFIX}/resume/preview/pdf`);
+    const isLibrarySave = req.method === 'PUT'
+      && /^\/api\/v1\/resume\/libraries\/[^/]+$/.test(req.path);
+    if (!isPreview && !isLibrarySave) { next(); return; }
+    if (authToken && req.headers.authorization !== `Bearer ${authToken}`) {
+      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Bearer token is required' } });
+      return;
+    }
+    resumeDraftJson(req, res, next);
+  });
   app.use(express.json());
 
   app.get('/healthz', (_req, res) => {
