@@ -38,6 +38,7 @@ import {
 } from '@job-harness/contracts';
 import type { EmailApplicationPackageStorePort } from '@job-harness/persistence-sqlite';
 import type { ResumeRuntimePorts } from '@job-harness/resume-application';
+import { resumeAttachmentFileName } from '@job-harness/resume-contracts';
 import type { JobResumePreparationService } from './job-resume';
 import { registerRestV1Route } from './rest-route';
 import { writeCommonRestError, writeInternalRestError, writeRestError } from './http-errors';
@@ -51,16 +52,6 @@ export class EmailApplicationNotFoundError extends Error {
 
 function sha256(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
-}
-
-function localized(value: Record<string, string> | null | undefined): string {
-  if (!value) return '';
-  return value['zh-CN'] ?? value.en ?? Object.values(value)[0] ?? '';
-}
-
-function attachmentName(candidate: string | null | undefined, displayName: string, title: string): string {
-  const raw = (candidate?.trim() || `${displayName}-${title}`).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
-  return `${raw.replace(/\.pdf$/i, '') || 'resume'}.pdf`;
 }
 
 function metadataRecipient(value: unknown): string | null {
@@ -173,7 +164,7 @@ export function createEmailApplicationService(
       if (!profileContext) throw new CareerNotFoundError('ResumeProfile', prepared.selection.profileId);
       const revision = await resume.getRevisionDetail(prepared.intent.resumeRevisionId!);
       const artifact = revision?.artifacts.find((candidate) => candidate.id === prepared.intent.resumeArtifactId) ?? null;
-      if (!artifact || artifact.kind !== 'pdf' || artifact.mimeType !== 'application/pdf') {
+      if (!revision || !artifact || artifact.kind !== 'pdf' || artifact.mimeType !== 'application/pdf') {
         throw new CareerConflictError('Email application requires the exact frozen PDF Resume Artifact');
       }
       const education = applicantContext.profile.education[0];
@@ -191,7 +182,7 @@ export function createEmailApplicationService(
       const copy = input.subject && input.body
         ? { subject: input.subject, body: input.body }
         : fallbackCopy;
-      const fileName = attachmentName(localized(profileContext.profile.output.pdfName), applicantContext.profile.displayName, job.job.title);
+      const fileName = resumeAttachmentFileName(revision.revision.resolvedDocumentSnapshot.output.pdfName, `${applicantContext.profile.displayName}-${job.job.title}`);
       const draftHash = sha256({
         recipient: validRecipient.data,
         subject: copy.subject,

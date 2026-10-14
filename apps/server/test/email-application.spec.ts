@@ -32,7 +32,7 @@ describe('immutable email application package', () => {
       });
       const profile = ResumeProfileSchema.parse({
         id: 'ai-agent-forgeflow', libraryId: 'primary', version: 1, name: zh('ForgeFlow Agent 简历'), targetRole: zh('AI Agent / 大模型应用开发工程师'), locale: 'zh-CN', templateId: 'classic-v1', positioning: zh('AI Agent / 大模型应用开发工程师（ForgeFlow 版）'),
-        output: { documentTitle: zh('AI Agent 简历'), description: null, onlineUrl: null, pdfName: zh('测试候选人-AI-Agent-ForgeFlow版.pdf') }, layout: { header: 'without-photo', pageSize: 'A4' },
+        output: { documentTitle: zh('AI Agent 简历'), description: null, onlineUrl: null, pdfName: zh('测试候选人-AI-Agent-ForgeFlow版-v5.1.pdf') }, layout: { header: 'without-photo', pageSize: 'A4' },
         sectionOrder: ['skills'], educationIds: [], skillIds: ['agent'], workSelections: [], projectSelections: [], certificateIds: [], summaryIds: [], overrides: [], createdAt: at, updatedAt: at, archivedAt: null,
       });
       await importResumeCatalog(resumeStore, { library, profiles: [profile] });

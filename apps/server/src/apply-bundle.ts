@@ -1,7 +1,7 @@
 import { ApplyBundleSchema } from '@job-harness/apply-contracts';
 import { ApplyConflictError, ApplyNotFoundError, ApplyNotReadyError, type ApplyBundleFactoryPort } from '@job-harness/apply-runtime';
 import type { CareerRuntimePorts } from '@job-harness/application';
-import type { ResumeArtifact, ResumeRevision } from '@job-harness/resume-contracts';
+import { resumeAttachmentFileName, type ResumeArtifact, type ResumeRevision } from '@job-harness/resume-contracts';
 import type { SiteResumeBinding } from '@job-harness/contracts';
 import type { ApplicantStoreReadPort } from '@job-harness/applicant-application';
 import { applicantSnapshotVersion, answerSetVersion } from './applicant-snapshot';
@@ -40,7 +40,7 @@ export function createApplyBundleFactory(
         if (intent.resumeRevisionId && artifact.revisionId !== intent.resumeRevisionId) throw new ApplyConflictError(`ResumeArtifact '${artifact.id}' does not belong to intent Revision '${intent.resumeRevisionId}'`);
         if (artifact.kind !== 'pdf' || artifact.mimeType !== 'application/pdf') throw new ApplyConflictError(`Apply Executor requires a PDF Resume Artifact; '${artifact.id}' is '${artifact.kind}/${artifact.mimeType}'`);
         const revision = await resumeStore.getRevision(artifact.revisionId); if (!revision) throw new ApplyNotFoundError('ResumeRevision', artifact.revisionId);
-        resumeArtifact = { id: artifact.id, revisionId: artifact.revisionId, sha256: artifact.sha256.toLowerCase(), byteSize: artifact.byteSize, mimeType: artifact.mimeType, fileName: pdfFileName(revision.resolvedDocumentSnapshot.output.pdfName ?? revision.resolvedDocumentSnapshot.output.documentTitle) };
+        resumeArtifact = { id: artifact.id, revisionId: artifact.revisionId, sha256: artifact.sha256.toLowerCase(), byteSize: artifact.byteSize, mimeType: artifact.mimeType, fileName: resumeAttachmentFileName(revision.resolvedDocumentSnapshot.output.pdfName ?? revision.resolvedDocumentSnapshot.output.documentTitle) };
       }
 
       let siteResumeBinding = null;
@@ -89,11 +89,6 @@ export function createApplyBundleFactory(
       });
     },
   };
-}
-
-function pdfFileName(value: string): string {
-  const cleaned = value.replace(/[\/:*?"<>|\x00-\x1f]/g, '-').replace(/\s+/g, ' ').replace(/[. ]+$/g, '').trim().slice(0, 220) || 'resume';
-  return cleaned.toLowerCase().endsWith('.pdf') ? cleaned : `${cleaned}.pdf`;
 }
 
 function siteFamilyFromUrl(value: string): 'zhilian' | 'liepin' | null {

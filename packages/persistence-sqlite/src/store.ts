@@ -654,6 +654,31 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
   }
 
   async listResumeProfiles(input: ListResumesInput): Promise<ListResumesOutput> {
+    const activeCount = Number((this.db.prepare('SELECT COUNT(*) AS n FROM resume_profiles WHERE archived_at IS NULL').get() as Row).n);
+    if (!input.includeLegacy && activeCount > 0) {
+      const rows = this.db.prepare('SELECT profile_json FROM resume_profiles WHERE archived_at IS NULL ORDER BY updated_at DESC, id LIMIT ? OFFSET ?').all(input.limit ?? 50, input.offset ?? 0) as Row[];
+      return { total: activeCount, items: rows.map((row) => {
+        const p = ResumeProfileSchema.parse(json(row.profile_json));
+        const selected = this.db.prepare(`SELECT a.storage_uri, a.sha256
+          FROM resume_revisions r JOIN resume_artifacts a ON a.revision_id = r.id AND a.kind = 'pdf'
+          WHERE r.profile_id = ? AND r.profile_version = ?
+            AND r.library_version = (SELECT version FROM resume_libraries WHERE id = ?)
+          ORDER BY r.revision_number DESC, a.created_at DESC LIMIT 1`).get(p.id, p.version, p.libraryId) as Row | undefined;
+        return ResumeProfileRefSchema.parse({
+          id: p.id,
+          name: p.name[p.locale] ?? p.name['zh-CN'] ?? p.name.en ?? p.id,
+          source: 'resume-harness',
+          externalProfileId: p.id,
+          targetRole: p.targetRole[p.locale] ?? p.targetRole['zh-CN'] ?? p.targetRole.en ?? null,
+          version: String(p.version),
+          hash: selected?.sha256 ? 'sha256:' + String(selected.sha256) : null,
+          artifactUri: selected?.storage_uri ?? null,
+          updatedAt: p.updatedAt,
+        });
+      }) };
+    }
+    // Preserve the old compatibility registry for first-time migrations and
+    // explicitly requested historical exports. It still backs old application IDs.
     const total = Number((this.db.prepare('SELECT COUNT(*) AS n FROM resume_profile_refs').get() as Row).n);
     const rows = this.db.prepare('SELECT * FROM resume_profile_refs ORDER BY updated_at DESC, id LIMIT ? OFFSET ?').all(input.limit ?? 50, input.offset ?? 0) as Row[];
     return { items: rows.map((row) => this.resumeFromRow(row)), total };
@@ -698,10 +723,15 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       const profile = this.resumeUsageProfileFromDomainRow(row);
       byId.set(profile.id, profile);
     }
-    const legacyRows = this.db.prepare('SELECT * FROM resume_profile_refs ORDER BY updated_at DESC, id').all() as Row[];
-    for (const row of legacyRows) {
-      const profile = this.resumeUsageProfileFromLegacyRow(row);
-      if (!byId.has(profile.id)) byId.set(profile.id, profile);
+    // The UI/catalog only offers current first-class profiles. Legacy IDs
+    // continue to resolve in individual historical applications through
+    // resumeUsageProfileById, and appear here before initial migration only.
+    if (byId.size === 0) {
+      const legacyRows = this.db.prepare('SELECT * FROM resume_profile_refs ORDER BY updated_at DESC, id').all() as Row[];
+      for (const row of legacyRows) {
+        const profile = this.resumeUsageProfileFromLegacyRow(row);
+        byId.set(profile.id, profile);
+      }
     }
     return [...byId.values()].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id));
   }
