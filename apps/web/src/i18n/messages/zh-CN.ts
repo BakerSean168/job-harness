@@ -71,6 +71,17 @@ export const zhCN: MessageCatalog = {
     status: { active: '活跃', paused: '暂停', completed: '完成', archived: '归档' },
     links: { jobs: '查看岗位', applications: '查看投递', dashboard: '查看概览' },
   },
+  resumeLearning: {
+    title: '学习写简历', description: '收集网上的真实简历样例，并沉淀各部分的表达规范：技能怎么分级、项目亮点用什么句式、哪些写法要避免。', entry: '学习写简历', backToResumes: '返回简历',
+    tabs: { samples: '简历样例', guide: '写法规范' },
+    filters: { role: '岗位', year: '年份', level: '阶段', language: '语言', quality: '质量', keyword: '关键词', keywordPlaceholder: '如 RAG、虚拟列表、点评', all: '全部', apply: '筛选', reset: '重置' },
+    quality: { good: '值得学习', mixed: '有取有舍', 'bad-example': '反面例子' },
+    strength: { must: '必须', should: '建议', avoid: '避免' },
+    consensus: { multi: '多来源一致', single: '个别观点', conflict: '来源有分歧' },
+    matched: '共 {count} 份样例', empty: '没有符合条件的样例。', unknownDate: '时间未知', graduation: '{year} 届', why: '要点：', dateNote: '时间依据：',
+    rules: '规则', templates: '句式模板', examples: '好坏对比', bad: '不推荐', good: '推荐', sources: '来源',
+    skillLevels: '技能等级词的含义', levelWord: '等级词', levelMeaning: '面试官默认的含义', levelDepth: '预期追问深度', verbs: '强动词表',
+  },
   resumesWorkspace: {
     filters: { campaign: '求职目标', all: '全部', apply: '筛选', reset: '重置' },
     summary: { registry: '注册简历', used: '已使用简历', applications: '关联投递', missingArtifact: '缺少 artifact' },

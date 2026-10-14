@@ -59,7 +59,7 @@ export async function ResumesWorkspace({ searchParams }: { searchParams: Managem
 
   return (
     <div className="workspace-page management-page">
-      <WorkspaceHeader title={messages.pages.resumes.title} description={messages.pages.resumes.description} />
+      <WorkspaceHeader title={messages.pages.resumes.title} description={messages.pages.resumes.description} actions={<Link className="filter-reset" href="/resumes/learn">{messages.resumeLearning.entry}</Link>} />
       <div className="resume-builder-toolbar">
         <form className="management-filter-bar" method="get" action="/resumes">
           <label className="filter-field">

@@ -1,0 +1,1498 @@
+[
+ {
+  "id": "daidr-hdu-frontend-2025",
+  "title": "戴学舟 · 杭电计科 2025届前端个人简历（在线版）",
+  "source_url": "https://resume.daidr.me/",
+  "source_type": "blog",
+  "resume_date": "2024",
+  "target_role": "前端",
+  "level": "校招/实习",
+  "graduation_year": 2025,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "React",
+   "Vue3",
+   "Nuxt3",
+   "TypeScript",
+   "字节跳动实习",
+   "GSoC 2023",
+   "开源PR",
+   "个人项目丰富",
+   "在线简历"
+  ],
+  "sections": [
+   "联系方式",
+   "教育经历",
+   "技能",
+   "实习经历",
+   "项目经历",
+   "个人项目",
+   "其他（乐于学习与分享/英语能力）"
+  ],
+  "excerpts": [
+   {
+    "section": "实习经历",
+    "text": "技术栈React+TypeScript+MF，第一次接触到模块联邦。主要负责飞书项目度量侧的研发工作，完成了一些商业化/性能优化相关的需求。"
+   },
+   {
+    "section": "项目经历",
+    "text": "本人在这个项目中主要负责整体框架的搭建、Header相关逻辑开发、文章详情页（Markdown渲染/目录/相关文章）开发，并封装了大部分的API接口。"
+   },
+   {
+    "section": "项目经历",
+    "text": "编写自动化脚本用于获取示例API使用情况，为developer.chrome.com添加用于展示所有示例的列表页"
+   },
+   {
+    "section": "其他",
+    "text": "在使用框架或库的时候，遇到问题也会尝试自己去修复或补充，向vitesse-webext、WindiCSS、wasm-bindgen、xLog等提交过 PR。"
+   }
+  ],
+  "why_good": "真实、可点开验证（每个项目带 GitHub 链接、PR 链接），个人项目覆盖 SSR/浏览器扩展/WebHID/CSS 3D，把'热爱前端'用作品证明；不足是几乎没有量化结果，技能用'了解'偏弱。",
+  "quality": "good",
+  "license_note": "页面未注明版权/开源协议",
+  "date_note": "2024（依据：简历写'2025届'，最新条目为 2023.12 字节日常实习与 2023.10 个人项目）",
+  "role_tags": [
+   "前端"
+  ],
+  "level_tags": [
+   "校招",
+   "实习"
+  ]
+ },
+ {
+  "id": "szu-feiyue-wujiakai-bytedance-fe-2026",
+  "title": "深大飞跃手册 · 吴嘉楷 2026届字节前端（背景+Offer 复盘）",
+  "source_url": "https://szu-feiyue.github.io/jiuye/CompSci/2026/cases/jiakaiwu/",
+  "source_type": "github",
+  "resume_date": "2026-08",
+  "target_role": "前端",
+  "level": "校招",
+  "graduation_year": 2026,
+  "language": "zh",
+  "outcome": "字节跳动剪映前端开发工程师 offer（另有顺丰、华为 offer，拼多多 oc）",
+  "tags": [
+   "前端",
+   "字节offer",
+   "腾讯实习",
+   "TDesign开源",
+   "蓝桥杯Web国二",
+   "AIGC视频链路",
+   "Offer Show"
+  ],
+  "sections": [
+   "背景（GPA/竞赛/项目/实习经历/技术能力）",
+   "Offer Show",
+   "经历分享",
+   "总结",
+   "联系方式"
+  ],
+  "excerpts": [
+   {
+    "section": "背景-项目",
+    "text": "腾讯犀牛鸟开源人才计划参与人（TDesign组件库）"
+   },
+   {
+    "section": "背景-项目",
+    "text": "深度参与 Capcut 网页版 AIGC视频生成链路"
+   },
+   {
+    "section": "背景-实习经历",
+    "text": "字节跳动剪映部门 --- 2025 年 11 月 至 2026 年 3 月"
+   },
+   {
+    "section": "总结",
+    "text": "实习建议：大二暑期找一个中小厂实习，当踏板，为后面大三找大厂实习提供支撑。"
+   }
+  ],
+  "why_good": "不是完整简历而是简历骨架+真实投递结果（含简历挂/面试挂记录），能看出'中小厂实习→大厂实习→秋招'的经历梯度和'开源+竞赛'的背书组合，适合对照校招前端的竞争力构成。",
+  "quality": "good",
+  "license_note": "页面标注 Copyright © 2024–2026 SZU Feiyue Team，未见开源协议",
+  "date_note": "2026-08（依据：页面落款 2026年8月6日；2026届）",
+  "role_tags": [
+   "前端"
+  ],
+  "level_tags": [
+   "校招"
+  ]
+ },
+ {
+  "id": "v2ex-codeshihaoran-fe-2026",
+  "title": "V2EX 求职帖 · 26届本科前端（腾讯云实习 / 手写 MiniReact）",
+  "source_url": "https://www.v2ex.com/t/1175973",
+  "source_type": "other",
+  "resume_date": "2025-11",
+  "target_role": "前端（含 Node.js 全栈）",
+  "level": "校招/实习",
+  "graduation_year": 2026,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "React原理",
+   "手写React",
+   "Fiber",
+   "Hooks",
+   "腾讯云实习",
+   "Koa",
+   "Coze API",
+   "双非"
+  ],
+  "sections": [
+   "关键信息",
+   "教育经历",
+   "实习经历",
+   "项目经历",
+   "专业技能"
+  ],
+  "excerpts": [
+   {
+    "section": "实习经历",
+    "text": "参与云安全中心业务组件库迭代及维护，封装通用列表相关组件，提升组件复用率，并支持在控制台 3+ 模块中统一使用。"
+   },
+   {
+    "section": "项目经历",
+    "text": "自定义 Fiber 架构：通过自定义的 Fiber 架构支持协调和增量渲染，模拟 React 的更新机制，保证复杂应用的流畅性。"
+   },
+   {
+    "section": "项目经历",
+    "text": "实时消息更新：系统具备实时消息更新功能，包括发送中、成功、失败等状态，并支持流式输出文字和代码块响应，确保用户获得实时反馈。"
+   },
+   {
+    "section": "关键信息",
+    "text": "熟悉 React 原理，手写过轻量版 React 并搭建了个人博客"
+   }
+  ],
+  "why_good": "非科班双非背景用'手写 MiniReact + 线上博客'做差异化项目，原理型项目很能抗面试追问；不足是商城类项目较常规、实习条目缺少量化结果。",
+  "quality": "mixed",
+  "license_note": "V2EX 帖子，未注明协议",
+  "date_note": "2025-11（依据：帖子发布于 2025-11-30；26届）",
+  "role_tags": [
+   "前端",
+   "全栈"
+  ],
+  "level_tags": [
+   "校招",
+   "实习"
+  ]
+ },
+ {
+  "id": "yiming-cherry-studio-ai-fullstack",
+  "title": "王逸鸣 · 计科与AI本科（AI Agent / 全栈，Cherry Studio 核心贡献者）",
+  "source_url": "https://resume.yiming1234.cn/cn.html",
+  "source_type": "blog",
+  "resume_date": "2026",
+  "target_role": "AI Agent / 全栈（含前端实习）",
+  "level": "实习/在校（预计2027毕业）",
+  "graduation_year": 2027,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "Electron",
+   "React",
+   "TypeScript",
+   "Vue3",
+   "MCP",
+   "A2A",
+   "开源50k+ Stars",
+   "AI桌面客户端",
+   "黑客松获奖"
+  ],
+  "sections": [
+   "简介",
+   "教育背景",
+   "工作经历",
+   "语言",
+   "专业技能",
+   "荣誉",
+   "项目"
+  ],
+  "excerpts": [
+   {
+    "section": "简介",
+    "text": "作为 50k+ Stars 开源项目 Cherry Studio 核心贡献者，长期参与桌面端与移动端 AI 产品建设；"
+   },
+   {
+    "section": "工作经历",
+    "text": "负责 Agent Runtime、模型与 Provider、Code CLI、数据迁移及桌面端交互等核心模块的功能迭代与缺陷修复"
+   },
+   {
+    "section": "工作经历",
+    "text": "使用 Vue Router 实现页面导航，封装 Axios 拦截器统一处理请求转发与鉴权逻辑"
+   },
+   {
+    "section": "工作经历",
+    "text": "相比 nnU-Net 基线，Dice 从 82.33 提升至 83.94，95HD 从 6.92 降至 5.68，参数量由 88M 降至 60M"
+   }
+  ],
+  "why_good": "把大型开源项目贡献当作'第一背书'放在简介首行，Agent 能力与前端工程同时可验证；科研条目给出基线对比的指标写法值得学。不足：技能自评一律'高级'、关键词堆得偏多。",
+  "quality": "good",
+  "license_note": "页面未注明版权/开源协议",
+  "date_note": "2026（依据：最新实习 2026年6月–2026年8月）",
+  "role_tags": [
+   "前端",
+   "全栈",
+   "AI Agent"
+  ],
+  "level_tags": [
+   "实习"
+  ]
+ },
+ {
+  "id": "elin-ren-frontend-cv-2026",
+  "title": "任春晓 · NUS 计算机硕士 前端实习简历（PDF）",
+  "source_url": "https://elin-chunxiao.com/cv/Elin-Ren-CV-Frontend.pdf",
+  "source_type": "blog",
+  "resume_date": "2026",
+  "target_role": "前端（AI 应用前端）",
+  "level": "实习（硕士在读）",
+  "graduation_year": 2027,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "React",
+   "Vite",
+   "SSE流式问答",
+   "知识图谱可视化",
+   "GraphRAG",
+   "Flask",
+   "OAuth/RBAC",
+   "前端岗定制版简历"
+  ],
+  "sections": [
+   "求职信息（实习时间）",
+   "教育经历",
+   "Web/前端项目经历",
+   "实习经历（OA 平台前端）",
+   "个人网页/GitHub"
+  ],
+  "excerpts": [
+   {
+    "section": "Web/前端项目经历",
+    "text": "组件化体系建设： 设计并沉淀模块化组件体系，包括问答输入区、流式回答区、证据卡片、图谱节点详情、加载态 / 空状态 / 错误态组件，提升页面复用性、可维护性与交互一致性。"
+   },
+   {
+    "section": "Web/前端项目经历",
+    "text": "前后端接口联调：与后端 FastAPI / Neo4j 服务联调 KG API、Agent API、citation 校验接口与 SSE 流式接口，处理跨域 CORS、流式响应代理、异常重试、接口错误提示与多轮会话状态管理。"
+   },
+   {
+    "section": "Web/前端项目经历",
+    "text": "LLM 流式录入交互：支持从企业官网自动预填 8+ 项字段，并通过流式对话补全 22+ 项核保信息，将传统人工填表转化为可引导、可确认、可追溯的 Web 端问答流程。"
+   }
+  ],
+  "why_good": "'AI 应用 × 前端'的好范例：把 RAG/Agent 研究项目改写成前端视角（流式渲染、citation 展示、加载/空/错误态），说明同一段经历可按岗位定制。不足：每条 bullet 偏长、量化结果少。",
+  "quality": "good",
+  "license_note": "PDF 未注明版权/开源协议",
+  "date_note": "2026（依据：项目时间至 2026.01-06，求长期实习至 27 年 1 月）",
+  "role_tags": [
+   "前端",
+   "AI 应用"
+  ],
+  "level_tags": [
+   "实习"
+  ]
+ },
+ {
+  "id": "guomengjia-ai-agent-2026",
+  "title": "郭梦佳 · AI Agent 应用方向 2026届 GitHub Profile",
+  "source_url": "https://github.com/guomengjia618-dot/guomengjia618-dot",
+  "source_type": "github",
+  "resume_date": "2026-09",
+  "target_role": "AI Agent / AI 应用",
+  "level": "校招",
+  "graduation_year": 2026,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "Python",
+   "TypeScript",
+   "Tool Calling",
+   "Pydantic",
+   "structured output",
+   "开源PR已合入",
+   "CopilotKit",
+   "180 tests + CI"
+  ],
+  "sections": [
+   "一句话定位",
+   "主项目",
+   "Open Source / 开源贡献（表格）",
+   "Focus",
+   "联系方式"
+  ],
+  "excerpts": [
+   {
+    "section": "一句话定位",
+    "text": "Building ExperienceOS：把散落的经历变成可溯源「经验资产」的开源 AI Agent —— 3 个只读 Tools · grounding guard · strict JSON Schema + Pydantic · 原子 checkpoint / resume，180 tests + CI。"
+   },
+   {
+    "section": "开源贡献",
+    "text": "定位 Agent 中断状态丢失的双重根因：`RUN_FINISHED` 覆盖中断节点（事件语义层）+ React memo 吞掉状态更新（渲染层）；不改公共 API / AG-UI 协议重构节点生命周期"
+   },
+   {
+    "section": "Focus",
+    "text": "AI 辅助开发：Cursor / Codex 日常化 —— 需求拆解、生成代码 review、调试定界"
+   }
+  ],
+  "why_good": "应届生没有大厂实习时，用'已合入的知名仓库 PR + 根因描述'做硬证据，比空写'熟悉 LangChain'强得多；PR 条目'问题→根因→约束→方案'的写法可直接借鉴。",
+  "quality": "good",
+  "license_note": "仓库未声明 license",
+  "date_note": "2026-09（依据：仓库最后推送 2026-09-04；2026届）",
+  "role_tags": [
+   "AI Agent",
+   "AI 应用"
+  ],
+  "level_tags": [
+   "校招"
+  ]
+ },
+ {
+  "id": "zhlifeiy-java-backend-ai-2026",
+  "title": "张汇 · 2026届计科本科 Java 后端 + AI 应用公开简历",
+  "source_url": "https://zhlifeiy.codes/resume/",
+  "source_type": "blog",
+  "resume_date": "2026",
+  "target_role": "后端（Java）/ AI 应用",
+  "level": "校招/社招 1 年内",
+  "graduation_year": 2026,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "Spring Cloud Alibaba",
+   "MySQL CTE",
+   "N+1优化",
+   "LangChain4j",
+   "RAG",
+   "技术博客佐证",
+   "量化指标"
+  ],
+  "sections": [
+   "一句话定位",
+   "关键数字",
+   "工作经历",
+   "代表项目",
+   "技术能力",
+   "精选文章",
+   "教育与认证"
+  ],
+  "excerpts": [
+   {
+    "section": "代表项目",
+    "text": "将逐用户 N+1 查询改为批量预加载与 MySQL CTE 递归查询，减少约 3 万次数据库往返，同步耗时由 10+ 分钟降至分钟级。"
+   },
+   {
+    "section": "代表项目",
+    "text": "使用 @Async 与 CAS 重入保护改造同步入口，处理 HTTP 超时导致的重复触发和并发脏写。"
+   },
+   {
+    "section": "代表项目",
+    "text": "修复登录名复用冲突，回填 1100+ 条历史数据，并补充自动软删与安全护栏。"
+   },
+   {
+    "section": "简介",
+    "text": "习惯把真实项目里的问题、根因和验证过程沉淀为可复用的技术文章。"
+   }
+  ],
+  "why_good": "'问题→改法→数字'的 bullet 很扎实，且每个项目都链接到对应的排查文章，可信度高；可作为全栈/后端方向参考。AI 部分偏轻。",
+  "quality": "good",
+  "license_note": "页面标注 © 2026 zhlifeiy35，未见开源协议",
+  "date_note": "2026（依据：2026.01 至今在职；2026届本科）",
+  "role_tags": [
+   "AI 应用",
+   "后端"
+  ],
+  "level_tags": [
+   "校招",
+   "社招"
+  ]
+ },
+ {
+  "id": "yunfan-cpp-agent-cv-2026",
+  "title": "张云帆 · 查尔姆斯硕士 C++ 开发简历（含华为 PerfAgent / 多 Agent 项目）",
+  "source_url": "https://yunfanteo.world/cv/Zhang_Yunfan_CV_zh_Systems.pdf",
+  "source_type": "blog",
+  "resume_date": "2026",
+  "target_role": "后端/C++（含 AI Agent 应用）",
+  "level": "实习/校招（硕士 2027.06 毕业）",
+  "graduation_year": 2027,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "C++",
+   "MCP Server",
+   "Skill系统",
+   "Agentic RAG",
+   "多Agent编排",
+   "LLM-as-Judge",
+   "Raft",
+   "华为实习",
+   "在线Demo"
+  ],
+  "sections": [
+   "联系方式/求职意向",
+   "教育背景",
+   "实习经历",
+   "项目经历",
+   "专业技能"
+  ],
+  "excerpts": [
+   {
+    "section": "实习经历",
+    "text": "PerfAgent 性能分析智能体：针对 Trace 数据超出大模型上下文的问题，设计 MCP Server + 声明式 Skill 系统，10 个 MCP Tool 支撑指标查询与工作流编排，免编码完成根因分析，内部用户从 20 人增至 130+ 人。"
+   },
+   {
+    "section": "实习经历",
+    "text": "Skill 执行引擎：参数由框架注入、结论必须通过证据闸门，从机制上降低 Agent 幻觉；"
+   },
+   {
+    "section": "项目经历",
+    "text": "意图识别：融合 LLM Few-shot、Embedding 与规则三路信号，380 条自建评测准确率 91.7%、宏平均 F1 0.915。"
+   },
+   {
+    "section": "项目经历",
+    "text": "统一工具网关：工具调用经 Pydantic 校验并统一加超时、熔断与降级，金额由确定性工具计算，避免模型编造价格。"
+   }
+  ],
+  "why_good": "Agent 项目写得最'工程化'的样例之一：每条都有问题背景+机制+自建评测口径（样本数、F1），并附在线演示；对 AI Agent 岗的'评测闭环/防幻觉'表达很有参考价值。",
+  "quality": "good",
+  "license_note": "PDF 未注明版权/开源协议",
+  "date_note": "2026（依据：华为实习 2026.06 – 2026.09）",
+  "role_tags": [
+   "AI Agent",
+   "后端"
+  ],
+  "level_tags": [
+   "校招",
+   "实习"
+  ]
+ },
+ {
+  "id": "fengwei-ai-agent-llm-engineer",
+  "title": "冯威 · AI Agent / LLM 应用工程师简历（PDF）",
+  "source_url": "https://fengwei.chat/resume/download",
+  "source_type": "blog",
+  "resume_date": "2026",
+  "target_role": "AI Agent / AI 应用（全栈）",
+  "level": "社招 1-3 年",
+  "graduation_year": null,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "LangGraph",
+   "FastAPI",
+   "Next.js 14",
+   "Multi-Agent",
+   "RAG",
+   "SSE",
+   "Coze/N8N",
+   "在线地址",
+   "全栈交付"
+  ],
+  "sections": [
+   "职业概述",
+   "工作经历",
+   "项目经历"
+  ],
+  "excerpts": [
+   {
+    "section": "项目经历",
+    "text": "Agent Harness：分离 Agent、Skill、Tool Runtime，基于 Registry 与语义路由选择技能，支持结构化规划、ReAct / Tool Calling、MCP 远端工具；以 Task、TaskStep、Run、ExecutionEvent 记录 Trace，提供 SSE 流式进度、断线事件回放、人工确认和恢复。"
+   },
+   {
+    "section": "项目经历",
+    "text": "工具与积分闭环：设计 launch/verify/consume 三阶段校验扣费流程，使用数据库事务记录积分与操作日志；"
+   },
+   {
+    "section": "项目经历",
+    "text": "智能回复引擎：采用“关键词规则优先、LLM 兜底”策略，兼容 OpenAI、Gemini、DeepSeek；"
+   }
+  ],
+  "why_good": "项目用'加粗小标题：机制'结构组织，每个项目给技术栈行和在线地址，适合全栈+Agent 方向参考；缺点是几乎没有量化结果，工作经历条目偏概括。",
+  "quality": "mixed",
+  "license_note": "PDF 未注明版权/开源协议",
+  "date_note": "2026（依据：项目 2026/08 - 至今）",
+  "role_tags": [
+   "全栈",
+   "AI Agent",
+   "AI 应用"
+  ],
+  "level_tags": [
+   "社招"
+  ]
+ },
+ {
+  "id": "zhangdawei-frontend-ai-6y",
+  "title": "张大尉 · 前端工程师（AI 产品 / LLM 应用）6 年经验简历",
+  "source_url": "https://resume.zhangdawei.org/",
+  "source_type": "blog",
+  "resume_date": "2025",
+  "target_role": "前端（AI 产品 / LLM 应用）",
+  "level": "社招 5 年+（参考用）",
+  "graduation_year": 2017,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "React",
+   "TypeScript",
+   "SSE流式",
+   "Tool Calling",
+   "Code Agent开源",
+   "Vitest 100%覆盖率",
+   "性能优化",
+   "Astro"
+  ],
+  "sections": [
+   "求职意向",
+   "个人优势",
+   "专业技能",
+   "工作经历",
+   "项目经历",
+   "其他项目",
+   "教育经历"
+  ],
+  "excerpts": [
+   {
+    "section": "个人优势",
+    "text": "熟练将 AI 工具（Cursor/Codex/ChatGPT/Claude）用于架构拆解、重构和补测，并以类型约束 + 自动化测试 + CI 保障 AI 协作产出的长期可维护性"
+   },
+   {
+    "section": "项目经历",
+    "text": "拆分编辑/提交链路并按需加载（提交页避免加载完整编辑器），将 PageSpeed Insights 从红区提升到绿区；保留 Webpack 产线兼容下引入 Vite 开发入口，将 HMR 从 30s+ 降至亚秒级"
+   },
+   {
+    "section": "项目经历",
+    "text": "抽象通用 AI 执行引擎，收敛 SSE 流式响应生命周期（停止输出、超时重试、配额拦截、历史结果管理、埋点上报），复用于检测/改写/写作等模块"
+   },
+   {
+    "section": "项目经历",
+    "text": "背景：日常重度使用 Claude Code，为深入理解其运行机制，选择其作为拆解对象——通过 HTTPS 抓包与 TUI 界面行为观察还原内部模型，用 Ink + React 从 0 实现开源运行时 Formax"
+   }
+  ],
+  "why_good": "前端转 AI 产品方向的标杆写法：每个项目'背景/角色/要点'三段式，SSE 流式、AI 执行引擎等前端×LLM 关键词都有具体机制支撑；对应届生而言可借鉴其项目组织，而非资历。",
+  "quality": "good",
+  "license_note": "页面未注明版权/开源协议",
+  "date_note": "2025-2026（依据：'近况（2025.06 - 至今）'）",
+  "role_tags": [
+   "前端",
+   "AI 应用"
+  ],
+  "level_tags": [
+   "社招"
+  ]
+ },
+ {
+  "id": "proginn-liangjunyi-java-ai-2026",
+  "title": "程序员客栈主页 · 梁俊毅 2026届 Java 后端 + AI 应用",
+  "source_url": "https://www.proginn.com/wo/1260874",
+  "source_type": "other",
+  "resume_date": "2026",
+  "target_role": "后端 / AI 应用",
+  "level": "校招/实习",
+  "graduation_year": 2026,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "Java",
+   "Spring Boot",
+   "Kafka",
+   "Elasticsearch",
+   "LangChain",
+   "MCP",
+   "段落式自我介绍",
+   "反面参考"
+  ],
+  "sections": [
+   "个人介绍",
+   "工作经历",
+   "教育经历"
+  ],
+  "excerpts": [
+   {
+    "section": "个人介绍",
+    "text": "同时掌握Python、FastAPI、LangChain、MCP、Function Calling、Prompt Engineering及多Agent应用开发，能够将大模型能力与传统后端系统结合。"
+   },
+   {
+    "section": "个人介绍",
+    "text": "本人学习能力较强，面对陌生技术能够通过资料检索、方案验证和持续调试快速完成落地"
+   }
+  ],
+  "why_good": "作为反面/对照：信息真实但全是长段落和技术名词罗列，没有一条'做了什么→结果如何'的证据，HR 很难在 10 秒内抓到亮点。适合拿来练习'把段落改写成 bullet'。",
+  "quality": "bad-example",
+  "license_note": "平台页面，未注明协议",
+  "date_note": "2026（依据：2026届本科，实习 2025-07 至 2026-01）",
+  "role_tags": [
+   "AI 应用",
+   "后端"
+  ],
+  "level_tags": [
+   "校招",
+   "实习"
+  ]
+ },
+ {
+  "id": "nowcoder-26-fe-resume-review",
+  "title": "牛客 · 26届前端简历求拷打（评论区逐条点评）",
+  "source_url": "https://www.nowcoder.com/feed/main/detail/5f18e1ad54ca43aea94440137df9d532",
+  "source_type": "nowcoder",
+  "resume_date": "2025-02",
+  "target_role": "前端",
+  "level": "实习（暑期）",
+  "graduation_year": 2026,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "点评",
+   "简历结构",
+   "小程序",
+   "双非",
+   "阿里前端专家点评",
+   "技术名词书写统一"
+  ],
+  "sections": [
+   "原帖：简历为图片（无法摘录正文）",
+   "评论区点评"
+  ],
+  "excerpts": [
+   {
+    "section": "评论-点评",
+    "text": "个人介绍没必要，把下面的技能内容放到这里面来，个人情况挖空等面试官来问你"
+   },
+   {
+    "section": "评论-点评",
+    "text": "名称，技术名称书写风格不统一，要么统一大驼峰，要么就用全小写+空格，保持一致好看很多"
+   },
+   {
+    "section": "评论-阿里高级前端技术专家",
+    "text": "不用花太多的时间改简历，而是花点时间增加项目经验。"
+   },
+   {
+    "section": "评论-点评",
+    "text": "介绍换成教育经历，你这哪年毕业的都看不出来呀"
+   }
+  ],
+  "why_good": "简历本体是图片，价值在评论区：结构顺序、学校/毕业年份必须显眼、奖项单列、技术名大小写统一、'水项目'要么深挖要么删——都是校招前端简历最常见的问题清单。",
+  "quality": "mixed",
+  "license_note": "牛客帖子，页面 ©2026 牛客科技，未注明协议",
+  "date_note": "2025-02（依据：帖子发布于 2025-02-27，26届）",
+  "role_tags": [
+   "前端"
+  ],
+  "level_tags": [
+   "实习"
+  ]
+ },
+ {
+  "id": "tih-teikjun-resume-case-study",
+  "title": "Tech Interview Handbook · Teik Jun 简历改写前后对比（NUS SWE 实习）",
+  "source_url": "https://www.techinterviewhandbook.org/blog/resume-improvement-case-study/",
+  "source_type": "blog",
+  "resume_date": "2021-08",
+  "target_role": "全栈 / SWE",
+  "level": "实习",
+  "graduation_year": null,
+  "language": "en",
+  "outcome": "文中提到其秋季将在 ByteDance 实习",
+  "tags": [
+   "点评前后对比",
+   "FAANG",
+   "开源贡献",
+   "Docusaurus",
+   "Google Summer of Code",
+   "关键词背书"
+  ],
+  "sections": [
+   "原版简历（图片）",
+   "Critique: Good / Points of improvement",
+   "Improved version（图片）"
+  ],
+  "excerpts": [
+   {
+    "section": "Points of improvement",
+    "text": "Not explaining what the project is about - In most cases, recruiters are the ones reading a resume and they would not know what a project is about, especially when most of them aren't technical."
+   },
+   {
+    "section": "Points of improvement",
+    "text": "Any project can be made open source and contributing to your own open source homework doesn't mean much."
+   },
+   {
+    "section": "Improved version",
+    "text": "Added more important keywords - ByteDance (future internship), Facebook (MLH collaboration), Google (TEAMMATES was a Google Summer of Code project for a few years)."
+   }
+  ],
+  "why_good": "英文里最经典的'改前/改后'案例：删无关经历、解释项目是什么、给开源贡献补上项目量级背书、加链接。早于 2024，但方法论不过时。简历正文为图片，摘录取自点评文字。",
+  "quality": "good",
+  "license_note": "页面标注 Copyright © 2026 Tech Interview Handbook",
+  "date_note": "2021-08（依据：文章发布 2021-08-29；目标 2022 暑期实习）",
+  "role_tags": [
+   "全栈"
+  ],
+  "level_tags": [
+   "实习"
+  ]
+ },
+ {
+  "id": "wondercv-duxiaoman-agent-sample",
+  "title": "超级简历 · 度小满27秋招 Agent应用研发工程师简历范文",
+  "source_url": "https://www.wondercv.com/sample/campus_duxiaoman-_3961b5bc95",
+  "source_type": "platform-template",
+  "resume_date": "2026-08",
+  "target_role": "AI Agent / AI 应用",
+  "level": "校招",
+  "graduation_year": 2027,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "LangChain",
+   "LlamaIndex",
+   "RAG",
+   "CrewAI",
+   "HyDE",
+   "Cross-Encoder",
+   "JD拆解",
+   "避坑清单"
+  ],
+  "sections": [
+   "岗位要求拆解",
+   "高价值经历清单",
+   "避坑清单",
+   "教育背景",
+   "技能清单",
+   "项目经历",
+   "实习经历",
+   "竞赛与证书",
+   "自我评价",
+   "自查清单"
+  ],
+  "excerpts": [
+   {
+    "section": "项目经历（示例）",
+    "text": "实现 RAG 系统关键链路优化：采用 RecursiveCharacterTextSplitter 进行文档切分，使用 FAISS 进行向量检索，并引入 Cross-Encoder 重排序，使检索准确率提升18%，平均响应时间降低至1.2秒。"
+   },
+   {
+    "section": "项目经历（示例）",
+    "text": "优化检索链路：引入查询重写和 HyDE（假设文档嵌入）技术，使检索召回率提升12%。"
+   },
+   {
+    "section": "避坑清单",
+    "text": "不要虚构项目：面试官会深挖技术细节，尤其是 Agent 和 RAG 的底层原理，编造经历很容易露馅。"
+   }
+  ],
+  "why_good": "'对着 JD 写简历'的拆解思路好，RAG 优化动作写得具体；但示例数字（准确率95%、2 小时→10 分钟）一看就是模板化，直接照抄会显得假，只学结构不学数字。",
+  "quality": "mixed",
+  "license_note": "平台页面 ©2026 超级简历WonderCV，未注明可复用协议",
+  "date_note": "2026-08（依据：页面'更新于 2026-08-24'）",
+  "role_tags": [
+   "AI Agent",
+   "AI 应用"
+  ],
+  "level_tags": [
+   "校招"
+  ]
+ },
+ {
+  "id": "wondercv-llm-agent-engineer-template",
+  "title": "超级简历 · 大模型 Agent 工程师简历模板（应届）",
+  "source_url": "https://www.wondercv.com/jianlimoban/4e8a6ff39f6a14a0.html",
+  "source_type": "platform-template",
+  "resume_date": "2026-05",
+  "target_role": "AI Agent（偏算法）",
+  "level": "校招",
+  "graduation_year": null,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "STAR标签",
+   "RLHF",
+   "MARL",
+   "vLLM",
+   "过度包装",
+   "反面参考"
+  ],
+  "sections": [
+   "个人总结",
+   "工作经历",
+   "项目经历",
+   "社团和组织经历",
+   "荣誉奖项",
+   "其他（技能/语言）"
+  ],
+  "excerpts": [
+   {
+    "section": "工作经历",
+    "text": "【行动与结果】基于 LangChain 与自研工具调用接口，构建了包含记忆管理、工具检索及多步推理的 Agent 系统，通过引入强化学习（RLHF）策略优化模型输出，使复杂任务规划成功率提升 35%，推理响应延迟降低 20%。"
+   },
+   {
+    "section": "工作经历",
+    "text": "【系统优化】利用 vLLM 框架优化 LLM 推理服务，通过连续批处理（Continuous Batching）技术，将高并发场景下的吞吐量提升 40%，有效支撑了内部 Demo 系统的稳定运行。"
+   }
+  ],
+  "why_good": "反面教材：一个应届生同时有三段实习、数模国一、ACM 银奖、亿级检索，每条都带【情境与任务】标签和整数百分比——信息密度高但不可信。可用来识别'模板味'和过度包装。",
+  "quality": "bad-example",
+  "license_note": "平台页面 ©2026 超级简历WonderCV，未注明可复用协议",
+  "date_note": "2026-05（依据：页面'发布于2026-05-19'）",
+  "role_tags": [
+   "AI Agent"
+  ],
+  "level_tags": [
+   "校招"
+  ]
+ },
+ {
+  "id": "upcv-ai-agent-campus-3407",
+  "title": "UP简历 · AI Agent开发工程师简历范文（互联网/电子半导体校招）",
+  "source_url": "https://upcv.tech/jianlifanwen/3407.html",
+  "source_type": "platform-template",
+  "resume_date": "2026-06",
+  "target_role": "AI Agent",
+  "level": "校招",
+  "graduation_year": 2026,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "LangChain",
+   "Function Calling",
+   "ReAct",
+   "RAG",
+   "FastAPI",
+   "Docker",
+   "简洁一页"
+  ],
+  "sections": [
+   "个人总结",
+   "工作经历",
+   "项目经历",
+   "教育背景",
+   "技能专长"
+  ],
+  "excerpts": [
+   {
+    "section": "项目经历",
+    "text": "引入ReAct思维链模式增强Agent推理能力，使其在面对模糊提问时能主动发起澄清追问，用户满意度评分达到4.6/5.0。"
+   },
+   {
+    "section": "项目经历",
+    "text": "部署于阿里云服务器，通过Docker容器化封装，实现了低资源占用下的高并发服务，支撑了校园内3个社团的自动化咨询需求。"
+   },
+   {
+    "section": "技能专长",
+    "text": "RAG检索增强 · Function Calling · Prompt Engineering · Vector Database"
+   }
+  ],
+  "why_good": "结构干净、技能按'语言/框架/核心技术/部署'分组，个人项目落到'校园 3 个社团'这种可信的真实用户规模；但实习条目（日均 5 万次请求、准确率 +15pp）偏套话。",
+  "quality": "mixed",
+  "license_note": "平台页面 © 2026 UP 求职，未注明可复用协议",
+  "date_note": "2026-06（依据：页面标注 2026/6/24）",
+  "role_tags": [
+   "AI Agent"
+  ],
+  "level_tags": [
+   "校招"
+  ]
+ },
+ {
+  "id": "xblz-ai-application-engineer-sample",
+  "title": "ResumeKit（一纸简历 xblz）· AI 应用工程师简历范文（1-3 年）",
+  "source_url": "https://resume.xblz.org/examples/ai-engineer/",
+  "source_type": "platform-template",
+  "resume_date": null,
+  "target_role": "AI 应用 / LLM",
+  "level": "社招 1-3 年",
+  "graduation_year": 2022,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "RAG",
+   "Self-RAG",
+   "Function Calling",
+   "多租户",
+   "大厂背书",
+   "指标夸张",
+   "反面参考"
+  ],
+  "sections": [
+   "个人信息/总结",
+   "工作经历",
+   "项目经验",
+   "教育背景",
+   "专业技能",
+   "证书与荣誉",
+   "语言能力",
+   "兴趣爱好"
+  ],
+  "excerpts": [
+   {
+    "section": "工作经历",
+    "text": "设计多路召回 + 重排 + 反思机制（Self-RAG），幻觉率从 15% 降至 3%"
+   },
+   {
+    "section": "项目经验",
+    "text": "设计混合检索（关键词 + 向量 + 重排），Recall@10 0.95"
+   },
+   {
+    "section": "项目经验",
+    "text": "客户续约率 90%+，ARR 1500 万"
+   }
+  ],
+  "why_good": "bullet 很短、'动作+指标'格式统一，值得学排版；但'3 年 4k Star 作者 + ARR 1500 万 + BLEU 行业 TOP5'堆满不可核验的数字，页面也注明部分素材由 AI 辅助创作——学格式，别学数字。",
+  "quality": "mixed",
+  "license_note": "页面 © 2026 resume.xblz.org，并注明'部分素材由 AI 辅助创作'",
+  "date_note": null,
+  "role_tags": [
+   "AI 应用"
+  ],
+  "level_tags": [
+   "社招"
+  ]
+ },
+ {
+  "id": "bufan-tech-frontend-2026-template",
+  "title": "不繁简历 · 技术极客风格模板（2026届前端硕士示例）",
+  "source_url": "https://bufancv.com/templates/tech",
+  "source_type": "platform-template",
+  "resume_date": "2025",
+  "target_role": "前端",
+  "level": "校招",
+  "graduation_year": 2026,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "Vue3",
+   "React",
+   "技能打分条",
+   "双实习",
+   "开源PR",
+   "反面参考"
+  ],
+  "sections": [
+   "个人总结",
+   "教育经历",
+   "专业技能（打分）",
+   "实习经历",
+   "项目经历",
+   "校园活动",
+   "荣誉奖项"
+  ],
+  "excerpts": [
+   {
+    "section": "专业技能",
+    "text": "React 6/10 了解 React Hooks 和函数式组件开发"
+   },
+   {
+    "section": "实习经历",
+    "text": "使用 React + TypeScript 实现组件属性配置面板，支持 20 余种组件类型的可视化配置。"
+   },
+   {
+    "section": "个人总结",
+    "text": "性格开朗、善于沟通，期望在前端领域深耕发展。"
+   }
+  ],
+  "why_good": "反面示范为主：'6/10'式技能打分没有信息量还容易被追问，个人总结写性格；可取的是实习条目'支持 20 余种组件类型'这类范围化描述。",
+  "quality": "bad-example",
+  "license_note": "平台页面，未注明协议",
+  "date_note": "2025-2026（依据：示例为 2026届，项目至 2025-12）",
+  "role_tags": [
+   "前端"
+  ],
+  "level_tags": [
+   "校招"
+  ]
+ },
+ {
+  "id": "hicv-campus-frontend-sample",
+  "title": "HI简历 · 校招前端开发工程师简历范文",
+  "source_url": "https://hicv.cn/fanwen/campus-recruit-frontend-engineer-resume-template-307",
+  "source_type": "platform-template",
+  "resume_date": "2026-07",
+  "target_role": "前端",
+  "level": "校招",
+  "graduation_year": 2026,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "React",
+   "Vue3",
+   "虚拟滚动",
+   "首屏优化",
+   "段落式描述"
+  ],
+  "sections": [
+   "个人总结",
+   "教育经历",
+   "工作经历",
+   "项目经历",
+   "社团和组织经历"
+  ],
+  "excerpts": [
+   {
+    "section": "项目经历",
+    "text": "针对长列表渲染场景引入虚拟滚动，将编辑操作卡顿率降低40%。"
+   },
+   {
+    "section": "项目经历",
+    "text": "通过Postman模拟多场景测试，修复了3个兼容性问题，确保页面在iOS和Android主流浏览器上正常显示。项目上线后支撑了500+用户报名，无重大线上故障。"
+   }
+  ],
+  "why_good": "小项目也写出'问题→手段→结果'，500+ 用户、3 个兼容性问题这种小而真实的数字比夸张百分比可信；缺点是全部写成长段落，不如分点易读。",
+  "quality": "mixed",
+  "license_note": "平台页面，未注明协议",
+  "date_note": "2026-07（依据：页面发布 2026-07-04；示例 2026届）",
+  "role_tags": [
+   "前端"
+  ],
+  "level_tags": [
+   "校招"
+  ]
+ },
+ {
+  "id": "devtool-fe-intern-template-2025",
+  "title": "一纸简历（cv.devtool.tech）· 前端开发实习生简历模板 2025",
+  "source_url": "https://cv.devtool.tech/templates/fe-intern",
+  "source_type": "platform-template",
+  "resume_date": "2025",
+  "target_role": "前端",
+  "level": "实习/校招",
+  "graduation_year": 2025,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "React",
+   "Vue3",
+   "Next.js",
+   "Webpack/Vite",
+   "实习模板",
+   "技能分行"
+  ],
+  "sections": [
+   "教育背景",
+   "技术能力",
+   "项目经验"
+  ],
+  "excerpts": [
+   {
+    "section": "技术能力",
+    "text": "框架技术： 熟练使用 React、Vue3，了解组件化开发思想和生态系统"
+   },
+   {
+    "section": "教育背景",
+    "text": "英语能力： CET-6 (568分)，具备良好的英文文档阅读能力"
+   }
+  ],
+  "why_good": "标准的实习生骨架（教育→技能→项目），技能按'基础/框架/工具/UI 库/其他'分行可直接套用；内容泛化、缺少个人特色，适合当格式底稿。",
+  "quality": "mixed",
+  "license_note": "页面标注 © 2025 cv.devtool.tech All rights reserved",
+  "date_note": "2025（依据：页面标题'2025'）",
+  "role_tags": [
+   "前端"
+  ],
+  "level_tags": [
+   "校招",
+   "实习"
+  ]
+ },
+ {
+  "id": "toolset-miniprogram-fresh-2026",
+  "title": "自由简历 · 小程序开发应届生简历案例与写作拆解（2026届）",
+  "source_url": "https://resume.toolsetlink.com/cases/miniprogram-fresh-professional",
+  "source_type": "platform-template",
+  "resume_date": "2026",
+  "target_role": "前端（小程序）",
+  "level": "校招",
+  "graduation_year": 2026,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "微信小程序",
+   "Taro",
+   "云开发",
+   "分包加载",
+   "首屏优化",
+   "写法拆解"
+  ],
+  "sections": [
+   "写法说明",
+   "工作经历写法",
+   "项目经历取舍",
+   "专业技能",
+   "教育经历"
+  ],
+  "excerpts": [
+   {
+    "section": "写法说明",
+    "text": "实习经历突出可核验的页面数量与优化数字，校内项目补充从 0 到 1 的完整闭环，避免与实习内容重复表述。"
+   },
+   {
+    "section": "工作经历",
+    "text": "通过分包加载与图片懒加载优化，首屏时间从 3.8s 降至 1.6s，服务在校用户 8000+"
+   },
+   {
+    "section": "项目经历",
+    "text": "基于微信云开发实现登录、发布、站内信与担保交易，累计注册用户 3000+，获校级创新创业赛二等奖"
+   }
+  ],
+  "why_good": "难得附带'为什么这样取舍'的说明：实习与项目分工不重复、方向集中不贪多、数字可核验；页面注明已脱敏/示例化。",
+  "quality": "good",
+  "license_note": "页面 © 2026 自由简历 保留所有权利；注明案例已脱敏或示例化",
+  "date_note": "2026（依据：示例 2026届，实习至 2026.04）",
+  "role_tags": [
+   "前端"
+  ],
+  "level_tags": [
+   "校招"
+  ]
+ },
+ {
+  "id": "adongwanai-llm-resume-agent-tex",
+  "title": "LLM-Resume-Template · resume-agent.tex（Agent/LLM 高信号两页示例）",
+  "source_url": "https://github.com/adongwanai/LLM-Resume-Template",
+  "source_type": "github",
+  "resume_date": "2026-08",
+  "target_role": "AI Agent / LLM 算法",
+  "level": "校招（应届硕士）",
+  "graduation_year": null,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "LaTeX",
+   "Agent Harness",
+   "Context Engineering",
+   "Rubric Eval",
+   "证据优先",
+   "X/Y占位符",
+   "开源模板"
+  ],
+  "sections": [
+   "定位一句话",
+   "核心证据",
+   "实习经历",
+   "开源与项目经历",
+   "（后续页）业务项目等"
+  ],
+  "excerpts": [
+   {
+    "section": "文件注释",
+    "text": "% 第一屏不堆“熟悉/掌握”，先给岗位定位和可核验的稀缺信号。"
+   },
+   {
+    "section": "核心证据",
+    "text": "系统所有权：负责需求定义、架构取舍、实现与评测闭环，而非只调用模型 API；可现场解释关键代码、失败样本和替代方案。"
+   },
+   {
+    "section": "实习经历",
+    "text": "Context Engineering：按 write / select / compress / isolate 管理上下文；通过增量摘要与 checkpoint 将平均 token 成本降低 X\\%，中断恢复成功率达到 Y\\%。"
+   }
+  ],
+  "why_good": "刻意用 X/Y 占位并要求'每个数字可由代码、trace、benchmark 复核'，把 Agent 岗最看重的 owner 意识、评测口径、失败模式写成骨架，是写 Agent 项目 bullet 的优质参照。",
+  "quality": "good",
+  "license_note": "GitHub API 未识别到 license（未声明开源协议）",
+  "date_note": "2026-08（依据：仓库最后推送 2026-08-12；示例为'应届硕士'）",
+  "role_tags": [
+   "AI Agent",
+   "AI 应用"
+  ],
+  "level_tags": [
+   "校招"
+  ]
+ },
+ {
+  "id": "agentguide-resume-guide",
+  "title": "AgentGuide · 20-resume-guide.md（AI Agent / 大模型简历指南与项目模板）",
+  "source_url": "https://github.com/adongwanai/AgentGuide/blob/main/docs/04-interview/20-resume-guide.md",
+  "source_type": "github",
+  "resume_date": "2026-09",
+  "target_role": "AI Agent / AI 应用",
+  "level": "校招/实习",
+  "graduation_year": null,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "RAG评估集",
+   "Recall@5",
+   "Faithfulness",
+   "LangGraph多Agent",
+   "项目bullet公式",
+   "算法岗vs开发岗"
+  ],
+  "sections": [
+   "一页简历结构",
+   "项目 bullet 公式",
+   "技术栈分组",
+   "三个项目模板",
+   "避坑检查脚本"
+  ],
+  "excerpts": [
+   {
+    "section": "项目模板-知识库Agent",
+    "text": "构建 300 条业务 QA 评估集，使用 Recall@5、Faithfulness、Answer Relevance 评估效果，将正确引用率从 72% 提升至 88%。"
+   },
+   {
+    "section": "项目模板-多Agent",
+    "text": "引入状态机和任务队列控制 Agent 协作顺序，解决循环调用和上下文膨胀问题。"
+   },
+   {
+    "section": "简历结构",
+    "text": "技术栈：按方向分组，不要堆满所有工具"
+   }
+  ],
+  "why_good": "给出'评估集规模+指标名+前后对比'的量化范式，区分算法岗/开发岗表达，适合把个人 Agent 项目改造成可追问的简历亮点。",
+  "quality": "good",
+  "license_note": "GitHub API 未识别到 license（未声明开源协议）",
+  "date_note": "2026-09（依据：仓库最后推送 2026-09-15）",
+  "role_tags": [
+   "AI Agent",
+   "AI 应用"
+  ],
+  "level_tags": [
+   "校招",
+   "实习"
+  ]
+ },
+ {
+  "id": "zxt-llm-agent-engineer-resume",
+  "title": "llm-agent-engineer-resume · LLM/Agent 工程师单页简历模板（社招参考）",
+  "source_url": "https://github.com/zxt-wakeup/llm-agent-engineer-resume",
+  "source_type": "github",
+  "resume_date": "2026-07",
+  "target_role": "AI Agent / LLM 算法",
+  "level": "社招（有经验）",
+  "graduation_year": null,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "Attribution Agent",
+   "AutoResearch",
+   "Harness",
+   "结构化证据",
+   "xx%占位",
+   "Markdown→HTML/PNG"
+  ],
+  "sections": [
+   "工作经验（业务Scope/整体贡献/工程指标）",
+   "重点项目"
+  ],
+  "excerpts": [
+   {
+    "section": "重点项目",
+    "text": "结构化证据契约与安全边界：将最终答案约束为包含 status、reasons、evidence_refs、next_validation、failure_boundary 等字段的结构化归因结果，要求每条原因同时具备业务解释、对象值证据和代码证据；"
+   },
+   {
+    "section": "工作经验",
+    "text": "推动原有“人工查数 + 多方对齐 + 研发定位”的离线排查流程升级为可复现、可评测、可回放的 Agentic 工作流。"
+   }
+  ],
+  "why_good": "'业务 Scope / 整体贡献 / 工程指标'三段式值得借鉴，Agent 安全边界写法专业；但句子极长、术语密度过高，应届生照搬会失焦，适合挑结构不挑篇幅。",
+  "quality": "mixed",
+  "license_note": "MIT License",
+  "date_note": "2026-07（依据：仓库创建 2026-07-06）",
+  "role_tags": [
+   "AI Agent",
+   "AI 应用"
+  ],
+  "level_tags": [
+   "社招"
+  ]
+ },
+ {
+  "id": "nowcoder-agent-project-resume-guide",
+  "title": "牛客 · Agent项目简历怎么写？一文讲清楚！",
+  "source_url": "https://www.nowcoder.com/discuss/832013460337672192",
+  "source_type": "nowcoder",
+  "resume_date": "2026-01",
+  "target_role": "AI Agent",
+  "level": "校招/转岗",
+  "graduation_year": null,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "ReAct",
+   "Plan-Execute",
+   "Tool Router",
+   "Memory",
+   "Reflection",
+   "项目模板",
+   "送花22朵"
+  ],
+  "sections": [
+   "工具定义",
+   "工作流编排",
+   "Agent项目简历模板示例（项目名称/周期/技术栈/核心职责/项目成果）"
+  ],
+  "excerpts": [
+   {
+    "section": "核心职责示例",
+    "text": "负责实现Tool Router模块，根据对话上下文自动选择工具调用路径；支持ReAct、Plan-Execute等多种调用范式，提升任务完成率；"
+   },
+   {
+    "section": "正文",
+    "text": "写工作流时，不能只写“用了ReAct框架”，要讲清“思考-行动-观察”的完整过程："
+   },
+   {
+    "section": "项目成果示例",
+    "text": "项目落地后，【你的场景，如：XX任务】完成率从65%提升至92%；"
+   }
+  ],
+  "why_good": "把 Agent 项目拆成'工具定义-工作流-成果'三层，强调讲清决策过程而非堆框架名；模板化数字需替换成自己的真实评测。",
+  "quality": "mixed",
+  "license_note": "牛客帖子，页面 ©2026 All rights reserved",
+  "date_note": "2026-01（依据：评论时间'01-04'，页面未显示年份，按当年推断）",
+  "role_tags": [
+   "AI Agent"
+  ],
+  "level_tags": [
+   "校招"
+  ]
+ },
+ {
+  "id": "bugstack-ai-agent-course-template",
+  "title": "小傅哥 bugstack · Ai Agent 课程项目简历模板",
+  "source_url": "https://bugstack.cn/md/project/ai-knowledge/ext/ai-agent-notes.html",
+  "source_type": "blog",
+  "resume_date": "2025",
+  "target_role": "AI Agent（Java 后端方向）",
+  "level": "校招/实习",
+  "graduation_year": null,
+  "language": "zh",
+  "outcome": null,
+  "tags": [
+   "Spring AI",
+   "MCP",
+   "RAG",
+   "DDD",
+   "PGVector",
+   "课程项目",
+   "同质化风险"
+  ],
+  "sections": [
+   "项目名称",
+   "项目架构",
+   "核心技术",
+   "项目描述",
+   "核心职责"
+  ],
+  "excerpts": [
+   {
+    "section": "注意",
+    "text": "不要直接复制粘贴简历模板内容，以此结构和描述方式，可以用你的个人第1学习视角来描述。"
+   },
+   {
+    "section": "核心技术",
+    "text": "核心技术：Spring AI（RAG、MCP、Advisor）、SpringBoot、MyBatis、MySQL、PGVector、Redis、React、flowgram.ai、Nginx、Docker"
+   }
+  ],
+  "why_good": "结构完整（架构/技术/描述/职责），但作为热门付费课程的统一模板，大量同学写进简历后同质化严重，面试官一眼识别；适合作为'如何把课程项目个人化'的反思材料。",
+  "quality": "mixed",
+  "license_note": "页面标注 Copyright © 2019 小傅哥，All rights reserved",
+  "date_note": "2025（依据：页面出现 2025/8/18 日期）",
+  "role_tags": [
+   "AI Agent",
+   "后端"
+  ],
+  "level_tags": [
+   "校招",
+   "实习"
+  ]
+ },
+ {
+  "id": "markdownresume-recent-graduate",
+  "title": "markdown-resume-templates · recent-graduate.md（英文应届 SWE 模板）",
+  "source_url": "https://github.com/markdownresume/markdown-resume-templates/blob/main/templates/recent-graduate.md",
+  "source_type": "github",
+  "resume_date": "2024-06",
+  "target_role": "全栈 / SWE",
+  "level": "校招（new grad）",
+  "graduation_year": 2024,
+  "language": "en",
+  "outcome": null,
+  "tags": [
+   "React",
+   "Node.js",
+   "Markdown",
+   "bold action verbs",
+   "Capstone",
+   "示例数据"
+  ],
+  "sections": [
+   "Header",
+   "Education",
+   "Technical Skills",
+   "Professional Experience",
+   "Academic Projects",
+   "Additional Information"
+  ],
+  "excerpts": [
+   {
+    "section": "Professional Experience",
+    "text": "**Implemented RESTful APIs** for mobile app integration, improving data sync performance by 30%"
+   },
+   {
+    "section": "Professional Experience",
+    "text": "**Optimized website performance**, reducing page load time from 4s to 1.5s"
+   },
+   {
+    "section": "Academic Projects",
+    "text": "**Grade:** A+ | **Team Size:** 4 students | **Role:** Full-stack developer and team lead"
+   }
+  ],
+  "why_good": "英文 new grad 骨架清晰、动词开头加粗易扫读；但技能栏几乎罗列全部技术、部分 bullet（Documented/Trained staff）信息量低，属于中规中矩的模板数据。",
+  "quality": "mixed",
+  "license_note": "MIT License",
+  "date_note": "2024-06（依据：示例写 Graduated: June 2024；仓库最后推送 2026-09-18）",
+  "role_tags": [
+   "全栈"
+  ],
+  "level_tags": [
+   "校招"
+  ]
+ },
+ {
+  "id": "yamlcv-new-grad-swe",
+  "title": "yamlcv · New Grad Software Engineer Resume Example（英文）",
+  "source_url": "https://yamlcv.com/cv/examples/new-grad/",
+  "source_type": "platform-template",
+  "resume_date": "2025",
+  "target_role": "全栈 / SWE（前端 monorepo 相关）",
+  "level": "社招 1 年 / new grad",
+  "graduation_year": 2024,
+  "language": "en",
+  "outcome": null,
+  "tags": [
+   "具体数字",
+   "故事化bullet",
+   "intern x3",
+   "offline sync",
+   "前端依赖升级",
+   "诚实语气"
+  ],
+  "sections": [
+   "summary",
+   "experience（highlights）",
+   "education",
+   "skills",
+   "projects"
+  ],
+  "excerpts": [
+   {
+    "section": "experience",
+    "text": "Wrote the migration script that backfilled a denormalized \"last_active_cycle_id\" column across ~9.4M issue rows in batches of 5,000 with a 200ms sleep between batches; ran it in production over a weekend with no read latency regressio"
+   },
+   {
+    "section": "experience",
+    "text": "Pair on at least one PR per week with a senior engineer who reviews my design notes before I open the PR; this has shortened my review cycles from \"three rounds of comments\" to \"usually one\""
+   },
+   {
+    "section": "projects",
+    "text": "Cut grading turnaround from 4 days to under 6 hours for a class of 120"
+   }
+  ],
+  "why_good": "示例虽虚构，但 bullet 极具体（批大小、睡眠间隔、受影响行数），读起来像真人经历，和中文模板常见的'提升30%'形成鲜明对比；适合学'具体性'。注：第一条摘录在抓取文本中即被截断。",
+  "quality": "good",
+  "license_note": "页面未注明协议",
+  "date_note": "2025-2026（依据：示例 BS May 2024，'about a year and a half into my first full-time role'）",
+  "role_tags": [
+   "前端",
+   "全栈"
+  ],
+  "level_tags": [
+   "校招",
+   "社招"
+  ]
+ }
+]
