@@ -75,6 +75,17 @@ export interface MessageCatalog {
     status: Record<'active' | 'paused' | 'completed' | 'archived', string>;
     links: { jobs: string; applications: string; dashboard: string; };
   };
+  resumeLearning: {
+    title: string; description: string; entry: string; backToResumes: string;
+    tabs: { samples: string; guide: string };
+    filters: { role: string; year: string; level: string; language: string; quality: string; keyword: string; keywordPlaceholder: string; all: string; apply: string; reset: string };
+    quality: Record<'good' | 'mixed' | 'bad-example', string>;
+    strength: Record<'must' | 'should' | 'avoid', string>;
+    consensus: Record<'multi' | 'single' | 'conflict', string>;
+    matched: string; empty: string; unknownDate: string; graduation: string; why: string; dateNote: string;
+    rules: string; templates: string; examples: string; bad: string; good: string; sources: string;
+    skillLevels: string; levelWord: string; levelMeaning: string; levelDepth: string; verbs: string;
+  };
   resumesWorkspace: {
     filters: { campaign: string; all: string; apply: string; reset: string; };
     summary: { registry: string; used: string; applications: string; missingArtifact: string; };

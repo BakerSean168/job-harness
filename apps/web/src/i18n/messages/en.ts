@@ -71,6 +71,17 @@ export const en: MessageCatalog = {
     status: { active: 'Active', paused: 'Paused', completed: 'Completed', archived: 'Archived' },
     links: { jobs: 'View jobs', applications: 'View applications', dashboard: 'View overview' },
   },
+  resumeLearning: {
+    title: 'Learn resume writing', description: 'Real resume samples collected from the web, plus the writing conventions for each section: skill levels, bullet patterns and what to avoid.', entry: 'Learn resume writing', backToResumes: 'Back to resumes',
+    tabs: { samples: 'Samples', guide: 'Writing guide' },
+    filters: { role: 'Role', year: 'Year', level: 'Stage', language: 'Language', quality: 'Quality', keyword: 'Keyword', keywordPlaceholder: 'e.g. RAG, virtual list', all: 'All', apply: 'Filter', reset: 'Reset' },
+    quality: { good: 'Worth learning', mixed: 'Mixed', 'bad-example': 'Bad example' },
+    strength: { must: 'Must', should: 'Should', avoid: 'Avoid' },
+    consensus: { multi: 'Multi-source', single: 'Single source', conflict: 'Sources disagree' },
+    matched: '{count} samples', empty: 'No samples match.', unknownDate: 'Date unknown', graduation: 'Class of {year}', why: 'Takeaway: ', dateNote: 'Date basis: ',
+    rules: 'Rules', templates: 'Templates', examples: 'Before / after', bad: 'Avoid', good: 'Prefer', sources: 'Sources',
+    skillLevels: 'What skill-level words signal', levelWord: 'Word', levelMeaning: 'What interviewers assume', levelDepth: 'Expected probing depth', verbs: 'Strong verbs',
+  },
   resumesWorkspace: {
     filters: { campaign: 'Campaign', all: 'All', apply: 'Filter', reset: 'Reset' },
     summary: { registry: 'Registered resumes', used: 'Used resumes', applications: 'Linked applications', missingArtifact: 'Missing artifacts' },
