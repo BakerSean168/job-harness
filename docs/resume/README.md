@@ -30,6 +30,8 @@ A mutable Profile describes how to assemble a resume. A Revision freezes the exa
 
 ## Documents
 
+- **`2026-10-14-v2x-canonical-foundation.md` — current Resume 2.x one-page presentation, evidence, links, authoring and delivery acceptance standard; the `ai-frontend-v2-3` profile is the verified reference implementation.**
+- `2026-10-14-resume-http-413-incident.md` — restored 2026-10-14 Resume workspace outage, exact 100 KiB root cause and scoped parser acceptance.
 - `open-source-benchmark.md` — external design references and explicit takeaways.
 - `domain-model-v2.md` — canonical Resume domain, invariants, ownership and lifecycle.
 - `migration-plan.md` — completed JH-R000..R010 migration and retirement evidence from the standalone Resume repository.
