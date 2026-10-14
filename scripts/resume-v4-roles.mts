@@ -228,6 +228,22 @@ async function api(path: string, init: RequestInit = {}) {
   if (!response.ok) throw new Error(`${init.method ?? 'GET'} ${path} -> ${response.status} ${(await response.text()).slice(0, 500)}`);
   return response;
 }
+// Preview payload only: the full v10 candidate Library exceeds Express' default
+// 100kb JSON limit on /resume/preview/pdf. Send a copy whose two v4 projects keep
+// only the presentation/highlights this Profile references, and assert the
+// resolved document is byte-for-byte identical to the full-Library resolution.
+// Commit and publish always use the full Library; nothing is pruned in the DB.
+function previewLibraryFor(library: any, profile: any) {
+  const pruned = structuredClone(library);
+  for (const sel of profile.projectSelections) {
+    const project = pruned.projects.find((p: any) => p.id === sel.projectId);
+    project.presentations = project.presentations.filter((x: any) => x.id === sel.presentationId);
+    project.highlights = project.highlights.filter((h: any) => sel.highlightIds.includes(h.id));
+  }
+  const full = JSON.stringify(resolveResume(library, profile));
+  if (JSON.stringify(resolveResume(pruned, profile)) !== full) throw new Error(profile.id + ': pruned preview Library resolves differently');
+  return pruned;
+}
 const sha256 = (b: Uint8Array) => createHash('sha256').update(b).digest('hex');
 
 const store = new SqliteResumeStore(process.env.JOB_HARNESS_DB || '/data/job-harness.db');
@@ -302,7 +318,7 @@ try {
       console.log('CHECK_OK', JSON.stringify({ library: `${originalLibrary.version}->${library.version}`, profiles: PROFILE_IDS }));
     } else if (MODE === 'preview') {
       for (const profile of profiles) {
-        const response = await api('/resume/preview/pdf', { method: 'POST', body: JSON.stringify({ library, profile }) });
+        const response = await api('/resume/preview/pdf', { method: 'POST', body: JSON.stringify({ library: previewLibraryFor(library, profile), profile }) });
         const bytes = Buffer.from(await response.arrayBuffer());
         writeFileSync(join(ROOT, profile.id + '.pdf'), bytes);
         console.log('PREVIEW_OK', profile.id, 'PDF_BYTES', bytes.length);
