@@ -39,6 +39,11 @@ const ROOT = process.env.RESUME_V4_STAGING || '/data/resume-v4-roles-staging';
 const EXPORT_DIR = process.env.RESUME_V4_EXPORT || '/data/resumes-v4';
 const API = process.env.JOB_HARNESS_API || 'http://127.0.0.1:3000/api/v1';
 const COHORT = '｜2026届本科毕业生';
+// Baseline after frontend v2.3 (2026-10-14): primary Library v9 with canonical
+// project links (label GitHub + 项目展示) and ai-frontend-v2-3 present. V4 clones
+// the live Library and does not touch shared project links. Bump only after re-review.
+const EXPECTED_LIBRARY_VERSION = 9;
+const REQUIRED_EXISTING_PROFILE = 'ai-frontend-v2-3';
 const zh = (s: string) => ({ 'zh-CN': s });
 const now = new Date().toISOString();
 mkdirSync(ROOT, { recursive: true });
@@ -230,6 +235,9 @@ try {
   if (MODE === 'publish') {
     const library = await store.getLibrary('primary');
     if (!library) throw new Error('primary Library missing');
+    if (library.version !== EXPECTED_LIBRARY_VERSION + 1) {
+      throw new Error(`publish expects Library v${EXPECTED_LIBRARY_VERSION + 1} (post v4 commit), found v${library.version}`);
+    }
     mkdirSync(EXPORT_DIR, { recursive: true });
     const results: any[] = [];
     for (const spec of specs) {
@@ -260,6 +268,10 @@ try {
   } else {
     const originalLibrary = await store.getLibrary('primary');
     if (!originalLibrary) throw new Error('primary ResumeLibrary not found');
+    if (originalLibrary.version !== EXPECTED_LIBRARY_VERSION) {
+      throw new Error(`Baseline changed: expected primary Library v${EXPECTED_LIBRARY_VERSION}, found v${originalLibrary.version}; re-review required`);
+    }
+    if (!(await store.getProfile(REQUIRED_EXISTING_PROFILE))) throw new Error('Baseline missing ' + REQUIRED_EXISTING_PROFILE);
     const existing = new Set<string>();
     for (const id of PROFILE_IDS) if (await store.getProfile(id)) existing.add(id);
     assertNoCollisions(originalLibrary, id => existing.has(id));
