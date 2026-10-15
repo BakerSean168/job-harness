@@ -1,0 +1,18 @@
+[Unit]
+Description=Job Harness Browser Bridge in dedicated Oracle2 remote Chromium
+Documentation=https://github.com/BakerSean168/job-harness
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/docker exec --user abc --env DISPLAY=:0 --env WAYLAND_DISPLAY=wayland-0 --env XDG_RUNTIME_DIR=/config/.XDG oracle2-remote-browser /config/job-harness-bridge/run.sh
+ExecStop=-/usr/bin/docker exec --user abc oracle2-remote-browser /config/job-harness-bridge/stop.sh
+Restart=always
+RestartSec=12
+TimeoutStartSec=40
+TimeoutStopSec=30
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
