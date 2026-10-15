@@ -26,6 +26,18 @@ export const ListCompanyBlockRulesOutputSchema = z.object({
 
 export const DeleteCompanyBlockRuleOutputSchema = z.object({ deleted: z.boolean() }).strict();
 
+export const CheckCompanyBlockRuleInputSchema = z.object({
+  companyName: z.string().trim().min(2).max(300),
+}).strict();
+
+export const CheckCompanyBlockRuleOutputSchema = z.object({
+  companyName: z.string().trim().min(2).max(300),
+  blocked: z.boolean(),
+  rule: CompanyBlockRuleSchema.nullable(),
+}).strict();
+
 export type CompanyBlockRule = z.infer<typeof CompanyBlockRuleSchema>;
 export type UpsertCompanyBlockRuleInput = z.input<typeof UpsertCompanyBlockRuleInputSchema>;
 export type ListCompanyBlockRulesOutput = z.infer<typeof ListCompanyBlockRulesOutputSchema>;
+export type CheckCompanyBlockRuleInput = z.input<typeof CheckCompanyBlockRuleInputSchema>;
+export type CheckCompanyBlockRuleOutput = z.infer<typeof CheckCompanyBlockRuleOutputSchema>;
