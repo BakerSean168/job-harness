@@ -8,6 +8,7 @@ import type {
   ApplicationEvent,
   ApplicationSubmission,
   Company,
+  CompanyBlockRule,
   DiscoveryRun,
   DuplicateCheckInput,
   DuplicateCheckOutput,
@@ -65,6 +66,8 @@ export interface IdempotencyReceipt {
 export interface CareerStoreReadPort {
   searchJobs(input: SearchJobsInput): Promise<SearchJobsOutput>;
   getJob(jobId: string): Promise<Job | null>;
+  listCompanyBlockRules(): Promise<CompanyBlockRule[]>;
+  findCompanyBlockRule(companyName: string): Promise<CompanyBlockRule | null>;
   findDuplicate(input: DuplicateCheckInput): Promise<DuplicateCheckOutput>;
   listOutreachEvents(input: ListJobOutreachEventsInput): Promise<ListJobOutreachEventsOutput>;
   listApplications(input: ListApplicationsInput): Promise<ListApplicationsOutput>;
@@ -97,6 +100,8 @@ export interface CareerStoreReadPort {
 }
 
 export interface CareerStoreTransactionPort extends CareerStoreReadPort {
+  upsertCompanyBlockRule(rule: CompanyBlockRule): Promise<CompanyBlockRule>;
+  deleteCompanyBlockRule(id: string): Promise<boolean>;
   resolveCompany(name: string, now: string): Promise<Company>;
   companyOwnsName(companyId: string, name: string): Promise<boolean>;
   addCompanyAlias(companyId: string, alias: string, now: string): Promise<Company>;

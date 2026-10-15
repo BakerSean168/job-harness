@@ -3,6 +3,8 @@ import type {
   AnalyticsSnapshotInput,
   ApplicationDetail,
   CompanyDetail,
+  CompanyBlockRule,
+  UpsertCompanyBlockRuleInput,
   ApplicationWorkspaceDetail,
   BeginDiscoveryInput,
   CareerContextInput,
@@ -145,7 +147,15 @@ export interface CareerWorkspaceReadPort {
   listResumeUsage(input?: ListResumeUsageInput): Promise<ListResumeUsageOutput>;
 }
 
+export interface CareerCompanyBlocklistPort {
+  list(): Promise<readonly CompanyBlockRule[]>;
+  match(companyName: string): Promise<CompanyBlockRule | null>;
+  upsert(input: UpsertCompanyBlockRuleInput): Promise<CompanyBlockRule>;
+  delete(id: string): Promise<{ deleted: boolean }>;
+}
+
 export interface CareerApplicationPorts {
+  companyBlocklist: CareerCompanyBlocklistPort;
   jobs: CareerJobReadPort & CareerJobCommandPort;
   applications: CareerApplicationReadPort & CareerApplicationCommandPort;
   submissionIntents: CareerSubmissionIntentPort;

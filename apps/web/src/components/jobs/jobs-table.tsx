@@ -56,6 +56,7 @@ export function JobsTable({
                 <td><div className="job-state-stack">
                   <StatusBadge value={item.state} label={copy.states[item.state]} />
                   {item.archivedForView ? <StatusBadge value="archived" label={copy.states.archived} /> : null}
+                  {item.blockedCompany ? <StatusBadge value="archived" label={messages.companiesWorkspace.blacklist.active} /> : null}
                 </div></td>
                 <td><StatusBadge value={(item.availability?.applyability ?? 'unverified')} label={copy.availability[item.availability?.applyability ?? 'unverified']} /></td>
                 <td>

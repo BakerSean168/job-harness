@@ -5,6 +5,7 @@ import {
 } from '@job-harness/application';
 import {
   AnalyticsSnapshotInputSchema,
+  UpsertCompanyBlockRuleInputSchema,
   BeginDiscoveryInputSchema,
   CompleteDiscoveryInputSchema,
   DashboardSnapshotInputSchema,
@@ -131,6 +132,17 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
     res.json(await career.workspace.getDashboardSnapshot(input));
   }));
 
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.companyBlockRules, route(async (_req, res) => {
+    res.json({ items: await career.companyBlocklist.list() });
+  }));
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.upsertCompanyBlockRule, route(async (req, res) => {
+    const parsed = UpsertCompanyBlockRuleInputSchema.parse(req.body);
+    res.json(await career.companyBlocklist.upsert(parsed));
+  }));
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.deleteCompanyBlockRule, route(async (req, res) => {
+    res.json(await career.companyBlocklist.delete(entityId(req.params.ruleId)));
+  }));
+
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.companies, route(async (req, res) => {
     const input = ListCompaniesInputSchema.parse({
       ...pageQuery(req.query),
@@ -162,6 +174,8 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
       ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
       ...(boolean(req.query.includeCampaignArchived) !== undefined
         ? { includeCampaignArchived: boolean(req.query.includeCampaignArchived) } : {}),
+      ...(boolean(req.query.includeBlockedCompanies) !== undefined
+        ? { includeBlockedCompanies: boolean(req.query.includeBlockedCompanies) } : {}),
     });
     res.json(await career.workspace.searchJobListItems(input));
   }));

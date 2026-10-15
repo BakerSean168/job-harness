@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { assessOpportunityAvailability, type ListingLifecycleEvidence } from '@job-harness/domain';
-import { migrateSqliteDatabase, SQLITE_SCHEMA_VERSION } from './schema';
+import { migrateSqliteDatabase } from './schema';
+
+const REQUIRED_LIFECYCLE_SCHEMA_VERSION = 19;
 
 type DbRow = Record<string, unknown>;
 
@@ -52,8 +54,8 @@ export function runCampaignLifecycleSweep(input: CampaignLifecycleSweepInput): C
       migrateSqliteDatabase(db);
     } else {
       const version = Number((db.prepare('PRAGMA user_version').get() as { user_version?: number }).user_version ?? 0);
-      if (version < SQLITE_SCHEMA_VERSION) {
-        throw new Error(`Lifecycle preview requires SQLite schema ${SQLITE_SCHEMA_VERSION}; found ${version}. Upgrade explicitly first.`);
+      if (version < REQUIRED_LIFECYCLE_SCHEMA_VERSION) {
+        throw new Error(`Lifecycle preview requires SQLite schema ${REQUIRED_LIFECYCLE_SCHEMA_VERSION}; found ${version}. Upgrade explicitly first.`);
       }
     }
     const campaign = db.prepare('SELECT id,status FROM campaigns WHERE id=?').get(input.campaignId) as DbRow | undefined;

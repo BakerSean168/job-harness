@@ -50,6 +50,7 @@ export const zhCN: MessageCatalog = {
     data: '数据与备份', exportJson: '导出 Career JSON', exportJsonDescription: '下载可移植、可审阅的业务真值快照：公司、岗位、Listing、观察记录、投递时间线、求职目标、简历引用和发现任务。', backupSqlite: '下载 SQLite 备份', backupSqliteDescription: '下载通过 SQLite VACUUM INTO 生成的物理一致性数据库，可用于完整灾备恢复。', download: '下载', backupNote: 'JSON 导出不包含内部幂等收据和旧迁移证据；需要完整恢复时请使用 SQLite 备份。'
   },
   companiesWorkspace: {
+    blacklist: { title: "企业黑名单", description: "仅匹配招聘企业名称及别名，不匹配岗位描述；不删除历史投递。全局生效。", name: "企业名称或品牌", mode: "匹配方式", exact: "精确匹配", prefix: "名称开头", contains: "品牌包含", category: "原因", former_employer: "曾实习或任职", hr_agency: "人力资源/代招", it_services: "IT 服务/外包偏好", manual: "自行排除", note: "备注（可选）", add: "加入黑名单", disable: "停用", enable: "启用", delete: "删除", active: "已屏蔽", inactive: "已停用", empty: "尚无屏蔽规则", hidden: "已屏蔽岗位默认不在岗位列表中显示，可在岗位筛选中选择包含。" },
     filters: { query: '公司', campaign: '求职目标', all: '全部', apply: '筛选', reset: '重置' },
     table: { company: '公司', jobs: '岗位', shortlisted: '候选', applications: '投递', activePipeline: '活跃 Pipeline', cities: '城市', sources: '来源', lastSeen: '最近发现', empty: '暂无公司数据。' },
     detail: { title: '公司详情', aliases: '别名', sources: '关联来源', pipeline: '投递阶段', jobs: '岗位', noJobs: '当前范围内没有岗位。', close: '关闭详情', full: '打开完整详情', openJob: '查看岗位' },
@@ -157,6 +158,7 @@ export const zhCN: MessageCatalog = {
     emailApplication: { back: '返回岗位', title: '邮件申请包', description: '收件人、正文和精确 PDF 已冻结；真正发送必须使用同一 draftHash，并在发送前跨越 durable boundary。', recipient: '收件人', subject: '主题', body: '正文', attachment: '附件', draftHash: 'Draft Hash', intentState: 'SubmissionIntent', providerBoundary: '发送邮件属于外部副作用。邮件包已冻结收件人、正文和精确 PDF；SMTP Worker 只有在当前 draftHash 获得短时授权后才会 claim 并发送。', downloadResume: '下载冻结简历 PDF', authorizeSend: '授权发送（5 分钟）', authorized: '已授权，等待 Email Worker；有效期至', workerNotConfigured: 'SMTP Email Worker 尚未配置凭据；你仍可让 ChatGPT 使用已连接的 Gmail 插件发送此邮件包，并通过 begin/confirm 闭环落账。' },
     filters: {
       title: '岗位名称', company: '公司', city: '城市', state: '岗位状态', source: '来源', applied: '投递状态', campaign: '求职目标',
+      blockedVisibility: "黑名单", showBlocked: "包含已屏蔽", hideBlocked: "隐藏已屏蔽",
       archivedVisibility: '归档', showArchived: '包含已归档', hideArchived: '隐藏已归档',
       any: '全部', yes: '已投递', no: '未投递', apply: '筛选', reset: '重置',
     },

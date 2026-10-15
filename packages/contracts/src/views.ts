@@ -84,6 +84,7 @@ export const JobListItemSchema = z.object({
   application: JobApplicationSummarySchema.nullable(),
   primaryListing: JobListingSchema.nullable(),
   availability: JobAvailabilitySummarySchema.optional(),
+  blockedCompany: z.boolean().optional(),
   /** True when archived for the selected Campaign, or for every Campaign in a global view. */
   archivedForView: z.boolean().optional(),
   listingCount: z.number().int().nonnegative(),

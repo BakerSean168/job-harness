@@ -5,6 +5,8 @@ import { getJobHarnessClient } from '@/lib/job-harness-client';
 import { formatDate } from '@/lib/format';
 import type { ManagementSearchParams } from './campaigns-workspace';
 import { CompanySidePanel } from './company-side-panel';
+import { matchingCompanyBlockRule } from '@job-harness/domain';
+import { addCompanyBlockRuleAction, toggleCompanyBlockRuleAction, deleteCompanyBlockRuleAction } from '@/app/companies/blacklist-actions';
 
 function one(value: string | string[] | undefined): string | undefined { return Array.isArray(value) ? value[0] : value; }
 function numericOffset(value: string | undefined): number { const parsed = Number(value); return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0; }
@@ -22,10 +24,11 @@ export async function CompaniesWorkspace({ searchParams }: { searchParams: Manag
   const campaignId = one(searchParams.campaign)?.trim() || undefined;
   const offset = numericOffset(one(searchParams.offset));
   const selectedCompanyId = one(searchParams.company)?.trim() || undefined;
-  const [page, campaigns, detail] = await Promise.all([
+  const [page, campaigns, detail, blocklist] = await Promise.all([
     client.workspace.listCompanies({ limit: 50, offset, ...(query ? { query } : {}), ...(campaignId ? { campaignId } : {}) }),
     client.campaigns.list({ limit: 200, offset: 0 }),
     selectedCompanyId ? client.workspace.getCompanyDetail(selectedCompanyId, campaignId) : Promise.resolve(null),
+    client.companyBlocklist.list(),
   ]);
   const copy = messages.companiesWorkspace;
   const closeHref = companyHref(searchParams, { company: null });
@@ -34,6 +37,46 @@ export async function CompaniesWorkspace({ searchParams }: { searchParams: Manag
     <div className="workspace-page management-page">
       <WorkspaceHeader title={messages.pages.companies.title} description={messages.pages.companies.description} actions={<span className="workspace-result-count">{page.total}</span>} />
       <div className="management-content">
+
+        <details className="management-panel employer-blacklist-panel">
+          <summary>{copy.blacklist.title}（{blocklist.items.filter((rule) => rule.active).length}）</summary>
+          <p className="management-muted">{copy.blacklist.description}</p>
+          <form className="management-filter-bar" action={addCompanyBlockRuleAction}>
+            <label className="filter-field filter-field-wide"><span>{copy.blacklist.name}</span><input name="pattern" required minLength={2} maxLength={160} /></label>
+            <label className="filter-field"><span>{copy.blacklist.mode}</span><select name="matchMode" defaultValue="exact">
+              <option value="exact">{copy.blacklist.exact}</option>
+              <option value="prefix">{copy.blacklist.prefix}</option>
+              <option value="contains">{copy.blacklist.contains}</option>
+            </select></label>
+            <label className="filter-field"><span>{copy.blacklist.category}</span><select name="category" defaultValue="manual">
+              <option value="manual">{copy.blacklist.manual}</option>
+              <option value="former_employer">{copy.blacklist.former_employer}</option>
+              <option value="hr_agency">{copy.blacklist.hr_agency}</option>
+              <option value="it_services">{copy.blacklist.it_services}</option>
+            </select></label>
+            <label className="filter-field"><span>{copy.blacklist.note}</span><input name="note" maxLength={500} /></label>
+            <button className="filter-submit" type="submit">{copy.blacklist.add}</button>
+          </form>
+          <div className="employer-block-rules">
+            {blocklist.items.length ? blocklist.items.map((rule) => (
+              <div key={rule.id} className="employer-block-row">
+                <strong>{rule.pattern}</strong>
+                <span className="muted-cell">{copy.blacklist[rule.matchMode]} · {copy.blacklist[rule.category]}</span>
+                {rule.note ? <small title={rule.note}>{rule.note}</small> : null}
+                <span className="muted-cell">{rule.active ? copy.blacklist.active : copy.blacklist.inactive}</span>
+                <form action={toggleCompanyBlockRuleAction}>
+                  <input type="hidden" name="ruleId" value={rule.id} />
+                  <button type="submit" className="filter-reset">{rule.active ? copy.blacklist.disable : copy.blacklist.enable}</button>
+                </form>
+                <form action={deleteCompanyBlockRuleAction}>
+                  <input type="hidden" name="ruleId" value={rule.id} />
+                  <button type="submit" className="filter-reset">{copy.blacklist.delete}</button>
+                </form>
+              </div>
+            )) : <p>{copy.blacklist.empty}</p>}
+          </div>
+          <p className="management-muted">{copy.blacklist.hidden}</p>
+        </details>
         <form className="management-filter-bar" method="get" action="/companies">
           <label className="filter-field filter-field-wide"><span>{copy.filters.query}</span><input name="q" defaultValue={query ?? ''} /></label>
           <label className="filter-field"><span>{copy.filters.campaign}</span><select name="campaign" defaultValue={campaignId ?? ''}><option value="">{copy.filters.all}</option>{campaigns.items.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
@@ -44,7 +87,7 @@ export async function CompaniesWorkspace({ searchParams }: { searchParams: Manag
             <th>{copy.table.company}</th><th>{copy.table.jobs}</th><th>{copy.table.shortlisted}</th><th>{copy.table.applications}</th><th>{copy.table.activePipeline}</th><th>{copy.table.cities}</th><th>{copy.table.sources}</th><th>{copy.table.lastSeen}</th>
           </tr></thead><tbody>{page.items.length ? page.items.map((item) => (
             <tr key={item.company.id} data-selected={selectedCompanyId === item.company.id ? 'true' : undefined}>
-              <td><Link className="company-name-link" href={companyHref(searchParams, { company: item.company.id })} scroll={false}><strong>{item.company.name}</strong>{item.company.aliases.length ? <small>{item.company.aliases.slice(0, 2).join(' · ')}</small> : null}</Link></td>
+              <td><Link className="company-name-link" href={companyHref(searchParams, { company: item.company.id })} scroll={false}><strong>{item.company.name}</strong>{item.company.aliases.length ? <small>{item.company.aliases.slice(0, 2).join(' · ')}</small> : null}</Link>{matchingCompanyBlockRule([item.company.name, ...item.company.aliases], blocklist.items) ? <span className="status-badge" data-status="archived">{copy.blacklist.active}</span> : null}</td>
               <td>{item.jobs}</td><td>{item.shortlisted}</td><td>{item.applications}</td><td>{item.activePipeline}</td>
               <td>{item.cities.slice(0, 3).join(' · ') || '—'}</td><td>{item.sourceKinds.slice(0, 3).map((source) => messages.jobsWorkspace.sourceKinds[source]).join(' · ') || '—'}</td><td>{item.lastSeenAt ? formatDate(locale, item.lastSeenAt) : '—'}</td>
             </tr>
