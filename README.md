@@ -25,6 +25,12 @@ It does **not** own:
 - a built-in general web-search agent;
 - the external recruiting-site/browser executor itself; Job Harness owns only the durable intent/evidence/reconciliation boundary.
 
+## Browser execution ownership (Oracle2 retirement, 2026-10-15)
+
+The operator has retired **Oracle2-hosted Job Harness browser execution** in favor of testing Hark's own cloud browser. Oracle2 remains the authoritative Resume/Career database, REST API, MCP and Web host; Hark is expected to consume those APIs rather than reuse Oracle2 Chromium or Steel. The Hark website-login, resume-upload and actual-application flows **are not yet verified**, so do not mark them as completed.
+
+The retired Oracle2-specific Chromium launcher, relay, sync scripts and service configuration were removed from the current tree. Previous implementation remains accessible via Git history. Legacy Apply Workers, timers, Steel and BOSS browser bridge have been stopped, and browser-specific credentials/configuration removed from the host. The generic Browser Bridge code remains portable and is not an active Oracle2 executor.
+
 ## Current status
 
 **Standalone alpha.** The first end-to-end slice is runnable:
