@@ -160,6 +160,9 @@ export interface MessageCatalog {
       source: string;
       applied: string;
       campaign: string;
+      archivedVisibility: string;
+      showArchived: string;
+      hideArchived: string;
       any: string;
       yes: string;
       no: string;
@@ -176,6 +179,8 @@ export interface MessageCatalog {
       resume: string;
       lastSeen: string;
       listings: string;
+      deadline: string;
+      applyability: string;
       results: string;
       noResults: string;
     };
@@ -200,6 +205,9 @@ export interface MessageCatalog {
       closePanel: string;
       openFullPage: string;
       sourceSeen: string;
+      deadline: string;
+      closingPolicy: string;
+      lastVerified: string;
     };
     actions: {
       shortlist: string;
@@ -217,6 +225,7 @@ export interface MessageCatalog {
     states: Record<'discovered' | 'shortlisted' | 'ignored' | 'closed' | 'archived', string>;
     applicationStages: Record<'applied' | 'screening' | 'assessment' | 'interview' | 'offer' | 'rejected' | 'withdrawn', string>;
     listingStatuses: Record<'active' | 'closed' | 'unknown', string>;
+    availability: Record<'confirmed_open' | 'unverified' | 'deadline_passed' | 'closed' | 'conflict', string>;
     eventTypes: Record<'application_recorded' | 'submission_recorded' | 'stage_changed' | 'interview_scheduled' | 'note_added', string>;
     outreachTypes: Record<'greeting_sent' | 'recruiter_replied' | 'resume_sent' | 'already_contacted', string>;
     sourceKinds: Record<'official' | 'boss' | 'zhilian' | 'liepin' | 'job51' | 'moka' | 'greenhouse' | 'lever' | 'ashby' | 'email' | 'manual' | 'other', string>;

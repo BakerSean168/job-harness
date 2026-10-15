@@ -4,6 +4,15 @@ export type JobState = (typeof JOB_STATES)[number];
 export const JOB_LISTING_STATUSES = ['active', 'closed', 'unknown'] as const;
 export type JobListingStatus = (typeof JOB_LISTING_STATUSES)[number];
 
+export const JOB_CLOSING_POLICIES = ['unknown', 'fixed_deadline', 'until_filled', 'rolling'] as const;
+export type JobClosingPolicy = (typeof JOB_CLOSING_POLICIES)[number];
+
+export const JOB_VERIFICATION_KINDS = ['observed', 'open_confirmed', 'closed_confirmed', 'inaccessible'] as const;
+export type JobVerificationKind = (typeof JOB_VERIFICATION_KINDS)[number];
+
+export const JOB_CLOSURE_REASONS = ['filled', 'cancelled', 'removed', 'unknown'] as const;
+export type JobClosureReason = (typeof JOB_CLOSURE_REASONS)[number];
+
 export const JOB_LISTING_IDENTITY_KINDS = ['external-id', 'url', 'scoped'] as const;
 export type JobListingIdentityKind = (typeof JOB_LISTING_IDENTITY_KINDS)[number];
 

@@ -11,6 +11,10 @@ import {
   IdempotencyKeySchema,
   IsoDateTimeSchema,
   JobSchema,
+  JobDeadlineSchema,
+  JobClosingPolicySchema,
+  JobVerificationKindSchema,
+  JobClosureReasonSchema,
   JobOutreachEventSchema,
   JobOutreachEventTypeSchema,
   JobSourceKindSchema,
@@ -41,6 +45,7 @@ export const SearchJobsInputSchema = PageSchema.extend({
   sourceKinds: z.array(JobSourceKindSchema).optional(),
   applied: z.boolean().optional(),
   campaignId: EntityIdSchema.optional(),
+  includeCampaignArchived: z.boolean().optional(),
 });
 
 export const SearchJobsOutputSchema = z
@@ -60,6 +65,12 @@ export const JobListingCandidateSchema = z
     identityKind: z.enum(['external-id', 'url', 'scoped']),
     status: z.enum(['active', 'closed', 'unknown']).default('active'),
     publishedAt: IsoDateTimeSchema.nullable().optional(),
+    closingPolicy: JobClosingPolicySchema.optional(),
+    applicationDeadline: JobDeadlineSchema.nullable().optional(),
+    verificationKind: JobVerificationKindSchema.default('observed'),
+    evidenceUrl: z.url().nullable().optional(),
+    verificationNote: z.string().trim().max(1000).nullable().optional(),
+    closureReason: JobClosureReasonSchema.nullable().optional(),
     metadataSnapshot: z.record(z.string(), z.unknown()).default({}),
   })
   .strict()
@@ -69,6 +80,16 @@ export const JobListingCandidateSchema = z
     }
     if (value.identityKind === 'url' && !value.url) {
       ctx.addIssue({ code: 'custom', message: 'url listing requires url', path: ['url'] });
+    }
+    if (value.verificationKind === 'open_confirmed' && value.status !== 'active') {
+      ctx.addIssue({ code: 'custom', message: 'open_confirmed requires active status', path: ['status'] });
+    }
+    if (value.verificationKind === 'closed_confirmed' && value.status !== 'closed') {
+      ctx.addIssue({ code: 'custom', message: 'closed_confirmed requires closed status', path: ['status'] });
+    }
+    if (['open_confirmed', 'closed_confirmed'].includes(value.verificationKind)
+      && !value.evidenceUrl && !value.verificationNote) {
+      ctx.addIssue({ code: 'custom', message: 'verified status requires evidence URL or note', path: ['verificationKind'] });
     }
   });
 

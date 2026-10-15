@@ -1,4 +1,5 @@
 export * from './schema';
+export * from './lifecycle-maintenance';
 export * from './store';
 export * from './backup';
 export * from './resume-store';

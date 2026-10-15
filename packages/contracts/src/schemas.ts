@@ -9,6 +9,9 @@ import {
   EVENT_ACTORS,
   JOB_LISTING_IDENTITY_KINDS,
   JOB_LISTING_STATUSES,
+  JOB_CLOSING_POLICIES,
+  JOB_VERIFICATION_KINDS,
+  JOB_CLOSURE_REASONS,
   JOB_OUTREACH_EVENT_TYPES,
   JOB_SOURCE_KINDS,
   JOB_STATES,
@@ -24,6 +27,30 @@ export const UrlSchema = z.url();
 
 export const JobStateSchema = z.enum(JOB_STATES);
 export const JobListingStatusSchema = z.enum(JOB_LISTING_STATUSES);
+export const JobClosingPolicySchema = z.enum(JOB_CLOSING_POLICIES);
+export const JobVerificationKindSchema = z.enum(JOB_VERIFICATION_KINDS);
+export const JobClosureReasonSchema = z.enum(JOB_CLOSURE_REASONS);
+
+/** A date-only deadline is inclusive in the declared time zone. Never assume midnight UTC. */
+export const JobDeadlineSchema = z.discriminatedUnion('precision', [
+  z.object({
+    precision: z.literal('date'),
+    date: z.iso.date(),
+    timeZone: z.string().trim().min(1).max(80).refine((value) => {
+      try { new Intl.DateTimeFormat('en-US', { timeZone: value }); return true; } catch { return false; }
+    }, 'must be a valid IANA time zone'),
+    sourceText: z.string().trim().min(1).max(1000),
+    sourceUrl: UrlSchema.nullable().default(null),
+    observedAt: IsoDateTimeSchema,
+  }).strict(),
+  z.object({
+    precision: z.literal('datetime'),
+    at: IsoDateTimeSchema,
+    sourceText: z.string().trim().min(1).max(1000),
+    sourceUrl: UrlSchema.nullable().default(null),
+    observedAt: IsoDateTimeSchema,
+  }).strict(),
+]);
 export const JobListingIdentityKindSchema = z.enum(JOB_LISTING_IDENTITY_KINDS);
 export const ApplicationStageSchema = z.enum(APPLICATION_STAGES);
 export const ApplicationEventTypeSchema = z.enum(APPLICATION_EVENT_TYPES);
@@ -77,6 +104,11 @@ export const JobListingSchema = z
     lastSeenAt: IsoDateTimeSchema,
     publishedAt: NullableIsoDateTimeSchema.default(null),
     closedAt: NullableIsoDateTimeSchema.default(null),
+    closingPolicy: JobClosingPolicySchema.default('unknown'),
+    applicationDeadline: JobDeadlineSchema.nullable().default(null),
+    lastVerifiedAt: NullableIsoDateTimeSchema.default(null),
+    lastVerifiedOpenAt: NullableIsoDateTimeSchema.default(null),
+    closureReason: JobClosureReasonSchema.nullable().default(null),
     metadataSnapshot: z.record(z.string(), z.unknown()).default({}),
   })
   .strict()
@@ -114,6 +146,9 @@ export const JobObservationSchema = z
     discoveryRunId: EntityIdSchema.nullable().default(null),
     observedAt: IsoDateTimeSchema,
     availability: JobListingStatusSchema,
+    verificationKind: JobVerificationKindSchema.default('observed'),
+    evidenceUrl: UrlSchema.nullable().default(null),
+    note: z.string().max(1000).nullable().default(null),
   })
   .strict();
 
@@ -314,6 +349,7 @@ export const SubmissionIntentSchema = z.object({
 
 export type Company = z.infer<typeof CompanySchema>;
 export type JobListing = z.infer<typeof JobListingSchema>;
+export type JobDeadline = z.infer<typeof JobDeadlineSchema>;
 export type Job = z.infer<typeof JobSchema>;
 export type JobObservation = z.infer<typeof JobObservationSchema>;
 export type JobOutreachEvent = z.infer<typeof JobOutreachEventSchema>;

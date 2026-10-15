@@ -62,6 +62,15 @@ export function JobsFilters({
           <option value="no">{copy.filters.no}</option>
         </select>
       </label>
+      {mode === 'jobs' ? (
+        <label className="filter-field">
+          <span>{copy.filters.archivedVisibility}</span>
+          <select name="includeArchived" defaultValue={one(params.includeArchived) ?? 'no'}>
+            <option value="no">{copy.filters.hideArchived}</option>
+            <option value="yes">{copy.filters.showArchived}</option>
+          </select>
+        </label>
+      ) : null}
       <div className="filter-actions">
         <button className="filter-submit" type="submit">{copy.filters.apply}</button>
         <Link className="filter-reset" href={pathname}>{copy.filters.reset}</Link>

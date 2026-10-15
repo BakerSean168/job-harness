@@ -40,6 +40,10 @@ export interface ServerRuntimeConfig {
   readonly submissionReconcileBatchSize: number;
   readonly bossGreetingBridgeUrl: string;
   readonly getJobsRuntimeUrl: string | null;
+  readonly lifecycleSweepCampaignIds: readonly string[];
+  readonly lifecycleSweepIntervalMs: number;
+  readonly lifecycleSweepGraceHours: number;
+  readonly lifecycleAutoArchive: boolean;
 }
 
 export function readServerRuntimeConfig(env: NodeJS.ProcessEnv = process.env): ServerRuntimeConfig {
@@ -66,5 +70,10 @@ export function readServerRuntimeConfig(env: NodeJS.ProcessEnv = process.env): S
     submissionReconcileBatchSize: positiveInt(env, 'JOB_HARNESS_SUBMISSION_RECONCILE_BATCH_SIZE', 100),
     bossGreetingBridgeUrl: optionalHttpUrl(env.JOB_HARNESS_BOSS_GREETING_BRIDGE_URL) ?? 'http://127.0.0.1:18788',
     getJobsRuntimeUrl: optionalHttpUrl(env.JOB_HARNESS_GET_JOBS_RUNTIME_URL),
+    lifecycleSweepCampaignIds: (optionalTrimmed(env.JOB_HARNESS_LIFECYCLE_CAMPAIGN_IDS) ?? '')
+      .split(',').map((value) => value.trim()).filter(Boolean),
+    lifecycleSweepIntervalMs: nonNegativeInt(env, 'JOB_HARNESS_LIFECYCLE_SWEEP_INTERVAL_MS', 86_400_000),
+    lifecycleSweepGraceHours: positiveInt(env, 'JOB_HARNESS_LIFECYCLE_GRACE_HOURS', 48),
+    lifecycleAutoArchive: env.JOB_HARNESS_LIFECYCLE_AUTO_ARCHIVE === 'true',
   };
 }

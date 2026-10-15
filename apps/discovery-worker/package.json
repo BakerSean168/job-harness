@@ -10,6 +10,7 @@
   "dependencies": {
     "@job-harness/client": "workspace:*",
     "@job-harness/contracts": "workspace:*",
+    "@job-harness/domain": "workspace:*",
     "zod": "^4.1.8"
   },
   "devDependencies": {

@@ -160,6 +160,8 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
       ...(list(req.query.sourceKinds) ? { sourceKinds: list(req.query.sourceKinds) } : {}),
       ...(boolean(req.query.applied) !== undefined ? { applied: boolean(req.query.applied) } : {}),
       ...(first(req.query.campaignId) ? { campaignId: first(req.query.campaignId) } : {}),
+      ...(boolean(req.query.includeCampaignArchived) !== undefined
+        ? { includeCampaignArchived: boolean(req.query.includeCampaignArchived) } : {}),
     });
     res.json(await career.workspace.searchJobListItems(input));
   }));

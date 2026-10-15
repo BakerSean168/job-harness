@@ -104,6 +104,8 @@ import {
   buildJobListingIdentityKey,
   normalizeCanonicalUrl,
   normalizeIdentityText,
+  assessOpportunityAvailability,
+  listingApplyability,
   type ApplicationStage,
   type JobState,
 } from '@job-harness/domain';
@@ -150,6 +152,11 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       lastSeenAt: row.last_seen_at,
       publishedAt: row.published_at,
       closedAt: row.closed_at,
+      closingPolicy: row.closing_policy,
+      applicationDeadline: row.application_deadline_json ? json(row.application_deadline_json) : null,
+      lastVerifiedAt: row.last_verified_at,
+      lastVerifiedOpenAt: row.last_verified_open_at,
+      closureReason: row.closure_reason,
       metadataSnapshot: json(row.metadata_snapshot_json),
     });
   }
@@ -197,7 +204,9 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
   }
 
   private primaryListing(job: Job): JobListing | null {
-    const statusRank: Record<JobListing['status'], number> = { active: 0, unknown: 1, closed: 2 };
+    const statusRank: Record<ReturnType<typeof listingApplyability>, number> = {
+      confirmed_open: 0, unverified: 1, conflict: 2, deadline_passed: 3, closed: 4,
+    };
     const sourceRank: Record<string, number> = {
       official: 0,
       moka: 1,
@@ -212,7 +221,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       other: 10,
     };
     return [...job.listings].sort((left, right) =>
-      statusRank[left.status] - statusRank[right.status]
+      statusRank[listingApplyability(left, new Date().toISOString())] - statusRank[listingApplyability(right, new Date().toISOString())]
       || Number(Boolean(right.url)) - Number(Boolean(left.url))
       || (sourceRank[left.sourceKind] ?? 99) - (sourceRank[right.sourceKind] ?? 99)
       || right.lastSeenAt.localeCompare(left.lastSeenAt)
@@ -238,7 +247,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     return row ? CampaignRefSchema.parse({ id: row.id, name: row.name, status: row.status }) : null;
   }
 
-  private async jobListItemsFromJobs(jobs: readonly Job[]): Promise<JobListItem[]> {
+  private async jobListItemsFromJobs(jobs: readonly Job[], campaignId?: string): Promise<JobListItem[]> {
     if (jobs.length === 0) return [];
     const jobIds = jobs.map((job) => job.id);
     const placeholders = jobIds.map(() => '?').join(',');
@@ -289,6 +298,18 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       campaignsByJobId.set(jobId, list);
     }
 
+    const archivedCampaignIdsByJob = new Map<string, Set<string>>();
+    const archiveRows = this.db.prepare(`
+      SELECT job_id,campaign_id FROM campaign_job_states
+      WHERE status='archived' AND job_id IN (${placeholders})
+    `).all(...jobIds) as Row[];
+    for (const row of archiveRows) {
+      const jobId = String(row.job_id);
+      const associated = archivedCampaignIdsByJob.get(jobId) ?? new Set<string>();
+      associated.add(String(row.campaign_id));
+      archivedCampaignIdsByJob.set(jobId, associated);
+    }
+
     const outreachByJobId = new Map<string, { count: number; latest: JobOutreachEvent | null }>();
     const outreachRows = this.db.prepare(`
       SELECT e.* FROM job_outreach_events e
@@ -322,6 +343,12 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
           updatedAt: application.updatedAt,
         } : null,
         primaryListing: this.primaryListing(job),
+        availability: assessOpportunityAvailability(job.listings, new Date().toISOString()),
+        archivedForView: campaignId
+          ? (archivedCampaignIdsByJob.get(job.id)?.has(campaignId) ?? false)
+          : (campaignsByJobId.get(job.id)?.length ?? 0) > 0
+            && (campaignsByJobId.get(job.id) ?? []).every((campaign) =>
+              archivedCampaignIdsByJob.get(job.id)?.has(campaign.id) ?? false),
         listingCount: job.listings.length,
         sourceKinds: [...new Set(job.listings.map((listing) => listing.sourceKind))].sort(),
         campaigns: campaignsByJobId.get(job.id) ?? [],
@@ -372,6 +399,23 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     }
     if (input.applied !== undefined) {
       where.push(`${input.applied ? '' : 'NOT '}EXISTS (SELECT 1 FROM applications a WHERE a.job_id = j.id)`);
+    }
+    if (!input.includeCampaignArchived) {
+      if (input.campaignId) {
+        where.push('NOT EXISTS (SELECT 1 FROM campaign_job_states cjs WHERE cjs.job_id=j.id AND cjs.campaign_id=? AND cjs.status=\'archived\')');
+        params.push(input.campaignId);
+      } else {
+        // Hide only when every associated Campaign archived the Job. A shared
+        // Opportunity stays visible while any other Campaign still needs it.
+        where.push(`NOT (
+          EXISTS (SELECT 1 FROM campaign_job_states a WHERE a.job_id=j.id AND a.status='archived')
+          AND NOT EXISTS (
+            SELECT 1 FROM job_observations o JOIN discovery_runs d ON d.id=o.discovery_run_id
+            LEFT JOIN campaign_job_states s ON s.job_id=o.job_id AND s.campaign_id=d.campaign_id
+            WHERE o.job_id=j.id AND (s.status IS NULL OR s.status <> 'archived')
+          )
+        )`);
+      }
     }
     if (input.campaignId) {
       where.push(`EXISTS (
@@ -858,7 +902,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
   async searchJobListItems(input: SearchJobListItemsInput): Promise<SearchJobListItemsOutput> {
     const page = await this.searchJobs(input);
     return {
-      items: await this.jobListItemsFromJobs(page.items),
+      items: await this.jobListItemsFromJobs(page.items, input.campaignId),
       total: page.total,
     };
   }
@@ -887,6 +931,9 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
           discoveryRunId: row.discovery_run_id,
           observedAt: row.observed_at,
           availability: row.availability,
+          verificationKind: row.verification_kind,
+          evidenceUrl: row.evidence_url,
+          note: row.verification_note,
         }),
         listing: this.listingFromRow(listingRow),
       };
@@ -896,6 +943,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     return JobDetailSchema.parse({
       job,
       primaryListing: this.primaryListing(job),
+      availability: assessOpportunityAvailability(job.listings, new Date().toISOString()),
       campaigns: this.campaignRefsForJob(job.id),
       application: applicationDetail ? {
         application: applicationDetail.application,
@@ -1591,8 +1639,9 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     this.db.prepare(`INSERT INTO job_listings(
       id,job_id,source_kind,label,url,normalized_url,external_namespace,external_id,
       normalized_external_namespace,normalized_external_id,identity_kind,identity_key,status,
-      first_seen_at,last_seen_at,published_at,closed_at,metadata_snapshot_json
-    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      first_seen_at,last_seen_at,published_at,closed_at,metadata_snapshot_json,
+      closing_policy,application_deadline_json,last_verified_at,last_verified_open_at,closure_reason
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       listing.id, listing.jobId, listing.sourceKind, listing.label, listing.url,
       listing.url ? normalizeCanonicalUrl(listing.url) : null,
       listing.externalNamespace, listing.externalId,
@@ -1600,6 +1649,8 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       listing.externalId ? normalizeIdentityText(listing.externalId) : null,
       listing.identityKind, identityKey, listing.status, listing.firstSeenAt, listing.lastSeenAt,
       listing.publishedAt, listing.closedAt, JSON.stringify(listing.metadataSnapshot),
+      listing.closingPolicy, listing.applicationDeadline ? JSON.stringify(listing.applicationDeadline) : null,
+      listing.lastVerifiedAt, listing.lastVerifiedOpenAt, listing.closureReason,
     );
   }
 
@@ -1647,6 +1698,12 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
         lastSeenAt: observedAt,
         publishedAt: candidate.publishedAt ?? null,
         closedAt: candidate.status === 'closed' ? observedAt : null,
+        closingPolicy: candidate.closingPolicy ?? (candidate.applicationDeadline ? 'fixed_deadline' : 'unknown'),
+        applicationDeadline: candidate.applicationDeadline ?? null,
+        lastVerifiedAt: candidate.verificationKind === 'open_confirmed' || candidate.verificationKind === 'closed_confirmed' ? observedAt : null,
+        lastVerifiedOpenAt: candidate.verificationKind === 'open_confirmed' ? observedAt : null,
+        closureReason: candidate.status === 'closed' && candidate.verificationKind === 'closed_confirmed'
+          ? (candidate.closureReason ?? 'unknown') : null,
         metadataSnapshot: candidate.metadataSnapshot,
       });
       this.insertListingRecord(listing);
@@ -1654,17 +1711,43 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     }
 
     const current = this.listingFromRow(row);
-    const mergedMetadata = { ...current.metadataSnapshot, ...candidate.metadataSnapshot };
+    // Search visibility is weaker than direct verification; ignore out-of-order snapshots.
+    const isLatestObservation = Date.parse(observedAt) >= Date.parse(current.lastSeenAt);
+    const isLatestVerification = !current.lastVerifiedAt || Date.parse(observedAt) >= Date.parse(current.lastVerifiedAt);
+    const openConfirmed = candidate.verificationKind === 'open_confirmed' && candidate.status === 'active';
+    const closedConfirmed = candidate.verificationKind === 'closed_confirmed' && candidate.status === 'closed';
+    // Direct verification may arrive after a later search hit: compare it to the
+    // last verification, not to the (weaker) last-seen timestamp.
+    const confirmed = isLatestVerification && (openConfirmed || closedConfirmed);
+    // Preserve the legacy source status projection for unverified observations;
+    // unlike a confirmed closure, it never qualifies a Job for automatic archival.
+    const canChangeStatus = confirmed || (isLatestObservation && current.lastVerifiedAt === null);
+    const status = canChangeStatus ? candidate.status : current.status;
+    const deadline = (isLatestObservation || confirmed) && candidate.applicationDeadline !== undefined
+      && (candidate.applicationDeadline !== null || confirmed)
+      && (!current.applicationDeadline || Date.parse(candidate.applicationDeadline?.observedAt ?? observedAt) >= Date.parse(current.applicationDeadline.observedAt))
+      ? candidate.applicationDeadline : current.applicationDeadline;
+    const mergedMetadata = isLatestObservation
+      ? { ...current.metadataSnapshot, ...candidate.metadataSnapshot } : current.metadataSnapshot;
     const next = JobListingSchema.parse({
       ...current,
       label: current.label ?? candidate.label ?? null,
       url: current.url ?? candidate.url ?? null,
       externalNamespace: current.externalNamespace ?? candidate.externalNamespace ?? null,
       externalId: current.externalId ?? candidate.externalId ?? null,
-      status: candidate.status,
+      status,
       lastSeenAt: observedAt > current.lastSeenAt ? observedAt : current.lastSeenAt,
       publishedAt: current.publishedAt ?? candidate.publishedAt ?? null,
-      closedAt: candidate.status === 'closed' ? (current.closedAt ?? observedAt) : null,
+      closedAt: status === 'closed' ? (current.closedAt ?? observedAt) : null,
+      closingPolicy: (isLatestObservation || confirmed)
+        ? ((candidate.closingPolicy && (candidate.closingPolicy !== 'unknown' || confirmed))
+          ? candidate.closingPolicy : (deadline ? 'fixed_deadline' : current.closingPolicy))
+        : current.closingPolicy,
+      applicationDeadline: deadline,
+      lastVerifiedAt: confirmed ? observedAt : current.lastVerifiedAt,
+      lastVerifiedOpenAt: openConfirmed && confirmed ? observedAt : current.lastVerifiedOpenAt,
+      closureReason: confirmed
+        ? (closedConfirmed ? (candidate.closureReason ?? 'unknown') : null) : current.closureReason,
       metadataSnapshot: mergedMetadata,
     });
     const materialCurrent = { ...current, lastSeenAt: '' };
@@ -1674,12 +1757,15 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     if (metadataChanged || seenChanged) {
       this.db.prepare(`UPDATE job_listings SET
         label=?,url=?,normalized_url=?,external_namespace=?,external_id=?,normalized_external_namespace=?,normalized_external_id=?,
-        status=?,last_seen_at=?,published_at=?,closed_at=?,metadata_snapshot_json=? WHERE id=?`).run(
+        status=?,last_seen_at=?,published_at=?,closed_at=?,metadata_snapshot_json=?,
+        closing_policy=?,application_deadline_json=?,last_verified_at=?,last_verified_open_at=?,closure_reason=? WHERE id=?`).run(
         next.label, next.url, next.url ? normalizeCanonicalUrl(next.url) : null,
         next.externalNamespace, next.externalId,
         next.externalNamespace ? normalizeIdentityText(next.externalNamespace) : null,
         next.externalId ? normalizeIdentityText(next.externalId) : null,
-        next.status, next.lastSeenAt, next.publishedAt, next.closedAt, JSON.stringify(next.metadataSnapshot), next.id,
+        next.status, next.lastSeenAt, next.publishedAt, next.closedAt, JSON.stringify(next.metadataSnapshot),
+        next.closingPolicy, next.applicationDeadline ? JSON.stringify(next.applicationDeadline) : null,
+        next.lastVerifiedAt, next.lastVerifiedOpenAt, next.closureReason, next.id,
       );
     }
     const listing = metadataChanged || seenChanged
@@ -1714,10 +1800,12 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     if (!listingRow) throw new Error(`Listing '${observation.listingId}' is missing for Job '${observation.jobId}'`);
     const listing = this.listingFromRow(listingRow);
     this.db.prepare(`INSERT INTO job_observations(
-      id,job_id,discovery_run_id,observed_at,source_kind,source_url,source_label,availability,listing_id
-    ) VALUES(?,?,?,?,?,?,?,?,?)`).run(
+      id,job_id,discovery_run_id,observed_at,source_kind,source_url,source_label,availability,listing_id,
+      verification_kind,evidence_url,verification_note
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       observation.id, observation.jobId, observation.discoveryRunId, observation.observedAt,
       listing.sourceKind, listing.url, listing.label, observation.availability, observation.listingId,
+      observation.verificationKind, observation.evidenceUrl, observation.note,
     );
   }
 

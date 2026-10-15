@@ -72,7 +72,7 @@ describe('LiepinDiscoveryProvider', () => {
   });
 
   it('enriches only high-potential entry-level cards from bounded JobPosting JSON-LD details', async () => {
-    const detailHtml = `<!doctype html><script type="application/ld+json">${JSON.stringify({ '@context':'https://schema.org','@type':'JobPosting',title:'AI Agent开发工程师',datePosted:'2026-09-17',description:'<p>负责 Agent Harness、MCP、RAG。</p><p>要求 TypeScript / Python。</p>' })}</script>`;
+    const detailHtml = `<!doctype html><script type="application/ld+json">${JSON.stringify({ '@context':'https://schema.org','@type':'JobPosting',title:'AI Agent开发工程师',datePosted:'2026-09-17',validThrough:'2026-10-30',description:'<p>负责 Agent Harness、MCP、RAG。</p><p>要求 TypeScript / Python。</p>' })}</script>`;
     const calls: string[] = [];
     const fakeFetch: typeof fetch = async (input, init) => {
       calls.push(String(input));
@@ -84,6 +84,10 @@ describe('LiepinDiscoveryProvider', () => {
     expect(result.candidates).toHaveLength(1);
     expect(result.candidates[0]!.description).toContain('Agent Harness、MCP、RAG');
     expect(result.candidates[0]!.listings[0]!.metadataSnapshot).toMatchObject({ detailEnriched:true, detailDatePosted:'2026-09-17' });
+    expect(result.candidates[0]!.listings[0]).toMatchObject({
+      closingPolicy: 'fixed_deadline',
+      applicationDeadline: { precision: 'date', date: '2026-10-30', timeZone: 'Asia/Shanghai' },
+    });
     expect(result.diagnostics).toMatchObject({ detailAttemptCount:1, detailSuccessCount:1, detailFailedCount:0 });
     expect(calls.filter((url)=>url.includes('liepin.com/a/'))).toHaveLength(1);
   });
