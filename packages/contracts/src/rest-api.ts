@@ -3,6 +3,8 @@ import {
   UpsertCompanyBlockRuleInputSchema,
   ListCompanyBlockRulesOutputSchema,
   DeleteCompanyBlockRuleOutputSchema,
+  CheckCompanyBlockRuleInputSchema,
+  CheckCompanyBlockRuleOutputSchema,
 } from './company-blocklist';
 import {
   AuthorizeSubmitInputSchema,
@@ -229,6 +231,7 @@ export const JOB_HARNESS_REST_V1_ROUTES = {
   dashboard: route({ operationId: 'getDashboardSnapshot', method: 'get', path: '/dashboard', tags: ['Dashboard'], summary: 'Read the operational dashboard snapshot', querySchema: DashboardSnapshotInputSchema, responseSchema: DashboardSnapshotSchema, successStatus: 200 }),
   companyBlockRules: route({ operationId: 'listCompanyBlockRules', method: 'get', path: '/company-blacklist', tags: ['Companies'], summary: 'List global employer exclusion rules', responseSchema: ListCompanyBlockRulesOutputSchema, successStatus: 200 }),
   upsertCompanyBlockRule: route({ operationId: 'upsertCompanyBlockRule', method: 'post', path: '/company-blacklist', tags: ['Companies'], summary: 'Create or change a reversible employer exclusion rule', bodySchema: UpsertCompanyBlockRuleInputSchema, responseSchema: CompanyBlockRuleSchema, successStatus: 200 }),
+  checkCompanyBlockRule: route({ operationId: 'checkCompanyBlockRule', method: 'post', path: '/company-blacklist/check', tags: ['Companies'], summary: 'Read-only authoritative employer exclusion preflight for external job agents', bodySchema: CheckCompanyBlockRuleInputSchema, responseSchema: CheckCompanyBlockRuleOutputSchema, successStatus: 200 }),
   deleteCompanyBlockRule: route({ operationId: 'deleteCompanyBlockRule', method: 'delete', path: '/company-blacklist/:ruleId', tags: ['Companies'], summary: 'Delete an employer exclusion rule', paramsSchema: IdParam('ruleId'), responseSchema: DeleteCompanyBlockRuleOutputSchema, successStatus: 200 }),
   companies: route({ operationId: 'listCompanies', method: 'get', path: '/companies', tags: ['Companies'], summary: 'List company workspace projections', querySchema: ListCompaniesInputSchema, responseSchema: ListCompaniesOutputSchema, successStatus: 200 }),
   companyDetail: route({ operationId: 'getCompanyDetail', method: 'get', path: '/companies/:companyId', tags: ['Companies'], summary: 'Read one company workspace projection', paramsSchema: IdParam('companyId'), querySchema: OptionalCampaignQuerySchema, responseSchema: CompanyDetailSchema, successStatus: 200 }),

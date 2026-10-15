@@ -32,6 +32,9 @@ import {
   ListCompanyBlockRulesOutputSchema,
   DeleteCompanyBlockRuleOutputSchema,
   UpsertCompanyBlockRuleInputSchema,
+  CheckCompanyBlockRuleInputSchema,
+  CheckCompanyBlockRuleOutputSchema,
+  type CheckCompanyBlockRuleInput,
   type UpsertCompanyBlockRuleInput,
   BeginDiscoveryOutputSchema,
   CompleteDiscoveryOutputSchema,
@@ -539,6 +542,12 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
       },
     },
     companyBlocklist: {
+      async check(input: CheckCompanyBlockRuleInput) {
+        const parsed = CheckCompanyBlockRuleInputSchema.parse(input);
+        return CheckCompanyBlockRuleOutputSchema.parse(await request('/company-blacklist/check', {
+          method: 'POST', body: JSON.stringify(parsed),
+        }));
+      },
       async list() {
         return ListCompanyBlockRulesOutputSchema.parse(await request('/company-blacklist'));
       },

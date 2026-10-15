@@ -6,6 +6,8 @@ import {
 import {
   AnalyticsSnapshotInputSchema,
   UpsertCompanyBlockRuleInputSchema,
+  CheckCompanyBlockRuleInputSchema,
+  CheckCompanyBlockRuleOutputSchema,
   BeginDiscoveryInputSchema,
   CompleteDiscoveryInputSchema,
   DashboardSnapshotInputSchema,
@@ -138,6 +140,15 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.upsertCompanyBlockRule, route(async (req, res) => {
     const parsed = UpsertCompanyBlockRuleInputSchema.parse(req.body);
     res.json(await career.companyBlocklist.upsert(parsed));
+  }));
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.checkCompanyBlockRule, route(async (req, res) => {
+    const input = CheckCompanyBlockRuleInputSchema.parse(req.body);
+    const rule = await career.companyBlocklist.match(input.companyName);
+    res.json(CheckCompanyBlockRuleOutputSchema.parse({
+      companyName: input.companyName,
+      blocked: rule !== null,
+      rule,
+    }));
   }));
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.deleteCompanyBlockRule, route(async (req, res) => {
     res.json(await career.companyBlocklist.delete(entityId(req.params.ruleId)));
