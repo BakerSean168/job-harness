@@ -71,6 +71,13 @@ export function JobsFilters({
           </select>
         </label>
       ) : null}
+      <label className="filter-field">
+        <span>{messages.jobsWorkspace.filters.blockedVisibility}</span>
+        <select name="includeBlocked" defaultValue={one(params.includeBlocked) ?? 'no'}>
+          <option value="no">{messages.jobsWorkspace.filters.hideBlocked}</option>
+          <option value="yes">{messages.jobsWorkspace.filters.showBlocked}</option>
+        </select>
+      </label>
       <div className="filter-actions">
         <button className="filter-submit" type="submit">{copy.filters.apply}</button>
         <Link className="filter-reset" href={pathname}>{copy.filters.reset}</Link>

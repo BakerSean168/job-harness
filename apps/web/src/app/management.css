@@ -1,3 +1,12 @@
+.employer-blacklist-panel > summary { cursor: pointer; padding: 12px 14px; font-weight: 680; }
+.employer-blacklist-panel > p { padding: 0 14px 12px; }
+.employer-blacklist-panel > .management-filter-bar { margin: 0 12px 10px; flex-wrap: wrap; }
+.employer-block-rules { padding: 0 12px 10px; display: grid; gap: 3px; }
+.employer-block-row { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.employer-block-row strong { font-size: 12px; }
+.employer-block-row small { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+.employer-block-row form { margin: 0; }
+
 .management-content { display: grid; gap: 14px; padding: 16px; }
 .management-split-surface { min-height: 0; display: grid; grid-template-columns: minmax(280px, 0.7fr) minmax(460px, 1.3fr); border-top: 1px solid var(--border); }
 .campaign-list-pane { min-width: 0; border-right: 1px solid var(--border); background: var(--surface-subtle); }

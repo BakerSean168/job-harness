@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 19;
+export const SQLITE_SCHEMA_VERSION = 20;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -401,6 +401,7 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
   migrateCampaignAutomationV17(db);
   migrateDiscoveryRunOutcomeV18(db);
   migrateJobLifecycleV19(db);
+  migrateCompanyBlocklistV20(db);
 }
 
 const PERFORMANCE_INDEXES_SCHEMA_V4 = `
@@ -1134,6 +1135,35 @@ function migrateJobLifecycleV19(db: DatabaseSync): void {
       CREATE INDEX IF NOT EXISTS campaign_job_state_events_job_idx ON campaign_job_state_events(campaign_id,job_id,occurred_at);
     `);
     db.exec('PRAGMA user_version = 19');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+/** Additive global employer blocklist, independent from Campaign keyword exclusions. */
+function migrateCompanyBlocklistV20(db: DatabaseSync): void {
+  const version = Number((db.prepare('PRAGMA user_version').get() as Record<string, unknown>).user_version ?? 0);
+  if (version >= 20) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS company_block_rules (
+        id TEXT PRIMARY KEY,
+        pattern TEXT NOT NULL,
+        normalized_pattern TEXT NOT NULL,
+        match_mode TEXT NOT NULL CHECK(match_mode IN ('exact','prefix','contains')),
+        category TEXT NOT NULL CHECK(category IN ('former_employer','hr_agency','it_services','manual')),
+        note TEXT,
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(normalized_pattern,match_mode)
+      );
+      CREATE INDEX IF NOT EXISTS company_block_rules_active_idx ON company_block_rules(active,normalized_pattern);
+    `);
+    db.exec('PRAGMA user_version = 20');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

@@ -392,7 +392,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   registerJobResumeApi(app, jobResume, API_PREFIX);
   registerEmailApplicationApi(app, emailApplication, API_PREFIX);
   registerApplicantApi(app, applicant, API_PREFIX);
-  registerApplyApi(app, apply, resumeArtifacts);
+  registerApplyApi(app, apply, resumeArtifacts, application);
 
   app.post('/mcp', async (req, res) => {
     const protocolServer = createProtocolServer(runtime);

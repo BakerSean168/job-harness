@@ -10,6 +10,7 @@ import type {
   ApplicationEvent,
   ApplicationSubmission,
   Company,
+  CompanyBlockRule,
   DashboardSnapshot,
   DashboardSnapshotInput,
   DiscoveryRun,
@@ -68,6 +69,7 @@ import {
   ApplicationSchema,
   CampaignRefSchema,
   CompanyDetailSchema,
+  CompanyBlockRuleSchema,
   CompanyListItemSchema,
   CompanySchema,
   DashboardSnapshotSchema,
@@ -102,6 +104,7 @@ import {
   APPLICATION_STAGES,
   JOB_STATES,
   buildJobListingIdentityKey,
+  matchingCompanyBlockRule,
   normalizeCanonicalUrl,
   normalizeIdentityText,
   assessOpportunityAvailability,
@@ -119,6 +122,22 @@ function json<T>(value: unknown): T {
 }
 
 
+function companyRuleMatchesColumn(field: string): string {
+  return `((b.match_mode='exact' AND ${field}=b.normalized_pattern)
+    OR (b.match_mode='prefix' AND substr(${field},1,length(b.normalized_pattern))=b.normalized_pattern)
+    OR (b.match_mode='contains' AND instr(${field},b.normalized_pattern)>0))`;
+}
+
+const COMPANY_BLOCKED_SQL = `EXISTS (
+  SELECT 1 FROM company_block_rules b
+  JOIN companies target_company ON target_company.id=j.company_id
+  WHERE b.active=1 AND (
+    ${companyRuleMatchesColumn('target_company.normalized_name')}
+    OR EXISTS (SELECT 1 FROM company_aliases alias WHERE alias.company_id=j.company_id
+      AND ${companyRuleMatchesColumn('alias.normalized_alias')})
+  )
+)`;
+
 function openDatabase(path: string): DatabaseSync {
   const db = new DatabaseSync(path);
   db.exec('PRAGMA foreign_keys = ON');
@@ -129,6 +148,52 @@ function openDatabase(path: string): DatabaseSync {
 
 class SqliteCareerSession implements CareerStoreTransactionPort {
   constructor(private readonly db: DatabaseSync) {}
+
+  private companyBlockFromRow(row: Row): CompanyBlockRule {
+    return CompanyBlockRuleSchema.parse({
+      id: row.id, pattern: row.pattern, matchMode: row.match_mode,
+      category: row.category, note: row.note,
+      active: Boolean(row.active), createdAt: row.created_at, updatedAt: row.updated_at,
+    });
+  }
+
+  async listCompanyBlockRules(): Promise<CompanyBlockRule[]> {
+    const rows = this.db.prepare('SELECT * FROM company_block_rules ORDER BY active DESC,created_at ASC,id ASC').all() as Row[];
+    return rows.map((row) => this.companyBlockFromRow(row));
+  }
+
+  async findCompanyBlockRule(companyName: string): Promise<CompanyBlockRule | null> {
+    const names = [companyName];
+    const company = this.db.prepare(`SELECT c.id FROM companies c
+      LEFT JOIN company_aliases a ON a.company_id=c.id
+      WHERE c.normalized_name=? OR a.normalized_alias=? LIMIT 1`
+    ).get(normalizeIdentityText(companyName), normalizeIdentityText(companyName)) as Row | undefined;
+    if (company) {
+      const row = this.db.prepare('SELECT name FROM companies WHERE id=?').get(String(company.id)) as Row;
+      names.push(String(row.name));
+      names.push(...(this.db.prepare('SELECT alias FROM company_aliases WHERE company_id=?').all(String(company.id)) as Row[])
+        .map((entry) => String(entry.alias)));
+    }
+    return matchingCompanyBlockRule(names, await this.listCompanyBlockRules());
+  }
+
+  async upsertCompanyBlockRule(rule: CompanyBlockRule): Promise<CompanyBlockRule> {
+    this.db.prepare(`INSERT INTO company_block_rules (
+      id,pattern,normalized_pattern,match_mode,category,note,active,created_at,updated_at
+    ) VALUES (?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET
+      pattern=excluded.pattern,normalized_pattern=excluded.normalized_pattern,
+      match_mode=excluded.match_mode,category=excluded.category,note=excluded.note,
+      active=excluded.active,updated_at=excluded.updated_at`).run(
+      rule.id, rule.pattern, normalizeIdentityText(rule.pattern), rule.matchMode,
+      rule.category, rule.note, Number(rule.active), rule.createdAt, rule.updatedAt,
+    );
+    return rule;
+  }
+
+  async deleteCompanyBlockRule(id: string): Promise<boolean> {
+    return this.db.prepare('DELETE FROM company_block_rules WHERE id=?').run(id).changes > 0;
+  }
 
   private companyById(id: string): Company | null {
     const row = this.db.prepare('SELECT * FROM companies WHERE id = ?').get(id) as Row | undefined;
@@ -310,6 +375,18 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
       archivedCampaignIdsByJob.set(jobId, associated);
     }
 
+    const rules = await this.listCompanyBlockRules();
+    const companyIds = [...new Set(jobs.map((job) => job.companyId))];
+    const companyAliases = new Map<string, string[]>();
+    if (companyIds.length > 0) {
+      const rows = this.db.prepare(`SELECT company_id,alias FROM company_aliases
+        WHERE company_id IN (${companyIds.map(() => '?').join(',')})`).all(...companyIds) as Row[];
+      for (const row of rows) {
+        const id = String(row.company_id);
+        companyAliases.set(id, [...(companyAliases.get(id) ?? []), String(row.alias)]);
+      }
+    }
+
     const outreachByJobId = new Map<string, { count: number; latest: JobOutreachEvent | null }>();
     const outreachRows = this.db.prepare(`
       SELECT e.* FROM job_outreach_events e
@@ -344,6 +421,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
         } : null,
         primaryListing: this.primaryListing(job),
         availability: assessOpportunityAvailability(job.listings, new Date().toISOString()),
+        blockedCompany: Boolean(matchingCompanyBlockRule([job.companyName, ...(companyAliases.get(job.companyId) ?? [])], rules)),
         archivedForView: campaignId
           ? (archivedCampaignIdsByJob.get(job.id)?.has(campaignId) ?? false)
           : (campaignsByJobId.get(job.id)?.length ?? 0) > 0
@@ -400,6 +478,7 @@ class SqliteCareerSession implements CareerStoreTransactionPort {
     if (input.applied !== undefined) {
       where.push(`${input.applied ? '' : 'NOT '}EXISTS (SELECT 1 FROM applications a WHERE a.job_id = j.id)`);
     }
+    if (!input.includeBlockedCompanies) where.push(`NOT ${COMPANY_BLOCKED_SQL}`);
     if (!input.includeCampaignArchived) {
       if (input.campaignId) {
         where.push('NOT EXISTS (SELECT 1 FROM campaign_job_states cjs WHERE cjs.job_id=j.id AND cjs.campaign_id=? AND cjs.status=\'archived\')');
@@ -1962,6 +2041,8 @@ export class SqliteCareerStore implements CareerStorePort {
   private readSession(): CareerStoreReadPort { return new SqliteCareerSession(this.readDb); }
   searchJobs(input: SearchJobsInput) { return this.readSession().searchJobs(input); }
   getJob(jobId: string) { return this.readSession().getJob(jobId); }
+  listCompanyBlockRules() { return this.readSession().listCompanyBlockRules(); }
+  findCompanyBlockRule(companyName: string) { return this.readSession().findCompanyBlockRule(companyName); }
   findDuplicate(input: DuplicateCheckInput) { return this.readSession().findDuplicate(input); }
   listOutreachEvents(input: ListJobOutreachEventsInput) { return this.readSession().listOutreachEvents(input); }
   listApplications(input: ListApplicationsInput) { return this.readSession().listApplications(input); }

@@ -32,6 +32,7 @@ import {
   StartExecutionAttemptInputSchema,
 } from '@job-harness/apply-contracts';
 import { ApplyRuntimeError, type ApplyControlPlanePort } from '@job-harness/apply-runtime';
+import type { CareerRuntimePorts } from '@job-harness/application';
 import { JOB_HARNESS_REST_V1_ROUTES } from '@job-harness/contracts';
 import type { ResumeArtifactRuntimePorts } from '@job-harness/resume-application';
 import { registerRestV1Route } from './rest-route';
@@ -87,7 +88,18 @@ function pathId(value: unknown): string {
   return id;
 }
 
-export function registerApplyApi(app: Express, apply: ApplyControlPlanePort, artifacts: ResumeArtifactRuntimePorts): void {
+export function registerApplyApi(app: Express, apply: ApplyControlPlanePort, artifacts: ResumeArtifactRuntimePorts, career?: CareerRuntimePorts): void {
+  async function ensureAttemptNotBlocked(attemptId: string): Promise<void> {
+    if (!career) return;
+    const existing = await apply.attempts.get(attemptId);
+    if (!existing) return;
+    const intent = await career.submissionIntents.get(existing.attempt.intentId);
+    const job = intent ? await career.jobs.getJob(intent.jobId) : null;
+    if (job) {
+      const blocked = await career.companyBlocklist.match(job.companyName);
+      if (blocked) throw new ApplyRuntimeError('CONFLICT', `company-blocked:${blocked.pattern}`);
+    }
+  }
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.executors, route(async (req, res) => {
     const input = ListExecutorsInputSchema.parse({
       ...pageQuery(req.query),
@@ -135,13 +147,17 @@ export function registerApplyApi(app: Express, apply: ApplyControlPlanePort, art
     res.json(await apply.attempts.heartbeat(HeartbeatExecutionAttemptInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) })));
   }));
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.startExecutionAttempt, route(async (req, res) => {
-    res.json(await apply.attempts.start(StartExecutionAttemptInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) })));
+    const input = StartExecutionAttemptInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) });
+    await ensureAttemptNotBlocked(input.attemptId);
+    res.json(await apply.attempts.start(input));
   }));
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.waitExecutionAttempt, route(async (req, res) => {
     res.json(await apply.attempts.waiting(MarkExecutionAttemptWaitingInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) })));
   }));
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.resumeExecutionAttempt, route(async (req, res) => {
-    res.json(await apply.attempts.resume(ResumeExecutionAttemptInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) })));
+    const input = ResumeExecutionAttemptInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) });
+    await ensureAttemptNotBlocked(input.attemptId);
+    res.json(await apply.attempts.resume(input));
   }));
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.completeExecutionAttempt, route(async (req, res) => {
     res.json(await apply.attempts.complete(CompleteExecutionAttemptInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) })));
@@ -204,7 +220,9 @@ export function registerApplyApi(app: Express, apply: ApplyControlPlanePort, art
     res.json(await apply.attempts.revokeSubmitAuthorization(RevokeSubmitAuthorizationInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId), authorizationId: pathId(req.params.authorizationId) })));
   }));
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.beginExecutionAttemptSubmit, route(async (req, res) => {
-    res.json(await apply.attempts.beginSubmit(BeginSubmitInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) })));
+    const input = BeginSubmitInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) });
+    await ensureAttemptNotBlocked(input.attemptId);
+    res.json(await apply.attempts.beginSubmit(input));
   }));
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.reportExecutionAttemptSubmitSuccess, route(async (req, res) => {
     res.json(await apply.attempts.reportSubmitSuccess(ReportSubmitSuccessInputSchema.parse({ ...req.body, attemptId: pathId(req.params.attemptId) })));

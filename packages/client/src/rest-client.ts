@@ -28,6 +28,11 @@ import {
 } from '@job-harness/apply-contracts';
 import {
   AnalyticsSnapshotSchema,
+  CompanyBlockRuleSchema,
+  ListCompanyBlockRulesOutputSchema,
+  DeleteCompanyBlockRuleOutputSchema,
+  UpsertCompanyBlockRuleInputSchema,
+  type UpsertCompanyBlockRuleInput,
   BeginDiscoveryOutputSchema,
   CompleteDiscoveryOutputSchema,
   ApplicationWorkspaceDetailSchema,
@@ -297,6 +302,7 @@ function jobsQuery(input: SearchJobListItemsInput): string {
   append(query, 'applied', input.applied);
   append(query, 'campaignId', input.campaignId);
   append(query, 'includeCampaignArchived', input.includeCampaignArchived);
+  append(query, 'includeBlockedCompanies', input.includeBlockedCompanies);
   appendMany(query, 'states', input.states);
   appendMany(query, 'sourceKinds', input.sourceKinds);
   return query.toString();
@@ -530,6 +536,20 @@ export function createJobHarnessRestClient(options: JobHarnessRestClientOptions)
       async getPipelineStats(input: PipelineStatsInput = {}): Promise<PipelineStatsOutput> {
         const query = pipelineQuery(input);
         return PipelineStatsOutputSchema.parse(await request(`/pipeline${query ? `?${query}` : ''}`));
+      },
+    },
+    companyBlocklist: {
+      async list() {
+        return ListCompanyBlockRulesOutputSchema.parse(await request('/company-blacklist'));
+      },
+      async upsert(input: UpsertCompanyBlockRuleInput) {
+        const parsed = UpsertCompanyBlockRuleInputSchema.parse(input);
+        return CompanyBlockRuleSchema.parse(await request('/company-blacklist', {
+          method: 'POST', body: JSON.stringify(parsed),
+        }));
+      },
+      async delete(ruleId: string) {
+        return DeleteCompanyBlockRuleOutputSchema.parse(await request(`/company-blacklist/${encodeURIComponent(ruleId)}`, { method: 'DELETE' }));
       },
     },
     workspace: {

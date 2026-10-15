@@ -46,6 +46,7 @@ export const SearchJobsInputSchema = PageSchema.extend({
   applied: z.boolean().optional(),
   campaignId: EntityIdSchema.optional(),
   includeCampaignArchived: z.boolean().optional(),
+  includeBlockedCompanies: z.boolean().optional(),
 });
 
 export const SearchJobsOutputSchema = z

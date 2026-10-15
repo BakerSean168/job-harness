@@ -54,6 +54,7 @@ export interface MessageCatalog {
     data: string; exportJson: string; exportJsonDescription: string; backupSqlite: string; backupSqliteDescription: string; download: string; backupNote: string;
   };
   companiesWorkspace: {
+    blacklist: { title: string; description: string; name: string; mode: string; exact: string; prefix: string; contains: string; category: string; former_employer: string; hr_agency: string; it_services: string; manual: string; note: string; add: string; disable: string; enable: string; delete: string; active: string; inactive: string; empty: string; hidden: string; };
     filters: { query: string; campaign: string; all: string; apply: string; reset: string; };
     table: { company: string; jobs: string; shortlisted: string; applications: string; activePipeline: string; cities: string; sources: string; lastSeen: string; empty: string; };
     detail: { title: string; aliases: string; sources: string; pipeline: string; jobs: string; noJobs: string; close: string; full: string; openJob: string; };
@@ -160,6 +161,9 @@ export interface MessageCatalog {
       source: string;
       applied: string;
       campaign: string;
+      blockedVisibility: string;
+      showBlocked: string;
+      hideBlocked: string;
       archivedVisibility: string;
       showArchived: string;
       hideArchived: string;

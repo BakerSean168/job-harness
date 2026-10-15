@@ -10,6 +10,8 @@ import {
   DashboardSnapshotInputSchema,
   DuplicateCheckInputSchema,
   EntityIdSchema,
+  CompanyBlockRuleSchema,
+  UpsertCompanyBlockRuleInputSchema,
   GetApplicationOutputSchema,
   ListDiscoveryRunsInputSchema,
   ListResumeUsageInputSchema,
@@ -210,6 +212,36 @@ export function createCareerApplicationService(
     return { profileId, revisionId, artifactId };
   }
 
+  const companyBlocklist: CareerApplicationPorts['companyBlocklist'] = {
+    list: () => store.listCompanyBlockRules(),
+    match: (companyName) => store.findCompanyBlockRule(companyName),
+    async upsert(input) {
+      const parsed = UpsertCompanyBlockRuleInputSchema.parse(input);
+      return store.transaction(async (tx) => {
+        const rules = await tx.listCompanyBlockRules();
+        const existing = parsed.id
+          ? rules.find((rule) => rule.id === parsed.id)
+          : rules.find((rule) => rule.matchMode === parsed.matchMode
+            && normalizeIdentityText(rule.pattern) === normalizeIdentityText(parsed.pattern));
+        if (parsed.id && !existing) throw new CareerNotFoundError('CompanyBlockRule', parsed.id);
+        const timestamp = now();
+        const rule = CompanyBlockRuleSchema.parse({
+          ...parsed,
+          id: existing?.id ?? idFactory(),
+          note: parsed.note ?? null,
+          active: parsed.active,
+          createdAt: existing?.createdAt ?? timestamp,
+          updatedAt: timestamp,
+        });
+        return tx.upsertCompanyBlockRule(rule);
+      });
+    },
+    async delete(ruleId) {
+      const id = EntityIdSchema.parse(ruleId);
+      return { deleted: await store.transaction((tx) => tx.deleteCompanyBlockRule(id)) };
+    },
+  };
+
   const jobs: CareerApplicationPorts['jobs'] = {
     searchJobs: (input) => store.searchJobs(SearchJobsInputSchema.parse(input)),
     getJob: (jobId) => store.getJob(jobId),
@@ -225,7 +257,13 @@ export function createCareerApplicationService(
             if (candidate.discoveryRunId && !(await tx.getDiscoveryRun(candidate.discoveryRunId))) {
               throw new CareerNotFoundError('DiscoveryRun', candidate.discoveryRunId);
             }
+            const candidateBlock = await tx.findCompanyBlockRule(candidate.companyName);
+            if (candidateBlock) throw new CareerConflictError(`company-blocked:${candidateBlock.pattern}`);
             const duplicate = await findCandidateDuplicate(tx, candidate);
+            if (duplicate.job) {
+              const knownBlock = await tx.findCompanyBlockRule(duplicate.job.companyName);
+              if (knownBlock) throw new CareerConflictError(`company-blocked:${knownBlock.pattern}`);
+            }
             if (duplicate.duplicate && duplicate.job) {
               const timestamp = now();
               if (normalizeIdentityText(candidate.companyName) !== normalizeIdentityText(duplicate.job.companyName)) {
@@ -574,6 +612,8 @@ export function createCareerApplicationService(
         if (!job) throw new CareerNotFoundError('Job', parsed.jobId);
         const listing = parsed.listingId ? job.listings.find((candidate) => candidate.id === parsed.listingId) ?? null : null;
         if (parsed.listingId && !listing) throw new CareerNotFoundError('JobListing', parsed.listingId);
+        const blockingRule = await tx.findCompanyBlockRule(job.companyName);
+        if (blockingRule) throw new CareerConflictError(`company-blocked:${blockingRule.pattern}`);
         assertNewSubmissionAvailable(job, parsed.listingId, now());
         if (evidence.profileId && !evidence.revisionId) {
           const [legacyProfile, firstClassProfile] = await Promise.all([
@@ -624,6 +664,8 @@ export function createCareerApplicationService(
         if (current.status !== 'planned') throw new CareerConflictError(`SubmissionIntent '${parsed.intentId}' cannot begin from '${current.status}'`);
         const job = await tx.getJob(current.jobId);
         if (!job) throw new CareerNotFoundError('Job', current.jobId);
+        const blockingRule = await tx.findCompanyBlockRule(job.companyName);
+        if (blockingRule) throw new CareerConflictError(`company-blocked:${blockingRule.pattern}`);
         assertNewSubmissionAvailable(job, current.listingId, now());
         return tx.updateSubmissionIntent(SubmissionIntentSchema.parse({
           ...current,
@@ -990,5 +1032,5 @@ export function createCareerApplicationService(
     },
   };
 
-  return { jobs, applications, submissionIntents, campaigns, discovery, resumes, analytics, workspace, savedViews, resumeRegistry, outreach };
+  return { companyBlocklist, jobs, applications, submissionIntents, campaigns, discovery, resumes, analytics, workspace, savedViews, resumeRegistry, outreach };
 }

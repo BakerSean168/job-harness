@@ -29,6 +29,8 @@ export function createApplyBundleFactory(
       const dispatchable = intent.status === 'planned' || (intent.status === 'needs_manual_review' && reconciliationOnly);
       if (!dispatchable) throw new ApplyConflictError(`SubmissionIntent '${intent.id}' is '${intent.status}' and cannot be dispatched`);
       const job = await career.jobs.getJob(intent.jobId); if (!job) throw new ApplyNotFoundError('Job', intent.jobId);
+      const block = career.companyBlocklist ? await career.companyBlocklist.match(job.companyName) : null;
+      if (block) throw new ApplyConflictError(`company-blocked:${block.pattern}`);
       const listing = intent.listingId == null ? null : job.listings.find((candidate) => candidate.id === intent.listingId) ?? null;
       if (intent.listingId && !listing) throw new ApplyNotFoundError('JobListing', intent.listingId);
       const listingUrl = intent.externalTargetUrl ?? listing?.url ?? null;
