@@ -10,7 +10,7 @@ import { createCareerApplicationService } from '@job-harness/application';
 import { createResumeApplicationService, createResumeArtifactService } from '@job-harness/resume-application';
 import { createApplicantApplicationService } from '@job-harness/applicant-application';
 import { createJobHarnessMcpRuntime } from '@job-harness/mcp';
-import { SqliteApplicantStore, SqliteApplyStore, SqliteCareerStore, SqliteEmailApplicationPackageStore, SqliteResumeStore, SqliteSiteResumeBindingStore } from '@job-harness/persistence-sqlite';
+import { SqliteApplicantStore, SqliteApplyStore, SqliteCareerStore, SqliteEmailApplicationPackageStore, SqliteResumeStore, SqliteSiteResumeBindingStore, runCampaignLifecycleSweep } from '@job-harness/persistence-sqlite';
 import { generateJobHarnessOpenApiDocument } from '@job-harness/contracts';
 import { createApplyControlPlane } from '@job-harness/apply-runtime';
 import { API_PREFIX, registerJobHarnessApi } from './api';
@@ -51,6 +51,10 @@ export interface JobHarnessServerOptions {
   readonly submissionReconcileBatchSize?: number;
   readonly bossGreetingBridgeUrl?: string;
   readonly getJobsRuntimeUrl?: string | null;
+  readonly lifecycleSweepCampaignIds?: readonly string[];
+  readonly lifecycleSweepIntervalMs?: number;
+  readonly lifecycleSweepGraceHours?: number;
+  readonly lifecycleAutoArchive?: boolean;
 }
 
 export interface RunningJobHarnessServer {
@@ -454,6 +458,43 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   reconciliationTimer?.unref();
   if (reconciliationTimer) queueMicrotask(() => { void reconcileSubmissionIntents(); });
 
+  // Operator-scoped maintenance. Safe-by-default preview mode logs what would
+  // be archived; only an explicit environment opt-in can mutate Campaign scope.
+  const lifecycleCampaignIds = [...new Set(options.lifecycleSweepCampaignIds ?? [])];
+  const lifecycleIntervalMs = options.lifecycleSweepIntervalMs ?? 86_400_000;
+  let lifecycleRunning = false;
+  function sweepLifecycle(): void {
+    if (lifecycleRunning) return;
+    lifecycleRunning = true;
+    try {
+      for (const campaignId of lifecycleCampaignIds) {
+        try {
+          const report = runCampaignLifecycleSweep({
+            databasePath: options.databasePath,
+            campaignId,
+            asOf: new Date().toISOString(),
+            apply: options.lifecycleAutoArchive === true,
+            graceHours: options.lifecycleSweepGraceHours ?? 48,
+          });
+          console.info('Job Harness lifecycle sweep', JSON.stringify({
+            campaignId, dryRun: report.dryRun, examined: report.examined,
+            wouldArchive: report.wouldArchive, archived: report.archived, restored: report.restored,
+            skippedApplication: report.skippedApplication, skippedPendingSubmission: report.skippedPendingSubmission,
+          }));
+        } catch (error) {
+          console.error(`Job Harness lifecycle sweep failed for Campaign '${campaignId}'`, error);
+        }
+      }
+    } finally {
+      lifecycleRunning = false;
+    }
+  }
+  const lifecycleTimer = lifecycleCampaignIds.length && lifecycleIntervalMs > 0
+    ? setInterval(sweepLifecycle, lifecycleIntervalMs)
+    : null;
+  lifecycleTimer?.unref();
+  if (lifecycleTimer) queueMicrotask(sweepLifecycle);
+
   return {
     url,
     mcpUrl: `${url}/mcp`,
@@ -462,6 +503,7 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
     server,
     async close() {
       if (reconciliationTimer) clearInterval(reconciliationTimer);
+      if (lifecycleTimer) clearInterval(lifecycleTimer);
       browserExtensionBridge.close();
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
       applyStore.close();

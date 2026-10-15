@@ -70,6 +70,9 @@ importers:
       '@job-harness/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@job-harness/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       zod:
         specifier: ^4.1.8
         version: 4.6.5

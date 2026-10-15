@@ -7,7 +7,7 @@ import {
   normalizeIdentityText,
 } from '@job-harness/domain';
 
-export const SQLITE_SCHEMA_VERSION = 18;
+export const SQLITE_SCHEMA_VERSION = 19;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS companies (
@@ -400,6 +400,7 @@ export function migrateSqliteDatabase(db: DatabaseSync): void {
   migrateJobOutreachEventsV16(db);
   migrateCampaignAutomationV17(db);
   migrateDiscoveryRunOutcomeV18(db);
+  migrateJobLifecycleV19(db);
 }
 
 const PERFORMANCE_INDEXES_SCHEMA_V4 = `
@@ -1074,6 +1075,65 @@ function migrateDiscoveryRunOutcomeV18(db: DatabaseSync): void {
       db.exec('CREATE INDEX IF NOT EXISTS discovery_runs_status_started_idx ON discovery_runs(status, started_at DESC, id)');
     }
     db.exec('PRAGMA user_version = 18');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+/** Additive migration: preserves legacy Job triage, listing identities and application history. */
+function migrateJobLifecycleV19(db: DatabaseSync): void {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown>;
+  if (Number(row.user_version ?? 0) >= 19) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const listingColumns: Record<string, string> = {
+      closing_policy: "TEXT NOT NULL DEFAULT 'unknown'",
+      application_deadline_json: 'TEXT',
+      last_verified_at: 'TEXT',
+      last_verified_open_at: 'TEXT',
+      closure_reason: 'TEXT',
+    };
+    if (hasTable(db, 'job_listings')) {
+      for (const [name, ddl] of Object.entries(listingColumns)) {
+        if (!hasColumn(db, 'job_listings', name)) db.exec(`ALTER TABLE job_listings ADD COLUMN ${name} ${ddl}`);
+      }
+    }
+    const observationColumns: Record<string, string> = {
+      verification_kind: "TEXT NOT NULL DEFAULT 'observed'",
+      evidence_url: 'TEXT',
+      verification_note: 'TEXT',
+    };
+    if (hasTable(db, 'job_observations')) {
+      for (const [name, ddl] of Object.entries(observationColumns)) {
+        if (!hasColumn(db, 'job_observations', name)) db.exec(`ALTER TABLE job_observations ADD COLUMN ${name} ${ddl}`);
+      }
+    }
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS campaign_job_states (
+        campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+        job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+        status TEXT NOT NULL CHECK (status IN ('active', 'archived')),
+        archived_at TEXT,
+        archive_reason TEXT,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (campaign_id, job_id)
+      );
+      CREATE INDEX IF NOT EXISTS campaign_job_states_status_idx ON campaign_job_states(campaign_id, status);
+      CREATE TABLE IF NOT EXISTS campaign_job_state_events (
+        id TEXT PRIMARY KEY,
+        campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+        job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+        from_status TEXT NOT NULL,
+        to_status TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        occurred_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS campaign_job_state_events_job_idx ON campaign_job_state_events(campaign_id,job_id,occurred_at);
+    `);
+    db.exec('PRAGMA user_version = 19');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

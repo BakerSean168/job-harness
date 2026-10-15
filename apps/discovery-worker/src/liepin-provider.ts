@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { parseDeclaredDeadline } from './deadline';
 import type { JobSearchCampaign, UpsertJobCandidate } from '@job-harness/contracts';
 import type { DiscoveryProviderPort, DiscoveryProviderResult } from './runtime';
 import { matchesCampaignEducation, matchesCampaignExperience, titleLooksLikeEntryLevelDeveloper } from './qualification-policy';
@@ -176,12 +177,14 @@ export class LiepinDiscoveryProvider implements DiscoveryProviderPort {
         detailAttemptCount += 1;
         try {
           const detail = await this.fetchDetail(listing.url);
-          if (detail.description) {
+          const deadline = parseDeclaredDeadline(detail.validThrough, listing.url, this.now());
+          if (detail.description || deadline) {
             entry.candidate = {
               ...entry.candidate,
-              description: detail.description,
+              description: detail.description ?? entry.candidate.description,
               listings: [{
                 ...listing,
+                ...(deadline ? { closingPolicy: 'fixed_deadline' as const, applicationDeadline: deadline } : {}),
                 metadataSnapshot: {
                   ...listing.metadataSnapshot,
                   detailEnriched: true,
@@ -248,7 +251,7 @@ export class LiepinDiscoveryProvider implements DiscoveryProviderPort {
     return parsed.data.data.jobCardList;
   }
 
-  private async fetchDetail(url: string): Promise<{ description: string | null; datePosted: string | null }> {
+  private async fetchDetail(url: string): Promise<{ description: string | null; datePosted: string | null; validThrough: string | null }> {
     const response = await this.fetchImpl(url, {
       method: 'GET',
       headers: { accept: 'text/html,application/xhtml+xml', referer: 'https://www.liepin.com/', 'user-agent': this.userAgent },
@@ -414,7 +417,7 @@ function shouldEnrichDetail(candidate: UpsertJobCandidate, campaign: JobSearchCa
   return true;
 }
 
-function extractJobPostingJsonLd(html: string): { description: string | null; datePosted: string | null } {
+function extractJobPostingJsonLd(html: string): { description: string | null; datePosted: string | null; validThrough: string | null } {
   const scripts = html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
   for (const match of scripts) {
     const raw = match[1]?.trim();
@@ -425,9 +428,10 @@ function extractJobPostingJsonLd(html: string): { description: string | null; da
     if (!job) continue;
     const description = typeof job.description === 'string' ? htmlToText(job.description).slice(0, 50_000) : '';
     const datePosted = typeof job.datePosted === 'string' && job.datePosted.trim() ? job.datePosted.trim().slice(0, 100) : null;
-    return { description: description || null, datePosted };
+    const validThrough = typeof job.validThrough === 'string' && job.validThrough.trim() ? job.validThrough.trim().slice(0, 100) : null;
+    return { description: description || null, datePosted, validThrough };
   }
-  return { description: null, datePosted: null };
+  return { description: null, datePosted: null, validThrough: null };
 }
 
 function findJobPosting(value: unknown): Record<string, unknown> | null {

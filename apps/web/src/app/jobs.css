@@ -118,6 +118,7 @@
   font-weight: 650;
   white-space: nowrap;
 }
+.job-state-stack { display: flex; gap: 4px; align-items: center; }
 .status-badge[data-status='shortlisted'],
 .status-badge[data-status='screening'] { border-color: color-mix(in srgb, var(--accent) 24%, var(--border)); background: var(--accent-soft); color: var(--accent); }
 .status-badge[data-status='assessment'] { border-color: #d9b963; background: #fff8df; color: #8c6512; }

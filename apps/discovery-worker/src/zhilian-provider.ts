@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { parseDeclaredDeadline } from './deadline';
 import type { JobSearchCampaign, UpsertJobCandidate } from '@job-harness/contracts';
 import type { DiscoveryProviderPort, DiscoveryProviderResult } from './runtime';
 
@@ -31,7 +32,7 @@ const PositionSchema = z.object({
   jobDetailData: z.object({
     position: z.object({
       desc: z.object({ description: z.string().nullish(), labels: z.array(z.string()).nullish() }).passthrough().nullish(),
-      date: z.object({ positionPublishTime: z.string().nullish(), positionUpdateTime: z.string().nullish(), positionUpdateTimeText: z.string().nullish() }).passthrough().nullish(),
+      date: z.object({ positionPublishTime: z.string().nullish(), positionUpdateTime: z.string().nullish(), positionUpdateTimeText: z.string().nullish(), positionEndTime: z.string().nullish() }).passthrough().nullish(),
       base: z.object({ positionNumber: z.string().nullish() }).passthrough().nullish(),
     }).passthrough().nullish(),
   }).passthrough().nullish(),
@@ -226,6 +227,7 @@ function mapPosition(position: z.infer<typeof PositionSchema>, term: string, que
     : normalizePositionUrl(position.positionURL ?? position.positionUrl ?? '');
   if (!url) return null;
   const publishedAt = clean(position.jobDetailData?.position?.date?.positionPublishTime) || clean(position.publishTime) || clean(position.firstPublishTime) || null;
+  const explicitDeadline = parseDeclaredDeadline(position.jobDetailData?.position?.date?.positionEndTime, url, observedAt);
   return {
     companyName,
     title,
@@ -240,6 +242,7 @@ function mapPosition(position: z.infer<typeof PositionSchema>, term: string, que
       externalId,
       identityKind: 'external-id',
       status: 'active',
+      ...(explicitDeadline ? { closingPolicy: 'fixed_deadline' as const, applicationDeadline: explicitDeadline } : {}),
       ...(publishedAt && !Number.isNaN(Date.parse(publishedAt)) ? { publishedAt: new Date(publishedAt).toISOString() } : {}),
       metadataSnapshot: {
         provider: 'zhilian-public-search-v2026',

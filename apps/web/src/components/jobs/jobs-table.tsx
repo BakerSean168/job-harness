@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { JobListItem } from '@job-harness/contracts';
 import type { Locale, MessageCatalog } from '@/i18n';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatDeadline } from '@/lib/format';
 import { StatusBadge } from './status-badge';
 import { workspaceHref, type WorkspaceSearchParams } from './query';
 
@@ -29,17 +29,19 @@ export function JobsTable({
             <th>{copy.table.opportunity}</th>
             <th>{copy.table.city}</th>
             <th>{copy.table.state}</th>
+            <th>{copy.table.applyability}</th>
             <th>{copy.table.application}</th>
             <th>{copy.table.contact}</th>
             <th>{copy.table.source}</th>
             <th>{copy.table.resume}</th>
             <th className="numeric-cell">{copy.table.listings}</th>
+            <th>{copy.table.deadline}</th>
             <th>{copy.table.lastSeen}</th>
           </tr>
         </thead>
         <tbody>
           {items.length === 0 ? (
-            <tr><td className="table-empty" colSpan={9}>{copy.table.noResults}</td></tr>
+            <tr><td className="table-empty" colSpan={11}>{copy.table.noResults}</td></tr>
           ) : items.map((item) => {
             const href = workspaceHref(pathname, params, { job: item.jobId });
             return (
@@ -51,7 +53,11 @@ export function JobsTable({
                   </Link>
                 </td>
                 <td className="muted-cell">{item.city ?? '—'}</td>
-                <td><StatusBadge value={item.state} label={copy.states[item.state]} /></td>
+                <td><div className="job-state-stack">
+                  <StatusBadge value={item.state} label={copy.states[item.state]} />
+                  {item.archivedForView ? <StatusBadge value="archived" label={copy.states.archived} /> : null}
+                </div></td>
+                <td><StatusBadge value={(item.availability?.applyability ?? 'unverified')} label={copy.availability[item.availability?.applyability ?? 'unverified']} /></td>
                 <td>
                   {item.application
                     ? <StatusBadge value={item.application.currentStage} label={copy.applicationStages[item.application.currentStage]} />
@@ -69,6 +75,7 @@ export function JobsTable({
                 </td>
                 <td className="muted-cell resume-cell" title={item.resume?.name}>{item.resume?.name ?? '—'}</td>
                 <td className="numeric-cell">{item.listingCount}</td>
+                <td className="muted-cell nowrap-cell">{formatDeadline(locale, item.primaryListing?.applicationDeadline)}</td>
                 <td className="muted-cell nowrap-cell">{formatDate(locale, item.lastSeenAt)}</td>
               </tr>
             );

@@ -60,7 +60,7 @@ import {
   type SubmissionIntent,
   type UpsertJobCandidate,
 } from '@job-harness/contracts';
-import { canTransitionApplicationStage, canTransitionJobState, normalizeIdentityText } from '@job-harness/domain';
+import { assessOpportunityAvailability, canTransitionApplicationStage, canTransitionJobState, normalizeIdentityText } from '@job-harness/domain';
 import type { CareerApplicationPorts, CareerResumeRegistryPort, CareerRuntimePorts } from './ports';
 import {
   CareerConflictError,
@@ -96,6 +96,14 @@ function stableJson(value: unknown): string {
 
 function requestHash(value: unknown): string {
   return createHash('sha256').update(stableJson(value)).digest('hex');
+}
+
+function assertNewSubmissionAvailable(job: Job, listingId: string | null | undefined, at: string): void {
+  const listings = listingId ? job.listings.filter((listing) => listing.id === listingId) : job.listings;
+  const availability = assessOpportunityAvailability(listings, at).applyability;
+  if (availability === 'deadline_passed' || availability === 'closed' || availability === 'conflict') {
+    throw new CareerConflictError(`New submission blocked: recruiting listing is '${availability}'`);
+  }
 }
 
 function compactStrongIdentityTitle(value: string): string {
@@ -225,13 +233,18 @@ export function createCareerApplicationService(
               }
               const merged = await tx.mergeJobCandidate(duplicate.job.id, candidate, timestamp);
               for (const listing of merged.touchedListings) {
+                const source = candidate.listings.find((entry) => entry.sourceKind === listing.sourceKind
+                  && (entry.externalId ? entry.externalId === listing.externalId : entry.url === listing.url));
                 const observation: JobObservation = {
                   id: idFactory(),
                   jobId: duplicate.job.id,
                   listingId: listing.id,
                   discoveryRunId: candidate.discoveryRunId ?? null,
                   observedAt: candidate.observedAt,
-                  availability: listing.status,
+                  availability: source?.status ?? listing.status,
+                  verificationKind: source?.verificationKind ?? 'observed',
+                  evidenceUrl: source?.evidenceUrl ?? null,
+                  note: source?.verificationNote ?? null,
                 };
                 await tx.insertObservation(observation);
               }
@@ -263,13 +276,18 @@ export function createCareerApplicationService(
             await tx.insertJob(job);
             const merged = await tx.mergeJobCandidate(job.id, candidate, timestamp);
             for (const listing of merged.touchedListings) {
+              const source = candidate.listings.find((entry) => entry.sourceKind === listing.sourceKind
+                && (entry.externalId ? entry.externalId === listing.externalId : entry.url === listing.url));
               await tx.insertObservation({
                 id: idFactory(),
                 jobId: job.id,
                 listingId: listing.id,
                 discoveryRunId: candidate.discoveryRunId ?? null,
                 observedAt: candidate.observedAt,
-                availability: listing.status,
+                availability: source?.status ?? listing.status,
+                verificationKind: source?.verificationKind ?? 'observed',
+                evidenceUrl: source?.evidenceUrl ?? null,
+                note: source?.verificationNote ?? null,
               });
             }
             const potential = duplicate.potentialMatches.map((match) => match.id);
@@ -556,6 +574,7 @@ export function createCareerApplicationService(
         if (!job) throw new CareerNotFoundError('Job', parsed.jobId);
         const listing = parsed.listingId ? job.listings.find((candidate) => candidate.id === parsed.listingId) ?? null : null;
         if (parsed.listingId && !listing) throw new CareerNotFoundError('JobListing', parsed.listingId);
+        assertNewSubmissionAvailable(job, parsed.listingId, now());
         if (evidence.profileId && !evidence.revisionId) {
           const [legacyProfile, firstClassProfile] = await Promise.all([
             tx.getResumeProfile(evidence.profileId),
@@ -603,6 +622,9 @@ export function createCareerApplicationService(
         if (!current) throw new CareerNotFoundError('SubmissionIntent', parsed.intentId);
         if (current.status === 'external_in_progress') return current;
         if (current.status !== 'planned') throw new CareerConflictError(`SubmissionIntent '${parsed.intentId}' cannot begin from '${current.status}'`);
+        const job = await tx.getJob(current.jobId);
+        if (!job) throw new CareerNotFoundError('Job', current.jobId);
+        assertNewSubmissionAvailable(job, current.listingId, now());
         return tx.updateSubmissionIntent(SubmissionIntentSchema.parse({
           ...current,
           status: 'external_in_progress',

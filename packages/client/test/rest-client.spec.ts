@@ -52,6 +52,7 @@ describe('Job Harness REST client', () => {
       sourceKinds: ['official'],
       applied: false,
       campaignId: 'campaign-agent',
+      includeCampaignArchived: true,
       limit: 20,
       offset: 0,
     });
@@ -64,6 +65,7 @@ describe('Job Harness REST client', () => {
     expect(url.searchParams.getAll('sourceKinds')).toEqual(['official']);
     expect(url.searchParams.get('applied')).toBe('false');
     expect(url.searchParams.get('campaignId')).toBe('campaign-agent');
+    expect(url.searchParams.get('includeCampaignArchived')).toBe('true');
     expect(new Headers(calls[0]!.init?.headers).get('authorization')).toBe('Bearer secret');
   });
 

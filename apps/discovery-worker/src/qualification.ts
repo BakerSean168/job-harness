@@ -10,6 +10,7 @@ import type {
   DiscoveryRunDetail,
   JobSearchCampaign,
 } from '@job-harness/contracts';
+import { assessOpportunityAvailability } from '@job-harness/domain';
 import { descriptionMeetsApplicantAcademicRequirements, descriptionMeetsCampaignRequirements, matchesCampaignEducation, matchesCampaignExperience, titleEligibleForAutomaticPreparation, titleMatchesCampaignTargetRole } from './qualification-policy';
 
 export interface DiscoveryQualificationClientPort {
@@ -49,6 +50,7 @@ export interface DiscoveryQualificationResult {
   readonly skippedTerminalState: number;
   readonly skippedLowMatch: number;
   readonly skippedHardRequirement: number;
+  readonly skippedUnavailable: number;
   readonly skippedRoleMismatch: number;
   readonly skippedApplicantRequirement: number;
   readonly skippedNonExecutable: number;
@@ -103,6 +105,7 @@ export class DiscoveryQualificationProcessor {
     let skippedTerminalState = 0;
     let skippedLowMatch = 0;
     let skippedHardRequirement = 0;
+    let skippedUnavailable = 0;
     let skippedRoleMismatch = 0;
     let skippedApplicantRequirement = 0;
     let skippedNonExecutable = 0;
@@ -121,6 +124,11 @@ export class DiscoveryQualificationProcessor {
         const jobDetail = await this.client.workspace.getJobDetail(item.jobId);
         if (!jobDetail) throw new Error(`Job '${item.jobId}' disappeared during qualification`);
         evaluated += 1;
+        const availability = assessOpportunityAvailability(jobDetail.job.listings, new Date().toISOString()).applyability;
+        if (availability === 'deadline_passed' || availability === 'closed' || availability === 'conflict') {
+          skippedUnavailable += 1;
+          continue;
+        }
         if (!meetsCampaignRequirements(jobDetail, campaign)) {
           skippedHardRequirement += 1;
           continue;
@@ -199,6 +207,7 @@ export class DiscoveryQualificationProcessor {
       skippedTerminalState,
       skippedLowMatch,
       skippedHardRequirement,
+      skippedUnavailable,
       skippedRoleMismatch,
       skippedApplicantRequirement,
       skippedNonExecutable,

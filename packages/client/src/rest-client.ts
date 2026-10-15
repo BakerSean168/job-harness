@@ -296,6 +296,7 @@ function jobsQuery(input: SearchJobListItemsInput): string {
   append(query, 'city', input.city);
   append(query, 'applied', input.applied);
   append(query, 'campaignId', input.campaignId);
+  append(query, 'includeCampaignArchived', input.includeCampaignArchived);
   appendMany(query, 'states', input.states);
   appendMany(query, 'sourceKinds', input.sourceKinds);
   return query.toString();

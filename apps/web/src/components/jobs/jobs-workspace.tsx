@@ -51,6 +51,7 @@ export async function JobsWorkspace({
     ...(source?.success ? { sourceKinds: [source.data] } : {}),
     ...(appliedRaw === 'yes' ? { applied: true } : appliedRaw === 'no' ? { applied: false } : {}),
     ...(optional(one(searchParams.campaign)) ? { campaignId: optional(one(searchParams.campaign)) } : {}),
+    ...(one(searchParams.includeArchived) === 'yes' ? { includeCampaignArchived: true } : {}),
   };
 
   const client = getJobHarnessClient();

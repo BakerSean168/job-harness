@@ -68,6 +68,12 @@ export const JobApplicationSummarySchema = ApplicationSchema.pick({
   updatedAt: true,
 });
 
+export const JobAvailabilitySummarySchema = z.object({
+  applyability: z.enum(['confirmed_open', 'unverified', 'deadline_passed', 'closed', 'conflict']),
+  archiveEligible: z.boolean(),
+  archiveReason: z.enum(['verified_closed', 'deadline_elapsed']).nullable(),
+}).strict();
+
 export const JobListItemSchema = z.object({
   jobId: EntityIdSchema,
   companyId: EntityIdSchema,
@@ -77,6 +83,9 @@ export const JobListItemSchema = z.object({
   state: z.enum(JOB_STATES),
   application: JobApplicationSummarySchema.nullable(),
   primaryListing: JobListingSchema.nullable(),
+  availability: JobAvailabilitySummarySchema.optional(),
+  /** True when archived for the selected Campaign, or for every Campaign in a global view. */
+  archivedForView: z.boolean().optional(),
   listingCount: z.number().int().nonnegative(),
   sourceKinds: z.array(JobSourceKindSchema),
   campaigns: z.array(CampaignRefSchema),
@@ -119,6 +128,7 @@ export const JobApplicationViewSchema = z.object({
 export const JobDetailSchema = z.object({
   job: JobSchema,
   primaryListing: JobListingSchema.nullable(),
+  availability: JobAvailabilitySummarySchema.optional(),
   campaigns: z.array(CampaignRefSchema),
   application: JobApplicationViewSchema.nullable(),
   observations: z.array(JobObservationViewSchema),

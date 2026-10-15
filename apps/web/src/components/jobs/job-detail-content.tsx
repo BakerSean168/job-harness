@@ -3,7 +3,7 @@ import { ExternalLink } from 'lucide-react';
 import type { JobDetail, RecommendJobResumesOutput } from '@job-harness/contracts';
 import type { ResumeProfile } from '@job-harness/resume-contracts';
 import type { Locale, MessageCatalog } from '@/i18n';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, formatDeadline } from '@/lib/format';
 import { StatusBadge } from './status-badge';
 import { TriageActions } from './triage-actions';
 import { RecordApplicationForm } from './record-application-form';
@@ -38,6 +38,7 @@ export function JobDetailContent({
           <h2>{job.title}</h2>
           <div className="detail-badges">
             <StatusBadge value={job.state} label={copy.states[job.state]} />
+            <StatusBadge value={(detail.availability?.applyability ?? 'unverified')} label={copy.availability[detail.availability?.applyability ?? 'unverified']} />
             {detail.application ? (
               <StatusBadge
                 value={detail.application.application.currentStage}
@@ -68,6 +69,8 @@ export function JobDetailContent({
         <dl className="detail-definition-grid">
           <div><dt>{copy.detail.firstSeen}</dt><dd>{formatDateTime(locale, job.firstSeenAt)}</dd></div>
           <div><dt>{copy.detail.lastSeen}</dt><dd>{formatDateTime(locale, job.lastSeenAt)}</dd></div>
+          <div><dt>{copy.detail.deadline}</dt><dd>{formatDeadline(locale, detail.primaryListing?.applicationDeadline)}</dd></div>
+          <div><dt>{copy.detail.lastVerified}</dt><dd>{detail.primaryListing?.lastVerifiedAt ? formatDateTime(locale, detail.primaryListing.lastVerifiedAt) : '—'}</dd></div>
         </dl>
         {detail.campaigns.length ? (
           <div className="campaign-chip-row">
@@ -92,6 +95,11 @@ export function JobDetailContent({
               </div>
               <StatusBadge value={listing.status} label={copy.listingStatuses[listing.status]} />
               <div className="listing-time">{formatDateTime(locale, listing.lastSeenAt)}</div>
+              {listing.applicationDeadline ? (
+                <div className="listing-time" title={listing.applicationDeadline.sourceText}>
+                  {copy.detail.deadline}: {formatDeadline(locale, listing.applicationDeadline)}
+                </div>
+              ) : null}
               {listing.url ? (
                 <a href={listing.url} target="_blank" rel="noreferrer" className="listing-open" aria-label={copy.detail.openOriginal}>
                   <ExternalLink aria-hidden="true" size={14} />
