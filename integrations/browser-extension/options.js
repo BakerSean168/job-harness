@@ -75,8 +75,17 @@ async function exchangePairing(value, pairingCode) {
 async function requestSitePermissions(bridgeUrl) {
   let bridge;
   try { bridge = new URL(bridgeUrl); } catch { status.textContent = "Bridge URL 无效。"; return false; }
-  const origins = ["https://*/*"];
-  if (bridge.protocol === "http:" && ["127.0.0.1", "localhost"].includes(bridge.hostname)) origins.push(`${bridge.origin}/*`);
+  // Chrome extension match patterns never include a port. An origin such as
+  // http://127.0.0.1:20901/* silently fails permission requests in Chromium.
+  const isLocal = bridge.protocol === "http:" && ["127.0.0.1", "localhost"].includes(bridge.hostname);
+  if (bridge.protocol !== "https:" && !isLocal) {
+    status.textContent = "Bridge URL 必须使用 HTTPS（本机开发可用 localhost HTTP）";
+    return false;
+  }
+  const origins = isLocal
+    ? [bridge.protocol + "//" + bridge.hostname + "/*"]
+    : ["https://*/*"];
+  if (await chrome.permissions.contains({ origins })) return true;
   return chrome.permissions.request({ origins });
 }
 
