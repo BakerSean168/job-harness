@@ -1,0 +1,34 @@
+[
+ {
+  "id": "greeting-1",
+  "lane": "前端",
+  "kind": "boss-greeting",
+  "status": "示例",
+  "version": "v2",
+  "text": "26届本科，5个月前端实习，熟悉 Vue 3、React 和 TypeScript，做过 AI 效率工具 MemoFlow 的前端。方便的话我把简历发您看看？"
+ },
+ {
+  "id": "greeting-2",
+  "lane": "全栈",
+  "kind": "boss-greeting",
+  "status": "示例",
+  "version": "v2",
+  "text": "26届本科，做 TypeScript 全栈：前端 Vue/React，后端 Node.js、PostgreSQL，另有前端实习经历。方便发简历给您看看吗？"
+ },
+ {
+  "id": "greeting-3",
+  "lane": "AI Agent 应用",
+  "kind": "boss-greeting",
+  "status": "示例",
+  "version": "v2",
+  "text": "26届本科，做 AI Agent 应用。项目 BodySense 用 Agent 把用户描述的身体变化整理成结构化记录和训练计划。方便发简历给您看看吗？"
+ },
+ {
+  "id": "greeting-4",
+  "lane": "AI 全栈",
+  "kind": "boss-greeting",
+  "status": "示例",
+  "version": "v2",
+  "text": "26届本科，做 AI 全栈。项目 MemoFlow 把 AI 对话里的意图写进任务、日程等结构化数据，我负责可靠写入和人机协同编辑。方便发简历给您看看吗？"
+ }
+]

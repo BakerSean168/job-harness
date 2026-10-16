@@ -43,6 +43,7 @@ export async function ResumeLearningWorkspace({ searchParams }: { searchParams: 
       <nav className="resume-learning-tabs" aria-label={copy.title}>
         <Link href="/resumes/learn" data-selected={tab === 'samples' ? 'true' : undefined}>{copy.tabs.samples} <span>{resumeSamples.length}</span></Link>
         <Link href="/resumes/learn?tab=guide" data-selected={tab === 'guide' ? 'true' : undefined}>{copy.tabs.guide} <span>{writingGuide.rules.length}</span></Link>
+        <Link href="/resumes/learn/outreach">{copy.tabs.outreach}</Link>
       </nav>
 
       {tab === 'samples' ? (

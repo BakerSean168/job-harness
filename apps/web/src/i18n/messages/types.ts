@@ -78,7 +78,7 @@ export interface MessageCatalog {
   };
   resumeLearning: {
     title: string; description: string; entry: string; backToResumes: string;
-    tabs: { samples: string; guide: string };
+    tabs: { samples: string; guide: string; outreach: string };
     filters: { role: string; year: string; level: string; language: string; quality: string; keyword: string; keywordPlaceholder: string; all: string; apply: string; reset: string };
     quality: Record<'good' | 'mixed' | 'bad-example', string>;
     strength: Record<'must' | 'should' | 'avoid', string>;
@@ -86,6 +86,10 @@ export interface MessageCatalog {
     matched: string; empty: string; unknownDate: string; graduation: string; why: string; dateNote: string;
     rules: string; templates: string; examples: string; bad: string; good: string; sources: string;
     skillLevels: string; levelWord: string; levelMeaning: string; levelDepth: string; verbs: string;
+  };
+  outreachLearning: {
+    title: string; description: string; scope: string; keyPoints: string; donts: string; checklist: string;
+    samples: string; samplesNote: string; chars: string; previewHint: string; version: string;
   };
   resumesWorkspace: {
     filters: { campaign: string; all: string; apply: string; reset: string; };
