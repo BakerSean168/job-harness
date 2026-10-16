@@ -74,7 +74,7 @@ export const en: MessageCatalog = {
   },
   resumeLearning: {
     title: 'Learn resume writing', description: 'Real resume samples collected from the web, plus the writing conventions for each section: skill levels, bullet patterns and what to avoid.', entry: 'Learn resume writing', backToResumes: 'Back to resumes',
-    tabs: { samples: 'Samples', guide: 'Writing guide' },
+    tabs: { samples: 'Samples', guide: 'Writing guide', outreach: 'Greetings / job emails' },
     filters: { role: 'Role', year: 'Year', level: 'Stage', language: 'Language', quality: 'Quality', keyword: 'Keyword', keywordPlaceholder: 'e.g. RAG, virtual list', all: 'All', apply: 'Filter', reset: 'Reset' },
     quality: { good: 'Worth learning', mixed: 'Mixed', 'bad-example': 'Bad example' },
     strength: { must: 'Must', should: 'Should', avoid: 'Avoid' },
@@ -82,6 +82,12 @@ export const en: MessageCatalog = {
     matched: '{count} samples', empty: 'No samples match.', unknownDate: 'Date unknown', graduation: 'Class of {year}', why: 'Takeaway: ', dateNote: 'Date basis: ',
     rules: 'Rules', templates: 'Templates', examples: 'Before / after', bad: 'Avoid', good: 'Prefer', sources: 'Sources',
     skillLevels: 'What skill-level words signal', levelWord: 'Word', levelMeaning: 'What interviewers assume', levelDepth: 'Expected probing depth', verbs: 'Strong verbs',
+  },
+  outreachLearning: {
+    title: 'Learn greetings / job emails', description: 'Writing conventions for BOSS greetings, sending the resume, and job-application emails: how HR reads them, structure and length, before/after examples, and a pre-send checklist.',
+    scope: 'Scope: ', keyPoints: 'Key points', donts: 'Avoid', checklist: 'Pre-send checklist', samples: 'Greeting samples',
+    samplesNote: "Arlon's saved greeting drafts, shown as samples only; they may still change. Swap the tech words for the JD's exact wording before use. The highlight is roughly the first {chars} characters HR sees in the message list.",
+    chars: '{count} chars', previewHint: 'Roughly what HR sees in the message list', version: 'Guide compiled {version}',
   },
   resumesWorkspace: {
     filters: { campaign: 'Campaign', all: 'All', apply: 'Filter', reset: 'Reset' },
