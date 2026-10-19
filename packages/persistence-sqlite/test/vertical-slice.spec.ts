@@ -29,6 +29,34 @@ describe('SQLite standalone vertical slice', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it('rejects ambiguous scoped-only replay without creating a second Job', async () => {
+    const career = createCareerApplicationService(store, { now: () => t0 });
+    const original = {
+      companyName: 'Example AI',
+      title: 'AI Agent Product Manager (technical)',
+      city: 'Hangzhou',
+      observedAt: t0,
+      listings: [{ sourceKind: 'official' as const, identityKind: 'scoped' as const,
+        url: 'https://example.ai/careers', status: 'unknown' as const }],
+    };
+    const first = await career.jobs.upsertJobsBatch({ jobs: [original] });
+    expect(first.items[0]).toMatchObject({ status: 'inserted' });
+    const repeated = await career.jobs.upsertJobsBatch({ jobs: [original] });
+    expect(repeated.items[0]).toMatchObject({
+      status: 'rejected',
+      jobId: null,
+      reason: 'ambiguous-scoped-identity:existing-job=' + first.items[0]!.jobId,
+    });
+    const distinct = await career.jobs.upsertJobsBatch({ jobs: [{
+      ...original,
+      listings: [{ sourceKind: 'official' as const, identityKind: 'url' as const,
+        url: 'https://example.ai/jobs/agent-pm-second-opening', status: 'unknown' as const }],
+    }] });
+    expect(distinct.items[0]).toMatchObject({ status: 'inserted' });
+    expect(distinct.items[0]!.jobId).not.toBe(first.items[0]!.jobId);
+    expect((await career.jobs.searchJobs({ limit: 20 })).total).toBe(2);
+  });
+
   it('runs campaign -> discovery -> dedupe -> application -> pipeline with durable idempotency', async () => {
     let clock = t0;
     const career = createCareerApplicationService(store, { now: () => clock });
