@@ -52,6 +52,8 @@ import type {
   TransitionApplicationInput,
   UpsertJobsBatchInput,
   UpsertJobsBatchOutput,
+  VerifyExistingJobListingInput,
+  VerifyExistingJobListingOutput,
   UpsertCampaignInput,
   UpsertSavedViewInput,
   BeginSubmissionIntentInput,
@@ -75,6 +77,7 @@ export interface CareerJobReadPort {
 
 export interface CareerJobCommandPort {
   upsertJobsBatch(input: UpsertJobsBatchInput): Promise<UpsertJobsBatchOutput>;
+  verifyExistingListing(input: VerifyExistingJobListingInput): Promise<VerifyExistingJobListingOutput>;
   setJobState(input: SetJobStateInput): Promise<Job>;
 }
 

@@ -9,6 +9,58 @@ const dirs: string[] = [];
 afterEach(async () => { await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))); });
 
 describe('verified listing state and evidence order', () => {
+  it('verifies scoped careers listings by exact job/listing IDs with idempotent evidence and no duplicate jobs', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'jh-scoped-verification-'));
+    dirs.push(dir);
+    const store = new SqliteCareerStore(join(dir, 'career.db'));
+    try {
+      const career = createCareerApplicationService(store, { now: () => '2026-10-20T01:00:00Z' });
+      const careers = 'https://example.com/careers';
+      const jobs = await career.jobs.upsertJobsBatch({ jobs: ['AI Product Engineer', 'Backend Developer'].map((title) => ({
+        companyName: 'Example Labs', title, city: 'Hangzhou',
+        observedAt: '2026-10-19T00:00:00Z',
+        listings: [{ sourceKind: 'official' as const, label: 'Careers',
+          identityKind: 'scoped' as const, url: careers, status: 'unknown' as const }],
+      })) });
+      expect(jobs.items.map((x) => x.status)).toEqual(['inserted', 'inserted']);
+      const firstId = jobs.items[0]!.jobId!;
+      const secondId = jobs.items[1]!.jobId!;
+      const firstListing = (await career.jobs.getJob(firstId))!.listings[0]!;
+      const secondListing = (await career.jobs.getJob(secondId))!.listings[0]!;
+      const verification = {
+        jobId: firstId, listingId: firstListing.id,
+        status: 'active' as const, verificationKind: 'open_confirmed' as const,
+        observedAt: '2026-10-20T00:00:00Z', evidenceUrl: careers,
+        verificationNote: 'The employer careers page lists this specific role as open.',
+        idempotencyKey: 'verify-scoped-example-1',
+      };
+      const result = await career.jobs.verifyExistingListing(verification);
+      expect(result).toMatchObject({
+        jobId: firstId, listingId: firstListing.id, verificationKind: 'open_confirmed',
+        evidenceUrl: careers, availability: 'active',
+      });
+      expect(await career.jobs.verifyExistingListing(verification)).toEqual(result);
+      await expect(career.jobs.verifyExistingListing({
+        ...verification, evidenceUrl: 'https://example.com/other-url',
+      })).rejects.toThrow();
+      await expect(career.jobs.verifyExistingListing({
+        ...verification, listingId: secondListing.id, idempotencyKey: 'verify-scoped-foreign',
+      })).rejects.toThrow();
+      await expect(career.jobs.verifyExistingListing({
+        ...verification, status: 'closed', idempotencyKey: 'verify-scoped-mismatch',
+      })).rejects.toThrow();
+      expect((await career.jobs.getJob(firstId))!.listings).toMatchObject([{
+        id: firstListing.id, status: 'active', lastVerifiedOpenAt: '2026-10-20T00:00:00Z',
+      }]);
+      expect((await career.jobs.getJob(secondId))!.listings).toMatchObject([{
+        id: secondListing.id, lastVerifiedOpenAt: null,
+      }]);
+      expect((await career.jobs.searchJobs({ limit: 50 })).total).toBe(2);
+    } finally {
+      store.close();
+    }
+  });
+
   it('keeps verified closure against newer search hits and older contradictory verification; restores with a newer explicit opening', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'jh-state-evidence-'));
     dirs.push(dir);

@@ -38,6 +38,8 @@ import {
   UpsertSavedViewInputSchema,
   UpsertJobsBatchInputSchema,
   UpsertJobsBatchOutputSchema,
+  VerifyExistingJobListingInputSchema,
+  VerifyExistingJobListingOutputSchema,
   ApplicationSubmissionSchema,
   JobOutreachEventSchema,
   BeginSubmissionIntentInputSchema,
@@ -361,6 +363,69 @@ export function createCareerApplicationService(
         return results;
       });
       return UpsertJobsBatchOutputSchema.parse({ items });
+    },
+
+    async verifyExistingListing(input) {
+      const parsed = VerifyExistingJobListingInputSchema.parse(input);
+      return store.transaction(async (tx) => {
+        const scope = 'career_job_listing_verify';
+        const cached = await loadReceipt(tx, scope, parsed.idempotencyKey, parsed, (value) =>
+          VerifyExistingJobListingOutputSchema.parse(value));
+        if (cached) return cached;
+
+        const job = await tx.getJob(parsed.jobId);
+        if (!job) throw new CareerNotFoundError('Job', parsed.jobId);
+        const listing = job.listings.find((row) => row.id === parsed.listingId);
+        if (!listing) throw new CareerNotFoundError('JobListing', parsed.listingId);
+        if (parsed.discoveryRunId && !(await tx.getDiscoveryRun(parsed.discoveryRunId))) {
+          throw new CareerNotFoundError('DiscoveryRun', parsed.discoveryRunId);
+        }
+        const block = await tx.findCompanyBlockRule(job.companyName);
+        if (block) throw new CareerConflictError(`company-blocked:${block.pattern}`);
+
+        // The existing IDs, not the generic careers URL, select the listing.
+        // A mismatch must roll back the transaction; never create an unrelated listing.
+        const candidate: UpsertJobCandidate = {
+          companyName: job.companyName,
+          title: job.title,
+          city: job.city,
+          observedAt: parsed.observedAt,
+          discoveryRunId: parsed.discoveryRunId ?? null,
+          listings: [{
+            sourceKind: listing.sourceKind,
+            label: listing.label,
+            url: listing.url,
+            externalNamespace: listing.externalNamespace,
+            externalId: listing.externalId,
+            identityKind: listing.identityKind,
+            status: parsed.status,
+            verificationKind: parsed.verificationKind,
+            evidenceUrl: parsed.evidenceUrl ?? null,
+            verificationNote: parsed.verificationNote ?? null,
+            closureReason: parsed.closureReason ?? null,
+            metadataSnapshot: listing.metadataSnapshot,
+          }],
+        };
+        const merged = await tx.mergeJobCandidate(job.id, candidate, now());
+        if (merged.touchedListings.length !== 1 || merged.touchedListings[0]?.id !== listing.id) {
+          throw new CareerConflictError('listing-identity-mismatch:verification-did-not-update-requested-listing');
+        }
+
+        const observation = VerifyExistingJobListingOutputSchema.parse({
+          id: idFactory(),
+          jobId: job.id,
+          listingId: listing.id,
+          discoveryRunId: parsed.discoveryRunId ?? null,
+          observedAt: parsed.observedAt,
+          availability: parsed.status,
+          verificationKind: parsed.verificationKind,
+          evidenceUrl: parsed.evidenceUrl ?? null,
+          note: parsed.verificationNote ?? null,
+        });
+        await tx.insertObservation(observation);
+        await saveReceipt(tx, scope, parsed.idempotencyKey, parsed, observation, now());
+        return observation;
+      });
     },
 
     async setJobState(input) {

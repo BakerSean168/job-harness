@@ -63,6 +63,41 @@ For confirmed opening, use `verificationKind: open_confirmed`,
 that genuinely supports the open observation. A `200 OK` page with
 `Security Verification` is not sufficient.
 
+## Verify a known listing by canonical ID
+
+For an existing Job with a `scoped` careers-page identity, **do not invent a
+job-specific URL or source ID** to bypass the duplicate guard. After checking
+that the exact role still appears on the employer's site, use the dedicated
+idempotent REST endpoint:
+
+```http
+POST /api/v1/jobs/{jobId}/listings/{listingId}/verify
+Content-Type: application/json
+Authorization: Bearer <JOB_HARNESS_AUTH_TOKEN>
+
+{
+  "observedAt": "2026-10-20T00:00:00Z",
+  "status": "active",
+  "verificationKind": "open_confirmed",
+  "evidenceUrl": "https://example.org/careers",
+  "verificationNote": "Employer page lists this exact opening and has an apply action.",
+  "idempotencyKey": "verify-example-role-20261020"
+}
+```
+
+The server validates that the listing is **owned by that Job**, merges only the
+identified listing's state, and appends a durable verification Observation.
+It returns the Observation (with IDs, evidence and the original observation
+time), and retrying the same key/request returns the same result. Reusing
+an idempotency key with different data is a conflict. The endpoint never
+creates Jobs, contacts recruiters or submits applications. Explicit confirmed
+closure uses `verificationKind: closed_confirmed`, `status: closed` and
+appropriate closure evidence.
+
+This route is particularly important for a shared careers page carrying
+multiple distinct openings. It does not bypass the separate requirements for
+source identity, job eligibility, or excluding already-contacted employers.
+
 ## Error triage
 
 - REST Zod validation returns HTTP 400 `VALIDATION_ERROR` with an `issues`

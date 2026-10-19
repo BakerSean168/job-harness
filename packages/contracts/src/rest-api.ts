@@ -47,6 +47,8 @@ import {
   UpsertCampaignOutputSchema,
   UpsertJobsBatchInputSchema,
   UpsertJobsBatchOutputSchema,
+  VerifyExistingJobListingFieldsSchema,
+  VerifyExistingJobListingOutputSchema,
   ListCampaignsInputSchema,
   ListCampaignsOutputSchema,
   PrepareSubmissionIntentInputSchema,
@@ -176,6 +178,7 @@ export interface JobHarnessRestV1RouteContract {
 const IdParam = (name: string) => z.object({ [name]: EntityIdSchema }).strict();
 const OptionalCampaignQuerySchema = z.object({ campaignId: EntityIdSchema.optional() }).strict();
 
+export const VerifyExistingJobListingBodySchema = VerifyExistingJobListingFieldsSchema.omit({ jobId: true, listingId: true });
 export const SetJobStateBodySchema = SetJobStateInputSchema.omit({ jobId: true });
 export const TransitionApplicationBodySchema = TransitionApplicationInputSchema.omit({ applicationId: true });
 export const UpsertCampaignBodySchema = UpsertCampaignInputSchema.omit({ id: true });
@@ -253,6 +256,7 @@ export const JOB_HARNESS_REST_V1_ROUTES = {
   createSiteResumeBinding: route({ operationId: 'createSiteResumeBinding', method: 'post', path: '/site-resume-bindings', tags: ['Site Resume Bindings'], summary: 'Confirm one observed site-managed resume label against the current immutable Resume Profile revision/PDF', bodySchema: CreateSiteResumeBindingBodySchema, responseSchema: SiteResumeBindingSchema, successStatus: 201 }),
   revokeSiteResumeBinding: route({ operationId: 'revokeSiteResumeBinding', method: 'post', path: '/site-resume-bindings/:bindingId/revoke', tags: ['Site Resume Bindings'], summary: 'Revoke a site-managed resume binding without deleting its audit evidence', paramsSchema: IdParam('bindingId'), bodySchema: RevokeSiteResumeBindingBodySchema, responseSchema: SiteResumeBindingSchema, successStatus: 200 }),
   upsertJobsBatch: route({ operationId: 'upsertJobsBatch', method: 'post', path: '/jobs/batch', tags: ['Jobs'], summary: 'Idempotently upsert discovered jobs', bodySchema: UpsertJobsBatchInputSchema, responseSchema: UpsertJobsBatchOutputSchema, successStatus: 200 }),
+  verifyExistingListing: route({ operationId: 'verifyExistingJobListing', method: 'post', path: '/jobs/:jobId/listings/:listingId/verify', tags: ['Jobs'], summary: 'Record evidence for an existing job listing by its canonical IDs without creating a new job', paramsSchema: z.object({ jobId: EntityIdSchema, listingId: EntityIdSchema }).strict(), bodySchema: VerifyExistingJobListingBodySchema, responseSchema: VerifyExistingJobListingOutputSchema, successStatus: 200 }),
   setJobState: route({ operationId: 'setJobState', method: 'patch', path: '/jobs/:jobId/state', tags: ['Jobs'], summary: 'Change a job triage state', paramsSchema: IdParam('jobId'), bodySchema: SetJobStateBodySchema, responseSchema: SetJobStateOutputSchema, successStatus: 200 }),
   applications: route({ operationId: 'listApplications', method: 'get', path: '/applications', tags: ['Applications'], summary: 'List application board projections', querySchema: ListApplicationBoardInputSchema, responseSchema: ListApplicationBoardOutputSchema, successStatus: 200 }),
   applicationDetail: route({ operationId: 'getApplicationDetail', method: 'get', path: '/applications/:applicationId', tags: ['Applications'], summary: 'Read one application workspace projection', paramsSchema: IdParam('applicationId'), responseSchema: ApplicationWorkspaceDetailSchema, successStatus: 200 }),

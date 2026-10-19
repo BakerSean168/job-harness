@@ -29,6 +29,7 @@ import {
   UpsertCampaignInputSchema,
   UpsertSavedViewInputSchema,
   UpsertJobsBatchInputSchema,
+  VerifyExistingJobListingInputSchema,
   PrepareSubmissionIntentInputSchema,
   BeginSubmissionIntentInputSchema,
   ConfirmSubmissionIntentInputSchema,
@@ -203,6 +204,15 @@ export function registerJobHarnessApi(app: Express, career: CareerRuntimePorts):
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.upsertJobsBatch, route(async (req, res) => {
     const input = UpsertJobsBatchInputSchema.parse(req.body);
     res.status(200).json(await career.jobs.upsertJobsBatch(input));
+  }));
+
+  registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.verifyExistingListing, route(async (req, res) => {
+    const input = VerifyExistingJobListingInputSchema.parse({
+      ...req.body,
+      jobId: entityId(req.params.jobId),
+      listingId: entityId(req.params.listingId),
+    });
+    res.status(200).json(await career.jobs.verifyExistingListing(input));
   }));
 
   registerRestV1Route(app, API_PREFIX, JOB_HARNESS_REST_V1_ROUTES.setJobState, route(async (req, res) => {

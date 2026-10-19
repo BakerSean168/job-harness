@@ -36,6 +36,8 @@ import {
   UpsertCampaignOutputSchema,
   UpsertJobsBatchInputSchema,
   UpsertJobsBatchOutputSchema,
+  VerifyExistingJobListingInputSchema,
+  VerifyExistingJobListingOutputSchema,
   PrepareSubmissionIntentInputSchema,
   PrepareSubmissionIntentOutputSchema,
   BeginSubmissionIntentInputSchema,
@@ -253,6 +255,10 @@ export class CareerMcpRuntime {
       case 'career_jobs_upsert_batch':
         return UpsertJobsBatchOutputSchema.parse(
           await this.ports.jobs.upsertJobsBatch(UpsertJobsBatchInputSchema.parse(rawInput)),
+        );
+      case 'career_job_listing_verify':
+        return VerifyExistingJobListingOutputSchema.parse(
+          await this.ports.jobs.verifyExistingListing(VerifyExistingJobListingInputSchema.parse(rawInput)),
         );
       case 'career_job_state_set':
         return SetJobStateOutputSchema.parse(
