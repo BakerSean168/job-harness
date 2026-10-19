@@ -13,6 +13,7 @@ const expectedNames = [
   'career_resumes_list',
   'career_pipeline_stats',
   'career_jobs_upsert_batch',
+  'career_job_listing_verify',
   'career_job_state_set',
   'career_application_record',
   'career_application_transition',
@@ -69,6 +70,7 @@ describe('MCP contract surface', () => {
   it('does not expose a privileged external application submission tool', () => {
     expect(CAREER_MCP_TOOLS.some((tool) => tool.name.includes('submit_application'))).toBe(false);
     expect(CAREER_MCP_TOOLS.every((tool) => tool.externalSideEffect === false)).toBe(true);
+    expect(CAREER_MCP_TOOLS.find((tool) => tool.name === 'career_job_listing_verify')).toMatchObject({ idempotent: true, externalSideEffect: false, mutability: 'state-write' });
   });
 
 

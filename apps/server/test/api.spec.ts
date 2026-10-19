@@ -279,6 +279,51 @@ describe('REST v1 facade', () => {
     expect(invalid.body.error.code).toBe('VALIDATION_ERROR');
   });
 
+  it('accepts id-bound scoped listing evidence through REST, with retry-safe proof', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'job-harness-scoped-verify-api-'));
+    running = await startJobHarnessServer({ databasePath: join(dir, 'career.db'), host: '127.0.0.1', port: 0 });
+    const sourceUrl = 'https://example.com/careers';
+    const created = await json('/jobs/batch', {
+      method: 'POST',
+      body: JSON.stringify({ jobs: [{
+        companyName: 'Example Company', title: 'AI Product Engineer', city: 'Hangzhou',
+        observedAt: '2026-10-19T09:00:00Z',
+        listings: [{ sourceKind: 'official', identityKind: 'scoped', url: sourceUrl, status: 'unknown' }],
+      }] }),
+    });
+    expect(created.body.items[0]).toMatchObject({ status: 'inserted' });
+    const jobId = created.body.items[0].jobId as string;
+    const before = await json('/jobs/' + jobId);
+    const listingId = before.body.job.listings[0].id as string;
+    const request = {
+      observedAt: '2026-10-20T00:00:00Z',
+      status: 'active', verificationKind: 'open_confirmed', evidenceUrl: sourceUrl,
+      idempotencyKey: 'verify-scoped-api-1',
+    };
+    const path = '/jobs/' + jobId + '/listings/' + listingId + '/verify';
+    const first = await json(path, { method: 'POST', body: JSON.stringify(request) });
+    const retry = await json(path, { method: 'POST', body: JSON.stringify(request) });
+    expect(first.response.status).toBe(200);
+    expect(first.body).toMatchObject({ jobId, listingId, verificationKind: 'open_confirmed' });
+    expect(retry.body.id).toBe(first.body.id);
+    const invalid = await json(path, { method: 'POST', body: JSON.stringify({
+      ...request, idempotencyKey: 'verify-scoped-api-invalid', status: 'closed',
+    }) });
+    expect(invalid.response.status).toBe(400);
+    expect(invalid.body.error.code).toBe('VALIDATION_ERROR');
+    const mismatched = await json('/jobs/' + jobId + '/listings/not-its-listing/verify', {
+      method: 'POST', body: JSON.stringify({ ...request, idempotencyKey: 'verify-scoped-api-wrong-listing' }),
+    });
+    expect(mismatched.response.status).toBe(404);
+    const detail = await json('/jobs/' + jobId);
+    expect(detail.body.job.listings).toMatchObject([{ id: listingId, lastVerifiedOpenAt: request.observedAt }]);
+    expect(detail.body.observations.some((row: any) =>
+      row.observation?.id === first.body.id && row.observation?.verificationKind === 'open_confirmed',
+    )).toBe(true);
+    const jobs = await json('/jobs');
+    expect(jobs.body.total).toBe(1);
+  });
+
   it('serves the generated OpenAPI contract outside the bearer boundary', async () => {
     dir = await mkdtemp(join(tmpdir(), 'job-harness-openapi-'));
     running = await startJobHarnessServer({

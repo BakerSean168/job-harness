@@ -16,6 +16,7 @@ import {
   JobVerificationKindSchema,
   JobClosureReasonSchema,
   JobOutreachEventSchema,
+  JobObservationSchema,
   JobOutreachEventTypeSchema,
   JobSourceKindSchema,
   JobStateSchema,
@@ -138,6 +139,29 @@ export const UpsertJobsBatchOutputSchema = z
     ),
   })
   .strict();
+
+/** Confirm a known listing by its immutable database identity, including scoped career pages. */
+export const VerifyExistingJobListingFieldsSchema = z.object({
+  jobId: EntityIdSchema,
+  listingId: EntityIdSchema,
+  observedAt: IsoDateTimeSchema,
+  status: z.enum(['active', 'closed']),
+  verificationKind: z.enum(['open_confirmed', 'closed_confirmed']),
+  evidenceUrl: z.url().nullable().optional(),
+  verificationNote: z.string().trim().max(1000).nullable().optional(),
+  closureReason: JobClosureReasonSchema.nullable().optional(),
+  discoveryRunId: EntityIdSchema.nullable().optional(),
+  idempotencyKey: IdempotencyKeySchema,
+}).strict();
+export const VerifyExistingJobListingInputSchema = VerifyExistingJobListingFieldsSchema.superRefine((value, ctx) => {
+  if ((value.verificationKind === 'open_confirmed') !== (value.status === 'active')) {
+    ctx.addIssue({ code: 'custom', path: ['status'], message: 'Verification kind and status must agree' });
+  }
+  if (!value.evidenceUrl && !value.verificationNote) {
+    ctx.addIssue({ code: 'custom', path: ['verificationKind'], message: 'Confirmation requires evidence URL or note' });
+  }
+});
+export const VerifyExistingJobListingOutputSchema = JobObservationSchema;
 
 export const SetJobStateInputSchema = z
   .object({ jobId: EntityIdSchema, state: JobStateSchema, idempotencyKey: IdempotencyKeySchema })
@@ -547,6 +571,8 @@ export type JobListingCandidate = z.input<typeof JobListingCandidateSchema>;
 export type UpsertJobCandidate = z.input<typeof UpsertJobCandidateSchema>;
 export type UpsertJobsBatchInput = z.input<typeof UpsertJobsBatchInputSchema>;
 export type UpsertJobsBatchOutput = z.output<typeof UpsertJobsBatchOutputSchema>;
+export type VerifyExistingJobListingInput = z.input<typeof VerifyExistingJobListingInputSchema>;
+export type VerifyExistingJobListingOutput = z.output<typeof VerifyExistingJobListingOutputSchema>;
 export type SetJobStateInput = z.input<typeof SetJobStateInputSchema>;
 export type RecordJobOutreachEventInput = z.input<typeof RecordJobOutreachEventInputSchema>;
 export type ListJobOutreachEventsInput = z.input<typeof ListJobOutreachEventsInputSchema>;
