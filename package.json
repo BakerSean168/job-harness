@@ -22,6 +22,7 @@
     "openapi:generate": "tsx scripts/openapi-artifact.ts --write",
     "check:openapi": "tsx scripts/openapi-artifact.ts",
     "jobs:lifecycle:sweep": "tsx scripts/job-lifecycle-sweep.ts",
+    "jobs:batch:validate": "tsx scripts/validate-job-batch.ts",
     "resume:legacy:dry-run": "tsx scripts/resume-legacy-dry-run.ts",
     "resume:legacy:import": "tsx scripts/resume-legacy-import.ts",
     "check:chatgpt-integration": "tsx scripts/check-chatgpt-integration.ts",

@@ -295,6 +295,20 @@ export function createCareerApplicationService(
               continue;
             }
 
+            // A generic careers page is a source, not a distinct opening.
+            // Fail closed for an ambiguous scoped-only candidate rather than
+            // create another Job for the same company, title and city.
+            if (duplicate.potentialMatches.length > 0
+              && candidate.listings.every((listing) => listing.identityKind === 'scoped')) {
+              results.push({
+                index,
+                status: 'rejected',
+                jobId: null,
+                reason: 'ambiguous-scoped-identity:existing-job=' + duplicate.potentialMatches[0]!.id,
+              });
+              continue;
+            }
+
             const timestamp = now();
             const company = await tx.resolveCompany(candidate.companyName, timestamp);
             const job: Job = JobSchema.parse({

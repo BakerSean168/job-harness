@@ -4,6 +4,8 @@ Job Harness is a plugin-ready, AI-friendly job-search state and workflow system.
 
 Its core responsibility is **not** to be an autonomous job-search AI. Instead, it owns durable career-search facts and exposes stable tools so external brains such as ChatGPT Web or a future MemoFlow AI host can read and update those facts safely.
 
+For job discovery callers, see the [batch ingestion contract and preflight guide](docs/operations/discovery-batch-ingestion.md). Validate candidate JSON with `pnpm jobs:batch:validate <batch.json>` before a write.
+
 ## North star
 
 > Domain owns truth. Extensions contribute capabilities. Hosts compose capabilities. AI consumes tools.
