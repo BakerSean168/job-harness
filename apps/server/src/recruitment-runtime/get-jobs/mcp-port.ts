@@ -9,13 +9,32 @@ export function deriveCampaignCollectionKeywords(campaign: {
   readonly keywords: readonly string[];
 }): string[] {
   const preferred: string[] = [];
+  const add = (value: string) => { if (!preferred.includes(value)) preferred.push(value); };
   for (const role of campaign.targetRoles) {
-    if (/agent/i.test(role) && !preferred.includes('Agent')) preferred.push('Agent');
-    if (role.includes('全栈') && !preferred.includes('全栈开发')) preferred.push('全栈开发');
-    if (role.includes('前端') && !preferred.includes('前端开发')) preferred.push('前端开发');
+    if (/agent|智能体/i.test(role)) { add('Agent'); add('智能体'); }
+    if (role.includes('全栈')) { add('全栈开发'); add('Node.js'); }
+    if (role.includes('前端')) { add('前端开发'); add('React'); add('TypeScript'); }
+    if (/AI\s*应用|大模型应用/i.test(role)) add('AI应用开发');
+    if (role.includes('大模型')) add('大模型应用');
   }
-  if (preferred.length) return preferred;
-  return [...new Set(campaign.keywords.map((value) => value.trim()).filter(Boolean))].slice(0, 6);
+  // Campaign keywords may refine a search, never replace the user's chosen role scope.
+  if (preferred.length) return preferred.slice(0, 10);
+  return [...new Set(campaign.keywords.map((value) => value.trim()).filter(Boolean))].slice(0, 10);
+}
+
+/** Exact values verified against the current Zhilian single-select UI (2026-10-20).
+ * '应届生' and '无经验' share its unrestricted band, not the 3+ years bands.
+ */
+export function deriveZhilianExperienceCodes(experience: readonly string[]): string[] {
+  const codes: string[] = [];
+  const add = (code: string) => { if (!codes.includes(code)) codes.push(code); };
+  for (const value of experience) {
+    if (['经验不限', '不限', '无经验', '应届生', '往届可'].includes(value)) add('-1');
+    else if (['1年以内', '1年以下'].includes(value)) add('0001');
+    else if (['1-3年', '1～3年', '1至3年'].includes(value)) add('0103');
+  }
+  if (!codes.length) throw new Error('Campaign has no Zhilian-supported experience bands; refusing unfiltered collection');
+  return codes;
 }
 
 export function createGetJobsCollectionRuntimeMcpPort(
@@ -84,7 +103,8 @@ export function createGetJobsCollectionRuntimeMcpPort(
         };
       }
 
-      await runtime.configureCollection(site, { keywords, city });
+      const experienceCodes = site === 'zhilian' ? deriveZhilianExperienceCodes(campaign.experience) : undefined;
+      await runtime.configureCollection(site, { keywords, city, experienceCodes });
       const result = await runtime.startCollection(site);
       return {
         site,

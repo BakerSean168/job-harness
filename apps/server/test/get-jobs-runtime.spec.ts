@@ -3,6 +3,8 @@ import {
   GET_JOBS_RUNTIME_DESCRIPTORS,
   createGetJobsRuntimeClient,
   createGetJobsCollectionRuntimeMcpPort,
+  deriveCampaignCollectionKeywords,
+  deriveZhilianExperienceCodes,
   getJobsRuntimeRowToCandidate,
   syncGetJobsRuntimeCache,
 } from '../src/get-jobs-runtime';
@@ -226,6 +228,7 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
 
   it('derives collect-only start configuration from Campaign policy and imports via the canonical Job sink', async () => {
     const calls: Array<{ path: string; method: string; body: unknown }> = [];
+    let savedFilters: { experienceCodes: string[]; employmentCode: string } | null = null;
     const fetch = async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url);
       const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
@@ -235,6 +238,13 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
       if (url.pathname === '/api/zhilian/login-status') return new Response(JSON.stringify({ success: true, isLoggedIn: true, message: '已登录' }), { status: 200 });
       if (url.pathname === '/api/zhilian/config' && (init?.method ?? 'GET') === 'GET') {
         return new Response(JSON.stringify({ success: true, config: {}, options: { city: [{ type: 'city', name: '杭州', code: '653' }] } }), { status: 200 });
+      }
+      if (url.pathname === '/api/zhilian/collection-filters' && init?.method === 'PUT') {
+        savedFilters = body as { experienceCodes: string[]; employmentCode: string };
+        return new Response(JSON.stringify({ success: true, message: 'native filters saved' }), { status: 200 });
+      }
+      if (url.pathname === '/api/zhilian/collection-filters' && (init?.method ?? 'GET') === 'GET') {
+        return new Response(JSON.stringify({ success: true, ...savedFilters }), { status: 200 });
       }
       if (url.pathname === '/api/zhilian/config' && init?.method === 'PUT') return new Response(JSON.stringify({ success: true, message: 'saved', status: null }), { status: 200 });
       if (url.pathname === '/api/zhilian/start') return new Response(JSON.stringify({ success: true, message: 'started', status: 'started' }), { status: 200 });
@@ -252,7 +262,7 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
             targetRoles: ['AI Agent / Agent 应用开发', '全栈开发', '前端开发'],
             cities: ['杭州', '深圳'],
             graduationYears: [2026],
-            experience: ['应届生'],
+            experience: ['经验不限', '应届生', '1年以内', '1-3年'],
             education: ['本科'],
             keywords: ['React', 'TypeScript'],
             exclusions: [],
@@ -276,12 +286,52 @@ describe('vvvsrx/get_jobs external Site Runtime adapter', () => {
     });
 
     await expect(port.start({ site: 'zhilian', campaignId: 'campaign-1' })).resolves.toMatchObject({
-      site: 'zhilian', success: true, city: '杭州', keywords: ['Agent', '全栈开发', '前端开发'], reused: false,
+      site: 'zhilian', success: true, city: '杭州', keywords: ['Agent', '智能体', '全栈开发', 'Node.js', '前端开发', 'React', 'TypeScript'], reused: false,
     });
     const configWrite = calls.find((call) => call.path === '/api/zhilian/config' && call.method === 'PUT');
-    expect(configWrite?.body).toEqual({ keywords: 'Agent,全栈开发,前端开发', cityCode: '653' });
+    expect(configWrite?.body).toEqual({ keywords: 'Agent,智能体,全栈开发,Node.js,前端开发,React,TypeScript', cityCode: '653' });
+    expect(savedFilters).toEqual({ experienceCodes: ['-1', '0001', '0103'], employmentCode: '2' });
+    const filtersConfiguredAt = calls.findIndex((call) => call.path === '/api/zhilian/collection-filters' && call.method === 'PUT');
+    const startedAt = calls.findIndex((call) => call.path === '/api/zhilian/start');
+    expect(filtersConfiguredAt).toBeGreaterThanOrEqual(0);
+    expect(startedAt).toBeGreaterThan(filtersConfiguredAt);
     await expect(port.sync({ site: 'zhilian', pageSize: 100, maxPages: 1 })).resolves.toMatchObject({ site: 'zhilian', scanned: 0, inserted: 0 });
     expect(writes).toHaveLength(0);
+  });
+
+  it('maps Campaign experience to the three Zhilian native single-select bands; never enables 3+ years', () => {
+    expect(deriveZhilianExperienceCodes(['经验不限', '无经验', '应届生', '1年以内', '1-3年']))
+      .toEqual(['-1', '0001', '0103']);
+    expect(deriveZhilianExperienceCodes(['应届生'])).toEqual(['-1']);
+    expect(deriveZhilianExperienceCodes(['1-3年', '3-5年'])).toEqual(['0103']);
+    expect(() => deriveZhilianExperienceCodes(['3-5年', '5-10年'])).toThrow(/no Zhilian-supported/);
+    expect(deriveCampaignCollectionKeywords({
+      targetRoles: ['AI Agent / 智能体应用开发', '全栈开发（Node.js/TypeScript）', '前端开发', 'AI 应用开发', '大模型应用开发'],
+      keywords: ['Java', 'UI设计'],
+    })).toEqual(['Agent', '智能体', '全栈开发', 'Node.js', '前端开发', 'React', 'TypeScript', 'AI应用开发', '大模型应用']);
+  });
+
+  it('refuses to start an older Zhilian runtime that lacks confirmed native filters', async () => {
+    const calls: string[] = [];
+    const runtime = createGetJobsRuntimeClient({
+      baseUrl: 'http://get-jobs-runtime:8000',
+      fetch: (async (input: string | URL | Request) => {
+        const path = new URL(typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url).pathname;
+        calls.push(path);
+        if (path === '/api/job-harness-runtime') {
+          return new Response(JSON.stringify({ integration: 'job-harness', collectOnly: true, mode: 'collect-only' }), { status: 200 });
+        }
+        if (path === '/api/zhilian/config') {
+          return new Response(JSON.stringify({ success: true, config: {}, options: { city: [{ name: '杭州', code: '653' }] } }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+      }) as typeof globalThis.fetch,
+    });
+    await expect(runtime.configureCollection('zhilian', {
+      city: '杭州', keywords: ['Agent'], experienceCodes: ['-1', '0001', '0103'],
+    })).rejects.toThrow(/http_404/);
+    expect(calls).not.toContain('/api/zhilian/start');
+    expect(calls.filter((path) => path === '/api/zhilian/config')).toHaveLength(1);
   });
 
   it('rejects collection start when Campaign collection is disabled before touching upstream start', async () => {

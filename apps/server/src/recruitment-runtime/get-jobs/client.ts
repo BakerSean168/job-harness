@@ -106,7 +106,7 @@ export function createGetJobsRuntimeClient(options: GetJobsRuntimeClientOptions)
       return StatusSchema.parse(await request(`/api/${site}/status`));
     },
 
-    async configureCollection(siteInput: GetJobsRuntimeSite, input: { keywords: readonly string[]; city: string }) {
+    async configureCollection(siteInput: GetJobsRuntimeSite, input: { keywords: readonly string[]; city: string; experienceCodes?: readonly string[] }) {
       const site = GetJobsRuntimeSiteSchema.parse(siteInput);
       const info = RuntimeInfoSchema.parse(await request('/api/job-harness-runtime'));
       if (!info.collectOnly || info.mode !== 'collect-only') {
@@ -120,6 +120,24 @@ export function createGetJobsRuntimeClient(options: GetJobsRuntimeClientOptions)
       if (!cityOption) throw new Error(`get_jobs ${site} does not expose an exact city option for '${input.city}'`);
       const keywords = [...new Set(input.keywords.map((value) => value.trim()).filter(Boolean))].slice(0, 12);
       if (!keywords.length) throw new Error('At least one collection keyword is required');
+      if (site === 'zhilian') {
+        const codes = input.experienceCodes ?? [];
+        if (!codes.length || codes.some((code) => !['-1', '0001', '0103'].includes(code)) || new Set(codes).size !== codes.length) {
+          throw new Error('Zhilian collection requires unique, Campaign-approved native experience bands');
+        }
+        const filters = { experienceCodes: [...codes], employmentCode: '2' };
+        const configured = ActionResponseSchema.parse(await request('/api/zhilian/collection-filters', {
+          method: 'PUT',
+          body: JSON.stringify(filters),
+        }));
+        if (!configured.success) throw new Error('Zhilian native filter configuration was rejected');
+        const confirmed = await request('/api/zhilian/collection-filters') as Record<string, unknown>;
+        if (!confirmed || confirmed['success'] !== true ||
+          JSON.stringify(confirmed['experienceCodes']) !== JSON.stringify(filters.experienceCodes) ||
+          confirmed['employmentCode'] !== filters.employmentCode) {
+          throw new Error('Zhilian runtime did not persist the requested native filters; refusing unfiltered start');
+        }
+      }
       const payload = site === 'job51'
         ? { keywords: keywords.join(','), jobArea: cityOption.code }
         : { keywords: keywords.join(','), cityCode: cityOption.code };

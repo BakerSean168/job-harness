@@ -34,4 +34,5 @@ export {
 export {
   createGetJobsCollectionRuntimeMcpPort,
   deriveCampaignCollectionKeywords,
+  deriveZhilianExperienceCodes,
 } from './recruitment-runtime/get-jobs/mcp-port';

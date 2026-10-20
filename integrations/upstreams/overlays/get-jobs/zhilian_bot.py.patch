@@ -1,6 +1,41 @@
 --- a/app/worker/zhilian_bot.py
 +++ b/app/worker/zhilian_bot.py
-@@ -171,18 +171,20 @@ class ZhilianBot:
+@@ -3,6 +3,7 @@
+ import os
+ import asyncio
+ import re
++from urllib.parse import urlencode, parse_qs, urlsplit
+ from typing import Optional, List, Callable
+ 
+ logger = logging.getLogger(__name__)
+@@ -127,12 +128,23 @@
+         else:
+             logger.info(msg)
+ 
+-    def _build_search_url(self, city_code: str = "", salary: str = "", page_num: int = 1) -> str:
++    def _build_search_url(self, city_code: str = "", salary: str = "", page_num: int = 1,
++                          experience_code: Optional[str] = None,
++                          employment_code: Optional[str] = None) -> str:
+         base = "https://www.zhaopin.com/sou/"
+         url = f"{base}jl{city_code}/p{page_num}"
++        filters = {}
+         if salary:
+-            url += f"?sl={salary}"
+-        return url
++            filters["sl"] = salary
++        if experience_code is not None:
++            if experience_code not in {"-1", "0001", "0103"}:
++                raise ValueError("Unsupported Zhilian experience band")
++            filters["we"] = experience_code
++        if employment_code is not None:
++            if employment_code != "2":
++                raise ValueError("Zhilian collection only allows full-time positions")
++            filters["et"] = employment_code
++        return url + ("?" + urlencode(filters) if filters else "")
+ 
+     async def run_delivery(self):
+         from app.worker.task_state import task_state
+@@ -171,20 +183,55 @@
          city_code = db_config.city_code or self.config.get("city_code", "")
          salary = db_config.salary or self.config.get("salary", "")
  
@@ -8,25 +43,95 @@
 +        collect_only = os.getenv("JOB_HARNESS_GET_JOBS_COLLECT_ONLY", "0") == "1"
 +        action_label = "采集" if collect_only else "投递"
 +        total_processed = 0
++
++        if collect_only:
++            # A missing upstream filter config must not silently degrade to
++            # unfiltered browsing and hundreds of senior/intern listings.
++            filters = self.config.get("nativeSearchFilters")
++            if not isinstance(filters, dict):
++                raise RuntimeError("Native Zhilian filters required for collect-only")
++            experience_codes = filters.get("experienceCodes")
++            employment_code = filters.get("employmentCode")
++            if (not isinstance(experience_codes, list) or not experience_codes
++                    or len(set(experience_codes)) != len(experience_codes)
++                    or any(code not in {"-1", "0001", "0103"} for code in experience_codes)
++                    or employment_code != "2"):
++                raise RuntimeError("Invalid Zhilian experience/full-time filter config")
++            try:
++                requested_max = int(os.getenv("JOB_HARNESS_GET_JOBS_MAX_CARDS_PER_KEYWORD", "60"))
++            except ValueError:
++                requested_max = 60
++            # Preserve the prior per-keyword budget across the three separate
++            # single-select queries instead of tripling the card inspection work.
++            total_budget = max(20, min(requested_max, 120))
++            per_band_limit = max(1, (total_budget + len(experience_codes) - 1) // len(experience_codes))
++        else:
++            experience_codes = [None]
++            employment_code = None
++            per_band_limit = None
  
          for keyword in keyword_list:
-             if task_state.should_stop() or self.is_limit:
-                 self._info("收到停止信号，终止投递")
-                 return
- 
+-            if task_state.should_stop() or self.is_limit:
+-                self._info("收到停止信号，终止投递")
+-                return
+-
 -            self._info(f"开始投递关键词：{keyword}")
 -            posted = await self._submit_keyword(keyword, city_code, salary, task_state)
 -            total_posted += posted
-+            self._info(f"开始{action_label}关键词：{keyword}")
-+            processed = await self._submit_keyword(keyword, city_code, salary, task_state)
-+            total_processed += processed
- 
+-
 -        self._info(f"投递完成，共投递 {total_posted} 个职位")
+-
+-    async def _submit_keyword(self, keyword, city_code, salary, task_state):
++            for experience_code in experience_codes:
++                if task_state.should_stop() or self.is_limit:
++                    self._info("收到停止信号，终止采集")
++                    return
++                self._info(f"开始{action_label}关键词：{keyword}，经验档：{experience_code or '不限'}")
++                processed = await self._submit_keyword(
++                    keyword, city_code, salary, task_state,
++                    experience_code=experience_code,
++                    employment_code=employment_code,
++                    max_cards_override=per_band_limit,
++                )
++                total_processed += processed
++
 +        self._info(f"{action_label}完成，共{action_label} {total_processed} 个职位")
- 
-     async def _submit_keyword(self, keyword, city_code, salary, task_state):
++
++    async def _submit_keyword(self, keyword, city_code, salary, task_state,
++                              experience_code=None, employment_code=None,
++                              max_cards_override=None):
          from app.worker.zhilian_locators import (
-@@ -228,6 +230,30 @@ class ZhilianBot:
+             JOB_CARDS, APPLY_BUTTON, NEXT_PAGE, NEXT_PAGE_DISABLED_CLASS,
+             KEYWORD_INPUT_SELECTORS, APPLY_LIMIT_INDICATOR,
+@@ -192,7 +239,9 @@
+         )
+ 
+         # 导航到搜索页（第1页）
+-        search_url = self._build_search_url(city_code, salary, 1)
++        search_url = self._build_search_url(
++            city_code, salary, 1, experience_code, employment_code,
++        )
+         await self.navigate(search_url)
+         await asyncio.sleep(2)
+ 
+@@ -221,6 +270,16 @@
+                 logger.warning("未找到搜索输入框")
+                 return 0
+ 
++        # The search UI may reroute on Enter. If it silently drops either
++        # native filter, fail closed rather than importing unfiltered jobs.
++        if experience_code is not None:
++            url_filters = parse_qs(urlsplit(self.page.url).query)
++            if (url_filters.get("we") != [experience_code]
++                    or url_filters.get("et") != [employment_code]):
++                logger.warning("智联搜索跳转丢失原生经验/全职筛选，跳过未筛选结果: %s", self.page.url)
++                self._info("智联筛选条件丢失，已跳过该关键词")
++                return 0
++
+         # 等待职位列表加载
+         try:
+             await self.page.wait_for_selector(JOB_CARDS, timeout=10000)
+@@ -228,6 +287,30 @@
              logger.warning("等待职位列表超时")
              return 0
  
@@ -37,7 +142,7 @@
 +                requested_max = int(os.getenv("JOB_HARNESS_GET_JOBS_MAX_CARDS_PER_KEYWORD", "60"))
 +            except ValueError:
 +                requested_max = 60
-+            max_cards = max(20, min(requested_max, 120))
++            max_cards = max_cards_override if max_cards_override is not None else max(20, min(requested_max, 120))
 +            stagnant_rounds = 0
 +            last_count = 0
 +            while not task_state.should_stop():
@@ -52,12 +157,12 @@
 +                if stagnant_rounds >= 2:
 +                    break
 +            self._info(f"智联无限滚动已加载 {await self.page.locator(JOB_CARDS).count()} 个职位，开始{action_label}")
-+            return await self._deliver_current_page()
++            return await self._deliver_current_page(max_items=max_cards)
 +
          posted = 0
          page_num = 1
  
-@@ -236,7 +262,7 @@ class ZhilianBot:
+@@ -236,7 +319,7 @@
                  self._info("收到停止指令，结束分页循环")
                  return posted
  
@@ -66,7 +171,7 @@
  
              # 等待职位列表
              try:
-@@ -270,9 +296,55 @@ class ZhilianBot:
+@@ -270,10 +353,56 @@
              else:
                  break
  
@@ -74,6 +179,7 @@
 +        self._info(f"【{keyword}】关键词{action_label}完成！")
          return posted
  
+-    async def _deliver_current_page(self) -> int:
 +    @staticmethod
 +    def _normalize_identity_text(value: str) -> str:
 +        return re.sub(r"\s+", " ", value or "").strip().casefold()
@@ -120,18 +226,22 @@
 +        )
 +        return None
 +
-     async def _deliver_current_page(self) -> int:
++    async def _deliver_current_page(self, max_items: Optional[int] = None) -> int:
          from app.worker.zhilian_locators import (
              JOB_CARDS, APPLY_BUTTON, ALREADY_APPLIED_MARKER,
-@@ -283,6 +355,7 @@ class ZhilianBot:
+             JOB_TITLE, JOB_SALARY, JOB_LOCATION, JOB_EXPERIENCE,
+@@ -282,7 +411,10 @@
+ 
          job_cards = self.page.locator(JOB_CARDS)
          count = await job_cards.count()
++        if max_items is not None:
++            count = min(count, max(0, max_items))
          posted = 0
 +        collect_only = os.getenv("JOB_HARNESS_GET_JOBS_COLLECT_ONLY", "0") == "1"
  
          # 先采集所有职位信息
          jobs_data = []
-@@ -290,16 +363,26 @@ class ZhilianBot:
+@@ -290,16 +422,26 @@
              card = job_cards.nth(i)
              try:
                  job_title = await self._safe_get_text(card, JOB_TITLE)
@@ -165,7 +275,7 @@
                  job_id = self._extract_job_id(job_link, job_title, company_name)
                  if not job_id:
                      logger.warning("无法提取 job_id，链接: %s", job_link)
-@@ -328,13 +411,16 @@ class ZhilianBot:
+@@ -328,12 +470,15 @@
                  async with self.db_session_factory() as session:
                      from app.services.zhilian_service import ZhilianService
                      service = ZhilianService(session)
@@ -178,15 +288,14 @@
 +                    logger.warning("刷新职位观察: %s", job_id)
              except Exception as e:
                  logger.warning("保存岗位数据失败 %s: %s", job_id, e)
- 
++
 +        if collect_only:
 +            self._info(f"仅采集模式：当前页已采集 {len(valid_jobs)} 个智联岗位，不执行投递")
 +            return len(valid_jobs)
-+
+ 
          # 投递
          for job in jobs_data:
-             from app.worker.task_state import task_state
-@@ -468,6 +554,9 @@ class ZhilianBot:
+@@ -468,6 +613,9 @@
      def _extract_job_id(self, link: Optional[str], job_title: str = "", company_name: str = "") -> Optional[str]:
          if link:
              try:

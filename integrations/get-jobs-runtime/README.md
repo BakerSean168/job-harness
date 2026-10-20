@@ -124,6 +124,34 @@ recruitment_collection_runtime_sync
 
 `start` requires an active Campaign with `automation.collection.enabled=true`; the caller chooses only a site and optionally one Campaign-approved city. Job Harness derives the concise search keywords from Campaign target roles, resolves the upstream city code, verifies the Runtime's `collectOnly=true` marker, and refuses a login-required Runtime. `sync` imports upstream cached rows through canonical Job Harness upsert/dedupe; upstream `delivered` remains metadata and never creates Application truth. The login endpoint is intentionally not exposed as an autonomous MCP tool because QR/CAPTCHA/account verification remains a human gate.
 
+### Zhilian native search filters (collect-only)
+
+The Zhilian site exposes **single-select** native experience bands, so Job Harness
+derives a finite list of searches from the active Campaign's experience policy:
+`经验不限 / 无经验 / 应届生 → we=-1`,
+`1年以内 / 1年以下 → we=0001`, and `1-3年 → we=0103`.
+These are the values verified in the live Zhilian UI on 2026-10-20.
+The worker always adds `et=2` (**全职**) and refuses unsupported senior bands.
+It executes the selected bands separately for each Campaign keyword and the
+explicitly selected city; no applicant-facing action is permitted.
+
+Job Harness configures `PUT /api/zhilian/collection-filters` and verifies
+`GET /api/zhilian/collection-filters` **before** configuring keywords/city or
+starting a collection. Both old runtimes that lack the endpoint and new
+runtimes without a filter configuration fail closed. If the site drops
+`we`/`et` during a keyword search, the worker skips those results.
+The prior maximum cards-per-keyword budget is split across its allowed
+experience bands (default 20 cards for each of three bands, rather than
+60 unfiltered cards). Later strong listing-identity deduplication and
+job-page verification remain mandatory.
+
+The website's company-size filter is intentionally not set: the Campaign's
+0–499 employee preference is **ranking**, not a hard exclusion. Site-side
+filters reduce browsing but do not replace JD-based role, experience,
+company legal name, outsourcing and application-status checks.
+Searches for different Campaign cities are initiated **sequentially**, not
+in parallel against one shared authenticated browser runtime.
+
 ## Promotion gate
 
 The first live canary must be one site only and collection-only. Recommended order:
