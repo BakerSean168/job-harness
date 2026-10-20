@@ -35,6 +35,93 @@ async def main():
     except ValueError:
         pass
 
+    from urllib.parse import urlencode
+    redirect = "https://www.zhaopin.com/jobs/?jl=653&pageMode=search&" + urlencode({"kw": "前端开发"})
+    for experience in ("-1", "0001", "0103"):
+        restored = bot._restore_keyword_filter_url(redirect, "前端开发", "653", experience, "2")
+        query = parse_qs(urlsplit(restored).query)
+        assert query == {
+            "jl": ["653"], "pageMode": ["search"],
+            "kw": ["前端开发"], "we": [experience], "et": ["2"],
+        }, (experience, query)
+    for bad in (
+        redirect.replace("www.zhaopin.com", "other.com"),
+        redirect.replace("jl=653", "jl=765"),
+        redirect.replace("kw=", "no_kw="),
+        "https://www.zhaopin.com/sou/jl653/p1?we=0103&et=2",
+    ):
+        try:
+            bot._restore_keyword_filter_url(bad, "前端开发", "653", "0103", "2")
+            assert False, f"Unrelated redirect accepted: {bad}"
+        except ValueError:
+            pass
+
+    os.environ['JOB_HARNESS_GET_JOBS_COLLECT_ONLY'] = '1'
+    # Simulate real site: entering a keyword redirects /sou to /jobs
+    # without native filters. Reapply them before inspecting cards.
+    from app.worker.zhilian_locators import JOB_CARDS
+    class FakeLocator:
+        def __init__(self, page, kind): self.page,self.kind=page,kind
+        @property
+        def first(self): return self
+        async def is_visible(self): return True
+        async def fill(self,value): self.page.word=value
+        async def press(self,key):
+            assert key=="Enter"
+            self.page.url="https://www.zhaopin.com/jobs/?jl=653&pageMode=search&"+urlencode({"kw":self.page.word})
+        async def all_text_contents(self):
+            if self.page.invalidate_labels:
+                return ["杭州", "工作经验", "全职"]
+            return ["杭州", {"-1": "经验不限", "0001": "1年以下", "0103": "1-3年"}[self.page.expected_band], "全职"]
+        async def count(self): return 20
+    class FakePage:
+        def __init__(self,expected_band,invalidate_labels=False):
+            self.url=""
+            self.word=""
+            self.expected_band=expected_band
+            self.invalidate_labels=invalidate_labels
+        def locator(self,selector):
+            return FakeLocator(self,'cards' if selector==JOB_CARDS else 'labels' if 'filter-select-box__label' in selector else 'input')
+        async def wait_for_selector(self,*args,**kwargs): return None
+        async def evaluate(self,*args,**kwargs): return None
+    async def browser_canary(band, invalidate=False):
+        worker=ZhilianBot(config={},db_session_factory=None)
+        worker.page=FakePage(band,invalidate)
+        visited=[]
+        async def navigate(url):
+            visited.append(url)
+            worker.page.url=url
+        async def deliver(max_items=None):
+            assert max_items==20
+            return 4
+        worker.navigate=navigate
+        worker._deliver_current_page=deliver
+        result=await worker._submit_keyword(
+            "前端开发","653","",task_state,
+            experience_code=band,employment_code="2",max_cards_override=20,
+        )
+        if invalidate:
+            assert result==0, (band,visited)
+        else:
+            assert result==4, (band,visited)
+        assert len(visited)==2, visited
+        assert "/sou/jl653/" in visited[0]
+        assert "/jobs/?" in visited[1]
+        assert parse_qs(urlsplit(visited[1]).query)["we"]==[band]
+        assert parse_qs(urlsplit(visited[1]).query)["et"]==["2"]
+    from app.worker.task_state import task_state
+    task_state.start("zhilian")
+    original_sleep=asyncio.sleep
+    async def noop(*args): return None
+    asyncio.sleep=noop
+    try:
+        for band in ("-1","0001","0103"):
+            await browser_canary(band)
+        await browser_canary("0103", invalidate=True)
+    finally:
+        asyncio.sleep=original_sleep
+        task_state.stop()
+
     os.environ["JOB_HARNESS_GET_JOBS_COLLECT_ONLY"] = "1"
     class FakeSession:
         async def __aenter__(self):

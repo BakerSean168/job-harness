@@ -138,8 +138,15 @@ explicitly selected city; no applicant-facing action is permitted.
 Job Harness configures `PUT /api/zhilian/collection-filters` and verifies
 `GET /api/zhilian/collection-filters` **before** configuring keywords/city or
 starting a collection. Both old runtimes that lack the endpoint and new
-runtimes without a filter configuration fail closed. If the site drops
-`we`/`et` during a keyword search, the worker skips those results.
+runtimes without a filter configuration fail closed. The current Zhilian
+search page redirects from `/sou/` to `/jobs/` after a keyword is entered,
+**dropping the original experience and full-time parameters**. The worker
+checks that the redirect is same-origin and retains the exact requested
+keyword and city, reapplies `we` and `et` on `/jobs/`, then validates both
+the resulting URL and the **visible selected search filter labels**. Any
+mismatch stops that query before a candidate can be collected. The site's
+`we=-1` option can still display explicit 3+ year listings; these senior
+cards are rejected before opening their details.
 The prior maximum cards-per-keyword budget is split across its allowed
 experience bands (default 20 cards for each of three bands, rather than
 60 unfiltered cards). Later strong listing-identity deduplication and

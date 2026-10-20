@@ -4,11 +4,11 @@
  import os
  import asyncio
  import re
-+from urllib.parse import urlencode, parse_qs, urlsplit
++from urllib.parse import urlencode, parse_qs, parse_qsl, urlsplit, urlunsplit
  from typing import Optional, List, Callable
  
  logger = logging.getLogger(__name__)
-@@ -127,12 +128,23 @@
+@@ -127,12 +128,42 @@
          else:
              logger.info(msg)
  
@@ -32,10 +32,29 @@
 +                raise ValueError("Zhilian collection only allows full-time positions")
 +            filters["et"] = employment_code
 +        return url + ("?" + urlencode(filters) if filters else "")
++
++    @staticmethod
++    def _restore_keyword_filter_url(page_url: str, keyword: str, city_code: str,
++                                    experience_code: str, employment_code: str) -> str:
++        # Zhilian redirects a submitted /sou/ query to its current /jobs/
++        # search UI; this redirect silently drops the original we/et params.
++        # Reapply them only to the expected same-origin keyword/city result.
++        parts = urlsplit(page_url)
++        if parts.scheme != "https" or parts.hostname != "www.zhaopin.com" or parts.path != "/jobs/":
++            raise ValueError("Unexpected Zhilian keyword search origin/path")
++        params = dict(parse_qsl(parts.query, keep_blank_values=True))
++        if (params.get("jl") != str(city_code)
++                or params.get("kw", "").strip().casefold() != keyword.strip().casefold()):
++            raise ValueError("Zhilian keyword/city redirect did not match requested scope")
++        if experience_code not in {"-1", "0001", "0103"} or employment_code != "2":
++            raise ValueError("Unsafe Zhilian experience or employment filter")
++        params["we"] = experience_code
++        params["et"] = employment_code
++        return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(params), ""))
  
      async def run_delivery(self):
          from app.worker.task_state import task_state
-@@ -171,20 +183,55 @@
+@@ -171,20 +202,55 @@
          city_code = db_config.city_code or self.config.get("city_code", "")
          salary = db_config.salary or self.config.get("salary", "")
  
@@ -103,7 +122,7 @@
          from app.worker.zhilian_locators import (
              JOB_CARDS, APPLY_BUTTON, NEXT_PAGE, NEXT_PAGE_DISABLED_CLASS,
              KEYWORD_INPUT_SELECTORS, APPLY_LIMIT_INDICATOR,
-@@ -192,7 +239,9 @@
+@@ -192,7 +258,9 @@
          )
  
          # 导航到搜索页（第1页）
@@ -114,24 +133,53 @@
          await self.navigate(search_url)
          await asyncio.sleep(2)
  
-@@ -221,6 +270,16 @@
+@@ -221,6 +289,45 @@
                  logger.warning("未找到搜索输入框")
                  return 0
  
-+        # The search UI may reroute on Enter. If it silently drops either
-+        # native filter, fail closed rather than importing unfiltered jobs.
++        # The /sou/ keyword Enter action currently navigates to /jobs/
++        # and drops we/et. Re-apply the verified site's native filters to
++        # the exact returned keyword+city URL. Never continue if the target,
++        # actual URL, or visible selected filters disagree.
 +        if experience_code is not None:
-+            url_filters = parse_qs(urlsplit(self.page.url).query)
-+            if (url_filters.get("we") != [experience_code]
-+                    or url_filters.get("et") != [employment_code]):
-+                logger.warning("智联搜索跳转丢失原生经验/全职筛选，跳过未筛选结果: %s", self.page.url)
-+                self._info("智联筛选条件丢失，已跳过该关键词")
++            try:
++                filtered_url = self._restore_keyword_filter_url(
++                    self.page.url, keyword, city_code, experience_code, employment_code,
++                )
++                if self.page.url != filtered_url:
++                    await self.navigate(filtered_url)
++                    await asyncio.sleep(1.5)
++                active_query = parse_qs(urlsplit(self.page.url).query)
++                if (active_query.get("we") != [experience_code]
++                        or active_query.get("et") != [employment_code]
++                        or active_query.get("jl") != [str(city_code)]
++                        or active_query.get("kw", [""])[0].strip().casefold() != keyword.strip().casefold()):
++                    raise ValueError("Zhilian dropped native filters after applying them")
++                await self.page.wait_for_selector(
++                    ".filter-search .filter-select-box__label", timeout=10000,
++                )
++                visible_labels = {
++                    value.strip() for value in
++                    await self.page.locator(
++                        ".filter-search .filter-select-box__label"
++                    ).all_text_contents()
++                }
++                expected_experience = {
++                    "-1": "经验不限",
++                    "0001": "1年以下",
++                    "0103": "1-3年",
++                }[experience_code]
++                if expected_experience not in visible_labels or "全职" not in visible_labels:
++                    raise ValueError("Zhilian filter UI does not confirm the requested selection")
++            except Exception as exc:
++                logger.warning("智联筛选验证失败，跳过未筛选结果: %s (%s)", self.page.url, exc)
++                self._info("智联筛选条件未获页面确认，已跳过该关键词")
 +                return 0
 +
          # 等待职位列表加载
          try:
              await self.page.wait_for_selector(JOB_CARDS, timeout=10000)
-@@ -228,6 +287,30 @@
+@@ -228,6 +335,30 @@
              logger.warning("等待职位列表超时")
              return 0
  
@@ -162,7 +210,7 @@
          posted = 0
          page_num = 1
  
-@@ -236,7 +319,7 @@
+@@ -236,7 +367,7 @@
                  self._info("收到停止指令，结束分页循环")
                  return posted
  
@@ -171,7 +219,7 @@
  
              # 等待职位列表
              try:
-@@ -270,10 +353,56 @@
+@@ -270,10 +401,56 @@
              else:
                  break
  
@@ -230,7 +278,7 @@
          from app.worker.zhilian_locators import (
              JOB_CARDS, APPLY_BUTTON, ALREADY_APPLIED_MARKER,
              JOB_TITLE, JOB_SALARY, JOB_LOCATION, JOB_EXPERIENCE,
-@@ -282,7 +411,10 @@
+@@ -282,7 +459,10 @@
  
          job_cards = self.page.locator(JOB_CARDS)
          count = await job_cards.count()
@@ -241,15 +289,12 @@
  
          # 先采集所有职位信息
          jobs_data = []
-@@ -290,16 +422,26 @@
+@@ -290,16 +470,32 @@
              card = job_cards.nth(i)
              try:
                  job_title = await self._safe_get_text(card, JOB_TITLE)
 -                job_link = None
 +                company_name = await self._safe_get_text(card, COMPANY_NAME)
-+                job_link = await self._read_verified_detail_link(card, job_title, company_name)
-+                if collect_only and not job_link:
-+                    logger.warning("智联职位缺少已验证详情链接，跳过强身份绑定：%s / %s", job_title, company_name)
 +                salary = await self._safe_get_text(card, JOB_SALARY)
 +                location = await self._safe_get_text(card, JOB_LOCATION)
 +                tag_texts = []
@@ -270,12 +315,21 @@
 +                experience = next((value for value in tag_texts if re.search(r"^(经验不限|不限经验|无经验|应届生?|在校生|实习生|\d+年以内|\d+年以上|\d+-\d+年)$", value)), "")
 +                if not experience:
 +                    experience = await self._safe_get_text(card, JOB_EXPERIENCE)
++                # we=-1 is the site's unrestricted search and still returns
++                # some 3+ year cards. Reject explicit senior cards before
++                # opening the detail panel or persisting observation data.
++                if collect_only and re.search(r"^(?:[3-9]\d*[-－～~]\d+年|[3-9]\d*年以上|\d{2,}年以上)$", experience):
++                    logger.debug("跳过经验超限的智联职位: %s (%s)", job_title, experience)
++                    continue
 +                if not degree:
 +                    degree = await self._safe_get_text(card, JOB_DEGREE)
++                job_link = await self._read_verified_detail_link(card, job_title, company_name)
++                if collect_only and not job_link:
++                    logger.warning("智联职位缺少已验证详情链接，跳过强身份绑定：%s / %s", job_title, company_name)
                  job_id = self._extract_job_id(job_link, job_title, company_name)
                  if not job_id:
                      logger.warning("无法提取 job_id，链接: %s", job_link)
-@@ -328,12 +470,15 @@
+@@ -328,12 +524,15 @@
                  async with self.db_session_factory() as session:
                      from app.services.zhilian_service import ZhilianService
                      service = ZhilianService(session)
@@ -295,7 +349,7 @@
  
          # 投递
          for job in jobs_data:
-@@ -468,6 +613,9 @@
+@@ -468,6 +667,9 @@
      def _extract_job_id(self, link: Optional[str], job_title: str = "", company_name: str = "") -> Optional[str]:
          if link:
              try:
