@@ -119,6 +119,15 @@ sync_source() {
   grep -q 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY' "$stage/app/main.py"
   grep -q '_login_tasks: dict\[str, asyncio.Task\]' "$stage/app/routers/jobs.py"
   grep -q 'status="already_logged_in"' "$stage/app/routers/jobs.py"
+  # Each collect-only worker calls observe_job. Absence of the matching
+  # service overlay previously passed source checks, then dropped every
+  # collected position at runtime without saving it.
+  for site in zhilian liepin job51; do
+    grep -q "async def observe_job" "$stage/app/services/${site}_service.py" || {
+      echo "missing observation overlay for ${site}; refusing runtime promotion" >&2
+      exit 1
+    }
+  done
   grep -q 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY' "$stage/app/worker/zhilian_bot.py"
   grep -q 'div.job-card' "$stage/app/worker/zhilian_locators.py"
   grep -q 'DETAIL_TITLE' "$stage/app/worker/zhilian_locators.py"
@@ -129,7 +138,7 @@ sync_source() {
   grep -q 'job_link = await self._read_verified_detail_link(card, job_title, company_name)' "$stage/app/worker/zhilian_bot.py"
   grep -q 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY' "$stage/app/worker/liepin_bot.py"
   grep -q 'JOB_HARNESS_GET_JOBS_COLLECT_ONLY' "$stage/app/worker/job51_bot.py"
-  python3 -m py_compile "$stage/app/main.py" "$stage/app/routers/jobs.py" "$stage/app/schemas.py" "$stage/app/worker/zhilian_bot.py" "$stage/app/worker/zhilian_locators.py" "$stage/app/worker/liepin_bot.py" "$stage/app/worker/job51_bot.py"
+  python3 -m py_compile "$stage/app/main.py" "$stage/app/routers/jobs.py" "$stage/app/schemas.py" "$stage/app/worker/zhilian_bot.py" "$stage/app/worker/zhilian_locators.py" "$stage/app/worker/liepin_bot.py" "$stage/app/worker/job51_bot.py" "$stage/app/services/zhilian_service.py" "$stage/app/services/liepin_service.py" "$stage/app/services/job51_service.py"
 
   printf '%s\n' "$commit" > "$stage/.job-harness-ready"
   mv "$stage" "$target"

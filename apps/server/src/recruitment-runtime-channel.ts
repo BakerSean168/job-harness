@@ -105,9 +105,12 @@ const GET_JOBS_OVERLAYS: readonly RuntimeFileDefinition[] = [
   'main.py.patch',
   'jobs.py.patch',
   'schemas.py.patch',
+  'zhilian_service.py.patch',
   'zhilian_bot.py.patch',
   'zhilian_locators.py.patch',
+  'liepin_service.py.patch',
   'liepin_bot.py.patch',
+  'job51_service.py.patch',
   'job51_bot.py.patch',
 ].map((name) => ({
   id: `external/vvvsrx-get-jobs/overlays/${name}`,

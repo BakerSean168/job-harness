@@ -35,6 +35,9 @@ const [
   liepinLocators,
   job51,
   job51Locators,
+  zhilianService,
+  liepinService,
+  job51Service,
 ] = await Promise.all([
   text('pyproject.toml'),
   text('app/main.py'),
@@ -46,6 +49,9 @@ const [
   text('app/worker/liepin_locators.py'),
   text('app/worker/job51_bot.py'),
   text('app/worker/job51_locators.py'),
+  text('app/services/zhilian_service.py'),
+  text('app/services/liepin_service.py'),
+  text('app/services/job51_service.py'),
 ]);
 
 requireMarkers('pyproject', pyproject, [
@@ -88,6 +94,10 @@ requireMarkers('task state', taskState, [
   'def stop(',
   'def should_stop(',
 ]);
+
+for (const [name, source] of [['zhilian', zhilianService], ['liepin', liepinService], ['job51', job51Service]]) {
+  requireMarkers(name + ' observation service', source, ['async def observe_job', 'updated_at', 'get_job_list']);
+}
 
 requireMarkers('Zhilian worker', zhilian, [
   'class ZhilianBot',
