@@ -74,6 +74,16 @@ for (const platform of ['zhilian', 'liepin', 'job51']) {
     `@router.get("/${platform}/login-status"`,
   ]);
 }
+requireMarkers('Zhilian collect-only native filter boundary', jobsRouter, [
+  'class ZhilianNativeFilters(BaseModel):',
+  'experienceCodes: list[Literal["-1", "0001", "0103"]]',
+  'employmentCode: Literal["2"]',
+  '@router.put("/zhilian/collection-filters"',
+  '@router.get("/zhilian/collection-filters"',
+  'if task_state.running:',
+  'Native experience and full-time filters not configured',
+  'Configure native filters before collection',
+]);
 requireMarkers('jobs router login singleton', jobsRouter, [
   '_login_tasks: dict[str, asyncio.Task]',
   'def _start_platform_login(platform: str) -> bool:',
@@ -100,6 +110,13 @@ for (const [name, source] of [['zhilian', zhilianService], ['liepin', liepinServ
 }
 
 requireMarkers('Zhilian worker', zhilian, [
+  'experience_code not in {"-1", "0001", "0103"}',
+  'filters["we"] = experience_code',
+  'filters["et"] = employment_code',
+  'url_filters.get("we") != [experience_code]',
+  'url_filters.get("et") != [employment_code]',
+  'per_band_limit = max(1, (total_budget + len(experience_codes) - 1) // len(experience_codes))',
+  'return await self._deliver_current_page(max_items=max_cards)',
   'class ZhilianBot',
   'AsyncCamoufox',
   'run_delivery',
@@ -162,6 +179,8 @@ const schemas = await text('app/schemas.py');
 for (const marker of ['job_link: Optional[str]', 'location: Optional[str]', 'job_area: Optional[str]', 'job_exp_req: Optional[str]']) {
   if (!schemas.includes(marker)) throw new Error(`Upstream candidate list API lost rich discovery field: ${marker}`);
 }
+
+execFileSync('python3', [resolve(import.meta.dirname, 'test-get-jobs-native-filters.py'), candidate], { stdio: 'inherit' });
 
 execFileSync('python3', ['-m', 'py_compile',
   resolve(candidate, 'app/main.py'),
