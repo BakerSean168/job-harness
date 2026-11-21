@@ -5,6 +5,7 @@ describe('Job Harness server runtime configuration', () => {
   it('uses explicit defaults and normalizes the browser validation origin', () => {
     const config = readServerRuntimeConfig({ JOB_HARNESS_BROWSER_VALIDATION_ALLOWED_ORIGIN: 'https://example.test/path' });
     expect(config.host).toBe('127.0.0.1');
+    expect(config.allowedHostnames).toEqual([]);
     expect(config.port).toBe(3000);
     expect(config.browserExtensionValidationAllowedOrigin).toBe('https://example.test');
     expect(config.bossGreetingBridgeUrl).toBe('http://127.0.0.1:18788');
@@ -12,6 +13,17 @@ describe('Job Harness server runtime configuration', () => {
     expect(config.lifecycleAutoArchive).toBe(false);
     expect(config.lifecycleSweepCampaignIds).toEqual([]);
     expect(config.lifecycleSweepIntervalMs).toBe(86_400_000);
+  });
+
+  it('normalizes exact private proxy hostnames and requires authentication', () => {
+    expect(readServerRuntimeConfig({
+      JOB_HARNESS_ALLOWED_HOSTNAMES: ' Jobs.Example.test, jobs.example.test, ,other.example.test ',
+      JOB_HARNESS_AUTH_TOKEN: 'test-secret',
+    }).allowedHostnames).toEqual(['jobs.example.test', 'other.example.test']);
+    expect(() => readServerRuntimeConfig({ JOB_HARNESS_ALLOWED_HOSTNAMES: 'jobs.example.test' })).toThrow(/AUTH_TOKEN/);
+    for (const host of ['*', '*.example.test', 'https://jobs.example.test', 'jobs.example.test:443', 'bad..example.test', '-bad.example.test']) {
+      expect(() => readServerRuntimeConfig({ JOB_HARNESS_ALLOWED_HOSTNAMES: host, JOB_HARNESS_AUTH_TOKEN: 'test-secret' })).toThrow();
+    }
   });
 
   it('rejects partial integers, invalid URLs and unauthenticated public binds before startup', () => {

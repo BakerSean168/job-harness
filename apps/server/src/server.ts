@@ -5,7 +5,7 @@ import type { Server as HttpServer } from 'node:http';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import express from 'express';
-import { localhostHostValidation } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
+import { hostHeaderValidation } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
 import { createCareerApplicationService } from '@job-harness/application';
 import { createResumeApplicationService, createResumeArtifactService } from '@job-harness/resume-application';
 import { createApplicantApplicationService } from '@job-harness/applicant-application';
@@ -37,6 +37,7 @@ import { createGetJobsCollectionRuntimeMcpPort, createGetJobsRuntimeClient } fro
 export interface JobHarnessServerOptions {
   readonly databasePath: string;
   readonly host?: string;
+  readonly allowedHostnames?: readonly string[];
   readonly port?: number;
   readonly authToken?: string | null;
   readonly executorAuthToken?: string | null;
@@ -117,6 +118,9 @@ export function createProtocolServer(runtime: ReturnType<typeof createJobHarness
 }
 
 export async function startJobHarnessServer(options: JobHarnessServerOptions): Promise<RunningJobHarnessServer> {
+  if (options.allowedHostnames?.length && !options.authToken?.trim()) {
+    throw new Error('Bearer authentication is required with additional allowed hostnames');
+  }
   mkdirSync(dirname(options.databasePath), { recursive: true });
   const store = new SqliteCareerStore(options.databasePath);
   const resumeStore = new SqliteResumeStore(options.databasePath);
@@ -224,7 +228,9 @@ export async function startJobHarnessServer(options: JobHarnessServerOptions): P
   const host = options.host ?? '127.0.0.1';
   const executorAuthToken = options.executorAuthToken?.trim() || null;
   const app = express();
-  if (['127.0.0.1', 'localhost', '::1'].includes(host)) app.use(localhostHostValidation());
+  if (['127.0.0.1', 'localhost', '::1'].includes(host)) {
+    app.use(hostHeaderValidation(['localhost', '127.0.0.1', '[::1]', ...(options.allowedHostnames ?? [])]));
+  }
 
   // Normal Job Harness JSON remains at Express' conservative default limit.
   // Extension upload commands are the one intentional large-body exception:

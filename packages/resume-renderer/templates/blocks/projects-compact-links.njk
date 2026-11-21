@@ -29,7 +29,7 @@
     {% if project.highlights | length %}
     <div class="compact text-justify" style="margin-top: 3px;">
       {% for h in project.highlights %}
-      <p><strong>{{ h.label }}</strong>{{ ' ' if lang == 'en' }}{{ h.detail | safe }}</p>
+      <p><strong>{% if h.evidenceUrl %}<a class="resume-evidence-link" href="{{ h.evidenceUrl }}" target="_blank" rel="noopener noreferrer">{{ h.evidenceLabel }}</a>{% else %}{{ h.label }}{% endif %}</strong>{{ ' ' if lang == 'en' }}{{ h.detail | safe }}</p>
       {% endfor %}
     </div>
     {% endif %}

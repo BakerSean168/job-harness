@@ -4,6 +4,7 @@ import {
   ResolvedResumeSchema,
   ResumeArtifactSchema,
   ResumeLibrarySchema,
+  ResumeEvidenceUrlSchema,
   ResumeProfileSchema,
   ResumeRevisionSchema,
   validateResumeProfileReferences,
@@ -42,6 +43,21 @@ describe('Resume Domain v2 contracts', () => {
   it('requires at least one localized value', () => {
     expect(() => LocalizedTextSchema.parse({})).toThrow();
     expect(LocalizedTextSchema.parse({ en: 'Agent Engineer' })).toEqual({ en: 'Agent Engineer' });
+  });
+
+  it('accepts optional HTTP(S) evidence and rejects executable or credential-bearing links', () => {
+    const source = library();
+    const highlight = source.projects[0]!.highlights[0]!;
+    expect(highlight.evidenceUrl).toBeUndefined();
+    for (const url of ['https://example.com/evidence#design', 'http://example.com/article']) {
+      expect(ResumeEvidenceUrlSchema.parse(url)).toBe(url);
+      const enriched = structuredClone(source);
+      enriched.projects[0]!.highlights[0]!.evidenceUrl = url;
+      expect(ResumeLibrarySchema.parse(enriched).projects[0]!.highlights[0]!.evidenceUrl).toBe(url);
+    }
+    for (const url of ['javascript:alert(1)', 'data:text/html,test', 'file:///tmp/example', '/relative', 'https://user:pass@example.com/foo']) {
+      expect(() => ResumeEvidenceUrlSchema.parse(url)).toThrow();
+    }
   });
 
   it('rejects duplicate stable IDs and duplicate profile sections', () => {

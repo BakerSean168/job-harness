@@ -5,6 +5,7 @@ const HttpUrlSchema = z.url().refine((value) => ['http:', 'https:'].includes(new
 const PortSchema = z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(0).max(65_535));
 const NonNegativeIntSchema = z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().nonnegative());
 const PositiveIntSchema = z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().positive());
+const AllowedHostnameSchema = z.string().max(253).refine((name) => name.split('.').every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u.test(label)), 'expected an exact hostname without a scheme, port or wildcard');
 
 function optionalTrimmed(value: string | undefined): string | null {
   const normalized = value?.trim() ?? '';
@@ -26,6 +27,7 @@ function optionalHttpUrl(value: string | undefined): string | null {
 export interface ServerRuntimeConfig {
   readonly databasePath: string;
   readonly host: string;
+  readonly allowedHostnames: readonly string[];
   readonly port: number;
   readonly authToken: string | null;
   readonly executorAuthToken: string | null;
@@ -49,6 +51,11 @@ export interface ServerRuntimeConfig {
 export function readServerRuntimeConfig(env: NodeJS.ProcessEnv = process.env): ServerRuntimeConfig {
   const host = z.string().trim().min(1).max(255).parse(optionalTrimmed(env.JOB_HARNESS_HOST) ?? '127.0.0.1');
   const authToken = optionalTrimmed(env.JOB_HARNESS_AUTH_TOKEN);
+  const allowedHostnames = [...new Set((env.JOB_HARNESS_ALLOWED_HOSTNAMES ?? '').split(',')
+    .map((value) => value.trim().toLowerCase()).filter(Boolean))].map((value) => AllowedHostnameSchema.parse(value));
+  if (allowedHostnames.length && !authToken) {
+    throw new Error('JOB_HARNESS_AUTH_TOKEN is required with JOB_HARNESS_ALLOWED_HOSTNAMES');
+  }
   if ((host === '0.0.0.0' || host === '::') && !authToken) {
     throw new Error('JOB_HARNESS_AUTH_TOKEN is required when binding to a non-loopback interface');
   }
@@ -56,6 +63,7 @@ export function readServerRuntimeConfig(env: NodeJS.ProcessEnv = process.env): S
   return {
     databasePath: resolve(optionalTrimmed(env.JOB_HARNESS_DB) ?? './data/job-harness.db'),
     host,
+    allowedHostnames,
     port: PortSchema.parse(optionalTrimmed(env.JOB_HARNESS_PORT) ?? '3000'),
     authToken,
     executorAuthToken: optionalTrimmed(env.JOB_HARNESS_EXECUTOR_AUTH_TOKEN),

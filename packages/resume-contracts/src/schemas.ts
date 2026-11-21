@@ -124,11 +124,22 @@ export const ResumeProjectPresentationSchema = z
   })
   .strict();
 
+export const ResumeEvidenceUrlSchema = z.url().refine((raw) => {
+  try {
+    const parsed = new URL(raw);
+    return (parsed.protocol === 'https:' || parsed.protocol === 'http:')
+      && !parsed.username && !parsed.password;
+  } catch {
+    return false;
+  }
+}, 'evidence URL must be a safe HTTP(S) link');
+
 export const ResumeProjectHighlightSchema = z
   .object({
     id: ResumeEntityIdSchema,
     label: LocalizedTextSchema.nullable().default(null),
     detail: LocalizedRichTextSchema,
+    evidenceUrl: ResumeEvidenceUrlSchema.optional(),
   })
   .strict();
 
@@ -335,7 +346,7 @@ export const ResolvedResumeSchema = z
     education: z.array(z.object({ id: ResumeEntityIdSchema, institution: z.string(), institutionTag: z.string().nullable(), major: z.string(), degree: z.string(), department: z.string().nullable(), studyType: z.string().nullable(), location: z.string().nullable(), period: ResolvedResumePeriodSchema, courseSummary: z.string().nullable() }).strict()),
     skills: z.array(z.object({ id: ResumeEntityIdSchema, label: z.string().nullable(), content: z.string(), keywords: z.array(z.string()) }).strict()),
     workExperiences: z.array(z.object({ id: ResumeEntityIdSchema, company: z.string(), role: z.string(), department: z.string().nullable(), location: z.string().nullable(), period: ResolvedResumePeriodSchema, bullets: z.array(z.object({ id: ResumeEntityIdSchema, content: z.string() }).strict()) }).strict()),
-    projects: z.array(z.object({ id: ResumeEntityIdSchema, name: z.string(), role: z.string().nullable(), location: z.string().nullable(), period: ResolvedResumePeriodSchema, links: z.array(z.object({ label: z.string().nullable(), url: z.url() }).strict()), description: z.string(), stack: z.string().nullable(), highlights: z.array(z.object({ id: ResumeEntityIdSchema, label: z.string().nullable(), detail: z.string() }).strict()) }).strict()),
+    projects: z.array(z.object({ id: ResumeEntityIdSchema, name: z.string(), role: z.string().nullable(), location: z.string().nullable(), period: ResolvedResumePeriodSchema, links: z.array(z.object({ label: z.string().nullable(), url: z.url() }).strict()), description: z.string(), stack: z.string().nullable(), highlights: z.array(z.object({ id: ResumeEntityIdSchema, label: z.string().nullable(), detail: z.string(), evidenceUrl: ResumeEvidenceUrlSchema.optional() }).strict()) }).strict()),
     certificates: z.array(z.object({ id: ResumeEntityIdSchema, label: z.string(), issuer: z.string().nullable(), issuedAt: ResumeYearMonthSchema.nullable() }).strict()),
     summaries: z.array(z.object({ id: ResumeEntityIdSchema, label: z.string().nullable(), detail: z.string() }).strict()),
   })
