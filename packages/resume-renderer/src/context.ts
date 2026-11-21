@@ -38,6 +38,18 @@ export function safeProjectLinkHref(input: string): string | null {
   }
 }
 
+function compactContactText(value: string | null): string {
+  if (!value) return '';
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return value;
+    const path = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/$/u, '');
+    return parsed.host + path;
+  } catch {
+    return value;
+  }
+}
+
 export interface ResumeTemplateContextOptions {
   readonly title?: string;
   readonly description?: string;
@@ -58,6 +70,10 @@ export function toResumeTemplateContext(resume: ResolvedResume, options: ResumeT
     positioning: resume.positioning,
     headerTemplate: resume.layout.header,
     contact: resume.basics.contact,
+    compactContact: {
+      website: compactContactText(resume.basics.contact.website),
+      github: compactContactText(resume.basics.contact.github),
+    },
     education: resume.education.map((item) => ({
       school: item.institution,
       schoolTag: item.institutionTag,
@@ -98,7 +114,12 @@ export function toResumeTemplateContext(resume: ResolvedResume, options: ResumeT
       }),
       description: item.description,
       stack: item.stack,
-      highlights: item.highlights.map((highlight) => ({ label: highlight.label ?? '', detail: highlight.detail })),
+      highlights: item.highlights.map((highlight) => ({
+        label: highlight.label ?? '',
+        detail: highlight.detail,
+        evidenceUrl: highlight.evidenceUrl ? safeProjectLinkHref(highlight.evidenceUrl) : null,
+        evidenceLabel: highlight.label?.trim() || (lang === 'zh' ? '相关说明' : 'Evidence'),
+      })),
     })),
     certificates: resume.certificates.map((item) => item.label),
     summary: resume.summaries.map((item) => ({ label: item.label ?? '', detail: item.detail })),

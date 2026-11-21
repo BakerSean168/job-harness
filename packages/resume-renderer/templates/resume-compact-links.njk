@@ -1,7 +1,11 @@
 {% extends "base.njk" %}
 
 {% block content %}
-  {% include "blocks/header.njk" %}
+  {% if headerTemplate == "with-photo" %}
+    {% include "blocks/header-with-photo.njk" %}
+  {% else %}
+    {% include "blocks/header-compact-inline.njk" %}
+  {% endif %}
 
   {% for section in sections %}
     {% if section == "education" %}

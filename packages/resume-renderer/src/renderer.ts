@@ -49,7 +49,14 @@ export function renderResumeHtml(input: ResolvedResume, options: RenderResumeHtm
   const template = resume.templateId === 'compact-project-links-v2'
     ? 'resume-compact-links.njk'
     : 'resume.njk';
-  return createEnvironment().render(template, toResumeTemplateContext(resume, options));
+  const html = createEnvironment().render(template, toResumeTemplateContext(resume, options));
+  if (resume.templateId !== 'compact-project-links-v2') return html;
+
+  // Keep the frozen legacy template/CSS untouched. Compact resumes opt in to
+  // a shared, dedicated layout so all current profiles render consistently.
+  const compactCss = fs.readFileSync(path.join(templatesDir, 'styles', 'resume-compact-links.css'), 'utf8')
+    .replace(/<\/style/gi, '<\\/style');
+  return html.replace('</head>', '<style data-resume-compact-links>\n' + compactCss + '\n</style>\n</head>');
 }
 
 

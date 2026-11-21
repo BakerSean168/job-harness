@@ -38,6 +38,17 @@ describe('resolveResume', () => {
     expect(resolved.workExperiences[0]?.bullets[0]?.content).toBe('定向描述');
   });
 
+  it.each(['zh-CN', 'en'] as const)('preserves evidence through selections and overrides in %s', (locale) => {
+    const enriched = structuredClone(library);
+    enriched.projects[0]!.highlights[0]!.evidenceUrl = 'https://example.com/article#runtime';
+    const resolved = resolveResume(enriched, profile(locale));
+    expect(resolved.projects[0]!.highlights[0]).toMatchObject({
+      evidenceUrl: 'https://example.com/article#runtime',
+      detail: locale === 'en' ? 'Tailored highlight' : '定向亮点',
+    });
+    expect(resolveResume(library, profile(locale)).projects[0]!.highlights[0]!.evidenceUrl).toBeUndefined();
+  });
+
   it('fails closed when a selected field has no target locale', () => {
     const brokenLibrary = ResumeLibrarySchema.parse({ ...library, skills: [{ id: 'agent', content: zh('仅中文') }] });
     expect(() => resolveResume(brokenLibrary, profile('en'))).toThrow(ResumeResolutionError);

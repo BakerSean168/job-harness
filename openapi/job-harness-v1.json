@@ -54953,6 +54953,10 @@
                                         }
                                       },
                                       "additionalProperties": false
+                                    },
+                                    "evidenceUrl": {
+                                      "type": "string",
+                                      "format": "uri"
                                     }
                                   },
                                   "required": [
@@ -56182,6 +56186,10 @@
                                     },
                                     "detail": {
                                       "type": "string"
+                                    },
+                                    "evidenceUrl": {
+                                      "type": "string",
+                                      "format": "uri"
                                     }
                                   },
                                   "required": [
@@ -57505,6 +57513,10 @@
                                         }
                                       },
                                       "additionalProperties": false
+                                    },
+                                    "evidenceUrl": {
+                                      "type": "string",
+                                      "format": "uri"
                                     }
                                   },
                                   "required": [
@@ -58734,6 +58746,10 @@
                                     },
                                     "detail": {
                                       "type": "string"
+                                    },
+                                    "evidenceUrl": {
+                                      "type": "string",
+                                      "format": "uri"
                                     }
                                   },
                                   "required": [
@@ -60576,6 +60592,10 @@
                                     }
                                   },
                                   "additionalProperties": false
+                                },
+                                "evidenceUrl": {
+                                  "type": "string",
+                                  "format": "uri"
                                 }
                               },
                               "required": [
@@ -61932,6 +61952,10 @@
                                       }
                                     },
                                     "additionalProperties": false
+                                  },
+                                  "evidenceUrl": {
+                                    "type": "string",
+                                    "format": "uri"
                                   }
                                 },
                                 "required": [
@@ -62695,6 +62719,10 @@
                                     },
                                     "detail": {
                                       "type": "string"
+                                    },
+                                    "evidenceUrl": {
+                                      "type": "string",
+                                      "format": "uri"
                                     }
                                   },
                                   "required": [
@@ -63995,6 +64023,10 @@
                                       }
                                     },
                                     "additionalProperties": false
+                                  },
+                                  "evidenceUrl": {
+                                    "type": "string",
+                                    "format": "uri"
                                   }
                                 },
                                 "required": [
@@ -65877,6 +65909,10 @@
                                       }
                                     },
                                     "additionalProperties": false
+                                  },
+                                  "evidenceUrl": {
+                                    "type": "string",
+                                    "format": "uri"
                                   }
                                 },
                                 "required": [
@@ -67185,6 +67221,10 @@
                                           },
                                           "detail": {
                                             "type": "string"
+                                          },
+                                          "evidenceUrl": {
+                                            "type": "string",
+                                            "format": "uri"
                                           }
                                         },
                                         "required": [
@@ -68180,6 +68220,10 @@
                                         },
                                         "detail": {
                                           "type": "string"
+                                        },
+                                        "evidenceUrl": {
+                                          "type": "string",
+                                          "format": "uri"
                                         }
                                       },
                                       "required": [
@@ -69212,6 +69256,10 @@
                                         },
                                         "detail": {
                                           "type": "string"
+                                        },
+                                        "evidenceUrl": {
+                                          "type": "string",
+                                          "format": "uri"
                                         }
                                       },
                                       "required": [

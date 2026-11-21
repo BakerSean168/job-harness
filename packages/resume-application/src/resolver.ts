@@ -158,6 +158,7 @@ export function resolveResume(libraryInput: ResumeLibrary, profileInput: ResumeP
           id: highlight.id,
           label: localize(highlight.label, `projectSelections.${index}.highlightIds.${highlightIndex}.label`, true),
           detail: localize(override ?? highlight.detail, `projectSelections.${index}.highlightIds.${highlightIndex}.detail`) ?? '',
+          ...(highlight.evidenceUrl ? { evidenceUrl: highlight.evidenceUrl } : {}),
         }];
       }),
     }];

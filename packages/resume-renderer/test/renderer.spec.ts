@@ -66,6 +66,63 @@ describe('resume renderer', () => {
     expect(html).toContain('2026年01月 - 至今');
   });
 
+  it('renders compact contacts without deleting authored positioning or skill text', () => {
+    const doc = resolved();
+    const html = renderResumeHtml({
+      ...doc,
+      templateId: 'compact-project-links-v2',
+      positioning: '前端开发工程师｜2026届本科毕业生',
+    });
+    const header = html.match(/<header class="resume-header resume-header--without-photo resume-header--compact-inline">[\s\S]*?<\/header>/)?.[0];
+    expect(header).toBeDefined();
+    expect(header).toContain('<h1>测试用户</h1>');
+    expect(header).toContain('前端开发工程师');
+    expect(header).toContain('2026届本科毕业生');
+    expect(header).not.toContain('<svg>');
+    expect(header).toContain('contact-inline-item');
+    expect(header).toContain('example.com');
+    expect(html).toContain('data-resume-compact-links');
+    expect(html).toContain('strict typing');
+    expect(html).toContain('<strong>TypeScript:</strong> strict typing');
+  });
+
+  it('renders optional evidence links only for opted-in project highlights', () => {
+    const doc = resolved();
+    const base = doc.projects[0]!;
+    const enriched = {
+      ...doc,
+      templateId: 'compact-project-links-v2',
+      projects: [{
+        ...base,
+        highlights: [
+          { ...base.highlights[0]!, label: '架构实践：', evidenceUrl: 'https://example.com/notes/architecture/' },
+          { id: 'not-published', label: '草稿：', detail: '保持纯文本，避免无效链接' },
+          { id: 'unsafe-link', label: 'Unsafe:', detail: 'must not render unsafe href', evidenceUrl: 'javascript:alert(1)' },
+        ],
+      }],
+    };
+    // The semantic contract rejects unsafe link values before they reach HTML.
+    expect(() => ResolvedResumeSchema.parse(enriched)).toThrow();
+    enriched.projects[0]!.highlights.pop();
+    const html = renderResumeHtml(ResolvedResumeSchema.parse(enriched));
+    expect(html).toContain('class="resume-evidence-link" href="https://example.com/notes/architecture/"');
+    expect(html).toContain('>架构实践：</a>');
+    expect(html).not.toContain('href="javascript:');
+    expect(html).toContain('<strong>草稿：</strong>保持纯文本');
+  });
+
+  it.each(['zh-CN', 'en'] as const)('names evidence links with absent or blank labels in %s', (locale) => {
+    const doc = resolved(locale);
+    const base = doc.projects[0]!;
+    for (const label of [null, '   ']) {
+      const html = renderResumeHtml({ ...doc, templateId: 'compact-project-links-v2', projects: [{
+        ...base, highlights: [{ ...base.highlights[0]!, label, evidenceUrl: 'https://example.com/evidence' }],
+      }] });
+      expect(html).toContain(`>${locale === 'en' ? 'Evidence' : '相关说明'}</a>`);
+      expect(html).not.toContain('rel="noopener noreferrer"></a>');
+    }
+  });
+
   it('only accepts safe HTTP(S) project links; legacy GitHub labels are recoverable', () => {
     expect(safeProjectLinkHref('GitHub: https://github.com/example/repo')).toBe('https://github.com/example/repo');
     expect(safeProjectLinkHref('https://example.com/showcase')).toBe('https://example.com/showcase');

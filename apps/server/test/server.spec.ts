@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { request } from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -63,6 +64,40 @@ describe('standalone Streamable HTTP MCP server', () => {
     expect(intentList.structuredContent).toMatchObject({ items: [], total: 0 });
 
     await client.close();
+  });
+
+  it('admits only configured proxy hostnames and still enforces bearer authentication', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'job-harness-server-hosts-'));
+    running = await startJobHarnessServer({
+      databasePath: join(dir, 'career.db'), host: '127.0.0.1', port: 0,
+      authToken: 'test-secret', allowedHostnames: ['jobs.example.test'],
+    });
+    // Use node:http so the test sends the exact Host header on the wire.
+    // Fetch may normalize this forbidden header back to the URL's hostname.
+    const getWithHost = (url: string, host: string, authorization?: string) => new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const req = request(url, { headers: { host, ...(authorization ? { authorization } : {}) } }, (response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk: string) => { body += chunk; });
+        response.on('error', reject);
+        response.on('end', () => resolve({ status: response.statusCode ?? 0, body }));
+      });
+      req.on('error', reject);
+      req.end();
+    });
+    expect((await getWithHost(`${running.url}/healthz`, 'jobs.example.test')).status).toBe(200);
+    expect((await getWithHost(`${running.url}/healthz`, 'unexpected.example.test', 'Bearer test-secret')).status).toBe(403);
+    const profilesUrl = `${running.apiUrl}/resume/profiles`;
+    expect((await getWithHost(profilesUrl, 'jobs.example.test')).status).toBe(401);
+    expect((await getWithHost(profilesUrl, 'jobs.example.test', 'Bearer wrong')).status).toBe(401);
+    const response = await getWithHost(profilesUrl, 'jobs.example.test', 'Bearer test-secret');
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({ items: [], total: 0 });
+  });
+
+  it('refuses an unauthenticated additional hostname even through the server API', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'job-harness-server-hosts-auth-'));
+    await expect(startJobHarnessServer({ databasePath: join(dir, 'career.db'), host: '127.0.0.1', port: 0, allowedHostnames: ['jobs.example.test'] })).rejects.toThrow(/authentication/);
   });
 
   it('enforces bearer authentication when configured', async () => {

@@ -1,0 +1,14 @@
+<header class="resume-header resume-header--without-photo resume-header--compact-inline">
+  <div class="header-content">
+    <div class="header-heading">
+      <h1>{{ name }}</h1>
+      {% if positioning %}<span class="header-positioning">{{ positioning }}</span>{% endif %}
+    </div>
+    <div class="header-contact-inline" aria-label="{{ 'Contact' if lang == 'en' else '联系方式' }}">
+      {% if contact.phone %}<span class="contact-inline-item">{{ contact.phone }}</span>{% endif %}
+      {% if contact.email %}<a class="contact-inline-item" href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% endif %}
+      {% if contact.website %}<a class="contact-inline-item" href="{{ contact.website }}" target="_blank" rel="noopener noreferrer">{{ compactContact.website }}</a>{% endif %}
+      {% if lang == 'zh' and contact.github %}<a class="contact-inline-item" href="{{ contact.github }}" target="_blank" rel="noopener noreferrer">{{ compactContact.github }}</a>{% endif %}
+    </div>
+  </div>
+</header>

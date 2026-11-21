@@ -50,7 +50,7 @@ describe('LiepinDiscoveryProvider', () => {
       if (calls === 2) return json({ error: 'temporary' }, 503);
       return json({ flag: 1, data: { data: { jobCardList: [card({ job: { ...card().job, jobId: '12345', jobKind: '2', link: 'not-a-url' } })] } } });
     };
-    const provider = new LiepinDiscoveryProvider({ fetch: fakeFetch, queryDelayMs: 0, maxTerms: 2, pagesPerQuery: 1, detailEnrichment: false, traceIdFactory: () => 'trace' });
+    const provider = new LiepinDiscoveryProvider({ fetch: fakeFetch, queryDelayMs: 0, maxTerms: 2, pagesPerQuery: 1, detailEnrichment: false, traceIdFactory: () => 'trace', now: () => '2026-09-18T10:50:00.000Z' });
     const result = await provider.discover(campaign);
     expect(result.failedQueryCount).toBe(1);
     expect(result.candidates).toHaveLength(1);
